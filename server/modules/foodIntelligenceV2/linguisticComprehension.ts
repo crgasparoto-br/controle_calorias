@@ -229,13 +229,20 @@ function applicable(entry: GovernedLexiconEntry, owner: number | null, now: Date
   }
   return entry.userId === null && entry.status === "verified";
 }
-function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string, owner: number | null, now: Date): GovernedLexiconEntry | null {
+function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string, owner: number | null, now: Date): {
+  selected: GovernedLexiconEntry | null;
+  competing: GovernedLexiconEntry[];
+} {
   const key = foldFoodSurface(surface);
   const matches = entries.filter(entry => applicable(entry, owner, now) && foldFoodSurface(entry.normalizedTerm) === key);
   const personal = matches.filter(entry => entry.scope === "user");
-  const selected = personal.length ? personal : matches.filter(entry => entry.scope === "global");
-  // Ambiguous active meanings must not be selected by arbitrary ordering.
-  return selected.length === 1 ? selected[0] : null;
+  const eligible = personal.length ? personal : matches.filter(entry => entry.scope === "global");
+  // Multiple current meanings are evidence of ambiguity, not permission to
+  // select the first row or silently drop candidate meanings.
+  return {
+    selected: eligible.length === 1 ? eligible[0] : null,
+    competing: eligible.length > 1 ? eligible : [],
+  };
 }
 function detectQualifiers(name: string): FoodObservation["identityHints"]["qualifiers"] {
   const words = [
@@ -431,8 +438,27 @@ export async function comprehendFoodLanguage(
   const results: FoodObservation[] = [];
   for (let i = 0; i < parts.length; i++) {
     let observation = buildObservation(request, parts[i], i);
-    const entry = selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
-    if (entry) observation = withLexicon(observation, entry, entries, request.ownerUserId, now);
+    const lexiconChoice = selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
+    if (lexiconChoice.selected) {
+      observation = withLexicon(observation, lexiconChoice.selected, entries, request.ownerUserId, now);
+    } else if (lexiconChoice.competing.length > 0) {
+      if (lexiconChoice.competing.length > FOOD_CONTRACT_LIMITS.alternatives) {
+        throw new Error("linguistic-ambiguity-limit");
+      }
+      observation.alternatives = lexiconChoice.competing.map(item => ({
+        hypothesisId: "lex-" + item.id,
+        identityHints: { ...observation.identityHints,
+          foodName: item.targetType === "canonical_term" && item.targetRef
+            ? foldFoodSurface(item.targetRef) : observation.identityHints.foodName },
+        quantityHints: { ...observation.quantityHints },
+        evidenceIds: [], confidence: item.confidence,
+      }));
+      observation.normalizationPath.push(...lexiconChoice.competing.map(item => ({
+        stage: "S2" as const, origin: "lexicon" as const,
+        lexiconEntryId: item.id, anchor: observation.surfaceSpan,
+        confidence: item.confidence,
+      })));
+    }
     observation = validate(observation);
     if (observation.unresolvedReason !== null && request.shouldInterpretResidual?.(observation) && interpreter) {
       if (!request.interpreterVersion?.trim()) throw new Error("linguistic-interpreter-version-required");
