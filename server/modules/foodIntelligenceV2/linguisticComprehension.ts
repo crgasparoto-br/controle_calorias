@@ -236,7 +236,8 @@ function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string
   const key = foldFoodSurface(surface);
   const matches = entries.filter(entry => applicable(entry, owner, now) && foldFoodSurface(entry.normalizedTerm) === key);
   const personal = matches.filter(entry => entry.scope === "user");
-  const eligible = personal.length ? personal : matches.filter(entry => entry.scope === "global");
+  const eligible = (personal.length ? personal : matches.filter(entry => entry.scope === "global"))
+    .sort((a, b) => (b.confidence ?? -1) - (a.confidence ?? -1) || a.id - b.id);
   // Multiple current meanings are evidence of ambiguity, not permission to
   // select the first row or silently drop candidate meanings.
   return {
@@ -351,11 +352,13 @@ function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry, 
 
 function addResidual(observation: FoodObservation, payload: unknown, interpreterVersion: string): FoodObservation {
   const parsed = residualPayload.safeParse(payload);
-  if (!parsed.success) return observation; // no unsafe provider payload crosses the boundary
+  if (!parsed.success) throw new Error("invalid-linguistic-interpreter-response");
   const alternatives = [...observation.alternatives];
   const evidence = [...observation.evidence];
-  for (let i = 0; i < parsed.data.alternatives.length; i++) {
-    const proposed = parsed.data.alternatives[i];
+  const hypotheses = [...parsed.data.alternatives].sort((a, b) =>
+    (b.confidence ?? -1) - (a.confidence ?? -1) || a.foodName.localeCompare(b.foodName));
+  for (let i = 0; i < hypotheses.length; i++) {
+    const proposed = hypotheses[i];
     const evidenceId = "ev-s3-" + i;
     evidence.push({ evidenceId, field: "identity.foodName", origin: "ai_estimate",
       value: proposed.foodName, unit: null, confidence: proposed.confidence,
@@ -465,7 +468,16 @@ export async function comprehendFoodLanguage(
       try {
         observation = validate(addResidual(observation, await interpreter(observation), request.interpreterVersion));
       } catch {
-        // Provider unavailable stays unresolved; never silently author identity.
+        // No silent provider fallback: record a typed unavailable evidence with
+        // no invented name, nutrition, or interpreter normalization step.
+        observation = validate({
+          ...observation, unresolvedReason: "provider_unavailable",
+          evidence: [...observation.evidence, {
+            evidenceId: "ev-s3-unavailable-" + i, field: "identity.foodName",
+            origin: "unavailable", value: null, unit: null, confidence: null,
+            verified: false, anchor: observation.surfaceSpan, sourceId: null,
+          }],
+        });
       }
     }
     results.push(observation);
