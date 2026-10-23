@@ -126,6 +126,15 @@ function readQuantity(text: string): { value: number | null; unit: string | null
       return { value, unit, name: source.slice(withUnit[0].length).trim(), servingText: withUnit[0].trim(), uncertain: false };
     }
   }
+  const writtenHalfWithUnit = new RegExp("^(um|uma|\\d+)\\s+e\\s+mei[ao]\\s+(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu").exec(source);
+  if (writtenHalfWithUnit) {
+    const value = parseNumber(writtenHalfWithUnit[1]);
+    const unit = recognizedUnit(writtenHalfWithUnit[2]);
+    if (value !== null && unit !== null) return {
+      value: value + 0.5, unit, name: source.slice(writtenHalfWithUnit[0].length).trim(),
+      servingText: writtenHalfWithUnit[0].trim(), uncertain: false,
+    };
+  }
   const oneAndHalf = /^(um|uma|\d+)\s+e\s+mei[ao]\b\s*(?:de\s+)?/iu.exec(source);
   if (oneAndHalf) {
     const value = parseNumber(oneAndHalf[1]);
