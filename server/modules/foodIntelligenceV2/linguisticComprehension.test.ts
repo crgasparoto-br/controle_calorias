@@ -300,6 +300,8 @@ describe("Camada de Compreensão Linguística #1304", () => {
         kind: "protected_token", targetType: "none", targetRef: null }),
     ]);
     expect(commercial.identityHints.foodName).toBe("doritos");
+    const [unregisteredBrand] = await analyze("2 Doritos");
+    expect(unregisteredBrand.identityHints.foodName).toBe("doritos");
     const [irregular] = await analyze("2 pães");
     expect(irregular.identityHints.foodName).toBe("paes");
   });

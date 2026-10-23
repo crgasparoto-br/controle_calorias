@@ -39,7 +39,8 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
   quantidade resolvida; dois alimentos completos continuam observações distintas.
   A evidência conserva o span e texto original.
 - **Flexão regular segura:** diante de quantidade plural explícita, S1 harmoniza
-  terminações regulares `-os/-as`; términos irregulares permanecem inalterados,
+  concordâncias multi-termo regulares `-os/-as`; flexão isolada sem prova,
+  marcas desconhecidas e términos irregulares permanecem inalterados,
   e tokens protegidos pelo léxico vigente não são transformados. A prova de
   equivalência compara projeções e inclui controles negativos de marca.
 - **S3 por campo:** a saída residual estrita pode propor marca, variante,

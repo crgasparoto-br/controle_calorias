@@ -124,12 +124,16 @@ function withSafeRegularAgreement(
     .map(entry => foldFoodSurface(entry.normalizedTerm));
   const protectedWords = new Set(protectedTerms.flatMap(term => term.split(/\s+/u)));
   const tokens = original.split(/\s+/u);
-  const regular = tokens.map(token => {
+  const inflected = tokens.map(token => {
     if (protectedWords.has(token)) return token;
     const match = /^(.{2,}[ao])s$/u.exec(token);
     return match ? match[1] : token;
-  }).join(" ");
-  if (regular === original) return observation;
+  });
+  const changed = inflected.filter((token, index) => token !== tokens[index]).length;
+  // A single unknown -os/-as token can be a brand (e.g. Doritos), not a
+  // common noun. Do not rewrite its identity without agreement evidence.
+  if (changed < 2) return observation;
+  const regular = inflected.join(" ");
   return {
     ...observation, normalizedInput: regular,
     identityHints: {
