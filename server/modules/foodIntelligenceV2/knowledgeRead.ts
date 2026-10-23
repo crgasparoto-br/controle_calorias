@@ -91,7 +91,7 @@ export function isExternalFoodAssertionConsistent(
   // A name-only request cannot select nutrition for one particular SKU.
   // A matching explicit barcode is sufficient to scope a branded candidate,
   // even when the user did not separately state its brand.
-  if (!barcode && (identity.barcode?.trim() || (!brand && normalizeFoodName(identity.brand ?? "")))) {
+  if (!brand && !barcode && (identity.barcode?.trim() || normalizeFoodName(identity.brand ?? ""))) {
     return false;
   }
   if (brand && normalizeFoodName(identity.brand ?? "") !== normalizeFoodName(brand)) return false;

@@ -135,9 +135,17 @@ describe("B2 — porta governada e cache-through", () => {
       sourceId: 7, sourceReference: "https://example.org/products/panco-pao",
       nutrition, identity: { name: "pao integral", brand: "Panco", barcode: "07890000000001" },
     });
+    // A known brand + compatible name remains usable as provisional even if
+    // the source additionally supplies a barcode the user did not type.
+    expect(await readThroughGovernedKnowledge({ ...base, brand: "Panco" }, f.store, external))
+      .toMatchObject({ kind: "provisional", persisted: true });
+    external.mockResolvedValueOnce({
+      sourceId: 7, sourceReference: "https://example.org/products/panco-pao",
+      nutrition, identity: { name: "pao integral", brand: "Panco", barcode: "07890000000001" },
+    });
     expect(await readThroughGovernedKnowledge({ ...base, barcode: "07890000000001" }, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: true });
-    expect(f.stage).toHaveBeenCalledTimes(2);
+    expect(f.stage).toHaveBeenCalledTimes(3);
   });
 
   it("nao grava evidencias externas sem titular, mesmo com resultado de rede", async () => {
