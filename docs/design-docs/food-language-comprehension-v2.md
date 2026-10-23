@@ -32,6 +32,22 @@ A identidade autenticada e a revisão vêm do envelope de operação, nunca da s
 
 MealOperation permanece propriedade do parser operacional. A LCL não escolhe SKU, perfil, fonte nutricional, gramatura, destino da refeição ou interação; unknown_surface não é descartado por ausência em catálogo/allowlist. Locale diferente de pt-BR é unsupported_locale; porções vagas não ganham quantidade exata.
 
+## Remediação de auditoria C1
+
+- **Equivalência de ordem:** quantidades posteriores à vírgula e sem alimento próprio
+  permanecem vinculadas ao alimento imediatamente anterior quando este não tem
+  quantidade resolvida; dois alimentos completos continuam observações distintas.
+  A evidência conserva o span e texto original.
+- **Flexão regular segura:** diante de quantidade plural explícita, S1 harmoniza
+  terminações regulares `-os/-as`; términos irregulares permanecem inalterados,
+  e tokens protegidos pelo léxico vigente não são transformados. A prova de
+  equivalência compara projeções e inclui controles negativos de marca.
+- **S3 por campo:** a saída residual estrita pode propor marca, variante,
+  preparo e qualificadores com papel semântico, criando evidência individual
+  `ai_estimate` não verificada para cada atributo. As propostas não alteram
+  identidade selecionada nem invertem qualificador explícito. S3 permanece
+  inativo por padrão até a política calibrada de #1306.
+
 ## Gates
 
 ~~~bash

@@ -272,6 +272,79 @@ describe("Camada de Compreensão Linguística #1304", () => {
     await expect(comprehendFoodLanguage(base, broken)).rejects.toThrow("db-offline");
   });
 
+  it("mantém a quantidade posterior à vírgula vinculada ao alimento e não funde dois alimentos", async () => {
+    const [trailing] = await analyze("adicionar mortadela, uma fatia e meia");
+    const [leading] = await analyze("adicionar 1,5 fatias de mortadela");
+    const [numeric] = await analyze("adicionar mortadela, 1.5 fatias");
+    for (const item of [trailing, leading, numeric]) {
+      expect(item.identityHints.foodName).toBe("mortadela");
+      expect(item.quantityHints).toMatchObject({ value: 1.5, unit: "fatia" });
+      expect(item.rawInput.slice(item.surfaceSpan.span!.start, item.surfaceSpan.span!.end))
+        .toContain("mortadela");
+    }
+    expect((await analyze("mortadela, duas bananas"))).toHaveLength(2);
+    const [first, second] = await analyze("mortadela, duas bananas");
+    expect(first.identityHints.foodName).toBe("mortadela");
+    expect(second.identityHints.foodName).toBe("banana");
+    expect(second.quantityHints.value).toBe(2);
+  });
+
+  it("converge flexões regulares sem lista por alimento e preserva marcas protegidas", async () => {
+    const [a] = await analyze("dois ovo cozido");
+    const [b] = await analyze("2 ovos cozidos");
+    expect(a.identityHints.foodName).toBe("ovo cozido");
+    expect(b.identityHints.foodName).toBe(a.identityHints.foodName);
+    expect(b.identityHints.qualifiers).toEqual(a.identityHints.qualifiers);
+    const [commercial] = await analyze("2 Doritos", [
+      entry({ id: 90, normalizedTerm: "doritos", term: "Doritos",
+        kind: "protected_token", targetType: "none", targetRef: null }),
+    ]);
+    expect(commercial.identityHints.foodName).toBe("doritos");
+    const [irregular] = await analyze("2 pães");
+    expect(irregular.identityHints.foodName).toBe("paes");
+  });
+
+  it("S3 adiciona atributos semânticos com evidência por campo, sem tomar decisões", async () => {
+    const [obs] = await comprehendFoodLanguage({
+      ...base, rawText: "sanduíche", shouldInterpretResidual: () => true,
+      interpreterVersion: "s3-v2",
+    }, store(), async () => ({ alternatives: [{
+      foodName: "sanduíche integral", confidence: 0.75, brand: "marca exemplo",
+      variant: "integral", preparation: ["tostado"],
+      qualifiers: [{
+        value: "integral", attributeCode: null, role: "processing", confidence: 0.7,
+      }],
+    }] }));
+    expect(obs.identityHints.foodName).toBe("sanduiche");
+    expect(obs.alternatives[0].identityHints).toMatchObject({
+      foodName: "sanduíche integral", brand: "marca exemplo", variant: "integral",
+      preparation: ["tostado"], qualifiers: [{ value: "integral", role: "processing" }],
+    });
+    const fields = obs.alternatives[0].evidenceIds.map(id =>
+      obs.evidence.find(evidence => evidence.evidenceId === id)?.field);
+    expect(fields).toEqual([
+      "identity.foodName", "identity.brand", "identity.variant",
+      "identity.preparation", "identity.qualifiers",
+    ]);
+    expect(obs.evidence.filter(e => e.origin === "ai_estimate").every(e => !e.verified)).toBe(true);
+    expect("nutrition" in obs).toBe(false);
+  });
+
+  it("S3 não pode inverter qualificador explícito nem contornar o schema estrito", async () => {
+    const [obs] = await comprehendFoodLanguage({
+      ...base, rawText: "café sem açúcar", shouldInterpretResidual: () => true,
+      interpreterVersion: "s3-v2",
+    }, store(), async () => ({ alternatives: [{
+      foodName: "café com açúcar", confidence: 0.8,
+      qualifiers: [{ value: "com açúcar", attributeCode: null,
+        role: "sweetening", confidence: 0.8 }],
+    }] }));
+    expect(obs.unresolvedReason).toBe("provider_unavailable");
+    expect(obs.identityHints.qualifiers[0].value).toBe("sem açúcar");
+    expect(obs.alternatives).toHaveLength(0);
+    expect(obs.evidence.some(e => e.origin === "unavailable")).toBe(true);
+  });
+
   it("não cria MealOperation ou decisão nutricional na observação", async () => {
     const [obs] = await analyze("2 ovos");
     expect("mealOperation" in obs).toBe(false);

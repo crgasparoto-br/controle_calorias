@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS } from "./contracts";
+import { foodQualifierSchema } from "./schemaShared";
 import { parseFoodObservation, type FoodObservation } from "./schemas";
 
 export type LinguisticModality = "text" | "audio_transcript" | "image";
@@ -58,6 +59,10 @@ const residualPayload = z.strictObject({
   alternatives: z.array(z.strictObject({
     foodName: z.string().trim().min(1).max(300),
     confidence: z.number().finite().min(0).max(1).nullable(),
+    brand: z.string().trim().min(1).max(200).nullable().optional(),
+    variant: z.string().trim().min(1).max(200).nullable().optional(),
+    preparation: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+    qualifiers: z.array(foodQualifierSchema).max(FOOD_CONTRACT_LIMITS.qualifiers).optional(),
   })).max(FOOD_CONTRACT_LIMITS.alternatives),
 });
 export type ResidualInterpreter = (input: Readonly<FoodObservation>) => Promise<unknown>;
@@ -143,6 +148,15 @@ function readQuantity(text: string): { value: number | null; unit: string | null
     const value = parseNumber(oneAndHalf[1]);
     if (value !== null) return { value: value + 0.5, unit: "un", name: source.slice(oneAndHalf[0].length).trim(), servingText: oneAndHalf[0].trim(), uncertain: false };
   }
+  // A comma-delimited trailing quantity can describe the preceding food:
+  // "mortadela, uma fatia e meia". Do not manufacture another food item.
+  const trailing = /^(.+?),\s*(.+)$/u.exec(source);
+  if (trailing) {
+    const suffix = readQuantity(trailing[2]);
+    if (suffix.value !== null && suffix.unit !== null && !suffix.name) {
+      return { ...suffix, name: trailing[1].trim() };
+    }
+  }
   const simple = counted.exec(source);
   if (simple) {
     const value = parseNumber(simple[1]);
@@ -174,8 +188,21 @@ export function splitFoodSurface(text: string): Segment[] {
     }
   }
   cut(text.length, text.length);
-  const joined: Segment[] = [];
+  const coalesced: Segment[] = [];
   for (const segment of segments) {
+    const previous = coalesced.at(-1);
+    const amount = readQuantity(segment.text);
+    if (previous && amount.value !== null && amount.unit !== null && !amount.name &&
+        readQuantity(previous.text).value === null &&
+        /^\s*,\s*$/u.test(text.slice(previous.end, segment.start))) {
+      const merged = trimSpan(text, previous.start, segment.end);
+      if (merged) coalesced[coalesced.length - 1] = merged;
+    } else {
+      coalesced.push(segment);
+    }
+  }
+  const joined: Segment[] = [];
+  for (const segment of coalesced) {
     // Do not split "fatia e meia", "um e meio" or phrases without a clear list boundary.
     const separator = /\s+e\s+(?=(?:\d|um\b|uma\b|dois\b|duas\b|tr[eê]s\b))/giu;
     let offset = 0;
@@ -229,6 +256,38 @@ function applicable(entry: GovernedLexiconEntry, owner: number | null, now: Date
   }
   return entry.userId === null && entry.status === "verified";
 }
+/**
+ * Fold only regular -os/-as agreement with an explicit plural count. Preserve
+ * irregular endings, unknown protected commercial tokens and the raw evidence.
+ * The governed lexicon can still supply irregular, contextual inflection.
+ */
+function withSafeRegularAgreement(
+  observation: FoodObservation, entries: readonly GovernedLexiconEntry[],
+  owner: number | null, now: Date,
+): FoodObservation {
+  const original = observation.identityHints.foodName;
+  if (!original || observation.quantityHints.value === null ||
+      observation.quantityHints.value <= 1) return observation;
+  const protectedTerms = entries.filter(entry =>
+    entry.kind === "protected_token" && applicable(entry, owner, now))
+    .map(entry => foldFoodSurface(entry.normalizedTerm));
+  const protectedWords = new Set(protectedTerms.flatMap(term => term.split(/\s+/u)));
+  const tokens = original.split(/\s+/u);
+  const regular = tokens.map(token => {
+    if (protectedWords.has(token)) return token;
+    const match = /^(.{2,}[ao])s$/u.exec(token);
+    return match ? match[1] : token;
+  }).join(" ");
+  if (regular === original) return observation;
+  return {
+    ...observation, normalizedInput: regular,
+    identityHints: {
+      ...observation.identityHints, foodName: regular,
+      qualifiers: detectQualifiers(regular),
+    },
+  };
+}
+
 function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string, owner: number | null, now: Date): {
   selected: GovernedLexiconEntry | null;
   competing: GovernedLexiconEntry[];
@@ -359,13 +418,59 @@ function addResidual(observation: FoodObservation, payload: unknown, interpreter
     (b.confidence ?? -1) - (a.confidence ?? -1) || a.foodName.localeCompare(b.foodName));
   for (let i = 0; i < hypotheses.length; i++) {
     const proposed = hypotheses[i];
-    const evidenceId = "ev-s3-" + i;
-    evidence.push({ evidenceId, field: "identity.foodName", origin: "ai_estimate",
-      value: proposed.foodName, unit: null, confidence: proposed.confidence,
-      verified: false, anchor: observation.surfaceSpan, sourceId: null });
+    const existing = observation.identityHints;
+    // Explicit material qualifiers are evidence, not proposals the provider may invert.
+    for (const qualifier of proposed.qualifiers ?? []) {
+      if (qualifier.role !== null && existing.qualifiers.some(explicit =>
+        explicit.role === qualifier.role &&
+        foldFoodSurface(explicit.value) !== foldFoodSurface(qualifier.value))) {
+        throw new Error("contradictory-linguistic-interpreter-qualifier");
+      }
+    }
+    if (proposed.preparation?.length && existing.qualifiers.some(q =>
+      q.role === "preparation" &&
+      !proposed.preparation!.some(value => foldFoodSurface(value) === foldFoodSurface(q.value)))) {
+      throw new Error("contradictory-linguistic-interpreter-preparation");
+    }
+    const evidenceIds: string[] = [];
+    const addEvidence = (field: string, value: string, confidence: number | null) => {
+      const evidenceId = "ev-s3-" + i + "-" + evidenceIds.length;
+      evidence.push({
+        evidenceId, field, origin: "ai_estimate", value, unit: null,
+        confidence, verified: false, anchor: observation.surfaceSpan, sourceId: null,
+      });
+      evidenceIds.push(evidenceId);
+    };
+    addEvidence("identity.foodName", proposed.foodName, proposed.confidence);
+    if (proposed.brand) addEvidence("identity.brand", proposed.brand, proposed.confidence);
+    if (proposed.variant) addEvidence("identity.variant", proposed.variant, proposed.confidence);
+    for (const preparation of proposed.preparation ?? []) {
+      addEvidence("identity.preparation", preparation, proposed.confidence);
+    }
+    for (const qualifier of proposed.qualifiers ?? []) {
+      addEvidence("identity.qualifiers", qualifier.value, qualifier.confidence ?? proposed.confidence);
+    }
+    const qualifiers = [...existing.qualifiers];
+    for (const qualifier of proposed.qualifiers ?? []) {
+      if (!qualifiers.some(value => foldFoodSurface(value.value) === foldFoodSurface(qualifier.value))) {
+        qualifiers.push(qualifier);
+      }
+    }
+    const preparation = [...existing.preparation];
+    for (const value of proposed.preparation ?? []) {
+      if (!preparation.some(item => foldFoodSurface(item) === foldFoodSurface(value))) {
+        preparation.push(value);
+      }
+    }
     alternatives.push({
-      hypothesisId: "s3-" + i, identityHints: { ...observation.identityHints, foodName: proposed.foodName },
-      quantityHints: { ...observation.quantityHints }, evidenceIds: [evidenceId],
+      hypothesisId: "s3-" + i,
+      identityHints: {
+        ...existing, foodName: proposed.foodName,
+        brand: proposed.brand ?? existing.brand,
+        variant: proposed.variant ?? existing.variant,
+        preparation, qualifiers,
+      },
+      quantityHints: { ...observation.quantityHints }, evidenceIds,
       confidence: proposed.confidence,
     });
   }
@@ -440,7 +545,9 @@ export async function comprehendFoodLanguage(
   if (entries.length > 5000) throw new Error("linguistic-lexicon-limit");
   const results: FoodObservation[] = [];
   for (let i = 0; i < parts.length; i++) {
-    let observation = buildObservation(request, parts[i], i);
+    let observation = withSafeRegularAgreement(
+      buildObservation(request, parts[i], i), entries, request.ownerUserId, now,
+    );
     const lexiconChoice = selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
     if (lexiconChoice.selected) {
       observation = withLexicon(observation, lexiconChoice.selected, entries, request.ownerUserId, now);
