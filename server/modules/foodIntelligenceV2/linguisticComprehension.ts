@@ -291,7 +291,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
     identityHints: observed, quantityHints: q, evidence,
     normalizationPath: supported ? [{ stage: "S1", origin: "deterministic", lexiconEntryId: null, anchor: anchor(request.sourceRef, { start: foodSegment.start, end: foodSegment.end }), confidence: null }] : [],
     alternatives: [],
-    unresolvedReason: !supported ? "unsupported_locale" : !name || quantity?.uncertain ? "unknown_surface" : null,
+    unresolvedReason: !supported ? "unsupported_locale" : "unknown_surface",
     lexiconRevision: request.lexiconRevision, interpreterVersion: null,
   };
 }
@@ -314,6 +314,7 @@ function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry):
   } else if (target && entry.kind !== "protected_token") {
     snapshot.identityHints.foodName = target;
     snapshot.normalizedInput = target;
+    snapshot.unresolvedReason = null;
   }
   snapshot.normalizationPath.push({
     stage: "S2", origin: "lexicon", lexiconEntryId: entry.id, anchor: snapshot.surfaceSpan,
