@@ -184,7 +184,9 @@ describe("Camada de Compreensão Linguística #1304", () => {
 
   it("colisões do mesmo escopo não são resolvidas pela ordem do array", async () => {
     const [obs] = await analyze("meu pão", [entry(), entry({ id: 19, targetRef: "outra coisa" })]);
-    expect(obs.normalizationPath.map(step => step.stage)).toEqual(["S1"]);
+    expect(obs.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2", "S2"]);
+    expect(obs.alternatives.map(item => item.identityHints.foodName)).toEqual(["pao de forma", "outra coisa"]);
+    expect(obs.unresolvedReason).toBe("unknown_surface");
   });
 
   it("typo ou variante são apenas hipótese e não substituição silenciosa", async () => {
