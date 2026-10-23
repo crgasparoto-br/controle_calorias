@@ -78,6 +78,13 @@ function isCanonicalLinguisticGrammar(
     if (rule.id === "2" && rule.kind === "function" &&
         finding.symbol === "selectLexicon") return true;
   }
+  // Pure surface syntax is isolated from the LCL orchestrator. This
+  // narrowly permits numeric/unit lexical regex in that single canonical owner.
+  if (file === "server/modules/foodIntelligenceV2/linguisticSurface.ts" &&
+      ["17", "18"].includes(rule.id) && rule.kind === "literal-regex-test" &&
+      /^(?:foldFoodSurface|parseNumber|readQuantity|splitFoodSurface):lexical-regex$/u.test(finding.symbol)) {
+    return true;
+  }
   // A dynamic store callback holding no food catalog is not a literal food map.
   return file === "server/modules/foodIntelligenceV2/linguisticLexiconRepository.ts" &&
     rule.id === "17" && rule.kind === "collection" &&

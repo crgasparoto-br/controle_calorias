@@ -83,9 +83,10 @@ describe("AUD1300 isolated test-fixture reachability", () => {
 describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
   const file = "server/modules/foodIntelligenceV2/linguisticComprehension.ts";
   const repositoryFile = "server/modules/foodIntelligenceV2/linguisticLexiconRepository.ts";
+  const surfaceFile = "server/modules/foodIntelligenceV2/linguisticSurface.ts";
 
   it("accepts only the canonical syntactic S1/S2 owner, not competing lexical channel rules", () => {
-    for (const path of [file, repositoryFile]) {
+    for (const path of [file, surfaceFile, repositoryFile]) {
       const content = readFileSync(path, "utf8");
       const findings = findFoodStaticCandidates([{ path, content }]);
       expect(findings).toEqual([]);
@@ -104,6 +105,15 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
       expect(findings.some(f => f.ruleId === "18" &&
         f.symbol === `comprehendFoodLanguage:${operand}:lexical-branch`)).toBe(true);
     }
+  });
+
+  it("does not allow the extracted surface owner to hide food-specific nutrition maps", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    const infected = source + '\nexport const FOOD_NUTRITION_BY_NAME = { arroz: 120, feijao: 80 };\n'
+      + 'export function getFoodNutrition(name: string) {'
+      + ' return FOOD_NUTRITION_BY_NAME[name as keyof typeof FOOD_NUTRITION_BY_NAME]; }';
+    const findings = findFoodStaticCandidates([{ path: surfaceFile, content: infected }]);
+    expect(findings.some(f => f.ruleId === "5" || f.ruleId === "17")).toBe(true);
   });
 
   it("still rejects a literal nutrition lookup added inside the canonical owner", () => {

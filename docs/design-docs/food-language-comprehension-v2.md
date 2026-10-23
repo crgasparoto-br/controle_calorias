@@ -4,7 +4,7 @@ Fonte normativa: [ADR Food Intelligence Resolver V2](adr-food-intelligence-resol
 
 ## Estado de adoção
 
-Os módulos server/modules/foodIntelligenceV2/linguisticComprehension.ts e linguisticLexiconRepository.ts são **candidatos isolados da fase C1**. Não são importados pelos entrypoints V1 de produção; não fazem cutover, persistência de refeição, consulta nutricional ou publicação de vocabulário.
+Os módulos server/modules/foodIntelligenceV2/linguisticComprehension.ts, linguisticSurface.ts e linguisticLexiconRepository.ts são **candidatos isolados da fase C1**. Não são importados pelos entrypoints V1 de produção; não fazem cutover, persistência de refeição, consulta nutricional ou publicação de vocabulário.
 
 - **S1:** observações de texto, transcrição e legenda, normalização Unicode/acentuação/caixa; itens sem quebra de vírgula decimal; numerais e unidades; spans UTF-16 do original e evidências por campo. Normalizar texto não equivale a escolher identidade.
 - **S2:** lê léxico global verificado e pessoal confirmado, em tabelas/escopos separados com proprietário autenticado, vigência e grants de fontes globais. A revisão inclui proprietário, entradas ativas e versões de fonte. Revisão obsoleta rejeita a leitura. Typo, mudança material de qualificador e remoção de token protegido geram hipótese, não correção silenciosa.
