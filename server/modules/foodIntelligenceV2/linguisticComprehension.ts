@@ -87,6 +87,17 @@ function foodOnlySpan(full: string, segment: Segment): Segment {
   if (prefix) {
     start += prefix[0].length;
     value = full.slice(start, end);
+  } else {
+    // A bare meal destination is framing only when a complete quantity-led
+    // food phrase follows. Otherwise retain it as original surface evidence.
+    const bareMeal = new RegExp("^(?:no|na)\\s+" + meal + "\\s+", "iu").exec(value);
+    if (bareMeal) {
+      const following = readQuantity(value.slice(bareMeal[0].length));
+      if (following.value !== null && following.name.trim()) {
+        start += bareMeal[0].length;
+        value = full.slice(start, end);
+      }
+    }
   }
   // Meal framing may be trailing without an initial command.
   // Its semantic operation belongs exclusively to the canonical parser.
@@ -138,6 +149,10 @@ function withSafeRegularAgreement(
     .map(entry => foldFoodSurface(entry.normalizedTerm));
   const protectedWords = new Set(protectedTerms.flatMap(term => term.split(/\s+/u)));
   const tokens = original.split(/\s+/u);
+  // A standalone -itos/-itas plural can be an unchanged commercial name,
+  // even if typed in lowercase. Without a governed alias or independent
+  // agreement, keep that surface instead of inventing a singular identity.
+  if (tokens.length === 1 && /^[\p{L}]{3,}it[oa]s$/u.test(tokens[0])) return observation;
   const inflected = tokens.map(token => {
     if (protectedWords.has(token)) return token;
     const match = /^(.{2,}[ao])s$/u.exec(token);
