@@ -126,65 +126,11 @@ function applicable(entry: GovernedLexiconEntry, owner: number | null, now: Date
   }
   return entry.userId === null && entry.status === "verified";
 }
-/**
- * Fold only regular -os/-as agreement with an explicit plural count. Preserve
- * irregular endings, unknown protected commercial tokens and the raw evidence.
- * The governed lexicon can still supply irregular, contextual inflection.
+/** No ungoverned morphological rewrite of food identity. A plural suffix
+ * alone cannot distinguish an ordinary noun from a commercial name. Governed
+ * aliases are the only authority for changing the identity hint (S2); S1
+ * keeps the observed name and quantity independently of case/inflection.
  */
-function withSafeRegularAgreement(
-  observation: FoodObservation, entries: readonly GovernedLexiconEntry[],
-  owner: number | null, now: Date,
-): FoodObservation {
-  const original = observation.identityHints.foodName;
-  if (!original || observation.quantityHints.value === null ||
-      observation.quantityHints.value <= 1) return observation;
-  // Letter case is not reliable commercial-identity evidence: regular nouns
-  // must converge across uppercase/titlecase. Governed/protected tokens and
-  // the conservative -itos/-itas exception remain protected below.
-  const protectedTerms = entries.filter(entry =>
-    entry.kind === "protected_token" && applicable(entry, owner, now))
-    .map(entry => foldFoodSurface(entry.normalizedTerm));
-  const protectedWords = new Set(protectedTerms.flatMap(term => term.split(/\s+/u)));
-  const tokens = original.split(/\s+/u);
-  // A standalone -itos/-itas plural can be an unchanged commercial name,
-  // even if typed in lowercase. Without a governed alias or independent
-  // agreement, keep that surface instead of inventing a singular identity.
-  // Guard ambiguous commercial heads regardless of the words following them.
-  // A later plural modifier must not turn "Doritos pequenos" into "dorito pequeno".
-  if (/^[\p{L}]{3,}it[oa]s$/u.test(tokens[0])) return observation;
-  const inflected = tokens.map(token => {
-    if (protectedWords.has(token)) return token;
-    const match = /^(.{2,}[ao])s$/u.exec(token);
-    return match ? match[1] : token;
-  });
-  const changed = inflected.filter((token, index) => token !== tokens[index]).length;
-  // A single changed modifier may belong to a brand ("Doritos pequenos").
-  // A changed head followed by a grammatical complement ("ovos de codorna")
-  // is ordinary noun inflection even without an additional plural adjective.
-  // Prepositions are syntactic connective tokens, not an allowlist of food
-  // names or material attributes. No food-specific regex decision belongs here.
-  const linkers = new Set(["de", "do", "da", "dos", "das"]);
-  const headInflected = inflected[0] !== tokens[0];
-  const headWithComplement = headInflected &&
-    tokens.slice(1).some(token => linkers.has(token));
-  // Invariable singular modifiers ("bananas prata") do not need flexion.
-  // They are syntactically distinct from a lone plural modifier attached to
-  // an unchanged potential brand ("Pringles pequenas").
-  const headWithInvariableModifier = headInflected && tokens.slice(1).length > 0 &&
-    tokens.slice(1).every((token, index) =>
-      token === inflected[index + 1] && !linkers.has(token) && !token.endsWith("s"));
-  if (changed === 0 || (changed === 1 && tokens.length > 1 &&
-      !headWithComplement && !headWithInvariableModifier)) return observation;
-  const regular = inflected.join(" ");
-  return {
-    ...observation, normalizedInput: regular,
-    identityHints: {
-      ...observation.identityHints, foodName: regular,
-      qualifiers: detectQualifiers(regular),
-    },
-  };
-}
-
 function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string, owner: number | null, now: Date): {
   selected: GovernedLexiconEntry | null;
   competing: GovernedLexiconEntry[];
@@ -268,7 +214,10 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   const quantity = supported ? readQuantity(foodSegment.text, governedUnits) : null;
   const name = supported ? (quantity?.name ?? foodSegment.text).trim() : "";
   const observed = emptyIdentity();
-  observed.foodName = name ? foldFoodSurface(name) : null;
+  // A-019: commas coalesced with a qualifier are surface punctuation,
+  // not part of the normalized food identity. Raw spans/evidence keep them.
+  const normalizedName = foldFoodSurface(name.replace(/,\s*/gu, " "));
+  observed.foodName = name ? normalizedName : null;
   observed.qualifiers = detectQualifiers(name);
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,
     request.modality === "image" ? request.imageRegion ?? null : null);
@@ -328,7 +277,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   return {
     schemaVersion: 2, observationId: request.sourceRef.slice(0, 145) + ":obs:" + index,
     modality: request.modality, rawInput: request.rawText,
-    normalizedInput: supported ? foldFoodSurface(name) || null : null, locale,
+    normalizedInput: supported ? normalizedName || null : null, locale,
     surfaceSpan: originalAnchor({ start: foodSegment.start, end: foodSegment.end }),
     identityHints: observed, quantityHints: q, evidence,
     normalizationPath, alternatives,
@@ -550,9 +499,6 @@ export async function comprehendFoodLanguage(
     const exactChoice = selectLexicon(
       entries, observation.identityHints.foodName ?? "", request.ownerUserId, now,
     );
-    if (!exactChoice.selected && exactChoice.competing.length === 0) {
-      observation = withSafeRegularAgreement(observation, entries, request.ownerUserId, now);
-    }
     const lexiconChoice = exactChoice.selected || exactChoice.competing.length
       ? exactChoice
       : selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);

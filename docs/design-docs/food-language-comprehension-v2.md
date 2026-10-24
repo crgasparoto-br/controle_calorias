@@ -38,11 +38,12 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
   permanecem vinculadas ao alimento imediatamente anterior quando este não tem
   quantidade resolvida; dois alimentos completos continuam observações distintas.
   A evidência conserva o span e texto original.
-- **Flexão regular segura:** diante de quantidade plural explícita, S1 harmoniza
-  concordâncias multi-termo regulares `-os/-as`; flexão isolada sem prova,
-  marcas desconhecidas e términos irregulares permanecem inalterados,
-  e tokens protegidos pelo léxico vigente não são transformados. A prova de
-  equivalência compara projeções e inclui controles negativos de marca.
+- **Flexão de identidade governada (A-020):** S1 conserva o nome observado
+  (inclusive plurais e marcas desconhecidas). Somente alias vigente, autorizado
+  e sem conflito no S2 pode mapear a forma plural para um termo canônico.
+  Uma terminação `-os/-as` ou concordância entre palavras não prova por si só
+  que o texto não é uma marca; equivalência de termos conhecidos é coberta
+  por fixtures de léxico governado e controles sem léxico.
 - **S3 por campo:** a saída residual estrita pode propor marca, variante,
   preparo e qualificadores com papel semântico, criando evidência individual
   `ai_estimate` não verificada para cada atributo. As propostas não alteram
@@ -55,16 +56,19 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
   além do açúcar: alias que altera atributo material gera hipótese.
 - S3 confronta o nome sugerido e os qualificadores estruturados com a superfície
   observada; uma contradição degrada explicitamente a interpretação residual.
-- S1 harmoniza plurais regulares independentemente da caixa de digitação;
-  tokens comerciais governados e a proteção conservadora `-itos/-itas` não
-  são reinterpretados. Marcas sem evidência seguem para S2/resolvedor.
+- S1 preserva plurais sem evidência governada independentemente da caixa;
+  S2 pode harmonizar formas equivalentes quando o alias é válido. Proteção
+  de identidade não depende da terminação de uma marca específica.
 - Enquadramento de refeição, inclusive destino ao fim sem verbo inicial, não
   integra o nome alimentar. O parser canônico continua único dono de MealOperation.
 
 ## Remediação AUD1304 A-008–A-009
 
 - Enquadramento inicial `No almoço 2 ovos`, mesmo sem verbo, deixa somente `2 ovos` na superfície alimentar quando há quantidade e alimento verificáveis. O contexto original e offsets UTF-16 permanecem intactos; sem frase alimentar reconhecível, não se descarta texto.
-- Um plural isolado não governado com término morfológico `-itos/-itas` pode ser também nome comercial imutável; S1 conserva a grafia normalizada independentemente de caixa, sem inventar singular. A resolução desse caso ambíguo pertence ao léxico governado/S2 e ao resolvedor posterior; plurais inequívocos e concordâncias múltiplas permanecem cobertos pelos testes.
+- A proteção inicial de `-itos/-itas` foi generalizada em A-020: qualquer
+  plural sem evidência governada pode ser uma identidade comercial. S1 preserva
+  a grafia normalizada independentemente da caixa; S2 decide apenas quando
+  existe correspondência autorizada e não ambígua.
 
 ## Remediação AUD1304-NEW-001–003
 
@@ -74,8 +78,8 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
 
 ## Remediação AUD1304 A-010–A-012
 
-- **A-010:** flexão regular converge entre caixa alta, baixa e título, preservando
-  aliases governados e plurais comerciais incertos em `-itos/-itas`.
+- **A-010 / A-020:** caixa alta, baixa e título convergem para o mesmo alias
+  S2 governado; sem o alias, todas preservam o plural potencialmente comercial.
 - **A-011:** `zero/sem/com` com lactose, açúcar, glúten, sal, gordura e
   cafeína recebe papel do atributo composto; `zero` isolado permanece
   qualificador de adoçamento e `UHT` é classificado como processamento.
@@ -90,7 +94,9 @@ ou novo parser de operação.
 
 - **A-013 — conjunção de qualificadores:** `e sem/com/zero <atributo>` e atributos de preparo já reconhecidos não geram observação alimentar adicional. Uma conjunção com segundo alimento independente continua separando itens; offsets UTF-16 e a evidência original são preservados.
 - **A-014 — destino separado por vírgula:** `No almoço, 2 ovos` ou `2 ovos, no almoço` preserva apenas o span alimentar quando existe quantidade e nome interpretáveis. Sem alimento inequívoco, nenhuma superfície é descartada e `MealOperation` continua exclusiva do parser canônico.
-- **A-015 — plural com modificador invariável:** uma cabeça regular plural com modificador invariável pode convergir (`bananas prata` → `banana prata`), sem reescrever tokens protegidos ou candidatos comerciais ambíguos.
+- **A-015 — plural com modificador invariável:** `bananas prata` converge para
+  `banana prata` quando um alias S2 governado comprova a equivalência; sem essa
+  evidência, S1 mantém a forma original, inclusive marcas potencialmente plurais.
 - **A-016 — fração após o alimento:** `dois ovos e meio` e `duas fatias de pão e meia` representam 2,5 unidades da mesma medida. `2 ovos e meio copo de leite` permanece uma lista de dois alimentos, sem inferir densidade ou macros.
 
 Os quatro controles foram acrescentados à suíte linguística existente com casos positivos, negativos, rastreabilidade e proteção comercial; não há cutover de produção nem alteração de política S3 ou thresholds.
@@ -107,6 +113,26 @@ Os quatro controles foram acrescentados à suíte linguística existente com cas
   preservam a forma original e convergem à quantidade numérica equivalente.
   Denominadores zero, frações incompatíveis com uma porção inequívoca e
   separadores de milhar ambíguos não criam quantidades silenciosamente.
+
+## Remediação AUD1304 A-019–A-020 (23/10/2026)
+
+- **A-019 — qualificador com vírgula:** S1 agrupa somente continuações de
+  qualificadores materiais reconhecidos (`sem/com/zero açúcar, lactose, glúten,
+  sal, gordura, cafeína`; preparo e atributos explícitos reconhecidos) no
+  alimento imediatamente anterior. A vírgula permanece no span UTF-16 e nas
+  evidências originais, mas não no nome normalizado. Um segundo alimento real,
+  vírgula de lista, ponto e vírgula ou seção operacional não são consumidos;
+  combinações de qualificadores não criam alimentos fantasmas.
+- **A-020 — marca vs. plural:** S1 não transforma identidade desconhecida por
+  sufixo ou caixa. `Cheetos`, `Fandangos`, `Havaianas`, `Doritos`, assim como
+  plurais comuns ainda não governados, permanecem rastreáveis em superfície.
+  S2 usa somente alias revisado/autorizado com proveniência para mapear
+  equivalências (`ovos` → `ovo`, `bananas` → `banana`); entradas revogadas,
+  pendentes ou conflitantes não autorizam singularização. Estes exemplos
+  representam dados **apenas de teste**, não listas codificadas no runtime.
+- Testes adversariais: equivalência com/sem pontuação, vírgulas em listas
+  válidas, span Unicode, marcas desconhecidas em várias caixas, aliases
+  governados, revogação e negativos. O cutover segue proibido até fases futuras.
 
 ## Gates
 

@@ -199,6 +199,10 @@ export function trimSpan(text: string, start: number, end: number): Segment | nu
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal. */
 export function splitFoodSurface(text: string, governedUnits: readonly GovernedUnitAlias[] = []): Segment[] {
+  // A comma before a recognized material attribute belongs to the prior food.
+  // Restrict the grammar to qualifiers understood by this LCL; new unknown
+  // tokens are not silently consumed as food identity or a modifier.
+  const materialQualifier = /^(?:(?:sem|com|zero)\s+(?:a[cç][uú]car|lactose|gl[uú]ten|sal|gordura|cafe[ií]na)\b|(?:frit[ao]s?|cozid[ao]s?|desnatad[ao]s?|integral|diet|light|uht)\b)/iu;
   const segments: Segment[] = [];
   let start = 0;
   const cut = (end: number, next: number) => {
@@ -226,6 +230,12 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
     const followingFood = amount.value !== null && amount.name.trim().length > 0;
     const precedingFood = previous ? readQuantity(previous.text, governedUnits) : null;
     if (previous && comma && (
+      // A-019: ", sem açúcar" / ", cozidos" extend the preceding food.
+      // This never crosses a semicolon/newline, another actual food, or a bare
+      // meal destination; the original comma stays inside the source span.
+      (materialQualifier.test(segment.text) &&
+        !mealFraming.test(previous.text) && !trailingMeal.test(previous.text) &&
+        Boolean(precedingFood?.name.trim())) ||
       (amount.value !== null && amount.unit !== null && !amount.name &&
         precedingFood?.value === null) ||
       (mealFraming.test(previous.text) && followingFood) ||

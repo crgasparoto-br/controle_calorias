@@ -17,7 +17,16 @@ const entry = (override: Partial<GovernedLexiconEntry> = {}): GovernedLexiconEnt
   current: true, validFrom: null, validTo: null,
   ...override,
 });
-const analyze = (rawText: string, entries: GovernedLexiconEntry[] = [], override: Partial<LinguisticRequest> = {}) =>
+// Known grammatical forms belong to the governed S2 test snapshot, not an
+// implicit S1 food-name dictionary. Unrecognized surfaces remain unchanged.
+const knownForms: GovernedLexiconEntry[] = [
+  ["ovos", "ovo"], ["ovos cozidos", "ovo cozido"],
+  ["ovos de codorna", "ovo de codorna"], ["bananas", "banana"],
+  ["bananas prata", "banana prata"], ["maçãs fuji", "maçã fuji"],
+].map(([term, targetRef], i) => entry({
+  id: 1000 + i, term, normalizedTerm: term, targetRef,
+}));
+const analyze = (rawText: string, entries: GovernedLexiconEntry[] = knownForms, override: Partial<LinguisticRequest> = {}) =>
   comprehendFoodLanguage({ ...base, rawText, ...override }, store(entries));
 
 describe("Camada de Compreensão Linguística #1304", () => {
@@ -289,7 +298,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(second.quantityHints.value).toBe(2);
   });
 
-  it("converge flexões regulares sem lista por alimento e preserva marcas protegidas", async () => {
+  it("converge flexões por léxico governado sem hardcode no runtime e preserva marcas protegidas", async () => {
     const [a] = await analyze("dois ovo cozido");
     const [b] = await analyze("2 ovos cozidos");
     expect(a.identityHints.foodName).toBe("ovo cozido");
@@ -393,7 +402,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(good.alternatives).toHaveLength(1);
   });
 
-  it("AUD1304 A-006 plural simples converge sem reinterpretar marca capitalizada", async () => {
+  it("AUD1304 A-006 plural governado converge sem reinterpretar marca capitalizada", async () => {
     const [plural] = await analyze("2 bananas");
     const [singular] = await analyze("duas banana");
     expect(plural.identityHints.foodName).toBe("banana");
@@ -563,7 +572,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(unapproved.quantityHints.unit).not.toBe("fatia");
   });
 
-  it("AUD1304 A-010 converges regular plurals across case and preserves guarded brands", async () => {
+  it("AUD1304 A-010 converges governed plurals across case and preserves guarded brands", async () => {
     for (const [rawText, food] of [
       ["2 ovos cozidos", "ovo cozido"], ["2 OVOS COZIDOS", "ovo cozido"],
       ["2 Ovos Cozidos", "ovo cozido"],
@@ -696,7 +705,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(twoFoods.map(item => item.identityHints.foodName)).toEqual(["ovo", "banana"]);
   });
 
-  it("AUD1304 A-015 converge plurais regulares com modificador invariável, protegendo marca", async () => {
+  it("AUD1304 A-015 converge plurais governados com modificador invariável, protegendo marca", async () => {
     for (const [plural, singular, expected] of [
       ["2 bananas prata", "2 banana prata", "banana prata"],
       ["2 maçãs fuji", "2 maçã fuji", "maca fuji"],
@@ -794,6 +803,70 @@ describe("Camada de Compreensão Linguística #1304", () => {
     const [first, second] = await analyze("vinte e duas fatias de pão e uma banana");
     expect(first.quantityHints).toMatchObject({ value: 22, unit: "fatia" });
     expect(second.identityHints.foodName).toBe("banana");
+  });
+
+  it("AUD1304 A-019 agrupa qualificadores pontuados sem gerar alimentos fantasma", async () => {
+    for (const [surface, equivalent, name, roles] of [
+      ["um café, sem açúcar", "um café sem açúcar", "cafe sem acucar", ["sweetening"]],
+      ["2 ovos, cozidos", "2 ovos cozidos", "ovo cozido", ["preparation"]],
+      ["um copo de leite, sem lactose", "um copo de leite sem lactose", "leite sem lactose", ["lactose"]],
+      ["café, zero açúcar, sem lactose", "café zero açúcar sem lactose", "cafe zero acucar sem lactose", ["sweetening", "lactose"]],
+      ["2 ovos, fritos", "2 ovos fritos", "ovos fritos", ["preparation"]],
+      ["leite, UHT", "leite UHT", "leite uht", ["processing"]],
+    ] as const) {
+      const [punctuated] = await analyze(surface);
+      const [plain] = await analyze(equivalent);
+      expect(await analyze(surface)).toHaveLength(1);
+      expect(punctuated.identityHints.foodName).toBe(name);
+      expect(punctuated.identityHints.foodName).toBe(plain.identityHints.foodName);
+      expect(punctuated.identityHints.qualifiers).toEqual(plain.identityHints.qualifiers);
+      expect(roles.every(role => punctuated.identityHints.qualifiers.some(q => q.role === role))).toBe(true);
+      expect(punctuated.quantityHints).toEqual(plain.quantityHints);
+      const span = punctuated.surfaceSpan.span!;
+      expect(surface.slice(span.start, span.end)).toBe(surface);
+      expect(punctuated.evidence[0].anchor.span).toEqual(span);
+      expect(punctuated.evidence[0].value).toContain(",");
+      expect(punctuated.rawInput).toBe(surface);
+    }
+    const unicode = "🍳 2 ovos, cozidos e uma banana";
+    const values = await analyze(unicode);
+    expect(values).toHaveLength(2);
+    expect(values.map(v => v.identityHints.foodName)).toEqual(["🍳 2 ovos cozidos", "banana"]);
+    for (const item of values) {
+      const span = item.surfaceSpan.span!;
+      expect(unicode.slice(span.start, span.end)).toBeTruthy();
+      expect(item.evidence[0].anchor.span).toEqual(span);
+    }
+    for (const surface of ["2 ovos, uma banana", "café, mel", "2 ovos; cozidos", "No almoço, sem açúcar"]) {
+      expect(await analyze(surface)).toHaveLength(2);
+    }
+  });
+
+  it("AUD1304 A-020 não singulariza identidade desconhecida por sufixo ou caixa", async () => {
+    for (const input of [
+      "2 Cheetos", "2 Cheetos pequenos", "2 cheetos", "2 CHEETOS",
+      "2 Fandangos", "2 Fandangos crocantes", "2 fandangos", "2 FANDANGOS",
+      "2 Havaianas", "2 Pringles", "2 Doritos", "2 bananas",
+      "2 ovos", "2 ovos cozidos", "2 bananas prata", "2 ovos de codorna",
+    ]) {
+      const [item] = await analyze(input, []);
+      const rawName = input.replace(/^2\s+/u, "");
+      expect(item.identityHints.foodName).toBe(rawName.toLocaleLowerCase("pt-BR"));
+      expect(item.normalizationPath.map(p => p.stage)).toEqual(["S1"]);
+      expect(item.quantityHints).toMatchObject({ value: 2, unit: "un" });
+      expect(item.rawInput.slice(item.surfaceSpan.span!.start, item.surfaceSpan.span!.end)).toBe(input);
+    }
+    const [governed] = await analyze("2 ovos cozidos");
+    expect(governed.identityHints.foodName).toBe("ovo cozido");
+    expect(governed.normalizationPath.map(p => p.stage)).toEqual(["S1", "S2"]);
+    const [revoked] = await analyze("2 Fandangos", [entry({
+      id: 1232, normalizedTerm: "fandangos", targetRef: "fandango", status: "revoked",
+    })]);
+    expect(revoked.identityHints.foodName).toBe("fandangos");
+    const [unapproved] = await analyze("2 Cheetos", [entry({
+      id: 1233, normalizedTerm: "cheetos", targetRef: "cheeto", status: "pending_review",
+    })]);
+    expect(unapproved.identityHints.foodName).toBe("cheetos");
   });
 
 });
