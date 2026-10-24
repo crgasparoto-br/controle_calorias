@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { findFoodStaticCandidates } from "../../../scripts/food-intelligence-architecture";
 import { evaluateFoodArchitectureGate } from "../../../scripts/food-architecture-enforcement";
@@ -75,5 +76,82 @@ describe("AUD1300 isolated test-fixture reachability", () => {
     expect(findings.some(f => f.file === fixture.path && f.ruleId === "17")).toBe(true);
     expect(evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-16T00:00:00Z"))
       .errors.length).toBeGreaterThan(0);
+  });
+});
+
+
+describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
+  const file = "server/modules/foodIntelligenceV2/linguisticComprehension.ts";
+  const repositoryFile = "server/modules/foodIntelligenceV2/linguisticLexiconRepository.ts";
+  const surfaceFile = "server/modules/foodIntelligenceV2/linguisticSurface.ts";
+
+  it("accepts only the canonical syntactic S1/S2 owner, not competing lexical channel rules", () => {
+    for (const path of [file, surfaceFile, repositoryFile]) {
+      const content = readFileSync(path, "utf8");
+      const findings = findFoodStaticCandidates([{ path, content }]);
+      expect(findings).toEqual([]);
+    }
+  });
+
+  it("does not whitelist food-name comparisons hidden behind structural contract fields", () => {
+    const source = readFileSync(file, "utf8");
+    // The new S2 unit-alias helper also inspects targetType. Attack both
+    // occurrences independently; replacing the first occurrence and assuming
+    // comprehendFoodLanguage made this control fail without exercising its owner.
+    for (const [original, injected, operand, owner] of [
+      ['request.modality !== "image"', 'request.modality !== "panco"', "request.modality", "comprehendFoodLanguage"],
+      ['request.imageRegionRole !== "front_identity"', 'request.imageRegionRole !== "panco"', "request.imageRegionRole", "comprehendFoodLanguage"],
+      ['const unit = item.targetType === "canonical_term"', 'const unit = item.targetType === "panco"', "item.targetType", "governedUnitAliases"],
+      ['foodName: item.targetType === "canonical_term"', 'foodName: item.targetType === "panco"', "item.targetType", "comprehendFoodLanguage"],
+    ] as const) {
+      expect(source).toContain(original);
+      const findings = findFoodStaticCandidates([{ path: file, content: source.replace(original, injected) }]);
+      expect(findings.some(f => f.ruleId === "18" &&
+        f.symbol === `${owner}:${operand}:lexical-branch`)).toBe(true);
+    }
+  });
+
+  it("allows only the exact canonical numeric grammar, never nutrition disguised as numerals", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    for (const [needle, replacement, symbol] of [
+      ["onze: 11", "onze: 120", "writtenNumbers:numeric-food-map"],
+      ['"½": 0.5', '"½": 90', "vulgar:numeric-food-map"],
+      ['"¾": 0.75', '"pao": 140', "vulgar:numeric-food-map"],
+    ] as const) {
+      expect(source).toContain(needle);
+      const findings = findFoodStaticCandidates([{
+        path: surfaceFile, content: source.replace(needle, replacement),
+      }]);
+      expect(findings.some(f => (f.ruleId === "5" || f.ruleId === "17") &&
+        f.symbol === symbol)).toBe(true);
+    }
+  });
+
+  it("does not allow the extracted surface owner to hide food-specific nutrition maps", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    const infected = source + '\nexport const FOOD_NUTRITION_BY_NAME = { arroz: 120, feijao: 80 };\n'
+      + 'export function getFoodNutrition(name: string) {'
+      + ' return FOOD_NUTRITION_BY_NAME[name as keyof typeof FOOD_NUTRITION_BY_NAME]; }';
+    const findings = findFoodStaticCandidates([{ path: surfaceFile, content: infected }]);
+    expect(findings.some(f => f.ruleId === "5" || f.ruleId === "17")).toBe(true);
+  });
+
+  it("still rejects a literal nutrition lookup added inside the canonical owner", () => {
+    const extra = "export const FOOD_NUTRITION_BY_NAME = {pao: 150, arroz: 120};\n"
+      + "export function resolveFoodCalories(foodName: string) {\n"
+      + "  return FOOD_NUTRITION_BY_NAME[foodName as keyof typeof FOOD_NUTRITION_BY_NAME];\n}";
+    const content = readFileSync(file, "utf8") + "\n" + extra;
+    const findings = findFoodStaticCandidates([{ path: file, content }]);
+    expect(findings.some(f => f.ruleId === "5" || f.ruleId === "17")).toBe(true);
+  });
+
+  it("still rejects an unapproved lexical normalizer added in another module", () => {
+    const findings = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/newFoodNormalizer.ts",
+      content: 'export const FOOD_ALIASES = { "pão branco": "panco" };'
+        + ' export function normalizeFoodName(name: string) {'
+        + ' return FOOD_ALIASES[name as keyof typeof FOOD_ALIASES] ?? name; }',
+    }]);
+    expect(findings.some(f => f.ruleId === "11" || f.ruleId === "17")).toBe(true);
   });
 });
