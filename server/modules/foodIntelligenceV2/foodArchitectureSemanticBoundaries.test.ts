@@ -111,6 +111,34 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
     }
   });
 
+  it("AUD1304 A-028 accepts only the governed S2 protected-token marker", () => {
+    const source = readFileSync(file, "utf8");
+    const original = 'entry.kind === "protected_token"';
+    expect(source.split(original)).toHaveLength(2);
+    // An ungoverned food-name literal, a different lexicon kind or a negated
+    // guard must still be flagged under architecture rule 18.
+    for (const mutation of [
+      'entry.kind === "panco"',
+      'entry.kind === "alias_surface"',
+      'entry.kind !== "protected_token"',
+    ]) {
+      const findings = findFoodStaticCandidates([{
+        path: file, content: source.replace(original, mutation),
+      }]);
+      expect(findings.some(finding => finding.ruleId === "18" &&
+        finding.symbol === "comprehendFoodLanguage:entry.kind:lexical-branch")).toBe(true);
+    }
+    // Whitelisting the marker cannot hide a second lexical owner.
+    const competing = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/newFoodNormalizer.ts",
+      content: 'export const FOOD_ALIASES = { "pão branco": "panco" };'
+        + ' export function normalizeFoodName(name: string) {'
+        + ' return FOOD_ALIASES[name as keyof typeof FOOD_ALIASES] ?? name; }',
+    }]);
+    expect(competing.some(finding => finding.ruleId === "11" ||
+      finding.ruleId === "17")).toBe(true);
+  });
+
   it("allows only the exact canonical numeric grammar, never nutrition disguised as numerals", () => {
     const source = readFileSync(surfaceFile, "utf8");
     for (const [needle, replacement, symbol] of [
