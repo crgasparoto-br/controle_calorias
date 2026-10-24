@@ -88,9 +88,18 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   servingText: string | null; uncertain: boolean; governedAlias?: GovernedUnitAlias;
 } {
   const source = text.trim();
-  if (/\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
-    return { value: null, unit: null, name: source, servingText: source, uncertain: true };
-  }
+  const unresolved = () => ({
+    value: null, unit: null, name: source, servingText: source, uncertain: true,
+  });
+  // A-022: an interval/choice is evidence of an uncertain quantity, never
+  // permission to select its first bound. Keep the entire original phrase.
+  const bounds = "(?:" + quantityPattern + ")";
+  const quantityRange = new RegExp(
+    "^(?:(?:de\\s+)?" + bounds + "\\s+(?:a|ou|at[eé])\\s+" + bounds +
+      "|entre\\s+" + bounds + "\\s+e\\s+" + bounds +
+      "|" + bounds + "\\s*[-–]\\s*" + bounds + ")(?=\\s|$)", "iu",
+  );
+  if (quantityRange.test(source)) return unresolved();
   // A terminal half refers to the already counted food, not to a new item:
   // "duas fatias de pão e meia" and "dois ovos e meio".
   // Require a terminal half so "2 ovos e meio copo de leite" is not coerced.
@@ -171,6 +180,19 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
         servingText: source.slice(0, countedPrefix[0].length + (lastWord.index ?? 0) + lastWord[0].length).trim(),
         uncertain: false, governedAlias: alias };
     }
+  }
+  // A-021: an ungoverned serving term cannot become an exact count of foods.
+  // These are generic quantity/measure expressions, not a food identity list;
+  // known S1 units and governed S2 unit aliases still retain their own path.
+  const uncertainServing = new RegExp(
+    "^(?:" + bounds + "\\s+)?(?:pouc[oa]s?|pouquinhos?|pouquinhas?|" +
+      "tiquinhos?|bastante|punhados?|punhadinhos?|pedacos?|pedacinhos?|" +
+      "pitadas?|goles?|garfadas?|colheradas?|canecas?|tigelas?|" +
+      "cumbucas?|copinhos?|prat[aã]o|prato\\s+grande)(?=\\s|$)", "iu",
+  );
+  if (uncertainServing.test(foldFoodSurface(source)) ||
+      /\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
+    return unresolved();
   }
   const halfAfterFood = new RegExp(
     "^(" + quantityPattern + ")\\s+(.+?)\\s+e\\s+mei[ao]\\s*$", "iu",
@@ -273,7 +295,12 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
       const writtenTens = new RegExp("^(?:" + tensPattern + ")$", "iu");
       const writtenOnes = new RegExp("^(?:" + onesPattern + ")\\b", "iu");
       const composedAmount = writtenTens.test(left.trim()) && writtenOnes.test(right);
-      if (composedAmount || isAttachedHalf ||
+      // A-022: "entre 2 e 3 ovos" is one uncertain quantity, not two foods.
+      // Preserve the original UTF-16 span; do not protect an ordinary list.
+      const rangeStart = new RegExp("^entre\\s+(?:" + quantityPattern + ")$", "iu");
+      const rangeEnd = new RegExp("^(?:" + quantityPattern + ")(?=\\s|$)", "iu");
+      const betweenBounds = rangeStart.test(left.trim()) && rangeEnd.test(right);
+      if (composedAmount || isAttachedHalf || betweenBounds ||
           /^mei[ao](?:\s+de\b|\s*$)/iu.test(right) ||
           (/^(?:um|uma|\d+)\s*$/iu.test(left) && /^mei[ao]\b/iu.test(right))) continue;
       const part = trimSpan(text, segment.start + offset, segment.start + match.index);

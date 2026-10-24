@@ -98,6 +98,62 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(ambiguous.quantityHints.value).toBeNull();
   });
 
+  it("A-021 não transforma porções vagas ou medidas desconhecidas em unidades exatas", async () => {
+    const uncertain = [
+      "um pouco de arroz", "um pouquinho de arroz", "um pedacinho de queijo",
+      "uma pitada de sal", "2 pitadas de sal", "2 canecas de leite",
+      "duas colheradas de arroz", "um gole de suco", "um punhado de amendoim",
+    ];
+    for (const rawText of uncertain) {
+      const [item] = await analyze(rawText, []);
+      expect(item.quantityHints).toMatchObject({
+        value: null, unit: null, servingText: rawText,
+      });
+      expect(item.rawInput).toBe(rawText);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: rawText.length });
+      expect(item.identityHints.foodName).toBeTruthy();
+      expect(item.unresolvedReason).toBe("unknown_surface");
+      expect(item.evidence.some(evidence => evidence.field === "quantity.value")).toBe(false);
+    }
+    const [unit] = await analyze("2 colheres de arroz", []);
+    const [count] = await analyze("um ovo cozido", []);
+    const [diminutiveFood] = await analyze("um bolinho", []);
+    expect(unit.quantityHints).toMatchObject({ value: 2, unit: "colher" });
+    expect(count.quantityHints).toMatchObject({ value: 1, unit: "un" });
+    expect(diminutiveFood.quantityHints).toMatchObject({ value: 1, unit: "un" });
+    const [governedMeasure] = await analyze("2 canecas de leite", [entry({
+      id: 2104, kind: "unit_term", normalizedTerm: "canecas", targetRef: "copo",
+    })]);
+    expect(governedMeasure.quantityHints).toMatchObject({ value: 2, unit: "copo" });
+    expect(governedMeasure.identityHints.foodName).toBe("leite");
+    expect(governedMeasure.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2"]);
+  });
+
+  it("A-022 preserva intervalos e escolhas sem inventar quantidade exata", async () => {
+    const uncertain = [
+      "2 a 3 ovos", "2 ou 3 ovos", "1 ou 2 bananas",
+      "duas ou três fatias de pão", "2 até 3 copos de leite",
+      "2-3 ovos", "entre 2 e 3 ovos", "entre duas e três bananas",
+      "de 1,5 a 2 copos de leite",
+    ];
+    for (const rawText of uncertain) {
+      const observations = await analyze(rawText, []);
+      expect(observations).toHaveLength(1);
+      const item = observations[0];
+      expect(item.quantityHints).toMatchObject({ value: null, unit: null, servingText: rawText });
+      expect(item.unresolvedReason).toBe("unknown_surface");
+      expect(item.rawInput).toBe(rawText);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: rawText.length });
+      expect(item.evidence.some(evidence => evidence.field === "quantity.value")).toBe(false);
+    }
+    const [certain] = await analyze("vinte e dois ovos", []);
+    expect(certain.quantityHints).toMatchObject({ value: 22, unit: "un" });
+    const distinct = await analyze("2 ovos e 3 bananas", []);
+    expect(distinct).toHaveLength(2);
+    expect(distinct[0].quantityHints.value).toBe(2);
+    expect(distinct[1].quantityHints.value).toBe(3);
+  });
+
   it("preserva os spans UTF-16 originais e separa lista sem quebrar decimal", async () => {
     const text = "🍳 dois ovos, 1,5 fatias de mortadela; uma banana";
     const spans = splitFoodSurface(text);

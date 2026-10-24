@@ -145,3 +145,8 @@ pnpm architecture:check
 Os testes devem distinguir casos positivos de controles negativos (marca explícita, açúcar, typo, plural sem evidência, reuso de revisão revogada, ingredientes OCR, owner cruzado, falha de banco e S3 sem política). O gate arquitetural admite gramática somente no owner canônico e continua barrando catálogo fixo de macros ou normalizador concorrente.
 
 Permanecem fora desta entrega o cutover, a calibração #1306, homologação no entrypoint público, rollout e parecer independente do último SHA. CI verde não dispensa auditoria e não autoriza merge.
+
+## Remediação AUD1304 A-021–A-022
+
+- **A-021 — quantidade vaga / unidade não governada:** expressões genéricas de quantidade imprecisa ou porções sem unidade S1 reconhecida (por exemplo, `um pouco`, `uma pitada`, `2 canecas`) não são convertidas em `un`. A camada conserva o texto original, o span UTF-16, `servingText` e quantidade/unidade nulas para não inventar precisão. Unidades canônicas de S1, contagens inequívocas e aliases S2 autorizados permanecem válidos.
+- **A-022 — intervalos / alternativas:** `2 ou 3 ovos`, `2 a 3 ovos`, `2-3 ovos` e `entre 2 e 3 ovos` permanecem uma observação incerta com a expressão quantitativa preservada, sem escolher o primeiro limite. O parser distingue composição numérica (`vinte e dois`) de intervalo e mantém listas de alimentos distintos separadas. Sem política de clarificação nem cutover nesta etapa C1.
