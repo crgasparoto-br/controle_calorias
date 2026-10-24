@@ -40,7 +40,7 @@ const tensPattern = "vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|no
 const writtenPattern = "(?:" + tensPattern + ")(?:\\s+e\\s+(?:" + onesPattern + "))?|" +
   "onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezasseis|dezessete|dezoito|dezenove|dez|" +
   onesPattern + "|meio|meia";
-const unitPattern = "g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres?|x[ií]caras?|copos?|por[cç][oõ](?:es|s)?|por[cç][aã]o";
+const unitPattern = "g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidades?|fatias?|colher(?:es)?|x[ií]caras?|copos?|por[cç][oõ](?:es|s)?|por[cç][aã]o";
 // Slash fractions and vulgar fractions are quantitative only in the leading
 // quantity slot; the original surface/UTF-16 anchors are never rewritten.
 const quantityPattern = "\\d+/\\d+|\\d+(?:[,.]\\d+)?|[¼½¾]|" + writtenPattern;
@@ -97,8 +97,10 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   const quantityRange = new RegExp(
     "^(?:(?:de\\s+)?" + bounds + "\\s+(?:a|ou|at[eé])\\s+" + bounds +
       "|entre\\s+" + bounds + "\\s+e\\s+" + bounds +
-      "|" + bounds + "\\s*[-–]\\s*" + bounds + ")(?=\\s|$)", "iu",
+      "|" + bounds + "\\s*[-–]\\s*" + bounds + ")(?=\\s|$|\\p{L})", "iu",
   );
+  // Permit an adjacent unit suffix: "30 a 40g" and "30 a 40 g" are the
+  // same uncertain range, not an exact count of 30 food items.
   if (quantityRange.test(source)) return unresolved();
   // A terminal half refers to the already counted food, not to a new item:
   // "duas fatias de pão e meia" and "dois ovos e meio".
@@ -184,11 +186,15 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   // A-021: an ungoverned serving term cannot become an exact count of foods.
   // These are generic quantity/measure expressions, not a food identity list;
   // known S1 units and governed S2 unit aliases still retain their own path.
+  // Counted containers/portions without an approved unit are *not* counts
+  // of individual foods. This is quantity vocabulary, never a food-name list.
   const uncertainServing = new RegExp(
     "^(?:" + bounds + "\\s+)?(?:pouc[oa]s?|pouquinhos?|pouquinhas?|" +
       "tiquinhos?|bastante|punhados?|punhadinhos?|pedacos?|pedacinhos?|" +
       "pitadas?|goles?|garfadas?|colheradas?|canecas?|tigelas?|" +
-      "cumbucas?|copinhos?|prat[aã]o|prato\\s+grande)(?=\\s|$)", "iu",
+      "cumbucas?|copinhos?|prat[aã]o|pratos?|marmitas?|potes?|" +
+      "bandejas?|garrafas?|pacotes?|embalagens?|sach[eê]s?|" +
+      "prato\\s+grande)(?=\\s|$)", "iu",
   );
   if (uncertainServing.test(foldFoodSurface(source)) ||
       /\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
@@ -298,7 +304,7 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
       // A-022: "entre 2 e 3 ovos" is one uncertain quantity, not two foods.
       // Preserve the original UTF-16 span; do not protect an ordinary list.
       const rangeStart = new RegExp("^entre\\s+(?:" + quantityPattern + ")$", "iu");
-      const rangeEnd = new RegExp("^(?:" + quantityPattern + ")(?=\\s|$)", "iu");
+      const rangeEnd = new RegExp("^(?:" + quantityPattern + ")(?=\\s|$|\\p{L})", "iu");
       const betweenBounds = rangeStart.test(left.trim()) && rangeEnd.test(right);
       if (composedAmount || isAttachedHalf || betweenBounds ||
           /^mei[ao](?:\s+de\b|\s*$)/iu.test(right) ||

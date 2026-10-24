@@ -150,3 +150,23 @@ Permanecem fora desta entrega o cutover, a calibração #1306, homologação no 
 
 - **A-021 — quantidade vaga / unidade não governada:** expressões genéricas de quantidade imprecisa ou porções sem unidade S1 reconhecida (por exemplo, `um pouco`, `uma pitada`, `2 canecas`) não são convertidas em `un`. A camada conserva o texto original, o span UTF-16, `servingText` e quantidade/unidade nulas para não inventar precisão. Unidades canônicas de S1, contagens inequívocas e aliases S2 autorizados permanecem válidos.
 - **A-022 — intervalos / alternativas:** `2 ou 3 ovos`, `2 a 3 ovos`, `2-3 ovos` e `entre 2 e 3 ovos` permanecem uma observação incerta com a expressão quantitativa preservada, sem escolher o primeiro limite. O parser distingue composição numérica (`vinte e dois`) de intervalo e mantém listas de alimentos distintos separadas. Sem política de clarificação nem cutover nesta etapa C1.
+
+## Remediação AUD1304 A-023–A-025 (24/10/2026)
+
+- **A-023 — concordância de unidade:** a gramática reconhece `colher` e `colheres`
+  como a mesma unidade S1, inclusive `uma colher e meia`. A quantidade não
+  depende de correção lexical do alimento, sem assumir massa ou volume.
+- **A-024 — limites contíguos:** intervalos com unidade física adjacente ao
+  último número (`30 a 40g`, `30-40g`, `entre 30 e 40g`) permanecem
+  explicitamente incertos; um intervalo não autoriza selecionar seu limite
+  inferior ou registrar evidência de quantidade pontual. Separações por lista
+  e unidades exatas (`40g`) continuam distintas.
+- **A-025 — recipientes não governados:** `prato`, `marmita`, `pote`, `garrafa`
+  e demais termos genéricos de recipiente/porção sem mapeamento S1 ou S2
+  autorizado preservam a superfície e quantidade/unidade nulas, em vez de
+  inventar contagem `un` do alimento. Contagens inequívocas de alimentos
+  (`1 ovo de codorna`) e aliases S2 aprovados são preservados.
+
+Os três controles ampliam a suíte linguística existente com positivos,
+negativos, equivalência/metamorfismo, evidências e spans originais. Sem cutover,
+sem thresholds arbitrários e sem mudanças na política de nutrição.

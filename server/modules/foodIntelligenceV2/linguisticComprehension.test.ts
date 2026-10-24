@@ -154,6 +154,81 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(distinct[1].quantityHints.value).toBe(3);
   });
 
+  it("AUD1304 A-023 conserva a unidade colher no singular, plural e com meia", async () => {
+    for (const [surface, amount, unit] of [
+      ["uma colher de arroz", 1, "colher"],
+      ["1 colher de arroz", 1, "colher"],
+      ["2 colheres de arroz", 2, "colher"],
+      ["uma colher e meia de arroz", 1.5, "colher"],
+      ["1 colher e meia de arroz", 1.5, "colher"],
+    ] as const) {
+      const observations = await analyze(surface, []);
+      expect(observations).toHaveLength(1);
+      const [item] = observations;
+      expect(item.quantityHints).toMatchObject({ value: amount, unit });
+      expect(item.identityHints.foodName).toBe("arroz");
+      expect(item.rawInput).toBe(surface);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: surface.length });
+      expect(item.evidence.some(evidence => evidence.field === "quantity.value")).toBe(true);
+    }
+    const separate = await analyze("uma colher de arroz e uma banana", []);
+    expect(separate).toHaveLength(2);
+    expect(separate[0].quantityHints).toMatchObject({ value: 1, unit: "colher" });
+    expect(separate[1].quantityHints).toMatchObject({ value: 1, unit: "un" });
+    const [unknown] = await analyze("uma colherada de arroz", []);
+    expect(unknown.quantityHints.value).toBeNull();
+  });
+
+  it("AUD1304 A-024 não converte intervalos com unidade contígua em contagem exata", async () => {
+    for (const surface of [
+      "30 a 40g de arroz", "30 a 40 g de arroz", "30-40g de arroz",
+      "30–40g de arroz", "30 ou 40g de arroz", "de 30 a 40ml de leite",
+      "entre 30 e 40g de arroz", "entre 30 e 40 g de arroz",
+      "duas a três fatias de pão", "2 a 3kg de arroz",
+    ]) {
+      const observations = await analyze(surface, []);
+      expect(observations).toHaveLength(1);
+      const [item] = observations;
+      expect(item.quantityHints).toMatchObject({ value: null, unit: null, servingText: surface });
+      expect(item.rawInput).toBe(surface);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: surface.length });
+      expect(item.unresolvedReason).toBe("unknown_surface");
+      expect(item.evidence.some(evidence => evidence.field === "quantity.value")).toBe(false);
+    }
+    const [exact] = await analyze("40g de arroz", []);
+    expect(exact.quantityHints).toMatchObject({ value: 40, unit: "g" });
+    const distinct = await analyze("30g de arroz e 40g de feijão", []);
+    expect(distinct).toHaveLength(2);
+    expect(distinct.map(item => item.quantityHints.value)).toEqual([30, 40]);
+  });
+
+  it("AUD1304 A-025 não transforma recipientes sem unidade aprovada em alimento unitário", async () => {
+    for (const surface of [
+      "1 prato de arroz", "dois pratos de arroz", "2 marmitas de arroz",
+      "1 marmita de arroz", "1 pote de iogurte", "uma garrafa de suco",
+      "2 pacotes de arroz", "1 bandeja de frutas", "duas embalagens de biscoitos",
+    ]) {
+      const observations = await analyze(surface, []);
+      expect(observations).toHaveLength(1);
+      const [item] = observations;
+      expect(item.quantityHints).toMatchObject({ value: null, unit: null, servingText: surface });
+      expect(item.rawInput).toBe(surface);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: surface.length });
+      expect(item.unresolvedReason).toBe("unknown_surface");
+      expect(item.evidence.some(evidence => evidence.field === "quantity.value")).toBe(false);
+    }
+    const [governed] = await analyze("2 marmitas de arroz", [entry({
+      id: 2405, kind: "unit_term", normalizedTerm: "marmitas", targetRef: "unidade",
+    })]);
+    expect(governed.quantityHints).toMatchObject({ value: 2, unit: "un" });
+    expect(governed.identityHints.foodName).toBe("arroz");
+    expect(governed.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2"]);
+    for (const surface of ["1 ovo de codorna", "2 ovos de codorna", "2 bolos de cenoura"]) {
+      const [item] = await analyze(surface, []);
+      expect(item.quantityHints).toMatchObject({ value: Number(surface[0]), unit: "un" });
+    }
+  });
+
   it("preserva os spans UTF-16 originais e separa lista sem quebrar decimal", async () => {
     const text = "🍳 dois ovos, 1,5 fatias de mortadela; uma banana";
     const spans = splitFoodSurface(text);
