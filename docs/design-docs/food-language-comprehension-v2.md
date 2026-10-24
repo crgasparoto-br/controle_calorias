@@ -170,3 +170,10 @@ Permanecem fora desta entrega o cutover, a calibração #1306, homologação no 
 Os três controles ampliam a suíte linguística existente com positivos,
 negativos, equivalência/metamorfismo, evidências e spans originais. Sem cutover,
 sem thresholds arbitrários e sem mudanças na política de nutrição.
+
+## Remediação AUD1304 A-026–A-027 (24/10/2026)
+
+- **A-026 — proteção de conjunções:** a divisão por `e` considera termos `protected_token` do snapshot S2 autorizado antes de segmentar, inclusive grafia Unicode e caixa divergente. A proteção é por palavras inteiras e escopo/revisão válidos, não por substring; conjunções externas ainda separam alimentos independentes. Sem léxico, ou com token revogado/pendente/de outro usuário, a gramática não presume uma marca. Os spans continuam referindo-se à entrada original.
+- **A-027 — unicidade de evidências residuais:** os IDs S3 incluem índice da observação, índice da hipótese e índice do campo. IDs de hipóteses S3 também distinguem observações. Referências `evidenceIds` continuam resolvendo exatamente uma evidência por observação e não se repetem no envelope. Nenhuma hipótese altera a identidade selecionada, nem promove `verified` ou nutrição.
+
+Controles Vitest acrescentados à suíte linguística existente; sem ativação de S3, thresholds, novo parser operacional ou cutover produtivo.

@@ -1000,4 +1000,69 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(unapproved.identityHints.foodName).toBe("cheetos");
   });
 
+  it("AUD1304 A-026 protege conjunção interna de marca governada sem esconder itens reais", async () => {
+    const protectedBrand = entry({ id: 2601, kind: "protected_token", term: "Pão e Cia",
+      normalizedTerm: "pão e cia", targetType: "none", targetRef: null });
+    for (const text of ["1 Pão e Cia", "1 PÃO E CIA", "1 Pão e Cia"]) {
+      const items = await analyze(text, [protectedBrand]);
+      expect(items).toHaveLength(1);
+      expect(items[0].quantityHints).toMatchObject({ value: 1, unit: "un" });
+      expect(items[0].rawInput).toBe(text);
+      expect(items[0].surfaceSpan.span).toEqual({ start: 0, end: text.length });
+      expect(items[0].identityHints.foodName).toBe("pao e cia");
+    }
+    const compound = "2 ovos e 1 Pão e Cia e 1 banana";
+    const items = await analyze(compound, [protectedBrand, ...knownForms]);
+    expect(items).toHaveLength(3);
+    expect(items.map(item => item.quantityHints.value)).toEqual([2, 1, 1]);
+    expect(items.map(item => item.identityHints.foodName)).toEqual(["ovo", "pao e cia", "banana"]);
+    for (const item of items) {
+      const span = item.surfaceSpan.span!;
+      expect(item.rawInput).toBe(compound);
+      expect(item.evidence[0].anchor.span).toEqual(span);
+      expect(compound.slice(span.start, span.end)).toBeTruthy();
+    }
+    // An exact Unicode-word match must not protect a prefix of a longer name.
+    expect(await analyze("1 Pão e Ciabatta", [protectedBrand])).toHaveLength(2);
+    // Without an authorized protection, ordinary conjunction splitting remains.
+    expect(await analyze("1 Pão e Cia", [])).toHaveLength(2);
+    for (const unavailable of [
+      { status: "revoked" as const }, { status: "pending_review" as const },
+      { scope: "user" as const, userId: 9, source: "user_confirmed" as const, status: "active" as const },
+    ]) {
+      expect(await analyze("1 Pão e Cia", [{ ...protectedBrand, ...unavailable }])).toHaveLength(2);
+    }
+    expect(await analyze("1 ovo e 1 banana", [protectedBrand])).toHaveLength(2);
+  });
+
+  it("AUD1304 A-027 mantém IDs de evidência S3 únicos entre observações e hipóteses", async () => {
+    const text = "banana e maçã";
+    const interpreter = vi.fn(async (observation: Parameters<NonNullable<LinguisticRequest["shouldInterpretResidual"]>>[0]) => ({
+      alternatives: [
+        { foodName: observation.identityHints.foodName, confidence: 0.8, brand: "marca A" },
+        { foodName: observation.identityHints.foodName, confidence: 0.7, brand: "marca B" },
+      ],
+    }));
+    const observations = await comprehendFoodLanguage({ ...base, rawText: text,
+      shouldInterpretResidual: () => true, interpreterVersion: "s3-v2" }, store([]), interpreter);
+    expect(observations).toHaveLength(2);
+    expect(interpreter).toHaveBeenCalledTimes(2);
+    const allEvidenceIds = observations.flatMap(observation => observation.evidence.map(evidence => evidence.evidenceId));
+    expect(allEvidenceIds.length).toBeGreaterThan(4);
+    expect(new Set(allEvidenceIds).size).toBe(allEvidenceIds.length);
+    const allHypothesisIds = observations.flatMap(observation => observation.alternatives.map(item => item.hypothesisId));
+    expect(new Set(allHypothesisIds).size).toBe(allHypothesisIds.length);
+    for (const observation of observations) {
+      expect(observation.alternatives).toHaveLength(2);
+      for (const alternative of observation.alternatives) {
+        expect(alternative.evidenceIds.length).toBeGreaterThanOrEqual(2);
+        for (const id of alternative.evidenceIds) {
+          expect(observation.evidence.filter(evidence => evidence.evidenceId === id)).toHaveLength(1);
+        }
+      }
+      expect(observation.rawInput).toBe(text);
+      expect(observation.evidence.every(evidence => evidence.verified === false)).toBe(true);
+    }
+  });
+
 });

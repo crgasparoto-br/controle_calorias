@@ -225,8 +225,36 @@ export function trimSpan(text: string, start: number, end: number): Segment | nu
   return end > start ? { text: text.slice(start, end), start, end } : null;
 }
 
-/** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal. */
-export function splitFoodSurface(text: string, governedUnits: readonly GovernedUnitAlias[] = []): Segment[] {
+/** Find conjunction tokens INSIDE an authorized protected phrase. Match complete
+ * Unicode words, not folded-string offsets: folding can change UTF-16 lengths.
+ * The returned offsets always refer to the original, untouched segment.
+ */
+function protectedConjunctions(segment: Segment, protectedTerms: readonly string[]): Set<number> {
+  const tokenPattern = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu;
+  const words = [...segment.text.matchAll(tokenPattern)].map(match => ({
+    start: match.index, folded: foldFoodSurface(match[0]),
+  }));
+  const protectedOffsets = new Set<number>();
+  for (const term of protectedTerms) {
+    const phrase = [...term.matchAll(tokenPattern)].map(match => foldFoodSurface(match[0]));
+    if (phrase.length < 3 || !phrase.includes("e") || phrase.length > words.length) continue;
+    for (let start = 0; start <= words.length - phrase.length; start++) {
+      if (!phrase.every((word, offset) => words[start + offset].folded === word)) continue;
+      for (let offset = 1; offset < phrase.length - 1; offset++) {
+        if (phrase[offset] === "e") protectedOffsets.add(words[start + offset].start);
+      }
+    }
+  }
+  return protectedOffsets;
+}
+
+/** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
+ * Protected phrases come exclusively from the already authorized S2 snapshot.
+ */
+export function splitFoodSurface(
+  text: string, governedUnits: readonly GovernedUnitAlias[] = [],
+  protectedTerms: readonly string[] = [],
+): Segment[] {
   // A comma before a recognized material attribute belongs to the prior food.
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
   // tokens are not silently consumed as food identity or a modifier.
@@ -278,11 +306,16 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
   }
   const joined: Segment[] = [];
   for (const segment of coalesced) {
+    // Protected brand/line phrases must be recognized before conjunction splitting.
+    // A subsequent conjunction outside that phrase remains a list separator.
+    const protectedOffsets = protectedConjunctions(segment, protectedTerms);
     // Do not split "fatia e meia", "um e meio" or phrases without a clear list boundary.
     const separator = /\s+e\s+(?=\S)/giu;
     let offset = 0;
     let match: RegExpExecArray | null;
     while ((match = separator.exec(segment.text)) !== null) {
+      const conjunctionStart = match.index + match[0].search(/\S/u);
+      if (protectedOffsets.has(conjunctionStart)) continue;
       const left = segment.text.slice(offset, match.index);
       const right = segment.text.slice(separator.lastIndex);
       // Do not turn a second material qualifier into a new food.

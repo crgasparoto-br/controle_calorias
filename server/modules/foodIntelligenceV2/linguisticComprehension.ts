@@ -328,7 +328,9 @@ function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry, 
   return snapshot;
 }
 
-function addResidual(observation: FoodObservation, payload: unknown, interpreterVersion: string): FoodObservation {
+function addResidual(
+  observation: FoodObservation, payload: unknown, interpreterVersion: string, observationIndex: number,
+): FoodObservation {
   const parsed = residualPayload.safeParse(payload);
   if (!parsed.success) throw new Error("invalid-linguistic-interpreter-response");
   const alternatives = [...observation.alternatives];
@@ -380,7 +382,7 @@ function addResidual(observation: FoodObservation, payload: unknown, interpreter
     }
     const evidenceIds: string[] = [];
     const addEvidence = (field: string, value: string, confidence: number | null) => {
-      const evidenceId = "ev-s3-" + i + "-" + evidenceIds.length;
+      const evidenceId = "ev-s3-" + observationIndex + "-" + i + "-" + evidenceIds.length;
       evidence.push({
         evidenceId, field, origin: "ai_estimate", value, unit: null,
         confidence, verified: false, anchor: observation.surfaceSpan, sourceId: null,
@@ -409,7 +411,7 @@ function addResidual(observation: FoodObservation, payload: unknown, interpreter
       }
     }
     alternatives.push({
-      hypothesisId: "s3-" + i,
+      hypothesisId: "s3-" + observationIndex + "-" + i,
       identityHints: {
         ...existing, foodName: proposed.foodName,
         brand: proposed.brand ?? existing.brand,
@@ -462,15 +464,16 @@ export async function comprehendFoodLanguage(
   // observation so ingredient lines never become separate foods.
   const evidenceOnlyImage = request.modality === "image" &&
     request.imageRegionRole !== "front_identity" && request.imageRegionRole !== "caption";
-  const parts = evidenceOnlyImage
-    ? [{ text: request.rawText, start: 0, end: request.rawText.length }]
-    : splitFoodSurface(request.rawText);
-  if (parts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   if (request.locale !== null && request.locale !== undefined && request.locale !== DEFAULT_FOOD_LOCALE) {
-    return parts.map((part, index) => validate(buildObservation(request, part, index)));
+    const unsupportedParts = evidenceOnlyImage
+      ? [{ text: request.rawText, start: 0, end: request.rawText.length }]
+      : splitFoodSurface(request.rawText);
+    if (unsupportedParts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
+    return unsupportedParts.map((part, index) => validate(buildObservation(request, part, index)));
   }
   if (evidenceOnlyImage) {
-    const item = buildObservation(request, parts[0], 0);
+    const item = buildObservation(request,
+      { text: request.rawText, start: 0, end: request.rawText.length }, 0);
     const region = request.imageRegion ?? null;
     const spanAnchor = { ...item.surfaceSpan, region };
     item.surfaceSpan = spanAnchor;
@@ -490,7 +493,12 @@ export async function comprehendFoodLanguage(
   const entries = await lexicon.load({ locale: DEFAULT_FOOD_LOCALE, ownerUserId: request.ownerUserId, revision: request.lexiconRevision, now });
   if (entries.length > 5000) throw new Error("linguistic-lexicon-limit");
   const units = governedUnitAliases(entries, request.ownerUserId, now);
-  const parsedParts = units.length ? splitFoodSurface(request.rawText, units) : parts;
+  // A-026: an ungoverned splitter must not preempt the protected S2 snapshot.
+  // Revoked, expired, pending and other-user terms are never shielding rules.
+  const protectedTerms = entries.filter(entry =>
+    entry.kind === "protected_token" && applicable(entry, request.ownerUserId, now),
+  ).map(entry => entry.normalizedTerm);
+  const parsedParts = splitFoodSurface(request.rawText, units, protectedTerms);
   if (parsedParts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   const results: FoodObservation[] = [];
   for (let i = 0; i < parsedParts.length; i++) {
@@ -527,7 +535,7 @@ export async function comprehendFoodLanguage(
     if (observation.unresolvedReason !== null && request.shouldInterpretResidual?.(observation) && interpreter) {
       if (!request.interpreterVersion?.trim()) throw new Error("linguistic-interpreter-version-required");
       try {
-        observation = validate(addResidual(observation, await interpreter(observation), request.interpreterVersion));
+        observation = validate(addResidual(observation, await interpreter(observation), request.interpreterVersion, i));
       } catch {
         // No silent provider fallback: record a typed unavailable evidence with
         // no invented name, nutrition, or interpreter normalization step.
