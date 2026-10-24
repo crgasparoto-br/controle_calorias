@@ -216,7 +216,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   const observed = emptyIdentity();
   // A-019: commas coalesced with a qualifier are surface punctuation,
   // not part of the normalized food identity. Raw spans/evidence keep them.
-  const normalizedName = foldFoodSurface(name.replace(/,\s*/gu, " "));
+  const normalizedName = foldFoodSurface(name.replace(/,(?!\d)\s*/gu, " "));
   observed.foodName = name ? normalizedName : null;
   observed.qualifiers = detectQualifiers(name);
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,
@@ -311,6 +311,7 @@ function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry, 
     snapshot.unresolvedReason = "unknown_surface";
   } else if (target && entry.kind !== "protected_token") {
     snapshot.identityHints.foodName = target;
+    snapshot.identityHints.qualifiers = detectQualifiers(target);
     snapshot.normalizedInput = target;
     snapshot.unresolvedReason = null;
   }
