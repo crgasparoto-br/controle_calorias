@@ -60,16 +60,20 @@ export function isCanonicalLinguisticGrammar(
     // owners and comparison operands remain subject to architecture rules.
     if (rule.id === "18" && rule.kind === "literal-branch") {
       const predicate = finding.subject.match(
-        /^(request\.modality|request\.imageRegionRole|item\.targetType)\s*(===|!==)\s*"([a-z_]+)"$/u,
+        /^(request\.modality|request\.imageRegionRole|item\.targetType|entry\.kind)\s*(===|!==)\s*"([a-z_]+)"$/u,
       );
       const contractValues: Record<string, readonly string[]> = {
         "request.modality": ["image"],
         "request.imageRegionRole": ["front_identity", "caption", "nutrition_label", "ingredients"],
         "item.targetType": ["canonical_term"],
+        // Only the approved S2 protection marker is structural grammar.
+        "entry.kind": ["protected_token"],
       };
       const owner = predicate?.[1] === "item.targetType" &&
         finding.symbol === "governedUnitAliases:item.targetType:lexical-branch"
         ? "governedUnitAliases" : "comprehendFoodLanguage";
+      // Negating the marker changes the guard; do not whitelist that branch.
+      if (predicate?.[1] === "entry.kind" && predicate[2] !== "===") return false;
       if (predicate &&
           finding.symbol === `${owner}:${predicate[1]}:lexical-branch` &&
           contractValues[predicate[1]]?.includes(predicate[3])) return true;
