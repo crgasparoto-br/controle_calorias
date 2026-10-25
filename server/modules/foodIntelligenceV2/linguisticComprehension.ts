@@ -234,9 +234,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   // Keep the untouched surface/evidence while matching the same S2 alias as
   // "ovos sem lactose" for "ovos, e sem lactose". Do not strip a protected
   // brand coordinator or the conjunction between separate foods.
-  const qualifierCoordinator = /,\s*e\s+(?=(?:sem|com|zero)\s+(?:a[c\u00e7][u\u00fa]car|lactose|gl[u\u00fa]ten|sal|gordura|cafe[i\u00ed]na)\b|(?:frit[ao]s?|cozid[ao]s?|desnatad[ao]s?|integral|diet|light|uht)\b)/giu;
-  const normalizedName = foldFoodSurface(name.replace(qualifierCoordinator, " ")
-    .replace(/,(?!\d)\s*/gu, " "));
+  const normalizedName = foldFoodSurface(name, true);
   observed.foodName = name ? normalizedName : null;
   observed.qualifiers = detectQualifiers(name);
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,

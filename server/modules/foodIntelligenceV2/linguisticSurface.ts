@@ -48,8 +48,14 @@ const quantified = new RegExp("^(" + quantityPattern + ")(?:\\s+(?:de\\s+)?|(?<=
 const halfAfterUnit = new RegExp("^(" + quantityPattern + ")(?:\\s+(?:de\\s+)?|(?<=\\d))(" + unitPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu");
 const counted = new RegExp("^(" + quantityPattern + ")\\s+(?:de\\s+)?", "iu");
 
-export function foldFoodSurface(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+export function foldFoodSurface(value: string, foodNamePunctuation = false): string {
+  // Only for S1 food identity hints: a comma plus a material qualifier
+  // coordinator is syntax. All other consumers keep their existing folding.
+  const nameSurface = foodNamePunctuation
+    ? value.replace(/,\s*e\s+(?=(?:sem|com|zero)\s+(?:a[c\u00e7][u\u00fa]car|lactose|gl[u\u00fa]ten|sal|gordura|cafe[i\u00ed]na)\b|(?:frit[ao]s?|cozid[ao]s?|desnatad[ao]s?|integral|diet|light|uht)\b)/giu, " ")
+      .replace(/,(?!\d)\s*/gu, " ")
+    : value;
+  return nameSurface.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("pt-BR").replace(/\s+/gu, " ").trim();
 }
 
