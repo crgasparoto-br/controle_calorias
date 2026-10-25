@@ -1135,4 +1135,72 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(nameAlias.quantityHints).toMatchObject({ value: 50, unit: "g" });
   });
 
+
+  it("AUD1304 A-032 preserva colheres qualificadas com fração e preposição opcionais", async () => {
+    for (const [withoutDe, withDe, amount, unit, food] of [
+      ["3/4 colher de sopa de azeite", "3/4 de colher de sopa de azeite", 0.75, "colher de sopa", "azeite"],
+      ["1/2 colher de chá de mel", "1/2 de colher de chá de mel", 0.5, "colher de chá", "mel"],
+      ["0,5 colher de sobremesa de geleia", "0,5 de colher de sobremesa de geleia", 0.5, "colher de sobremesa", "geleia"],
+    ] as const) {
+      const observations = await Promise.all([withoutDe, withDe].map(rawText => analyze(rawText, [])));
+      for (let index = 0; index < observations.length; index++) {
+        const [item] = observations[index];
+        const raw = index === 0 ? withoutDe : withDe;
+        expect(item.quantityHints).toMatchObject({ value: amount, unit });
+        expect(item.identityHints.foodName).toBe(food);
+        expect(item.rawInput).toBe(raw);
+        expect(item.surfaceSpan.span).toEqual({ start: 0, end: raw.length });
+        expect(item.quantityHints.servingText).toBeTruthy();
+      }
+      expect(observations.map(([item]) => ({
+        food: item.identityHints.foodName,
+        value: item.quantityHints.value,
+        unit: item.quantityHints.unit,
+      }))).toEqual(Array(2).fill({ food, value: amount, unit }));
+    }
+    // A named soup or tea remains a food when there is no second "de <food>".
+    const [soup] = await analyze("1 colher de sopa", []);
+    expect(soup.quantityHints).toMatchObject({ value: 1, unit: "colher" });
+    expect(soup.identityHints.foodName).toBe("sopa");
+    const [tea] = await analyze("uma colher de chá verde", []);
+    expect(tea.quantityHints).toMatchObject({ value: 1, unit: "colher" });
+    expect(tea.identityHints.foodName).toBe("cha verde");
+    const [unknown] = await analyze("3/4 de caneca de leite", []);
+    expect(unknown.quantityHints.value).toBeNull();
+    expect(unknown.quantityHints.unit).toBeNull();
+  });
+
+  it("AUD1304 A-033 não divide numerais escritos antes de e meio/meia", async () => {
+    for (const [numeric, written, amount, unit, food] of [
+      ["2 e meio ovos", "dois e meio ovos", 2.5, "un", "ovos"],
+      ["2 e meia fatias de pão", "duas e meia fatias de pão", 2.5, "fatia", "pao"],
+      ["22 e meia fatias de pão", "vinte e duas e meia fatias de pão", 22.5, "fatia", "pao"],
+    ] as const) {
+      for (const input of [numeric, written]) {
+        const observed = await analyze(input, []);
+        expect(observed).toHaveLength(1);
+        const [item] = observed;
+        expect(item.quantityHints).toMatchObject({ value: amount, unit });
+        expect(item.identityHints.foodName).toBe(food);
+        expect(item.rawInput).toBe(input);
+        expect(item.surfaceSpan.span).toEqual({ start: 0, end: input.length });
+      }
+    }
+    const phrase = "duas e meia fatias de pão 🥖 e 1 banana";
+    const observed = await analyze(phrase, []);
+    expect(observed).toHaveLength(2);
+    expect(observed[0].quantityHints).toMatchObject({ value: 2.5, unit: "fatia" });
+    expect(observed[1].quantityHints).toMatchObject({ value: 1, unit: "un" });
+    expect(phrase.slice(observed[0].surfaceSpan.span!.start, observed[0].surfaceSpan.span!.end))
+      .toBe("duas e meia fatias de pão 🥖");
+    expect(phrase.slice(observed[1].surfaceSpan.span!.start, observed[1].surfaceSpan.span!.end))
+      .toBe("1 banana");
+    expect(observed.every(item => item.rawInput === phrase)).toBe(true);
+    const [eggs, milk] = await analyze("2 ovos e meio copo de leite", []);
+    expect([eggs.quantityHints.value, milk.quantityHints.value]).toEqual([2, 0.5]);
+    expect([eggs.identityHints.foodName, milk.identityHints.foodName]).toEqual(["ovos", "leite"]);
+    const [count, halfBanana] = await analyze("dois ovos e meia banana", []);
+    expect([count.quantityHints.value, halfBanana.quantityHints.value]).toEqual([2, 0.5]);
+  });
+
 });

@@ -106,7 +106,7 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   // A second "de <food>" is required: "colher de sopa" by itself describes
   // a spoonful of soup, not an absent food. Never invent mass or volume.
   const qualifiedSpoon = new RegExp(
-    "^(" + quantityPattern + ")\\s+colher(?:es)?(\\s+e\\s+mei[ao])?\\s+de\\s+" +
+    "^(" + quantityPattern + ")\\s+(?:de\\s+)?colher(?:es)?(\\s+e\\s+mei[ao])?\\s+de\\s+" +
       "(sopa|ch[aá]|sobremesa|caf[eé])\\s+de\\s+", "iu",
   ).exec(source);
   if (qualifiedSpoon) {
@@ -152,19 +152,19 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
       return { value, unit, name: source.slice(withUnit[0].length).trim(), servingText: withUnit[0].trim(), uncertain: false };
     }
   }
-  const writtenHalfWithUnit = new RegExp("^(um|uma|\\d+)\\s+e\\s+mei[ao]\\s+(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu").exec(source);
+  const writtenHalfWithUnit = new RegExp("^(" + quantityPattern + ")\\s+e\\s+mei[ao]\\s+(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu").exec(source);
   if (writtenHalfWithUnit) {
     const value = parseNumber(writtenHalfWithUnit[1]);
     const unit = recognizedUnit(writtenHalfWithUnit[2]);
-    if (value !== null && unit !== null) return {
+    if (value !== null && Number.isInteger(value) && unit !== null) return {
       value: value + 0.5, unit, name: source.slice(writtenHalfWithUnit[0].length).trim(),
       servingText: writtenHalfWithUnit[0].trim(), uncertain: false,
     };
   }
-  const oneAndHalf = /^(um|uma|\d+)\s+e\s+mei[ao]\b\s*(?:de\s+)?/iu.exec(source);
+  const oneAndHalf = new RegExp("^(" + quantityPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu").exec(source);
   if (oneAndHalf) {
     const value = parseNumber(oneAndHalf[1]);
-    if (value !== null) return { value: value + 0.5, unit: "un", name: source.slice(oneAndHalf[0].length).trim(), servingText: oneAndHalf[0].trim(), uncertain: false };
+    if (value !== null && Number.isInteger(value)) return { value: value + 0.5, unit: "un", name: source.slice(oneAndHalf[0].length).trim(), servingText: oneAndHalf[0].trim(), uncertain: false };
   }
   // A comma-delimited trailing quantity can describe the preceding food:
   // "mortadela, uma fatia e meia". Do not manufacture another food item.
@@ -358,9 +358,12 @@ export function splitFoodSurface(
       const rangeStart = new RegExp("^entre\\s+(?:" + quantityPattern + ")$", "iu");
       const rangeEnd = new RegExp("^(?:" + quantityPattern + ")(?=\\s|$|\\p{L})", "iu");
       const betweenBounds = rangeStart.test(left.trim()) && rangeEnd.test(right);
-      if (composedAmount || isAttachedHalf || betweenBounds ||
-          /^mei[ao](?:\s+de\b|\s*$)/iu.test(right) ||
-          (/^(?:um|uma|\d+)\s*$/iu.test(left) && /^mei[ao]\b/iu.test(right))) continue;
+      // Written and numeric whole counts can take a following "e meio/meia".
+      // Do not shield "2 ovos e meio copo": its left side is not a number.
+      const leadingHalf = new RegExp("^(?:" + quantityPattern + ")$", "iu").test(left.trim()) &&
+        Number.isInteger(parseNumber(left.trim())) && /^mei[ao]\b/iu.test(right);
+      if (composedAmount || isAttachedHalf || betweenBounds || leadingHalf ||
+          /^mei[ao](?:\s+de\b|\s*$)/iu.test(right)) continue;
       const part = trimSpan(text, segment.start + offset, segment.start + match.index);
       if (part) joined.push(part);
       offset = separator.lastIndex;

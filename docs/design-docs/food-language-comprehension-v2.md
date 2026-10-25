@@ -206,3 +206,10 @@ Controles Vitest acrescentados à suíte linguística existente; sem ativação 
   existente mantêm bloqueio para valores alimentares indevidos, operador
   invertido e normalizadores fora do proprietário. Sem flexibilizar outros
   gates, sem mudar o parser ou ativar S3 em produção.
+
+## Remediação AUD1304 A-032–A-033 (25/10/2026)
+
+- **A-032 — colher qualificada com preposição:** `3/4 de colher de sopa de azeite` e `3/4 colher de sopa de azeite` produzem a mesma quantidade (0,75), unidade (`colher de sopa`) e identidade alimentar (`azeite`). A gramática mantém a necessidade de um segundo `de <alimento>` para diferenciar a medida de `1 colher de sopa` (alimento: sopa). Unidades não governadas permanecem incertas.
+- **A-033 — inteiro escrito + fração:** `dois e meio ovos` e `2 e meio ovos` convergem a 2,5 `un`; `duas e meia fatias de pão` converge a 2,5 `fatia`, sem segmentação artificial no `e`. Listas reais (`2 ovos e meio copo de leite`) continuam separando alimentos distintos; spans UTF-16 preservam a superfície original.
+
+Os controles foram acrescentados à suíte Vitest existente, sem alterar contratos, thresholds de #1306, endpoints ou cutover produtivo. A nova revisão exige CI exact-HEAD e auditoria independente posterior.
