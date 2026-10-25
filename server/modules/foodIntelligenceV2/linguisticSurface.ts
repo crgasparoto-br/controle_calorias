@@ -319,7 +319,8 @@ export function splitFoodSurface(
     // quantity-led food before foodOnlySpan removes the command. Otherwise
     // "Registrar no almoco, 2 ovos" manufactures a phantom food.
     const commandFraming = new RegExp(
-      "^(?:adicionar|registrar|anotar|comi|consumi)(?:\\s+(?:(?:ao|no|na)\\s+" + meal + "))?$", "iu",
+      "^(?:(?:adicionar|registrar|anotar|comi|consumi)(?:\\s+(?:(?:ao|no|na)\\s+" + meal + "))?" +
+        "|(?:no|na)\\s+" + meal + "\\s+(?:comi|consumi))$", "iu",
     );
     const trailingMeal = new RegExp("^(?:(?:ao|no|na)\\s+|para\\s+(?:o|a)\\s+)" + meal + "$", "iu");
     const followingFood = amount.value !== null && amount.name.trim().length > 0;
@@ -382,8 +383,7 @@ export function splitFoodSurface(
       const right = segment.text.slice(separator.lastIndex);
       // Do not turn a second material qualifier into a new food.
       // The conjoined expression still belongs to the same observation.
-      if (/^(?:sem|com|zero)\s+[\p{L}]/iu.test(right) ||
-          /^(?:frit[ao]s?|cozid[ao]s?)\s*$/iu.test(right)) continue;
+      if (materialQualifier.test(right)) continue;
       // "uma fatia e meia", "dois ovos e meio" and "um e meio copo"
       // are quantities; "2 ovos e meio copo de leite" has two food items.
       // In a chained list the first conjunction may be a terminal fraction:

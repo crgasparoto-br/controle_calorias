@@ -1238,6 +1238,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
       "Registrar no almo\u00e7o 2 ovos",
       "Registrar no almo\u00e7o, 2 ovos",
       "No almo\u00e7o, 2 ovos",
+      "No almo\u00e7o comi, 2 ovos",
       "Comi, 2 ovos",
     ];
     for (const rawText of variants) {
@@ -1276,6 +1277,14 @@ describe("Camada de Compreensão Linguística #1304", () => {
 
     const [yogurt] = await analyze("iogurte, e sem lactose", []);
     expect(yogurt.identityHints.foodName).toBe("iogurte sem lactose");
+    for (const adjective of ["integral", "light", "diet"] as const) {
+      const rawText = "iogurte, e " + adjective;
+      const items = await analyze(rawText, []);
+      expect(items).toHaveLength(1);
+      expect(items[0].identityHints.foodName).toBe("iogurte " + adjective);
+      expect(rawText.slice(items[0].surfaceSpan.span!.start, items[0].surfaceSpan.span!.end))
+        .toBe(rawText);
+    }
     const [opposites] = await analyze("iogurte, e sem lactose e com lactose", []);
     expect(opposites.identityHints.qualifiers.map(q => q.value))
       .toEqual(["sem lactose", "com lactose"]);
