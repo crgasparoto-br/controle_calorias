@@ -233,3 +233,30 @@ Os controles foram acrescentados à suíte Vitest existente, sem alterar contrat
 As três remediações possuem testes positivos, negativos, de equivalência e de
 âncoras UTF-16 na suíte linguística já existente. Não há alteração de thresholds
 S3, parser de `MealOperation`, fluxo produtivo ou escolha nutricional.
+
+
+## Remediacao AUD1304 A-037/A-038 e verificacao R-001 (25/10/2026)
+
+- **A-037 — confianca da transcricao:** a entrada de `audio_transcript` aceita
+  `transcriptionConfidence` opcional (numero finito entre 0 e 1, inclusive).
+  A confianca de origem acompanha as evidencias de nome e quantidade extraidas
+  da transcricao, sem declarar `verified=true` e sem influenciar a escolha
+  nutricional. Ausencia/null permanecem `confidence=null`. Outros canais
+  rejeitam o campo e valores invalidos sao recusados antes do acesso ao lexico.
+  Digitacao e transcricao continuam evidencias distintas pela `modality`,
+  `origin` e `sourceRef`, sem fusao silenciosa de mensagens do turno.
+- **A-038 — coordenacao apos pontuacao:** `2 ovos; e 1 banana` e entradas com
+  quebra de linha ou CRLF sao segmentadas em dois alimentos com o mesmo
+  significado da lista com `e` simples; `rawInput` e os spans UTF-16
+  continuam apontando para os caracteres originais. Continuacoes de
+  qualificador apos virgula mantem a regra anterior; `;` e nova linha nao
+  fundem qualificadores ao alimento anterior.
+- **R-001 — papeis de atributo S3:** teste de contrato comprova que a
+  alternativa residual pode transportar `cultivar`, `line`, `flavor` e
+  `packaging` com evidencias separadas e nao verificadas, sem promover
+  essas inferencias a identidade selecionada. S3 continua desabilitado sem
+  politica de elegibilidade calibrada na #1306.
+
+Esta remediacao nao altera APIs de producao, thresholds, nutricional ou a
+propriedade do parser de `MealOperation`. Exige testes oficiais e CI
+exact-HEAD antes de reauditoria independente.

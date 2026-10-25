@@ -43,6 +43,8 @@ export type LinguisticRequest = {
   rawText: string;
   sourceRef: string;
   modality: LinguisticModality;
+  /** Source transcript confidence in [0,1], not semantic certainty or verification. */
+  transcriptionConfidence?: number | null;
   /** OCR role comes from a validated boundary, never inferred from untrusted label text. */
   imageRegionRole?: "front_identity" | "caption" | "nutrition_label" | "ingredients";
   imageRegion?: FoodObservation["surfaceSpan"]["region"];
@@ -239,14 +241,17 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   }
   const evidence: FoodObservation["evidence"] = [];
   const origin = request.modality === "audio_transcript" ? "transcription" : request.modality === "image" ? "ocr" : "text";
+  // Confidence belongs to the transcription evidence, never to the normalized identity.
+  const sourceConfidence = request.modality === "audio_transcript"
+    ? request.transcriptionConfidence ?? null : null;
   if (name) evidence.push({
     evidenceId: "ev-name-" + index, field: "identity.foodName",
-    origin, value: name, unit: null, confidence: null, verified: false,
+    origin, value: name, unit: null, confidence: sourceConfidence, verified: false,
     anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
   });
   if (q.value !== null) evidence.push({
     evidenceId: "ev-quantity-" + index, field: "quantity.value",
-    origin, value: q.value, unit: q.unit, confidence: null, verified: false,
+    origin, value: q.value, unit: q.unit, confidence: sourceConfidence, verified: false,
     anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
   });
   // A lexical unit mapping must be distinguishable from the S1 grammar.
@@ -456,6 +461,15 @@ export async function comprehendFoodLanguage(
       !request.lexiconRevision.trim() || request.lexiconRevision.length > FOOD_CONTRACT_LIMITS.shortText ||
       request.ownerUserId !== null && (!Number.isSafeInteger(request.ownerUserId) || request.ownerUserId <= 0)) {
     throw new Error("invalid-linguistic-input");
+  }
+  // Reject unsupported channel metadata and invalid numeric confidence before any
+  // lexicon/provider access. Missing transcript confidence stays explicitly null.
+  if ((request.modality !== "audio_transcript" &&
+       request.transcriptionConfidence !== undefined) ||
+      (request.transcriptionConfidence != null &&
+       (!Number.isFinite(request.transcriptionConfidence) ||
+        request.transcriptionConfidence < 0 || request.transcriptionConfidence > 1))) {
+    throw new Error("invalid-linguistic-transcription-confidence");
   }
   const now = request.now ?? new Date();
   if (Number.isNaN(now.getTime()) ||

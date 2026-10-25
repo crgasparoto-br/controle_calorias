@@ -300,7 +300,11 @@ export function splitFoodSurface(
   for (const segment of segments) {
     const previous = coalesced.at(-1);
     const amount = readQuantity(segment.text, governedUnits);
-    const comma = /^\s*,\s*$/u.test(text.slice(previous?.end ?? 0, segment.start));
+    const delimiter = text.slice(previous?.end ?? 0, segment.start);
+    const comma = /^\s*,\s*$/u.test(delimiter);
+    // Coordinators may follow comma, semicolon, CRLF or newline. Never infer
+    // a delimiter from normalized text: all spans remain in the raw source.
+    const listBoundary = /^[\s,;\r\n]+$/u.test(delimiter) && /[,;\r\n]/u.test(delimiter);
     // A comma can delimit a meal destination, not necessarily a new food.
     // Preserve it in the original span; foodOnlySpan owns removing framing.
     const meal = "(?:caf[eé] da manh[aã]|almo[cç]o|jantar|lanche)";
@@ -324,10 +328,9 @@ export function splitFoodSurface(
       const merged = trimSpan(text, previous.start, segment.end);
       if (merged) coalesced[coalesced.length - 1] = merged;
     } else {
-      // After a comma, a standalone "e" may connect the next food: the
-      // coordinator is punctuation, not part of its identity/quantity.
-      // Keep the original offsets rather than rewriting the input string.
-      const coordinator = comma && /^e\s+/iu.exec(segment.text);
+      // A standalone "e" after punctuation may coordinate the next food.
+      // Its bytes stay in rawInput, but must not enter the next food's span.
+      const coordinator = listBoundary && /^e\s+/iu.exec(segment.text);
       const following = coordinator
         ? trimSpan(text, segment.start + coordinator[0].length, segment.end)
         : null;
@@ -335,9 +338,14 @@ export function splitFoodSurface(
         !trailingMeal.test(previous.text) && Boolean(precedingFood?.name.trim());
       if (previousIsFood && following) {
         if (materialQualifier.test(following.text)) {
-          // "iogurte, e sem lactose" still describes the preceding item.
-          const merged = trimSpan(text, previous.start, segment.end);
-          if (merged) coalesced[coalesced.length - 1] = merged;
+          if (comma) {
+            // "iogurte, e sem lactose" is a qualifier continuation only
+            // across comma, not a semicolon or line boundary.
+            const merged = trimSpan(text, previous.start, segment.end);
+            if (merged) coalesced[coalesced.length - 1] = merged;
+          } else {
+            coalesced.push(segment);
+          }
         } else {
           coalesced.push(following);
         }

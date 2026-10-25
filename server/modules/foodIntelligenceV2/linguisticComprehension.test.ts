@@ -1268,4 +1268,130 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(valid.identityHints.qualifiers.map(q => q.role).sort()).toEqual(["gluten", "lactose"]);
   });
 
+
+  it("AUD1304 A-037 propaga confianca da transcricao sem fundir evidencias textuais", async () => {
+    const phrase = "2 ovos 🥚 e 1 banana";
+    const low = await analyze(phrase, [], {
+      modality: "audio_transcript", transcriptionConfidence: 0.2,
+    });
+    const high = await analyze(phrase, [], {
+      modality: "audio_transcript", transcriptionConfidence: 0.95,
+    });
+    const typed = await analyze(phrase, [], { modality: "text" });
+    for (const [items, expectedConfidence] of [[low, 0.2], [high, 0.95]] as const) {
+      expect(items).toHaveLength(2);
+      for (const item of items) {
+        const transcriptEvidence = item.evidence.filter(e =>
+          e.origin === "transcription" &&
+          (e.field === "identity.foodName" || e.field === "quantity.value"));
+        expect(transcriptEvidence).toHaveLength(2);
+        expect(transcriptEvidence.map(e => e.confidence)).toEqual([
+          expectedConfidence, expectedConfidence,
+        ]);
+        expect(transcriptEvidence.every(e => e.verified === false)).toBe(true);
+        expect(item.rawInput).toBe(phrase);
+        expect(phrase.slice(item.surfaceSpan.span!.start, item.surfaceSpan.span!.end))
+          .toContain(item === items[0] ? "ovos" : "banana");
+      }
+    }
+    expect(typed.map(item => item.evidence.filter(e => e.origin === "text")
+      .map(e => e.confidence))).toEqual([[null, null], [null, null]]);
+    expect(low.map(item => item.quantityHints.value))
+      .toEqual(typed.map(item => item.quantityHints.value));
+    for (const confidence of [0, 1] as const) {
+      const [item] = await analyze("1 ovo", [], {
+        modality: "audio_transcript", transcriptionConfidence: confidence,
+      });
+      expect(item.evidence.filter(e => e.origin === "transcription")
+        .every(e => e.confidence === confidence)).toBe(true);
+    }
+    for (const transcriptionConfidence of [undefined, null]) {
+      const [item] = await analyze("1 ovo", [], {
+        modality: "audio_transcript", transcriptionConfidence,
+      });
+      expect(item.evidence.filter(e => e.origin === "transcription")
+        .every(e => e.confidence === null)).toBe(true);
+    }
+  });
+
+  it("AUD1304 A-037 rejeita confianca invalida antes de ler lexico ou IA", async () => {
+    for (const transcriptionConfidence of [-0.01, 1.01, Number.NaN, Infinity, -Infinity]) {
+      const lexicon = store();
+      await expect(comprehendFoodLanguage({
+        ...base, modality: "audio_transcript", transcriptionConfidence,
+      }, lexicon)).rejects.toThrow("invalid-linguistic-transcription-confidence");
+      expect(lexicon.load).not.toHaveBeenCalled();
+    }
+    for (const modality of ["text", "image"] as const) {
+      const lexicon = store();
+      await expect(comprehendFoodLanguage({
+        ...base, modality, transcriptionConfidence: 0.75,
+      }, lexicon)).rejects.toThrow("invalid-linguistic-transcription-confidence");
+      expect(lexicon.load).not.toHaveBeenCalled();
+    }
+  });
+
+  it("AUD1304 A-038 conserva cardinalidade e spans apos separadores fortes", async () => {
+    const reference = await analyze("2 ovos e 1 banana", []);
+    for (const phrase of [
+      "2 ovos; e 1 banana",
+      "2 ovos\\ne 1 banana",
+      "2 ovos;\\ne 1 banana",
+      "2 ovos\\r\\n e uma banana",
+      "2 ovos, e 1 banana",
+    ].map(value => value.replace(/\\r/g, "\r").replace(/\\n/g, "\n"))) {
+      const items = await analyze(phrase, []);
+      expect(items).toHaveLength(2);
+      expect(items.map(item => item.identityHints.foodName)).toEqual(["ovos", "banana"]);
+      expect(items.map(item => item.quantityHints.value))
+        .toEqual(reference.map(item => item.quantityHints.value));
+      expect(items.map(item => item.quantityHints.unit)).toEqual(["un", "un"]);
+      expect(phrase.slice(items[0].surfaceSpan.span!.start, items[0].surfaceSpan.span!.end))
+        .toBe("2 ovos");
+      expect(phrase.slice(items[1].surfaceSpan.span!.start, items[1].surfaceSpan.span!.end))
+        .toMatch(/^(?:1|uma) banana$/u);
+      expect(items.every(item => item.rawInput === phrase)).toBe(true);
+    }
+    for (const phrase of ["2 ovos; e banana", "2 ovos\\ne banana"]
+      .map(value => value.replace(/\\n/g, "\n"))) {
+      const parts = await analyze(phrase, []);
+      expect(parts).toHaveLength(2);
+      expect(parts[1].identityHints.foodName).toBe("banana");
+      expect(parts[1].quantityHints.value).toBeNull();
+      expect(phrase.slice(parts[1].surfaceSpan.span!.start, parts[1].surfaceSpan.span!.end))
+        .toBe("banana");
+    }
+    const qualified = await analyze("iogurte, e sem lactose", []);
+    expect(qualified).toHaveLength(1);
+    expect(qualified[0].identityHints.qualifiers.map(q => q.value))
+      .toContain("sem lactose");
+    const boundary = await analyze("iogurte; e sem lactose", []);
+    expect(boundary).toHaveLength(2);
+    expect(boundary[0].identityHints.qualifiers).toEqual([]);
+    const [noPriorFood] = await analyze("e 1 banana", []);
+    expect(noPriorFood.identityHints.foodName).toBe("e 1 banana");
+  });
+
+  it("AUD1304 R-001 preserva papeis de cultivar linha sabor e embalagem na hipotese S3", async () => {
+    const qualifiers = [
+      { value: "fuji", attributeCode: null, role: "cultivar", confidence: 0.7 },
+      { value: "linha especial", attributeCode: null, role: "line", confidence: 0.7 },
+      { value: "canela", attributeCode: null, role: "flavor", confidence: 0.7 },
+      { value: "pacote 300g", attributeCode: null, role: "packaging", confidence: 0.7 },
+    ];
+    const [item] = await comprehendFoodLanguage({
+      ...base, rawText: "maca fuji linha especial sabor canela pacote 300g",
+      shouldInterpretResidual: () => true, interpreterVersion: "s3-v2",
+    }, store(), async () => ({ alternatives: [{
+      foodName: "maçã fuji", confidence: 0.7, qualifiers,
+    }] }));
+    expect(item.alternatives).toHaveLength(1);
+    expect(item.alternatives[0].identityHints.qualifiers).toEqual(qualifiers);
+    expect(item.evidence.filter(e => e.field === "identity.qualifiers"
+      && e.origin === "ai_estimate").map(e => e.value))
+      .toEqual(qualifiers.map(q => q.value));
+    expect(item.identityHints.foodName).toContain("maca fuji");
+    expect(item.evidence.every(e => e.verified === false)).toBe(true);
+  });
+
 });
