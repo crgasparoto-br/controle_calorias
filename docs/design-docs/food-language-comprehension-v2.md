@@ -184,7 +184,9 @@ Controles Vitest acrescentados à suíte linguística existente; sem ativação 
   preserva o alimento `leite` e a medida `xícara`, convergindo com
   "3/4 xícara de leite". Medidas "colher de sopa/chá/sobremesa/café
   de <alimento>" conservam o subtipo como unidade distinta e a evidência bruta,
-  sem inventar gramas ou mililitros. "1 colher de sopa" continua sendo
+  sem inventar gramas ou mililitros. Recipientes não governados, inclusive
+  com preposição ("3/4 de caneca"), seguem incertos, sem valor/unit exatos.
+  "1 colher de sopa" continua sendo
   uma colher do alimento sopa, sem criar outro alimento.
 - **A-030 — isolamento S2 por papel:** `unit_term` e `portion_term` participam
   somente do slot de unidade; não substituem `identityHints.foodName`

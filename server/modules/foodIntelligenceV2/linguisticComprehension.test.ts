@@ -1095,8 +1095,11 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(tea.identityHints.foodName).toBe("cha verde");
     expect(tea.quantityHints).toMatchObject({ value: 1, unit: "colher" });
     const [unapproved] = await analyze("3/4 de caneca de leite", []);
-    expect(unapproved.quantityHints.unit).not.toBe("xícara");
+    expect(unapproved.quantityHints).toMatchObject({
+      value: null, unit: null, servingText: "3/4 de caneca de leite",
+    });
     expect(unapproved.identityHints.foodName).toContain("caneca");
+    expect(unapproved.evidence.some(value => value.field === "quantity.value")).toBe(false);
   });
 
   it("AUD1304 A-030 impede que alias de unidade ou porção reescreva a identidade", async () => {

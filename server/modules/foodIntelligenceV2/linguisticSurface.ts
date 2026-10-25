@@ -208,7 +208,7 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   // Counted containers/portions without an approved unit are *not* counts
   // of individual foods. This is quantity vocabulary, never a food-name list.
   const uncertainServing = new RegExp(
-    "^(?:" + bounds + "\\s+)?(?:pouc[oa]s?|pouquinhos?|pouquinhas?|" +
+    "^(?:" + bounds + "\\s+(?:de\\s+)?)?(?:pouc[oa]s?|pouquinhos?|pouquinhas?|" +
       "tiquinhos?|bastante|punhados?|punhadinhos?|pedacos?|pedacinhos?|" +
       "pitadas?|goles?|garfadas?|colheradas?|canecas?|tigelas?|" +
       "cumbucas?|copinhos?|prat[aã]o|pratos?|marmitas?|potes?|" +
