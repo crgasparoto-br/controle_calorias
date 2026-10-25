@@ -83,8 +83,10 @@ function foodOnlySpan(full: string, segment: Segment): Segment {
   let value = segment.text;
   const meal = "(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)";
   const prefix = new RegExp(
-    "^(?:(?:adicionar|registrar|anotar|comi|consumi)\\s+(?:(?:ao|no|na)\\s+" +
-      meal + "\\s+)?|(?:no|na)\\s+" + meal + "\\s+(?:comi|consumi)\\s+)", "iu",
+    "^(?:(?:adicionar|registrar|anotar|comi|consumi)" +
+      "(?:\\s+(?:(?:ao|no|na)\\s+" + meal + "))?" +
+      "(?:\\s*,\\s*|\\s+)" +
+      "|(?:no|na)\\s+" + meal + "\\s+(?:comi|consumi)(?:\\s*,\\s*|\\s+))", "iu",
   ).exec(value);
   if (prefix) {
     start += prefix[0].length;
@@ -228,7 +230,13 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   const observed = emptyIdentity();
   // A-019: commas coalesced with a qualifier are surface punctuation,
   // not part of the normalized food identity. Raw spans/evidence keep them.
-  const normalizedName = foldFoodSurface(name.replace(/,(?!\d)\s*/gu, " "));
+  // Comma-coordinated material qualifiers are syntax, not food identity.
+  // Keep the untouched surface/evidence while matching the same S2 alias as
+  // "ovos sem lactose" for "ovos, e sem lactose". Do not strip a protected
+  // brand coordinator or the conjunction between separate foods.
+  const qualifierCoordinator = /,\s*e\s+(?=(?:sem|com|zero)\s+(?:a[c\u00e7][u\u00fa]car|lactose|gl[u\u00fa]ten|sal|gordura|cafe[i\u00ed]na)\b|(?:frit[ao]s?|cozid[ao]s?|desnatad[ao]s?|integral|diet|light|uht)\b)/giu;
+  const normalizedName = foldFoodSurface(name.replace(qualifierCoordinator, " ")
+    .replace(/,(?!\d)\s*/gu, " "));
   observed.foodName = name ? normalizedName : null;
   observed.qualifiers = detectQualifiers(name);
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,

@@ -1231,6 +1231,65 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(await analyze("2 ovos; e 1 banana", [])).toHaveLength(2);
   });
 
+  it("AUD1304 A-040 removes comma-delimited operation framing without phantom food", async () => {
+    const variants = [
+      "Adicionar ao caf\u00e9 da manh\u00e3 2 ovos",
+      "Adicionar ao caf\u00e9 da manh\u00e3, 2 ovos",
+      "Registrar no almo\u00e7o 2 ovos",
+      "Registrar no almo\u00e7o, 2 ovos",
+      "No almo\u00e7o, 2 ovos",
+      "Comi, 2 ovos",
+    ];
+    for (const rawText of variants) {
+      const items = await analyze(rawText, []);
+      expect(items).toHaveLength(1);
+      expect(items[0].identityHints.foodName).toBe("ovos");
+      expect(items[0].quantityHints).toMatchObject({ value: 2, unit: "un" });
+      expect(rawText.slice(items[0].surfaceSpan.span!.start, items[0].surfaceSpan.span!.end))
+        .toBe("2 ovos");
+      expect(items[0].rawInput).toBe(rawText);
+      expect("mealOperation" in items[0]).toBe(false);
+    }
+    // A qualifier alone is not evidence of an unambiguous food.
+    const doubtful = "Adicionar ao caf\u00e9 da manh\u00e3, sem a\u00e7\u00facar";
+    const observed = await analyze(doubtful, []);
+    expect(observed[0].identityHints.foodName).not.toBe("sem acucar");
+    const twoFoods = await analyze("Adicionar 2 ovos, 1 banana", []);
+    expect(twoFoods.map(x => x.identityHints.foodName)).toEqual(["ovos", "banana"]);
+  });
+
+  it("AUD1304 A-041 treats comma-coordinated qualifiers as syntax for S2 matching", async () => {
+    const governed = [entry({ id: 818, normalizedTerm: "ovos sem lactose",
+      term: "ovos sem lactose", targetRef: "ovo sem lactose" })];
+    const plain = await analyze("2 ovos sem lactose", governed);
+    const coordinatedText = "2 ovos, e sem lactose";
+    const coordinated = await analyze(coordinatedText, governed);
+    expect(coordinated).toHaveLength(1);
+    expect(coordinated[0].identityHints.foodName).toBe(plain[0].identityHints.foodName);
+    expect(coordinated[0].identityHints.qualifiers)
+      .toEqual(plain[0].identityHints.qualifiers);
+    expect(coordinated[0].normalizationPath.map(x => x.stage)).toEqual(["S1", "S2"]);
+    expect(coordinated[0].normalizationPath[1].lexiconEntryId).toBe(818);
+    expect(coordinatedText.slice(coordinated[0].surfaceSpan.span!.start,
+      coordinated[0].surfaceSpan.span!.end)).toBe(coordinatedText);
+    expect(coordinated[0].rawInput).toBe(coordinatedText);
+
+    const [yogurt] = await analyze("iogurte, e sem lactose", []);
+    expect(yogurt.identityHints.foodName).toBe("iogurte sem lactose");
+    const [opposites] = await analyze("iogurte, e sem lactose e com lactose", []);
+    expect(opposites.identityHints.qualifiers.map(q => q.value))
+      .toEqual(["sem lactose", "com lactose"]);
+    const differentFoods = await analyze("iogurte, e 1 banana", []);
+    expect(differentFoods.map(item => item.identityHints.foodName)).toEqual(["iogurte", "banana"]);
+    const strongBoundary = await analyze("iogurte; e sem lactose", []);
+    expect(strongBoundary).toHaveLength(2);
+    expect(strongBoundary[0].identityHints.qualifiers).toEqual([]);
+    const [protectedName] = await analyze("1 P\u00e3o e Cia", [entry({ id: 819,
+      normalizedTerm: "pao e cia", term: "P\u00e3o e Cia", kind: "protected_token",
+      targetType: "none", targetRef: null })]);
+    expect(protectedName.identityHints.foodName).toBe("pao e cia");
+  });
+
   it("AUD1304 A-035 does not turn food choices into exact counts", async () => {
     for (const phrase of [
       "2 bananas ou 3 maçãs", "duas bananas ou três maçãs",

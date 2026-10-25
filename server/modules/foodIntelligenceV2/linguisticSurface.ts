@@ -309,6 +309,12 @@ export function splitFoodSurface(
     // Preserve it in the original span; foodOnlySpan owns removing framing.
     const meal = "(?:caf[eé] da manh[aã]|almo[cç]o|jantar|lanche)";
     const mealFraming = new RegExp("^(?:no|na)\\s+" + meal + "$", "iu");
+    // Comma-delimited command/destination framing must be joined to a real
+    // quantity-led food before foodOnlySpan removes the command. Otherwise
+    // "Registrar no almoco, 2 ovos" manufactures a phantom food.
+    const commandFraming = new RegExp(
+      "^(?:adicionar|registrar|anotar|comi|consumi)(?:\\s+(?:(?:ao|no|na)\\s+" + meal + "))?$", "iu",
+    );
     const trailingMeal = new RegExp("^(?:(?:ao|no|na)\\s+|para\\s+(?:o|a)\\s+)" + meal + "$", "iu");
     const followingFood = amount.value !== null && amount.name.trim().length > 0;
     const precedingFood = previous ? readQuantity(previous.text, governedUnits) : null;
@@ -321,7 +327,7 @@ export function splitFoodSurface(
         Boolean(precedingFood?.name.trim())) ||
       (amount.value !== null && amount.unit !== null && !amount.name &&
         precedingFood?.value === null) ||
-      (mealFraming.test(previous.text) && followingFood) ||
+      ((mealFraming.test(previous.text) || commandFraming.test(previous.text)) && followingFood) ||
       (trailingMeal.test(segment.text) && precedingFood?.value !== null &&
         precedingFood?.value !== undefined && Boolean(precedingFood.name.trim()))
     )) {
