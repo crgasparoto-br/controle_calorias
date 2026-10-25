@@ -195,3 +195,14 @@ Controles Vitest acrescentados à suíte linguística existente; sem ativação 
 - Controles positivos, negativos e metamórficos foram adicionados à suíte
   linguística existente, com verificação de spans UTF-16. Sem cutover, escolha
   de nutrientes, mudança de thresholds S3 ou novo parser operacional.
+
+## Remediação AUD1304 A-031 — classificador arquitetural (25/10/2026)
+
+- A função readQuantity conserva chá e café como subtipos de colher de
+  pela gramática pt-BR já existente. As comparações contra as formas sem acento
+  `cha` e `cafe` não são decisões de identidade alimentar ou nutrição.
+- A regra arquitetural 18 isenta **somente** esses dois predicados exatos no
+  proprietário e arquivo canônicos. Controles negativos no teste arquitetural
+  existente mantêm bloqueio para valores alimentares indevidos, operador
+  invertido e normalizadores fora do proprietário. Sem flexibilizar outros
+  gates, sem mudar o parser ou ativar S3 em produção.

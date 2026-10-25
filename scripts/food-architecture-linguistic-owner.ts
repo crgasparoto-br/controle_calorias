@@ -54,6 +54,14 @@ export function isCanonicalLinguisticGrammar(
           /^unitMap\s*\[\s*foldFoodSurface\s*\(/u.test(finding.subject)) return true;
       if (finding.symbol === "splitFoodSurface:char:lexical-branch" &&
           rule.kind === "literal-branch") return true;
+      // A-031: "cha"/"cafe" are accent-folded subtypes of a spoon measure.
+      // Exempt only these two exact structural comparisons in the canonical
+      // quantity reader. Unknown foods, new literals, operators and owners
+      // must still be reported by architecture rule 18.
+      if (file === "server/modules/foodIntelligenceV2/linguisticSurface.ts" &&
+          rule.id === "18" && rule.kind === "literal-branch" &&
+          finding.symbol === "readQuantity:qualifier:lexical-branch" &&
+          /^qualifier\s*===\s*"(?:cha|cafe)"$/u.test(finding.subject)) return true;
     }
     // Exact discriminants of the modality/OCR/lexicon contracts are not
     // nutrition or food-attribute decisions. Keep this narrow: new literals,

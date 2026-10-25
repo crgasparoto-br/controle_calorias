@@ -139,6 +139,36 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
       finding.ruleId === "17")).toBe(true);
   });
 
+  it("AUD1304 A-031 exempts only the two spoon-unit accent discriminants", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    // The two allowed branches are canonical spellings of grammar units,
+    // not food identities or nutrition decisions.
+    for (const literal of ['qualifier === "cha"', 'qualifier === "cafe"']) {
+      expect(source.split(literal)).toHaveLength(2);
+    }
+    expect(findFoodStaticCandidates([{ path: surfaceFile, content: source }])).toEqual([]);
+
+    for (const [original, mutation] of [
+      ['qualifier === "cha"', 'qualifier === "panco"'],
+      ['qualifier === "cafe"', 'qualifier === "arroz"'],
+      ['qualifier === "cha"', 'qualifier !== "cha"'],
+      ['qualifier === "cafe"', 'qualifier !== "cafe"'],
+    ] as const) {
+      const findings = findFoodStaticCandidates([{
+        path: surfaceFile, content: source.replace(original, mutation),
+      }]);
+      expect(findings.some(finding => finding.ruleId === "18" &&
+        finding.symbol === "readQuantity:qualifier:lexical-branch")).toBe(true);
+    }
+
+    // The same expression outside the registered quantity owner is forbidden.
+    const competing = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/rogueSpoonParser.ts",
+      content: 'export function chooseFood(qualifier: string) { return qualifier === "cha"; }',
+    }]);
+    expect(competing.some(finding => finding.ruleId === "18")).toBe(true);
+  });
+
   it("allows only the exact canonical numeric grammar, never nutrition disguised as numerals", () => {
     const source = readFileSync(surfaceFile, "utf8");
     for (const [needle, replacement, symbol] of [
