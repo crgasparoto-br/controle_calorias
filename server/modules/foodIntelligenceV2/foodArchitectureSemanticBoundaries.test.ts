@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { findFoodStaticCandidates } from "../../../scripts/food-intelligence-architecture";
+import { isCanonicalLinguisticGrammar } from "../../../scripts/food-architecture-linguistic-owner";
 import { evaluateFoodArchitectureGate } from "../../../scripts/food-architecture-enforcement";
 
 /** Source-behavior controls: structural bounds must not be confused with
@@ -91,6 +92,49 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
       const findings = findFoodStaticCandidates([{ path, content }]);
       expect(findings).toEqual([]);
     }
+  });
+
+  it("AUD1304 A-039 accepts only the exact transcription modality guard", () => {
+    const source = readFileSync(file, "utf8");
+    const guard = 'request.modality !== "audio_transcript"';
+    const symbol = "comprehendFoodLanguage:request.modality:lexical-branch";
+    const rule = { id: "18", kind: "literal-branch" };
+    expect(source.split(guard)).toHaveLength(2);
+    expect(isCanonicalLinguisticGrammar(file, rule, { symbol, subject: guard })).toBe(true);
+    expect(findFoodStaticCandidates([{ path: file, content: source }])).toEqual([]);
+
+    // A plausible but wrong food-identity comparison must still be rejected,
+    // as must reversing the modality guard or substituting another channel.
+    for (const mutation of [
+      'request.modality !== "panco"',
+      'request.modality === "audio_transcript"',
+      'request.modality !== "wrong_channel"',
+    ]) {
+      expect(isCanonicalLinguisticGrammar(file, rule, { symbol, subject: mutation })).toBe(false);
+      const findings = findFoodStaticCandidates([{
+        path: file, content: source.replace(guard, mutation),
+      }]);
+      expect(findings.some(finding => finding.ruleId === "18" &&
+        finding.symbol === symbol)).toBe(true);
+    }
+
+    // A syntactically identical guard in a competing owner or file cannot be
+    // exempted, nor can an unrelated rule or detector kind be suppressed.
+    for (const [path, ownerSymbol] of [
+      [surfaceFile, symbol],
+      ["server/modules/whatsapp/foodLanguage.ts", symbol],
+      [file, "otherOwner:request.modality:lexical-branch"],
+    ] as const) {
+      expect(isCanonicalLinguisticGrammar(path, rule, {
+        symbol: ownerSymbol, subject: guard,
+      })).toBe(false);
+    }
+    expect(isCanonicalLinguisticGrammar(file, { id: "17", kind: "literal-branch" }, {
+      symbol, subject: guard,
+    })).toBe(false);
+    expect(isCanonicalLinguisticGrammar(file, { id: "18", kind: "lexical-lookup" }, {
+      symbol, subject: guard,
+    })).toBe(false);
   });
 
   it("does not whitelist food-name comparisons hidden behind structural contract fields", () => {

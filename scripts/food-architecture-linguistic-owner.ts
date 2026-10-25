@@ -63,6 +63,14 @@ export function isCanonicalLinguisticGrammar(
           finding.symbol === "readQuantity:qualifier:lexical-branch" &&
           /^qualifier\s*===\s*"(?:cha|cafe)"$/u.test(finding.subject)) return true;
     }
+    // A-039: transcript-confidence metadata is gated by an exact modality
+    // discriminator. This does not compare or resolve food identity.
+    // Exempt only this expression in the canonical comprehension function;
+    // other operands, operators, owners and files remain covered by rule 18.
+    if (file === "server/modules/foodIntelligenceV2/linguisticComprehension.ts" &&
+        rule.id === "18" && rule.kind === "literal-branch" &&
+        finding.symbol === "comprehendFoodLanguage:request.modality:lexical-branch" &&
+        finding.subject === 'request.modality !== "audio_transcript"') return true;
     // Exact discriminants of the modality/OCR/lexicon contracts are not
     // nutrition or food-attribute decisions. Keep this narrow: new literals,
     // owners and comparison operands remain subject to architecture rules.
