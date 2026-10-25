@@ -1239,6 +1239,8 @@ describe("Camada de Compreensão Linguística #1304", () => {
       "Registrar no almo\u00e7o, 2 ovos",
       "No almo\u00e7o, 2 ovos",
       "No almo\u00e7o comi, 2 ovos",
+      "No almo\u00e7o, comi 2 ovos",
+      "No almo\u00e7o, consumi 2 ovos",
       "Comi, 2 ovos",
     ];
     for (const rawText of variants) {
@@ -1251,6 +1253,9 @@ describe("Camada de Compreensão Linguística #1304", () => {
       expect(items[0].rawInput).toBe(rawText);
       expect("mealOperation" in items[0]).toBe(false);
     }
+    const [uncounted] = await analyze("No almo\u00e7o, comi arroz", []);
+    expect(uncounted.identityHints.foodName).toBe("arroz");
+    expect(uncounted.quantityHints.value).toBeNull();
     // A qualifier alone is not evidence of an unambiguous food.
     const doubtful = "Adicionar ao caf\u00e9 da manh\u00e3, sem a\u00e7\u00facar";
     const observed = await analyze(doubtful, []);

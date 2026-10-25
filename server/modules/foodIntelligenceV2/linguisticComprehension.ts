@@ -86,7 +86,7 @@ function foodOnlySpan(full: string, segment: Segment): Segment {
     "^(?:(?:adicionar|registrar|anotar|comi|consumi)" +
       "(?:\\s+(?:(?:ao|no|na)\\s+" + meal + "))?" +
       "(?:\\s*,\\s*|\\s+)" +
-      "|(?:no|na)\\s+" + meal + "\\s+(?:comi|consumi)(?:\\s*,\\s*|\\s+))", "iu",
+      "|(?:no|na)\\s+" + meal + "(?:\\s*,\\s*|\\s+)(?:comi|consumi)(?:\\s*,\\s*|\\s+))", "iu",
   ).exec(value);
   if (prefix) {
     start += prefix[0].length;

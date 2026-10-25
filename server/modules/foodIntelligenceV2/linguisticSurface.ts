@@ -324,6 +324,9 @@ export function splitFoodSurface(
     );
     const trailingMeal = new RegExp("^(?:(?:ao|no|na)\\s+|para\\s+(?:o|a)\\s+)" + meal + "$", "iu");
     const followingFood = amount.value !== null && amount.name.trim().length > 0;
+    // With an explicit meal action, a counted quantity is not required to
+    // know that the comma belongs to framing rather than to another food.
+    const followingMealAction = /^(?:comi|consumi)\s+\S/iu.test(segment.text);
     const precedingFood = previous ? readQuantity(previous.text, governedUnits) : null;
     if (previous && comma && (
       // A-019: ", sem açúcar" / ", cozidos" extend the preceding food.
@@ -334,7 +337,8 @@ export function splitFoodSurface(
         Boolean(precedingFood?.name.trim())) ||
       (amount.value !== null && amount.unit !== null && !amount.name &&
         precedingFood?.value === null) ||
-      ((mealFraming.test(previous.text) || commandFraming.test(previous.text)) && followingFood) ||
+      (mealFraming.test(previous.text) && (followingFood || followingMealAction)) ||
+      (commandFraming.test(previous.text) && followingFood) ||
       (trailingMeal.test(segment.text) && precedingFood?.value !== null &&
         precedingFood?.value !== undefined && Boolean(precedingFood.name.trim()))
     )) {
