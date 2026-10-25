@@ -213,3 +213,23 @@ Controles Vitest acrescentados à suíte linguística existente; sem ativação 
 - **A-033 — inteiro escrito + fração:** `dois e meio ovos` e `2 e meio ovos` convergem a 2,5 `un`; `duas e meia fatias de pão` converge a 2,5 `fatia`, sem segmentação artificial no `e`. Listas reais (`2 ovos e meio copo de leite`) continuam separando alimentos distintos; spans UTF-16 preservam a superfície original.
 
 Os controles foram acrescentados à suíte Vitest existente, sem alterar contratos, thresholds de #1306, endpoints ou cutover produtivo. A nova revisão exige CI exact-HEAD e auditoria independente posterior.
+
+## Remediação AUD1304 A-034–A-036 (25/10/2026)
+
+- **A-034 — lista coordenada por vírgula:** `2 ovos, e 1 banana` conserva duas
+  observações com as mesmas quantidades de `2 ovos e 1 banana`. O `e` isolado
+  após uma vírgula entre alimentos não se incorpora ao nome do segundo item;
+  os spans continuam referenciando a entrada original. Continuação de
+  qualificador material (`iogurte, e sem lactose`) permanece no primeiro item.
+- **A-035 — escolha entre alimentos:** `2 bananas ou 3 maçãs` não pode se tornar
+  uma quantidade pontual de bananas. A LCL preserva o trecho integral como
+  evidência de quantidade/identidade incerta, com valor e unidade nulos;
+  a política de clarificação permanece fora de C1.
+- **A-036 — qualificadores contraditórios:** todas as afirmações explícitas de
+  um mesmo atributo são retidas, inclusive `sem lactose e com lactose`. A
+  contradição não é resolvida ou silenciosamente eliminada pela LCL; continua
+  disponível ao resolvedor para decidir a incerteza em fase posterior.
+
+As três remediações possuem testes positivos, negativos, de equivalência e de
+âncoras UTF-16 na suíte linguística já existente. Não há alteração de thresholds
+S3, parser de `MealOperation`, fluxo produtivo ou escolha nutricional.

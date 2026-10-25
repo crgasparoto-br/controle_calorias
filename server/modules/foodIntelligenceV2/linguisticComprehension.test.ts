@@ -1203,4 +1203,69 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect([count.quantityHints.value, halfBanana.quantityHints.value]).toEqual([2, 0.5]);
   });
 
+
+  it("AUD1304 A-034 converges lists with comma plus coordinator and preserves spans", async () => {
+    const ordinary = await analyze("2 ovos e 1 banana", []);
+    for (const phrase of ["2 ovos, e 1 banana", "2 ovos, e uma banana"]) {
+      const observations = await analyze(phrase, []);
+      expect(observations).toHaveLength(2);
+      expect(observations.map(item => item.identityHints.foodName)).toEqual(["ovos", "banana"]);
+      expect(observations.map(item => item.quantityHints.value)).toEqual([2, 1]);
+      expect(observations.map(item => item.quantityHints.unit)).toEqual(["un", "un"]);
+      expect(observations.map(item => item.quantityHints.value))
+        .toEqual(ordinary.map(item => item.quantityHints.value));
+      expect(phrase.slice(observations[0].surfaceSpan.span!.start, observations[0].surfaceSpan.span!.end))
+        .toBe("2 ovos");
+      expect(phrase.slice(observations[1].surfaceSpan.span!.start, observations[1].surfaceSpan.span!.end))
+        .toMatch(/^(?:1|uma) banana$/u);
+      expect(observations.every(item => item.rawInput === phrase)).toBe(true);
+    }
+    const withUnicode = "2 ovos 🥚, e 1 banana";
+    const parts = await analyze(withUnicode, []);
+    expect(parts).toHaveLength(2);
+    expect(withUnicode.slice(parts[1].surfaceSpan.span!.start, parts[1].surfaceSpan.span!.end))
+      .toBe("1 banana");
+    const [qualified] = await analyze("iogurte, e sem lactose", []);
+    expect(qualified.identityHints.qualifiers.map(q => q.value)).toContain("sem lactose");
+    expect(await analyze("2 ovos, 1 banana", [])).toHaveLength(2);
+    expect(await analyze("2 ovos; e 1 banana", [])).toHaveLength(2);
+  });
+
+  it("AUD1304 A-035 does not turn food choices into exact counts", async () => {
+    for (const phrase of [
+      "2 bananas ou 3 maçãs", "duas bananas ou três maçãs",
+      "2 bananas ou 3", "2 ou 3 bananas",
+    ]) {
+      const observations = await analyze(phrase, []);
+      expect(observations).toHaveLength(1);
+      const [item] = observations;
+      expect(item.quantityHints).toMatchObject({ value: null, unit: null, servingText: phrase });
+      expect(item.unresolvedReason).toBe("unknown_surface");
+      expect(item.rawInput).toBe(phrase);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: phrase.length });
+    }
+    const list = await analyze("2 bananas e 3 maçãs", []);
+    expect(list.map(item => item.quantityHints.value)).toEqual([2, 3]);
+    const [single] = await analyze("2 bananas", []);
+    expect(single.quantityHints).toMatchObject({ value: 2, unit: "un" });
+  });
+
+  it("AUD1304 A-036 retains opposing assertions for the same nutritional attribute", async () => {
+    for (const [phrase, expected, role] of [
+      ["iogurte sem lactose e com lactose", ["sem lactose", "com lactose"], "lactose"],
+      ["café sem açúcar e com açúcar", ["sem açúcar", "com açúcar"], "sweetening"],
+      ["2 ovos cozidos e fritos", ["cozidos", "fritos"], "preparation"],
+    ] as const) {
+      const observations = await analyze(phrase, []);
+      expect(observations).toHaveLength(1);
+      const [item] = observations;
+      expect(item.identityHints.qualifiers.filter(q => q.role === role).map(q => q.value))
+        .toEqual([...expected]);
+      expect(item.rawInput).toBe(phrase);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: phrase.length });
+    }
+    const [valid] = await analyze("iogurte sem lactose e sem glúten", []);
+    expect(valid.identityHints.qualifiers.map(q => q.role).sort()).toEqual(["gluten", "lactose"]);
+  });
+
 });

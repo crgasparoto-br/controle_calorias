@@ -202,9 +202,15 @@ function detectQualifiers(name: string): FoodObservation["identityHints"]["quali
     { expression: /\bcozid[ao]s?\b/iu, role: "preparation" },
   ];
   return words.flatMap(rule => {
-    const match = rule.expression.exec(name);
-    return match ? [{ value: match[0], attributeCode: null, role: rule.role, confidence: null }] : [];
-  });
+    // Keep every explicit assertion, including opposite values for the same
+    // attribute. A single .exec() silently dropped later "com lactose" after
+    // "sem lactose" and concealed a material contradiction from downstream.
+    const matches = name.matchAll(new RegExp(rule.expression.source, rule.expression.flags + "g"));
+    return [...matches].map(match => ({
+      offset: match.index, value: match[0], attributeCode: null,
+      role: rule.role, confidence: null,
+    }));
+  }).sort((a, b) => a.offset - b.offset).map(({ offset: _offset, ...qualifier }) => qualifier);
 }
 
 function buildObservation(request: LinguisticRequest, segment: Segment, index: number, governedUnits: readonly GovernedUnitAlias[] = []): FoodObservation {

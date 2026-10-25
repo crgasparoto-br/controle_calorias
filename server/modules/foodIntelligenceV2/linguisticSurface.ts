@@ -102,6 +102,10 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   // Permit an adjacent unit suffix: "30 a 40g" and "30 a 40 g" are the
   // same uncertain range, not an exact count of 30 food items.
   if (quantityRange.test(source)) return unresolved();
+  // A choice of different foods is not an exact quantity of the first food.
+  // Preserve both alternatives in the original serving text for downstream
+  // clarification instead of interpreting "2 bananas ou 3 maçãs" as 2 bananas.
+  if (/\s+ou\s+/iu.test(source)) return unresolved();
   // Qualified spoon measures are distinct units, not "sopa/cha" food names.
   // A second "de <food>" is required: "colher de sopa" by itself describes
   // a spoonful of soup, not an absent food. Never invent mass or volume.
@@ -320,7 +324,26 @@ export function splitFoodSurface(
       const merged = trimSpan(text, previous.start, segment.end);
       if (merged) coalesced[coalesced.length - 1] = merged;
     } else {
-      coalesced.push(segment);
+      // After a comma, a standalone "e" may connect the next food: the
+      // coordinator is punctuation, not part of its identity/quantity.
+      // Keep the original offsets rather than rewriting the input string.
+      const coordinator = comma && /^e\s+/iu.exec(segment.text);
+      const following = coordinator
+        ? trimSpan(text, segment.start + coordinator[0].length, segment.end)
+        : null;
+      const previousIsFood = previous && !mealFraming.test(previous.text) &&
+        !trailingMeal.test(previous.text) && Boolean(precedingFood?.name.trim());
+      if (previousIsFood && following) {
+        if (materialQualifier.test(following.text)) {
+          // "iogurte, e sem lactose" still describes the preceding item.
+          const merged = trimSpan(text, previous.start, segment.end);
+          if (merged) coalesced[coalesced.length - 1] = merged;
+        } else {
+          coalesced.push(following);
+        }
+      } else {
+        coalesced.push(segment);
+      }
     }
   }
   const joined: Segment[] = [];
