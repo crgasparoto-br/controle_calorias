@@ -1065,4 +1065,71 @@ describe("Camada de Compreensão Linguística #1304", () => {
     }
   });
 
+
+  it("AUD1304 A-029 preserva medida composta, preposição e alimento em entradas equivalentes", async () => {
+    for (const [spoken, numeric, amount, unit, food] of [
+      ["3/4 de xícara de leite", "3/4 xícara de leite", 0.75, "xícara", "leite"],
+      ["uma colher de sopa de azeite", "1 colher de sopa de azeite", 1, "colher de sopa", "azeite"],
+      ["uma colher e meia de sopa de azeite", "1,5 colheres de sopa de azeite", 1.5, "colher de sopa", "azeite"],
+      ["duas colheres de chá de açúcar", "2 colheres de cha de açúcar", 2, "colher de chá", "acucar"],
+    ] as const) {
+      const [[first], [second]] = await Promise.all([analyze(spoken, []), analyze(numeric, [])]);
+      for (const [input, item] of [[spoken, first], [numeric, second]] as const) {
+        expect(item.quantityHints).toMatchObject({ value: amount, unit });
+        expect(item.identityHints.foodName).toBe(food);
+        expect(item.rawInput).toBe(input);
+        expect(item.surfaceSpan.span).toEqual({ start: 0, end: input.length });
+        expect(item.quantityHints.servingText).toBeTruthy();
+      }
+      expect({ food: first.identityHints.foodName, value: first.quantityHints.value,
+        unit: first.quantityHints.unit }).toEqual({
+        food: second.identityHints.foodName, value: second.quantityHints.value,
+        unit: second.quantityHints.unit,
+      });
+    }
+    // "sopa" and "chá verde" are actual foods without a following "de <food>".
+    const [soup] = await analyze("1 colher de sopa", []);
+    expect(soup.identityHints.foodName).toBe("sopa");
+    expect(soup.quantityHints).toMatchObject({ value: 1, unit: "colher" });
+    const [tea] = await analyze("uma colher de chá verde", []);
+    expect(tea.identityHints.foodName).toBe("cha verde");
+    expect(tea.quantityHints).toMatchObject({ value: 1, unit: "colher" });
+    const [unapproved] = await analyze("3/4 de caneca de leite", []);
+    expect(unapproved.quantityHints.unit).not.toBe("xícara");
+    expect(unapproved.identityHints.foodName).toContain("caneca");
+  });
+
+  it("AUD1304 A-030 impede que alias de unidade ou porção reescreva a identidade", async () => {
+    for (const kind of ["unit_term", "portion_term"] as const) {
+      for (const scope of ["global", "user"] as const) {
+        const alias = entry({
+          id: scope === "global" ? 3041 : 3042,
+          kind, scope, userId: scope === "user" ? 5 : null,
+          status: scope === "user" ? "active" : "verified",
+          source: scope === "user" ? "user_confirmed" : null,
+          normalizedTerm: "banana", targetRef: "copo",
+        });
+        const [observed] = await analyze("50 g de banana", [alias]);
+        expect(observed.identityHints.foodName).toBe("banana");
+        expect(observed.quantityHints).toMatchObject({ value: 50, unit: "g" });
+        expect(observed.normalizationPath.map(step => step.stage)).toEqual(["S1"]);
+        expect(observed.alternatives).toHaveLength(0);
+      }
+    }
+    // Approved aliases still affect their own slots without cross-field leakage.
+    const unitAlias = entry({ id: 3050, kind: "unit_term",
+      normalizedTerm: "fts", targetRef: "fatia" });
+    const nameCollision = entry({ id: 3051, kind: "unit_term",
+      normalizedTerm: "banana", targetRef: "copo" });
+    const [withUnit] = await analyze("2 fts de banana", [unitAlias, nameCollision]);
+    expect(withUnit.quantityHints).toMatchObject({ value: 2, unit: "fatia" });
+    expect(withUnit.identityHints.foodName).toBe("banana");
+    expect(withUnit.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2"]);
+    const [nameAlias] = await analyze("50 g de banana", [entry({
+      id: 3052, kind: "alias_surface", normalizedTerm: "banana", targetRef: "banana prata",
+    })]);
+    expect(nameAlias.identityHints.foodName).toBe("banana prata");
+    expect(nameAlias.quantityHints).toMatchObject({ value: 50, unit: "g" });
+  });
+
 });

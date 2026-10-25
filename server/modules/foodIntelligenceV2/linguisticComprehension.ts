@@ -136,7 +136,11 @@ function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string
   competing: GovernedLexiconEntry[];
 } {
   const key = foldFoodSurface(surface);
-  const matches = entries.filter(entry => applicable(entry, owner, now) && foldFoodSurface(entry.normalizedTerm) === key);
+  // Unit and portion aliases belong to the quantity slot only, even when
+  // their normalized term matches a food name exactly.
+  const matches = entries.filter(entry =>
+    entry.kind !== "unit_term" && entry.kind !== "portion_term" &&
+    applicable(entry, owner, now) && foldFoodSurface(entry.normalizedTerm) === key);
   const personal = matches.filter(entry => entry.scope === "user");
   const eligible = (personal.length ? personal : matches.filter(entry => entry.scope === "global"))
     .sort((a, b) => (b.confidence ?? -1) - (a.confidence ?? -1) || a.id - b.id);

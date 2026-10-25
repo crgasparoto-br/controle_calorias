@@ -177,3 +177,19 @@ sem thresholds arbitrários e sem mudanças na política de nutrição.
 - **A-027 — unicidade de evidências residuais:** os IDs S3 incluem índice da observação, índice da hipótese e índice do campo. IDs de hipóteses S3 também distinguem observações. Referências `evidenceIds` continuam resolvendo exatamente uma evidência por observação e não se repetem no envelope. Nenhuma hipótese altera a identidade selecionada, nem promove `verified` ou nutrição.
 
 Controles Vitest acrescentados à suíte linguística existente; sem ativação de S3, thresholds, novo parser operacional ou cutover produtivo.
+
+## Remediação AUD1304 A-029–A-030 (25/10/2026)
+
+- **A-029 — unidades com preposição e medida composta:** "3/4 de xícara de leite"
+  preserva o alimento `leite` e a medida `xícara`, convergindo com
+  "3/4 xícara de leite". Medidas "colher de sopa/chá/sobremesa/café
+  de <alimento>" conservam o subtipo como unidade distinta e a evidência bruta,
+  sem inventar gramas ou mililitros. "1 colher de sopa" continua sendo
+  uma colher do alimento sopa, sem criar outro alimento.
+- **A-030 — isolamento S2 por papel:** `unit_term` e `portion_term` participam
+  somente do slot de unidade; não substituem `identityHints.foodName`
+  mesmo que sua superfície coincida literalmente com um nome de alimento.
+  Aliases alimentares aprovados e precedência pessoal permanecem válidos.
+- Controles positivos, negativos e metamórficos foram adicionados à suíte
+  linguística existente, com verificação de spans UTF-16. Sem cutover, escolha
+  de nutrientes, mudança de thresholds S3 ou novo parser operacional.

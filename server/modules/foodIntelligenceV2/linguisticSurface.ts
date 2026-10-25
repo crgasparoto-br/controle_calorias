@@ -44,8 +44,8 @@ const unitPattern = "g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidade
 // Slash fractions and vulgar fractions are quantitative only in the leading
 // quantity slot; the original surface/UTF-16 anchors are never rewritten.
 const quantityPattern = "\\d+/\\d+|\\d+(?:[,.]\\d+)?|[¼½¾]|" + writtenPattern;
-const quantified = new RegExp("^(" + quantityPattern + ")(?:\\s+|(?<=\\d))(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu");
-const halfAfterUnit = new RegExp("^(" + quantityPattern + ")(?:\\s+|(?<=\\d))(" + unitPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu");
+const quantified = new RegExp("^(" + quantityPattern + ")(?:\\s+(?:de\\s+)?|(?<=\\d))(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu");
+const halfAfterUnit = new RegExp("^(" + quantityPattern + ")(?:\\s+(?:de\\s+)?|(?<=\\d))(" + unitPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu");
 const counted = new RegExp("^(" + quantityPattern + ")\\s+(?:de\\s+)?", "iu");
 
 export function foldFoodSurface(value: string): string {
@@ -102,6 +102,25 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   // Permit an adjacent unit suffix: "30 a 40g" and "30 a 40 g" are the
   // same uncertain range, not an exact count of 30 food items.
   if (quantityRange.test(source)) return unresolved();
+  // Qualified spoon measures are distinct units, not "sopa/cha" food names.
+  // A second "de <food>" is required: "colher de sopa" by itself describes
+  // a spoonful of soup, not an absent food. Never invent mass or volume.
+  const qualifiedSpoon = new RegExp(
+    "^(" + quantityPattern + ")\\s+colher(?:es)?(\\s+e\\s+mei[ao])?\\s+de\\s+" +
+      "(sopa|ch[aá]|sobremesa|caf[eé])\\s+de\\s+", "iu",
+  ).exec(source);
+  if (qualifiedSpoon) {
+    const amount = parseNumber(qualifiedSpoon[1]);
+    const qualifier = foldFoodSurface(qualifiedSpoon[3]);
+    const unit = "colher de " + (qualifier === "cha" ? "chá" :
+      qualifier === "cafe" ? "café" : qualifier);
+    const foodName = source.slice(qualifiedSpoon[0].length).trim();
+    if (amount !== null && foodName) return {
+      value: amount + (qualifiedSpoon[2] ? 0.5 : 0), unit, name: foodName,
+      servingText: qualifiedSpoon[0].trim(), uncertain: false,
+    };
+    return unresolved();
+  }
   // A terminal half refers to the already counted food, not to a new item:
   // "duas fatias de pão e meia" and "dois ovos e meio".
   // Require a terminal half so "2 ovos e meio copo de leite" is not coerced.
