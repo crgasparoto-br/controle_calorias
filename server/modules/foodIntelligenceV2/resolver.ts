@@ -135,6 +135,15 @@ function sourceCompatibleWithExplicitAttributes(
   // proof snapshot. Do not silently drop explicit attributes when a generic
   // name matches. This conservative gate must be replaced by governed
   // variant-attribute compatibility rather than widening fuzzy thresholds.
+  // The trusted store must return a binding to the exact asserted commercial identity.
+  // A generic-family hit or an unbound exact_variant claim is not SKU evidence.
+  const brand = observation.identityHints.brand?.trim();
+  const barcode = observation.identityHints.barcode?.trim();
+  if ((brand || barcode) && match.matchingEvidence === "generic_family") return false;
+  if (brand && (!match.matchedBrand ||
+      normalizeFoodName(match.matchedBrand) !== normalizeFoodName(brand))) return false;
+  if (barcode && (match.matchingEvidence !== "barcode" ||
+      match.matchedBarcode?.trim() !== barcode)) return false;
   const governed = normalizeFoodName(match.variantName);
   const observed = normalizeFoodName(observation.identityHints.foodName ?? "");
   const assertions = [
@@ -270,6 +279,40 @@ export async function resolveFoodObservation(
              observation.unresolvedReason === "image_identity_unresolved") {
     decision.reasonCodes = [observation.unresolvedReason];
   } else {
+    // Continuation without a fresh identity assertion must not erase previously
+    // accepted identity, nutritional provenance, or quantity. An identity claim
+    // in the evidence envelope counts as new only when it differs materially.
+    const noIdentityHints = observation.identityHints.foodName === null &&
+      observation.identityHints.brand === null &&
+      observation.identityHints.barcode === null &&
+      observation.identityHints.variant === null &&
+      observation.identityHints.preparation.length === 0 &&
+      observation.identityHints.qualifiers.length === 0;
+    const changedIdentityEvidence = observation.evidence.some(item =>
+      (item.field.startsWith("identity.") || item.field.startsWith("variant.")) &&
+      item.value !== null && !previous?.evidence.some(old =>
+        old.field === item.field && old.value === item.value));
+    if (previous && previous.identity.canonicalName !== null &&
+        noIdentityHints && !changedIdentityEvidence) {
+      const q = observation.quantityHints;
+      const prior = previous.quantity;
+      const quantityConflict = q.value !== null && q.unit !== null &&
+        (prior.value !== q.value ||
+          normalizeUnitToken(prior.unit) !== normalizeUnitToken(q.unit));
+      const preserved: FoodResolutionDecision = {
+        ...previous, revision: previous.revision + 1, evidence,
+        status: quantityConflict ? "ambiguous" : previous.status,
+        nextAction: quantityConflict ? "clarify" : previous.nextAction,
+        unresolvedFields: quantityConflict
+          ? Array.from(new Set([...previous.unresolvedFields, "quantity"]))
+          : previous.unresolvedFields,
+        reasonCodes: quantityConflict
+          ? Array.from(new Set([...previous.reasonCodes, "source_conflict"]))
+          : previous.reasonCodes,
+      };
+      const checked = parseFoodResolutionDecision(preserved);
+      if (checked.ok) return checked.value;
+    }
     const request = {
       normalizedName: normalizeFoodName(observation.identityHints.foodName ?? ""),
       brand: observation.identityHints.brand,
@@ -396,17 +439,23 @@ export async function resolveFoodObservation(
   }
   const valid = parseFoodResolutionDecision(decision);
   if (!valid.ok) {
-    // Never turn an invalid resolved/provisional payload into a registration.
-    // Report a typed fail-closed outcome instead of inventing values.
-    return {
+    // A valid observation may exhaust the bounded decision evidence envelope.
+    // Discard only generated, uncommitted decision evidence and fail closed;
+    // never return a payload that failed the public Zod contract.
+    const fallback: FoodResolutionDecision = {
       ...decision, status: "unknown", nextAction: "retry",
       identity: { candidateKey: null, foodEntityId: null, variantId: null,
         canonicalName: null, brand: null, variant: null, preparation: [],
         qualifiers: [], barcode: null, confidence: null, evidenceIds: [] },
-      nutrition: blankNutrition(), classification: null, alternatives: [],
-      unresolvedFields: ["identity", "variant", "nutrition"],
-      reasonCodes: ["policy_not_calibrated"],
+      quantity: blankQuantity(), nutrition: blankNutrition(),
+      classification: null, alternatives: [],
+      evidence: [...observation.evidence],
+      unresolvedFields: ["identity", "variant", "quantity", "nutrition"],
+      reasonCodes: ["decision_validation_failed"],
     };
+    const checked = parseFoodResolutionDecision(fallback);
+    if (!checked.ok) throw new TypeError("Invariante de contrato da decisão V2 violada");
+    return checked.value;
   }
   return valid.value;
 }
