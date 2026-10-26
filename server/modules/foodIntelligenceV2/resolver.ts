@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
+import { canPreserveAcceptedIdentity } from "./resolutionContinuity";
 import {
   declaredPhysicalAmount, hasConflictingVerifiedNutritionEvidence,
 } from "./nutritionConsistency";
@@ -383,27 +384,7 @@ export async function resolveFoodObservation(
     // Continuation without a fresh identity assertion must not erase previously
     // accepted identity, nutritional provenance, or quantity. An identity claim
     // in the evidence envelope counts as new only when it differs materially.
-    const hint = observation.identityHints;
-    const previousIdentity = previous?.identity;
-    const compatibleIdentityHints = !!previousIdentity &&
-      (hint.foodName === null || normalizeFoodName(hint.foodName) ===
-        normalizeFoodName(previousIdentity.canonicalName ?? "")) &&
-      (hint.brand === null || normalizeFoodName(hint.brand) ===
-        normalizeFoodName(previousIdentity.brand ?? "")) &&
-      (hint.barcode === null || hint.barcode === previousIdentity.barcode) &&
-      (hint.variant === null || normalizeFoodName(hint.variant) ===
-        normalizeFoodName(previousIdentity.variant ?? "")) &&
-      (hint.preparation.length === 0 ||
-        JSON.stringify(hint.preparation) === JSON.stringify(previousIdentity.preparation)) &&
-      (hint.qualifiers.length === 0 ||
-        JSON.stringify(hint.qualifiers) === JSON.stringify(previousIdentity.qualifiers));
-    const changedIdentityEvidence = observation.evidence.some(item =>
-      (item.field.startsWith("identity.") || item.field.startsWith("variant.")) &&
-      item.value !== null && !previous?.evidence.some(old =>
-        old.field === item.field && old.value === item.value));
-    if (previous && previous.identity.canonicalName !== null &&
-        compatibleIdentityHints && !changedIdentityEvidence &&
-        observation.alternatives.length === 0) {
+    if (previous && canPreserveAcceptedIdentity(observation, previous)) {
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = (q.value !== null && q.unit !== null &&
@@ -470,6 +451,14 @@ export async function resolveFoodObservation(
         item.field.startsWith("identity.") || item.field.startsWith("variant.")).map(item => item.evidenceId);
       identity.evidenceIds.push(makeEvidence(observation, evidence, "variant.variantId", match.variantId,
         null, match.sourceId, match.governanceStatus === "verified", "catalog"));
+      if (match.governanceStatus === "verified" && request.normalizedName &&
+          (match.matchingEvidence === "personal_alias" || match.matchingEvidence === "global_alias")) {
+        // Record the surface actually accepted by the governed lookup alongside
+        // the variant proof. The alias is not attributed to the nutrition source.
+        identity.evidenceIds.push(makeEvidence(observation, evidence, "identity.foodName",
+          request.normalizedName, null, null, true,
+          match.matchingEvidence === "personal_alias" ? "memory" : "catalog"));
+      }
       if (observation.identityHints.barcode !== null) {
         identity.barcode = observation.identityHints.barcode;
         identity.evidenceIds.push(makeEvidence(observation, evidence, "identity.barcode",

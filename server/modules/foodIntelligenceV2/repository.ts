@@ -254,7 +254,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       if (!db) throw new Error("Governed Food V2 database unavailable");
 
       const name = request.normalizedName.trim();
-      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number; barcodeEvidenceOwnerUserId?: number | null; aliasFamilyIds?: Map<number, number> }> = [];
+      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number; barcodeEvidenceOwnerUserId?: number | null; matchedBarcode?: string; aliasFamilyIds?: Map<number, number> }> = [];
       if (request.barcode?.trim()) {
         const barcodeRows = await db.select().from(foodBarcodes)
           .where(eq(foodBarcodes.barcode, request.barcode.trim())).limit(MAX_CANDIDATES + 1);
@@ -285,6 +285,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         groups.push({
           match: "barcode", ids: [barcode.foodVariantId], identitySourceId: barcode.sourceId,
           barcodeEvidenceOwnerUserId: proof?.ownerUserId,
+          matchedBarcode: barcode.barcode,
         });
       } else if (name) {
         // Personal confirmation takes precedence over a homonymous generic
@@ -370,6 +371,10 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             kind: "match", matchingEvidence: group.match,
             foodId: row.family.id, variantId: id, profileId: p.id,
             variantName: row.variant.displayName,
+            // Return the stored identity that passed the governance checks,
+            // never manufacture commercial proof from the request assertions.
+            matchedBrand: row.brand?.name ?? null,
+            matchedBarcode: group.matchedBarcode ?? null,
             sourceId: profileResult.sourceId, sourceVersion: profileResult.sourceVersion,
             sourceReference: profileResult.sourceReference,
             nutrition: profileValues,
