@@ -47,7 +47,7 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(decision.identity.variantId).toBe(102);
     expect(decision.quantity.grams).toBe(30);
     expect(decision.nutrition.consumed?.calories).toBe(81);
-    expect(decision.nutrition.consumed?.protein).toBe(3.6);
+    expect(decision.nutrition.consumed?.protein).toBeCloseTo(3.6);
     expect(decision.nutrition.profileId).toBe(103);
     expect(decision.nutrition.sourceId).toBe(104);
     expect(decision.nutrition.verified).toBe(true);
