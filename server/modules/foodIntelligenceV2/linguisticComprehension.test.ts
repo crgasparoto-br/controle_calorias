@@ -229,6 +229,90 @@ describe("Camada de Compreensão Linguística #1304", () => {
     }
   });
 
+  it("AUD1304 A-042 converte centenas por extenso sem perder lista nem spans", async () => {
+    for (const [written, digits, expected, unit, name] of [
+      ["cem gramas de arroz", "100 gramas de arroz", 100, "g", "arroz"],
+      ["cento e vinte ml de leite", "120 ml de leite", 120, "ml", "leite"],
+      ["duzentas e duas fatias de pão", "202 fatias de pão", 202, "fatia", "pao"],
+      ["trezentos e cinquenta gramas de arroz", "350 g de arroz", 350, "g", "arroz"],
+      ["novecentos e noventa e nove ml de leite", "999 ml de leite", 999, "ml", "leite"],
+    ] as const) {
+      const [spoken] = await analyze(written, []);
+      const [numeric] = await analyze(digits, []);
+      for (const [input, observed] of [[written, spoken], [digits, numeric]] as const) {
+        expect(observed.quantityHints).toMatchObject({ value: expected, unit });
+        expect(observed.identityHints.foodName).toBe(name);
+        expect(observed.rawInput).toBe(input);
+        expect(observed.surfaceSpan.span).toEqual({ start: 0, end: input.length });
+        expect(observed.evidence.every(evidence => !evidence.verified)).toBe(true);
+      }
+    }
+    const list = "🍚 cento e vinte gramas de arroz e uma banana";
+    const items = await analyze(list, []);
+    expect(items).toHaveLength(2);
+    expect(items.map(item => item.quantityHints.value)).toEqual([120, 1]);
+    expect(items.map(item => item.identityHints.foodName)).toEqual(["arroz", "banana"]);
+    for (const item of items) {
+      const span = item.surfaceSpan.span!;
+      expect(item.rawInput).toBe(list);
+      expect(list.slice(span.start, span.end)).not.toBe("");
+    }
+    // An interval is never silently collapsed to its first bound.
+    for (const range of [
+      "entre cem e cento e vinte gramas de arroz",
+      "cem a cento e vinte ml de leite",
+    ]) {
+      const observations = await analyze(range, []);
+      expect(observations).toHaveLength(1);
+      expect(observations[0].quantityHints.value).toBeNull();
+      expect(observations[0].unresolvedReason).toBe("unknown_surface");
+    }
+    const ordinaryList = await analyze("cem ovos e banana", []);
+    expect(ordinaryList).toHaveLength(2);
+    expect(ordinaryList[0].quantityHints.value).toBe(100);
+    const invalid = await analyze("cem e vinte gramas de arroz", []);
+    expect(invalid).toHaveLength(1);
+    expect(invalid[0].quantityHints.value).toBeNull();
+  });
+
+  it("AUD1304 A-043 não atribui unidade alimentar exata a recipientes não governados", async () => {
+    for (const surface of [
+      "uma lata de atum", "duas latas de atum", "uma caixa de leite",
+      "2 caixas de leite", "uma embalagem de arroz", "duas embalagens de arroz",
+      "um frasco de azeite", "uma cartela de ovos", "1 bisnaga de maionese",
+    ]) {
+      const observations = await analyze(surface, []);
+      expect(observations).toHaveLength(1);
+      const [item] = observations;
+      expect(item.quantityHints).toMatchObject({ value: null, unit: null, servingText: surface });
+      expect(item.rawInput).toBe(surface);
+      expect(item.surfaceSpan.span).toEqual({ start: 0, end: surface.length });
+      expect(item.unresolvedReason).toBe("unknown_surface");
+      expect(item.evidence.some(evidence => evidence.field === "quantity.value")).toBe(false);
+    }
+    for (const surface of ["uma lata de atum e 2 ovos", "2 caixas de leite e uma banana"]) {
+      const parts = await analyze(surface, []);
+      expect(parts).toHaveLength(2);
+      expect(parts[0].quantityHints.value).toBeNull();
+      expect(parts[1].quantityHints.value).not.toBeNull();
+    }
+    // S2 may identify an explicit versioned and authorized unit. Revoked
+    // or pending entries cannot turn a container into an exact quantity.
+    const allowed = entry({ id: 4301, kind: "unit_term", normalizedTerm: "lata",
+      targetRef: "unidade" });
+    const [governed] = await analyze("uma lata de atum", [allowed]);
+    expect(governed.quantityHints).toMatchObject({ value: 1, unit: "un" });
+    expect(governed.identityHints.foodName).toBe("atum");
+    expect(governed.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2"]);
+    for (const status of ["revoked", "pending_review"] as const) {
+      const [blocked] = await analyze("uma lata de atum", [{ ...allowed, status }]);
+      expect(blocked.quantityHints.value).toBeNull();
+      expect(blocked.unresolvedReason).toBe("unknown_surface");
+    }
+    const [counted] = await analyze("dois ovos de codorna", []);
+    expect(counted.quantityHints).toMatchObject({ value: 2, unit: "un" });
+  });
+
   it("preserva os spans UTF-16 originais e separa lista sem quebrar decimal", async () => {
     const text = "🍳 dois ovos, 1,5 fatias de mortadela; uma banana";
     const spans = splitFoodSurface(text);

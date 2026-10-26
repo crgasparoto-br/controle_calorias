@@ -276,3 +276,20 @@ exact-HEAD antes de reauditoria independente.
   identidade normalizada nem bloqueia um alias S2 autorizado. Listas de
   alimentos, nomes protegidos e limites fortes (`;`/quebra de linha)
   continuam discriminados.
+
+## Remediação AUD1304 A-042/A-043 (26/10/2026)
+
+- **A-042 — numerais de centenas:** S1 reconhece centenas por extenso de 100 a
+  999 (incluindo composições como `cento e vinte` e `duzentas e duas`)
+  somente na posição quantitativa. Conjunções internas não dividem a
+  observação. Intervalos (`entre cem e cento e vinte`) continuam incertos;
+  a grafia e os spans UTF-16 do original permanecem rastreáveis.
+- **A-043 — recipientes não governados:** `lata`, `caixa`, `embalagem`,
+  `frasco`, `cartela` e `bisnaga`, em singular/plural, não são convertidos
+  em `un` pelo fallback de contagem. Uma correspondência `unit_term` S2
+  autorizada pode converter a unidade, mas entradas pendentes, revogadas ou
+  ausentes permanecem incertas. Contagens reais de alimentos continuam
+  reconhecidas. A camada não infere macros, peso ou volume de embalagem.
+
+A alteração não muda operação, cutover produtivo nem elegibilidade S3
+(ainda dependente de calibração na issue #1306).

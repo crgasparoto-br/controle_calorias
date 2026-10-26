@@ -33,13 +33,24 @@ const writtenNumbers: Readonly<Record<string, number>> = {
   dezoito: 18, dezenove: 19,
   vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50,
   sessenta: 60, setenta: 70, oitenta: 80, noventa: 90,
+  cem: 100, cento: 100, duzentos: 200, duzentas: 200,
+  trezentos: 300, trezentas: 300, quatrocentos: 400, quatrocentas: 400,
+  quinhentos: 500, quinhentas: 500, seiscentos: 600, seiscentas: 600,
+  setecentos: 700, setecentas: 700, oitocentos: 800, oitocentas: 800,
+  novecentos: 900, novecentas: 900,
   meio: 0.5, meia: 0.5,
 };
 const onesPattern = "um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove";
 const tensPattern = "vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa";
-const writtenPattern = "(?:" + tensPattern + ")(?:\\s+e\\s+(?:" + onesPattern + "))?|" +
-  "onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezasseis|dezessete|dezoito|dezenove|dez|" +
-  onesPattern + "|meio|meia";
+const teensPattern = "onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezasseis|dezessete|dezoito|dezenove|dez";
+const underHundredPattern = "(?:" + tensPattern + ")(?:\\s+e\\s+(?:" + onesPattern + "))?|" +
+  teensPattern + "|" + onesPattern;
+const hundredsPattern = "cem|cento|duzent[oa]s|trezent[oa]s|quatrocent[oa]s|quinhent[oa]s|" +
+  "seiscent[oa]s|setecent[oa]s|oitocent[oa]s|novecent[oa]s";
+// Compose hundreds only with another valid number phrase. Never consume a food
+// name after an 'e' (e.g. 'cem ovos e banana'). The original text is untouched.
+const writtenPattern = "(?:(?:" + hundredsPattern + ")(?:\\s+e\\s+(?:" + underHundredPattern + "))?)|" +
+  underHundredPattern + "|meio|meia";
 const unitPattern = "g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidades?|fatias?|colher(?:es)?|x[ií]caras?|copos?|por[cç][oõ](?:es|s)?|por[cç][aã]o";
 // Slash fractions and vulgar fractions are quantitative only in the leading
 // quantity slot; the original surface/UTF-16 anchors are never rewritten.
@@ -63,10 +74,20 @@ function parseNumber(value: string): number | null {
   const folded = foldFoodSurface(value);
   if (Object.prototype.hasOwnProperty.call(writtenNumbers, folded)) return writtenNumbers[folded];
   const words = folded.split(" e ");
+  // S1 grammar: 20..99 and 100..999, including 'cento e vinte e duas'.
+  // 'cem' does not take a following additive suffix in pt-BR ('cento' does).
   if (words.length === 2 && writtenNumbers[words[0]] >= 20 &&
-      writtenNumbers[words[0]] % 10 === 0 &&
+      writtenNumbers[words[0]] < 100 && writtenNumbers[words[0]] % 10 === 0 &&
       writtenNumbers[words[1]] >= 1 && writtenNumbers[words[1]] <= 9) {
     return writtenNumbers[words[0]] + writtenNumbers[words[1]];
+  }
+  if (words.length >= 2 && words.length <= 3 && words[0] !== "cem" &&
+      writtenNumbers[words[0]] >= 100 && writtenNumbers[words[0]] <= 900 &&
+      writtenNumbers[words[0]] % 100 === 0) {
+    const remainder = parseNumber(words.slice(1).join(" e "));
+    if (remainder !== null && Number.isInteger(remainder) && remainder >= 1 && remainder < 100) {
+      return writtenNumbers[words[0]] + remainder;
+    }
   }
   const vulgar: Readonly<Record<string, number>> = { "¼": 0.25, "½": 0.5, "¾": 0.75 };
   if (Object.prototype.hasOwnProperty.call(vulgar, folded)) return vulgar[folded];
@@ -222,7 +243,8 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
       "tiquinhos?|bastante|punhados?|punhadinhos?|pedacos?|pedacinhos?|" +
       "pitadas?|goles?|garfadas?|colheradas?|canecas?|tigelas?|" +
       "cumbucas?|copinhos?|prat[aã]o|pratos?|marmitas?|potes?|" +
-      "bandejas?|garrafas?|pacotes?|embalagens?|sach[eê]s?|" +
+      "bandejas?|garrafas?|pacotes?|embalage(?:m|ns)|sach[eê]s?|" +
+      "latas?|caixas?|frascos?|cartelas?|bisnagas?|" +
       "prato\\s+grande)(?=\\s|$)", "iu",
   );
   if (uncertainServing.test(foldFoodSurface(source)) ||
@@ -378,9 +400,16 @@ export function splitFoodSurface(
     const protectedOffsets = protectedConjunctions(segment, protectedTerms);
     // Do not split "fatia e meia", "um e meio" or phrases without a clear list boundary.
     const separator = /\s+e\s+(?=\S)/giu;
+    // Both endpoints of an interval can be compound written numerals, so
+    // connectors inside its quantitative prefix are not food separators.
+    const intervalPrefix = new RegExp(
+      "^(?:(?:de\\s+)?(?:" + quantityPattern + ")\\s+(?:a|ou|at[eé])\\s+(?:" + quantityPattern + ")" +
+      "|entre\\s+(?:" + quantityPattern + ")\\s+e\\s+(?:" + quantityPattern + "))(?=\\s|$|\\p{L})", "iu",
+    ).exec(segment.text);
     let offset = 0;
     let match: RegExpExecArray | null;
     while ((match = separator.exec(segment.text)) !== null) {
+      if (intervalPrefix && separator.lastIndex <= intervalPrefix[0].length) continue;
       const conjunctionStart = match.index + match[0].search(/\S/u);
       if (protectedOffsets.has(conjunctionStart)) continue;
       const left = segment.text.slice(offset, match.index);
@@ -400,6 +429,13 @@ export function splitFoodSurface(
       const writtenTens = new RegExp("^(?:" + tensPattern + ")$", "iu");
       const writtenOnes = new RegExp("^(?:" + onesPattern + ")\\b", "iu");
       const composedAmount = writtenTens.test(left.trim()) && writtenOnes.test(right);
+      // Protect both connectors in 'cento e vinte e duas fatias', not just
+      // the second one; a complete food-list conjunction remains splittable.
+      const writtenHundreds = new RegExp(
+        "^(?:" + hundredsPattern + ")(?:\\s+e\\s+(?:" + tensPattern + "))?$", "iu",
+      );
+      const lowerNumber = new RegExp("^(?:" + underHundredPattern + ")\\b", "iu");
+      const hundredsContinuation = writtenHundreds.test(left.trim()) && lowerNumber.test(right);
       // A-022: "entre 2 e 3 ovos" is one uncertain quantity, not two foods.
       // Preserve the original UTF-16 span; do not protect an ordinary list.
       const rangeStart = new RegExp("^entre\\s+(?:" + quantityPattern + ")$", "iu");
@@ -409,7 +445,7 @@ export function splitFoodSurface(
       // Do not shield "2 ovos e meio copo": its left side is not a number.
       const leadingHalf = new RegExp("^(?:" + quantityPattern + ")$", "iu").test(left.trim()) &&
         Number.isInteger(parseNumber(left.trim())) && /^mei[ao]\b/iu.test(right);
-      if (composedAmount || isAttachedHalf || betweenBounds || leadingHalf ||
+      if (composedAmount || hundredsContinuation || isAttachedHalf || betweenBounds || leadingHalf ||
           /^mei[ao](?:\s+de\b|\s*$)/iu.test(right)) continue;
       const part = trimSpan(text, segment.start + offset, segment.start + match.index);
       if (part) joined.push(part);
