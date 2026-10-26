@@ -275,6 +275,64 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(invalid[0].quantityHints.value).toBeNull();
   });
 
+  it("AUD1304 A-044 mantém centenas por extenso após comando, refeição e emoji", async () => {
+    const written = "cento e vinte gramas de arroz e uma banana";
+    for (const input of [
+      written,
+      "Comi " + written,
+      "Registrar " + written,
+      "No almoço, " + written,
+      "🍚 " + written,
+      "Comi 🍚 " + written,
+    ]) {
+      const items = await analyze(input, []);
+      expect(items).toHaveLength(2);
+      expect(items.map(item => item.quantityHints.value)).toEqual([120, 1]);
+      expect(items.map(item => item.quantityHints.unit)).toEqual(["g", "un"]);
+      expect(items.map(item => item.identityHints.foodName)).toEqual(["arroz", "banana"]);
+      expect(items.every(item => item.rawInput === input)).toBe(true);
+      expect(items.every(item => item.evidence.every(evidence => !evidence.verified))).toBe(true);
+      const [first, second] = items.map(item => item.surfaceSpan.span!);
+      expect(input.slice(first.start, first.end)).toContain("cento e vinte gramas de arroz");
+      expect(input.slice(second.start, second.end)).toBe("uma banana");
+      expect(first.end).toBeLessThan(second.start);
+    }
+    for (const [input, amount, unit, food] of [
+      ["Consumi duzentas e duas fatias de pão e uma banana", 202, "fatia", "pao"],
+      ["Anotar novecentos e noventa e nove ml de leite e um ovo", 999, "ml", "leite"],
+      ["🍳 dois ovos e uma banana", 2, "un", "ovos"],
+    ] as const) {
+      const items = await analyze(input, []);
+      expect(items).toHaveLength(2);
+      expect(items[0].quantityHints).toMatchObject({ value: amount, unit });
+      expect(items[0].identityHints.foodName).toBe(food);
+      expect(items[1].quantityHints.value).toBe(1);
+      expect(items[0].rawInput).toBe(input);
+    }
+  });
+
+  it("AUD1304 A-044 não converte listas nem números malformados em porções certas", async () => {
+    const ordinary = await analyze("Comi cem ovos e banana", []);
+    expect(ordinary).toHaveLength(2);
+    expect(ordinary[0].quantityHints).toMatchObject({ value: 100, unit: "un" });
+    expect(ordinary[1].identityHints.foodName).toBe("banana");
+    for (const input of [
+      "Comi cem e vinte gramas de arroz",
+      "Comi entre cem e cento e vinte gramas de arroz",
+      "🍚 entre cem e cento e vinte gramas de arroz",
+    ]) {
+      const items = await analyze(input, []);
+      expect(items).toHaveLength(1);
+      expect(items[0].quantityHints.value).toBeNull();
+      expect(items[0].rawInput).toBe(input);
+      const span = items[0].surfaceSpan.span!;
+      expect(input.slice(span.start, span.end)).not.toBe("");
+    }
+    const [unquantifiedEmoji] = await analyze("🍫 chocolate sem açúcar", []);
+    expect(unquantifiedEmoji.quantityHints.value).toBeNull();
+    expect(unquantifiedEmoji.identityHints.foodName).toContain("🍫");
+  });
+
   it("AUD1304 A-043 não atribui unidade alimentar exata a recipientes não governados", async () => {
     for (const surface of [
       "uma lata de atum", "duas latas de atum", "uma caixa de leite",

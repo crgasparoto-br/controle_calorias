@@ -293,3 +293,20 @@ exact-HEAD antes de reauditoria independente.
 
 A alteração não muda operação, cutover produtivo nem elegibilidade S3
 (ainda dependente de calibração na issue #1306).
+
+## Remediação AUD1304 A-044 — composição numérica após enquadramento (26/10/2026)
+
+- **A-044 — segmentação contextual:** `cento e vinte`, `duzentas e duas`
+  e outras quantidades compostas não são divididas no `e` interno quando
+  aparecem após comando (`comi`, `registrar`), destino de refeição ou marcador
+  pictográfico isolado. A conjunção que separa alimentos continua segmentando
+  normalmente. A gramática preserva `rawInput`, âncoras UTF-16 e evidências
+  sem criar identidade nutricional nem executar `MealOperation`.
+- Um emoji separado antes de uma quantidade inequívoca não impede a leitura
+  da quantidade textual; a imagem/símbolo original permanece em `rawInput` e
+  no span. Emoji não é usado como fonte de identidade alimentar nem prova de
+  quantidade. Expressões numéricas inválidas e intervalos seguem incertos,
+  sem converter o limite de um intervalo em porção exata.
+- Testes na suíte existente cobrem equivalências, comandos, prefixos,
+  coordenadores válidos de lista, quantidades inválidas e offsets Unicode.
+  A correção não altera a elegibilidade S3 da #1306 nem faz cutover produtivo.

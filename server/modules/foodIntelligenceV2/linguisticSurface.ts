@@ -115,6 +115,14 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   servingText: string | null; uncertain: boolean; governedAlias?: GovernedUnitAlias;
 } {
   const source = text.trim();
+  // A-044: a standalone pictographic marker may precede a complete quantity.
+  // Keep the caller's raw source/span unchanged; never infer food identity from
+  // an emoji, or discard an emoji when the following quantity is ambiguous.
+  const pictographicPrefix = /^(?:\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*\s+)+/u.exec(source);
+  if (pictographicPrefix) {
+    const following = readQuantity(source.slice(pictographicPrefix[0].length), governedUnits);
+    if (following.value !== null && following.unit !== null && following.name) return following;
+  }
   const unresolved = () => ({
     value: null, unit: null, name: source, servingText: source, uncertain: true,
   });
@@ -428,19 +436,21 @@ export function splitFoodSurface(
       // A composed written amount has an internal 'e' ("vinte e duas").
       const writtenTens = new RegExp("^(?:" + tensPattern + ")$", "iu");
       const writtenOnes = new RegExp("^(?:" + onesPattern + ")\\b", "iu");
-      const composedAmount = writtenTens.test(left.trim()) && writtenOnes.test(right);
+      // Quantity may follow a command, meal framing or pictographic marker.
+      // Read the terminal numeral words, not just the segment's first word.
+      const composedAmount = new RegExp("(?:^|\\s)(?:" + tensPattern + ")$", "iu")
+        .test(left.trim()) && writtenOnes.test(right);
       // Protect both connectors in 'cento e vinte e duas fatias', not just
       // the second one; a complete food-list conjunction remains splittable.
-      const writtenHundreds = new RegExp(
-        "^(?:" + hundredsPattern + ")(?:\\s+e\\s+(?:" + tensPattern + "))?$", "iu",
-      );
       const lowerNumber = new RegExp("^(?:" + underHundredPattern + ")\\b", "iu");
-      const hundredsContinuation = writtenHundreds.test(left.trim()) && lowerNumber.test(right);
+      const hundredsContinuation = new RegExp("(?:^|\\s)(?:" + hundredsPattern +
+        ")(?:\\s+e\\s+(?:" + tensPattern + "))?$", "iu")
+        .test(left.trim()) && lowerNumber.test(right);
       // A-022: "entre 2 e 3 ovos" is one uncertain quantity, not two foods.
       // Preserve the original UTF-16 span; do not protect an ordinary list.
-      const rangeStart = new RegExp("^entre\\s+(?:" + quantityPattern + ")$", "iu");
       const rangeEnd = new RegExp("^(?:" + quantityPattern + ")(?=\\s|$|\\p{L})", "iu");
-      const betweenBounds = rangeStart.test(left.trim()) && rangeEnd.test(right);
+      const betweenBounds = new RegExp("(?:^|\\s)entre\\s+(?:" + quantityPattern + ")$", "iu")
+        .test(left.trim()) && rangeEnd.test(right);
       // Written and numeric whole counts can take a following "e meio/meia".
       // Do not shield "2 ovos e meio copo": its left side is not a number.
       const leadingHalf = new RegExp("^(?:" + quantityPattern + ")$", "iu").test(left.trim()) &&
