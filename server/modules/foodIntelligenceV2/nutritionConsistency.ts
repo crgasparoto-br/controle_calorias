@@ -51,7 +51,7 @@ const DECLARED_UNIT_SCALES = {
 
 type PhysicalBasis = "g" | "ml" | "serving";
 
-function declaredPhysicalAmount(
+export function declaredPhysicalAmount(
   value: number | null,
   unit: string | null
 ): { basis: PhysicalBasis; amount: number } | null {
