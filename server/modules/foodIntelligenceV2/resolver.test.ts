@@ -37,6 +37,18 @@ function fakeStore(local: FoodKnowledgeLocalResult): FoodKnowledgeStore {
   };
 }
 
+function alternativeFor(hypothesisId: string, foodName: string | null): FoodObservation["alternatives"][number] {
+  return {
+    hypothesisId,
+    identityHints: { foodName, brand: null, variant: null, preparation: [], qualifiers: [], barcode: null },
+    quantityHints: {
+      value: null, unit: null, servingText: null,
+      visiblePackageQuantity: null, visiblePackageUnit: null,
+    },
+    evidenceIds: ["ev-ident"], confidence: null,
+  };
+}
+
 describe("#1305 Food Intelligence V2 — núcleo", () => {
   it("resolve com perfil local verificado, conversão comprovada e proveniência", async () => {
     const store = fakeStore(match);
@@ -351,4 +363,109 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(second.status).toBe("resolved");
     expect(first.nutrition.snapshotHash).not.toBe(second.nutrition.snapshotHash);
   });
+
+  it("A-001: continuação não propõe identidade quando chegam alternativas concorrentes", async () => {
+    const store = fakeStore(match);
+    const original = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
+    expect(original.status).toBe("resolved");
+    const conflicting = buildFoodObservationFixture({
+      alternatives: [
+        alternativeFor("mortadela", "Mortadela"),
+        alternativeFor("presunto", "Presunto"),
+      ],
+    });
+    const current = await resolveFoodObservation(
+      conflicting, { ...context, previousDecision: original }, store,
+    );
+    expect(current.status).toBe("ambiguous");
+    expect(current.nextAction).toBe("clarify");
+    expect(current.reasonCodes).toContain("source_conflict");
+    expect(current.alternatives.map(a => a.name)).toEqual(["Mortadela", "Presunto"]);
+    expect(current.nutrition.consumed).toBeNull();
+    expect(current.quantity).toEqual(original.quantity);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+  });
+
+  it("A-002: alternativa não materializável preserva quantidade faltante para clarificação", async () => {
+    const alternatives = [
+      alternativeFor("named", "Mortadela"),
+      alternativeFor("unnamed", null),
+    ];
+    const missing = await resolveFoodObservation(buildFoodObservationFixture({
+      quantityHints: { value: null, unit: null, servingText: null }, alternatives,
+    }), context, fakeStore(match));
+    expect(missing.status).toBe("unknown");
+    expect(missing.quantity.value).toBeNull();
+    expect(missing.unresolvedFields).toContain("quantity");
+    expect(missing.nextAction).toBe("clarify");
+    expect(parseFoodResolutionDecision(missing).ok).toBe(true);
+
+    const supplied = await resolveFoodObservation(buildFoodObservationFixture({
+      alternatives,
+    }), context, fakeStore(match));
+    expect(supplied.status).toBe("unknown");
+    expect(supplied.quantity.value).toBe(1.5);
+    expect(supplied.unresolvedFields).not.toContain("quantity");
+    expect(parseFoodResolutionDecision(supplied).ok).toBe(true);
+  });
+
+  it("A-003: evidência verificada de quantidade conflitante bloqueia macros e proposta", async () => {
+    const seed = buildFoodObservationFixture({
+      quantityHints: { value: 100, unit: "g", servingText: "100 g" },
+      evidence: [buildFoodObservationFixture().evidence[0], {
+        ...buildFoodObservationFixture().evidence[1], value: 100, unit: "g",
+      }],
+    });
+    const conflict = await resolveFoodObservation({
+      ...seed,
+      evidence: [...seed.evidence, {
+        ...seed.evidence[1], evidenceId: "qty-200", field: "quantity.value",
+        value: 200, unit: "g", verified: true,
+      }],
+    }, context, fakeStore(match));
+    expect(conflict.status).toBe("partially_resolved");
+    expect(conflict.nextAction).toBe("clarify");
+    expect(conflict.reasonCodes).toContain("source_conflict");
+    expect(conflict.unresolvedFields).toContain("quantity");
+    expect(conflict.nutrition.consumed).toBeNull();
+    expect(conflict.quantity.evidenceIds).toContain("qty-200");
+    expect(parseFoodResolutionDecision(conflict).ok).toBe(true);
+  });
+
+  it("A-003: quantidade e evidência verificadas em unidades físicas equivalentes permanecem válidas", async () => {
+    const seed = buildFoodObservationFixture({
+      quantityHints: { value: 0.1, unit: "kg", servingText: "100 g" },
+      evidence: [buildFoodObservationFixture().evidence[0], {
+        ...buildFoodObservationFixture().evidence[1], value: 0.1, unit: "kg",
+      }],
+    });
+    const equivalent = await resolveFoodObservation({
+      ...seed,
+      evidence: [...seed.evidence, {
+        ...seed.evidence[1], evidenceId: "qty-100g", field: "quantity.value",
+        value: 100, unit: "g", verified: true,
+      }],
+    }, context, fakeStore(match));
+    expect(equivalent.status).toBe("resolved");
+    expect(equivalent.quantity.grams).toBe(100);
+    expect(equivalent.nutrition.consumed?.calories).toBe(270);
+    expect(parseFoodResolutionDecision(equivalent).ok).toBe(true);
+  });
+
+  it("A-003: divergência em gramas após porção governada não é atribuída como prova nutricional", async () => {
+    const seed = buildFoodObservationFixture();
+    const mismatched = await resolveFoodObservation({
+      ...seed,
+      evidence: [...seed.evidence, {
+        ...seed.evidence[1], evidenceId: "qty-40g", field: "quantity.grams",
+        value: 40, unit: "g", verified: true,
+      }],
+    }, context, fakeStore(match));
+    expect(mismatched.quantity.grams).toBe(30);
+    expect(mismatched.status).toBe("partially_resolved");
+    expect(mismatched.unresolvedFields).toContain("quantity");
+    expect(mismatched.nutrition.consumed).toBeNull();
+    expect(parseFoodResolutionDecision(mismatched).ok).toBe(true);
+  });
+
 });

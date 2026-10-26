@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
-import { normalizeUnitToken } from "./contracts";
+import { FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
 import { declaredPhysicalAmount } from "./nutritionConsistency";
 import {
   isNutritionFacts, readThroughGovernedKnowledge,
@@ -69,6 +69,59 @@ function makeEvidence(
   return evidenceId;
 }
 
+/** Numeric claims are reconciled by physical dimension, never raw spelling.
+ * Household units have no implicit conversion into grams, milliliters or servings. */
+function sameDeclaredQuantity(
+  leftValue: number, leftUnit: string | null,
+  rightValue: number, rightUnit: string | null,
+): boolean {
+  if (!leftUnit || !rightUnit) return false;
+  const left = amount(leftValue, leftUnit);
+  const right = amount(rightValue, rightUnit);
+  if (left || right) {
+    return !!left && !!right && left.basis === right.basis &&
+      Math.abs(left.value - right.value) <= FOOD_QUANTITY_EPSILON;
+  }
+  return normalizeUnitToken(leftUnit) === normalizeUnitToken(rightUnit) &&
+    Math.abs(leftValue - rightValue) <= FOOD_QUANTITY_EPSILON;
+}
+
+/** Strong numeric evidence cannot be used as provenance for a different quantity.
+ * Compare direct value+unit claims and converted physical facts separately;
+ * the latter is meaningful only after a governed conversion was performed. */
+function hasConflictingQuantityEvidence(quantity: Quantity, evidence: readonly FoodEvidence[]): boolean {
+  const verified = evidence.filter(item => item.verified &&
+    typeof item.value === "number" && Number.isFinite(item.value));
+  const valueClaims = verified.filter(item => item.field === "quantity.value");
+  for (const claim of valueClaims) {
+    if (quantity.value !== null &&
+        !sameDeclaredQuantity(quantity.value, quantity.unit, claim.value as number, claim.unit)) {
+      return true;
+    }
+  }
+  for (let i = 1; i < valueClaims.length; i++) {
+    if (!sameDeclaredQuantity(valueClaims[0].value as number, valueClaims[0].unit,
+        valueClaims[i].value as number, valueClaims[i].unit)) return true;
+  }
+  for (const [field, physical, unit] of [
+    ["quantity.grams", quantity.grams, "g"],
+    ["quantity.milliliters", quantity.milliliters, "ml"],
+  ] as const) {
+    const claims = verified.filter(item => item.field === field);
+    for (const claim of claims) {
+      if (!sameDeclaredQuantity(claim.value as number, claim.unit, claim.value as number, unit)) {
+        return true;
+      }
+      if (physical !== null && Math.abs(physical - (claim.value as number)) > FOOD_QUANTITY_EPSILON) {
+        return true;
+      }
+    }
+    if (claims.some(claim =>
+      Math.abs((claim.value as number) - (claims[0].value as number)) > FOOD_QUANTITY_EPSILON)) return true;
+  }
+  return false;
+}
+
 function quantityFromObservation(
   observation: FoodObservation, evidence: FoodEvidence[], match: GovernedFoodMatch | null,
   previous: FoodResolutionDecision | null,
@@ -84,9 +137,15 @@ function quantityFromObservation(
     return { quantity, incompatiblePrevious: false };
   }
   if (prior?.value !== null && prior?.value !== undefined &&
-      (prior.value !== q.value || normalizeUnitToken(prior.unit) !== normalizeUnitToken(q.unit))) {
+      !sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit)) {
     // New conflicting assertion: do not overwrite a previously accepted quantity.
     return { quantity: { ...prior, evidenceIds: [...prior.evidenceIds] }, incompatiblePrevious: true };
+  }
+  if (prior?.value !== null && prior?.value !== undefined && prior.unit !== null &&
+      sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit)) {
+    // A compatible restatement does not reconstruct grams or rewrite the
+    // accepted evidence IDs, even when a separate identity becomes ambiguous.
+    return { quantity: { ...prior, evidenceIds: [...prior.evidenceIds] }, incompatiblePrevious: false };
   }
   const matchingIds = observation.evidence.filter(item =>
     item.field.startsWith("quantity.") && item.value !== null).map(item => item.evidenceId);
@@ -296,12 +355,14 @@ export async function resolveFoodObservation(
       item.value !== null && !previous?.evidence.some(old =>
         old.field === item.field && old.value === item.value));
     if (previous && previous.identity.canonicalName !== null &&
-        compatibleIdentityHints && !changedIdentityEvidence) {
+        compatibleIdentityHints && !changedIdentityEvidence &&
+        observation.alternatives.length < 2) {
       const q = observation.quantityHints;
       const prior = previous.quantity;
-      const quantityConflict = q.value !== null && q.unit !== null &&
-        (prior.value !== q.value ||
-          normalizeUnitToken(prior.unit) !== normalizeUnitToken(q.unit));
+      const quantityConflict = (q.value !== null && q.unit !== null &&
+        (prior.value === null || prior.unit === null ||
+          !sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit))) ||
+        hasConflictingQuantityEvidence(prior, evidence);
       const preserved: FoodResolutionDecision = {
         ...previous, revision: previous.revision + 1, evidence,
         status: quantityConflict ? "partially_resolved" : previous.status,
@@ -330,6 +391,7 @@ export async function resolveFoodObservation(
       sourceCompatibleWithExplicitAttributes(observation, knowledge) ? knowledge : null;
     const incompatibleAttributes = knowledge.kind === "match" && match === null;
     const { quantity, incompatiblePrevious } = quantityFromObservation(observation, evidence, match, previous);
+    const quantityEvidenceConflict = hasConflictingQuantityEvidence(quantity, evidence);
     decision.quantity = quantity;
     if (quantity.value !== null || quantity.grams !== null || quantity.milliliters !== null) {
       decision.unresolvedFields = decision.unresolvedFields.filter(field => field !== "quantity");
@@ -356,14 +418,15 @@ export async function resolveFoodObservation(
       decision.unresolvedFields = decision.unresolvedFields.filter(field => field !== "identity" && field !== "variant");
       // A provisional governed profile is not yet an authorized estimate:
       // #1306 must calibrate the policy by family before it is usable.
-      decision.nutrition = match.governanceStatus === "verified"
+      decision.nutrition = match.governanceStatus === "verified" &&
+        !incompatiblePrevious && !quantityEvidenceConflict
         ? nutritionFromMatch(observation, match, quantity, evidence)
         : blankNutrition();
       if (decision.nutrition.consumed !== null) {
         decision.unresolvedFields = decision.unresolvedFields.filter(field => field !== "nutrition");
       }
-      if (incompatiblePrevious) {
-        decision.unresolvedFields = Array.from(new Set([...decision.unresolvedFields, "quantity"]));
+      if (incompatiblePrevious || quantityEvidenceConflict) {
+        decision.unresolvedFields = Array.from(new Set([...decision.unresolvedFields, "quantity", "nutrition"]));
         decision.reasonCodes = ["source_conflict"];
       } else if (match.governanceStatus !== "verified") {
         decision.reasonCodes = ["policy_not_calibrated"];
@@ -376,6 +439,9 @@ export async function resolveFoodObservation(
       }
       decision.status = decision.unresolvedFields.length === 0 ? "resolved" : "partially_resolved";
       decision.nextAction = decision.status === "resolved" ? "propose" : "clarify";
+    } else if (quantityEvidenceConflict || incompatiblePrevious) {
+      decision.reasonCodes = ["source_conflict"];
+      decision.unresolvedFields = Array.from(new Set([...decision.unresolvedFields, "quantity"]));
     } else if (incompatibleAttributes) {
       decision.reasonCodes = ["brand_variant_unresolved"];
     } else if (knowledge.kind === "unavailable") {
@@ -418,7 +484,10 @@ export async function resolveFoodObservation(
       decision.status = "unknown";
       decision.nextAction = "clarify";
       decision.reasonCodes = ["source_conflict"];
-      decision.unresolvedFields = ["identity", "variant", "nutrition"];
+      decision.unresolvedFields = quantity.value === null && quantity.grams === null &&
+        quantity.milliliters === null
+        ? ["identity", "variant", "quantity", "nutrition"]
+        : ["identity", "variant", "nutrition"];
       decision.identity = {
         candidateKey: null, foodEntityId: null, variantId: null,
         canonicalName: null, brand: null, variant: null, preparation: [],
