@@ -317,7 +317,14 @@ export async function resolveFoodObservation(
     }
     // Competing, independently anchored observation hypotheses cannot be
     // silently discarded even when a candidate lookup yielded a single match.
-    const alternatives = observation.alternatives.filter(item => item.evidenceIds.length > 0)
+    const identitySurfaceEvidence = observation.evidence.filter(item =>
+      (item.field.startsWith("identity.") || item.field.startsWith("variant.")) &&
+      item.value !== null).map(item => item.evidenceId);
+    // LCL S2 ambiguity can carry multiple hypotheses with the original surface
+    // evidence rather than a separate evidenceId for each hypothesis. Never
+    // drop such competing meanings just because their per-hypothesis list is
+    // empty; link them to the observed surface or fail closed without a choice.
+    const alternatives = observation.alternatives
       .map(item => ({
         candidateKey: item.hypothesisId,
         foodEntityId: null, variantId: null,
@@ -325,9 +332,21 @@ export async function resolveFoodObservation(
         brand: item.identityHints.brand, variant: item.identityHints.variant,
         preparation: item.identityHints.preparation,
         qualifiers: item.identityHints.qualifiers,
-        evidenceIds: item.evidenceIds, confidence: item.confidence,
-      })).filter(item => item.name.length > 0);
-    if (alternatives.length >= 2) {
+        evidenceIds: item.evidenceIds.length > 0 ? item.evidenceIds : identitySurfaceEvidence,
+        confidence: item.confidence,
+      })).filter(item => item.name.length > 0 && item.evidenceIds.length > 0);
+    if (observation.alternatives.length >= 2 && alternatives.length < 2) {
+      decision.status = "unknown";
+      decision.nextAction = "clarify";
+      decision.reasonCodes = ["source_conflict"];
+      decision.unresolvedFields = ["identity", "variant", "nutrition"];
+      decision.identity = {
+        candidateKey: null, foodEntityId: null, variantId: null,
+        canonicalName: null, brand: null, variant: null, preparation: [],
+        qualifiers: [], barcode: null, confidence: null, evidenceIds: [],
+      };
+      decision.nutrition = blankNutrition();
+    } else if (alternatives.length >= 2) {
       decision.status = "ambiguous";
       decision.nextAction = "clarify";
       decision.alternatives = alternatives;
