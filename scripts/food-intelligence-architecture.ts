@@ -285,6 +285,25 @@ function isPureContractSizeBounds(value: ts.Expression): boolean {
  * convention and dotted field keys; a mixed list or a food catalog still
  * reaches gate 17, including when disguised as a field list.
  */
+function isStructuralDecisionReasonCodeVocabulary(node: ts.VariableDeclaration): boolean {
+  if (!node.initializer || !ts.isIdentifier(node.name) ||
+      node.name.text !== "FOOD_REASON_CODES" ||
+      !/(?:^|\/)server\/modules\/foodIntelligenceV2\/contracts\.ts$/.test(
+        node.getSourceFile().fileName.replace(/\\/g, "/"))) return false;
+  const value = unwrap(node.initializer);
+  // This is the typed set of operational *reasons*, not food names or a
+  // materiality/portion catalog. New reasons must preserve a control-flow
+  // suffix; an inserted edible name must still be caught by gate 17.
+  const reasonSuffix = /(?:_unresolved|_unverified|_missing|_unproven|_conflict|_unavailable|_failed|_locale|_surface|_evidence|_version|_calibrated)$|^non_food$/;
+  return ts.isArrayLiteralExpression(value) && value.elements.length > 0 &&
+    value.elements.every(element => {
+      const item = unwrap(element);
+      return isStaticText(item) &&
+        /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(item.text) &&
+        reasonSuffix.test(item.text);
+    });
+}
+
 function isStructuralEvidenceFieldVocabulary(node: ts.VariableDeclaration): boolean {
   if (!node.initializer || !ts.isIdentifier(node.name) ||
       !/(?:^|_)(?:EVIDENCE|SCHEMA|CONTRACT)_(?:FIELDS?|PATHS?)$/i.test(node.name.text)) {
@@ -1769,6 +1788,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
           isPureContractSizeBounds(node.initializer) &&
           !isFoodNumericMapUse(node, source)) ||
           isStructuralEvidenceFieldVocabulary(node) ||
+          isStructuralDecisionReasonCodeVocabulary(node) ||
           isPresentationOnlyCollection(node, source) ||
           isPresentationOnlyFilter(node, source, unwrap))) return null;
     // Inline food rows are visited separately by isInlineFoodKnowledge.
