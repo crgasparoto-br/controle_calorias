@@ -8,7 +8,9 @@
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
-import { declaredPhysicalAmount } from "./nutritionConsistency";
+import {
+  declaredPhysicalAmount, hasConflictingVerifiedNutritionEvidence,
+} from "./nutritionConsistency";
 import {
   isNutritionFacts, readThroughGovernedKnowledge,
   type FoodExternalLookup, type FoodKnowledgeStore, type GovernedFoodMatch,
@@ -178,6 +180,51 @@ function quantityFromObservation(
     }
   }
   return { quantity, incompatiblePrevious: false };
+}
+
+/** Uma gramatura de porção pertence à variante usada para convertê-la.
+ * Com identidade concorrente, só a quantidade expressa pelo usuário sobrevive. */
+function withoutUnconfirmedPortion(quantity: Quantity, evidence: readonly FoodEvidence[]): Quantity {
+  if (quantity.source !== "governed_portion") return quantity;
+  const derivedIds = new Set(evidence.filter(item =>
+    item.field === "quantity.grams" && item.origin === "catalog").map(item => item.evidenceId));
+  return {
+    ...quantity, grams: null, portionId: null, source: "observation",
+    evidenceIds: quantity.evidenceIds.filter(id => !derivedIds.has(id)),
+  };
+}
+
+/** Uma hipótese única pode ser descartada apenas por evidência exata,
+ * mesma identidade, atributos e quantidade; S2/S3 que exige clarificação
+ * explícita nunca é transformada em decisão por score. */
+function soleHypothesisIsRedundant(
+  observation: FoodObservation, match: GovernedFoodMatch | null,
+): boolean {
+  if (observation.alternatives.length !== 1 ||
+      observation.unresolvedReason !== null || !match ||
+      match.governanceStatus !== "verified" ||
+      (match.matchingEvidence !== "exact_variant" && match.matchingEvidence !== "barcode")) return false;
+  const original = observation.identityHints;
+  const candidate = observation.alternatives[0].identityHints;
+  const name = normalizeFoodName(match.variantName);
+  if (!name || normalizeFoodName(original.foodName ?? "") !== name ||
+      normalizeFoodName(candidate.foodName ?? "") !== name) return false;
+  const attributes = (hints: typeof original) => JSON.stringify({
+    brand: normalizeFoodName(hints.brand ?? ""),
+    barcode: hints.barcode,
+    variant: normalizeFoodName(hints.variant ?? ""),
+    preparation: hints.preparation.map(normalizeFoodName),
+    qualifiers: hints.qualifiers.map(item => [
+      normalizeFoodName(item.value), item.attributeCode, item.role,
+    ]),
+  });
+  const quantity = observation.quantityHints;
+  const alternativeQuantity = observation.alternatives[0].quantityHints;
+  const sameQuantity = quantity.value === null && alternativeQuantity.value === null ||
+    quantity.value !== null && alternativeQuantity.value !== null &&
+    sameDeclaredQuantity(quantity.value, quantity.unit,
+      alternativeQuantity.value, alternativeQuantity.unit);
+  return attributes(original) === attributes(candidate) && sameQuantity;
 }
 
 function sourceCompatibleWithExplicitAttributes(
@@ -356,22 +403,28 @@ export async function resolveFoodObservation(
         old.field === item.field && old.value === item.value));
     if (previous && previous.identity.canonicalName !== null &&
         compatibleIdentityHints && !changedIdentityEvidence &&
-        observation.alternatives.length < 2) {
+        observation.alternatives.length === 0) {
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = (q.value !== null && q.unit !== null &&
         (prior.value === null || prior.unit === null ||
           !sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit))) ||
         hasConflictingQuantityEvidence(prior, evidence);
+      const nutritionConflict = hasConflictingVerifiedNutritionEvidence(previous.nutrition, evidence);
+      const conflict = quantityConflict || nutritionConflict;
       const preserved: FoodResolutionDecision = {
         ...previous, revision: previous.revision + 1, evidence,
-        status: quantityConflict ? "partially_resolved" : previous.status,
-        nextAction: quantityConflict ? "clarify" : previous.nextAction,
-        unresolvedFields: quantityConflict
-          ? Array.from(new Set([...previous.unresolvedFields, "quantity"]))
+        status: conflict ? "partially_resolved" : previous.status,
+        nextAction: conflict ? "clarify" : previous.nextAction,
+        unresolvedFields: conflict
+          ? Array.from(new Set([
+            ...previous.unresolvedFields,
+            ...(quantityConflict ? ["quantity" as const] : []),
+            ...(nutritionConflict ? ["nutrition" as const] : []),
+          ]))
           : previous.unresolvedFields,
-        reasonCodes: quantityConflict
-          ? Array.from(new Set([...previous.reasonCodes, "source_conflict"]))
+        reasonCodes: conflict
+          ? Array.from(new Set([...previous.reasonCodes, "source_conflict" as const]))
           : previous.reasonCodes,
       };
       const checked = parseFoodResolutionDecision(preserved);
@@ -387,10 +440,17 @@ export async function resolveFoodObservation(
       now: context.now,
     };
     const knowledge = await readThroughGovernedKnowledge(request, store, externalLookup);
-    const match = knowledge.kind === "match" &&
+    const eligibleMatch = knowledge.kind === "match" &&
       sourceCompatibleWithExplicitAttributes(observation, knowledge) ? knowledge : null;
-    const incompatibleAttributes = knowledge.kind === "match" && match === null;
-    const { quantity, incompatiblePrevious } = quantityFromObservation(observation, evidence, match, previous);
+    const conflictingHypotheses = observation.alternatives.length > 0 &&
+      !soleHypothesisIsRedundant(observation, eligibleMatch);
+    // Não usar porção ou perfil de uma identidade ainda concorrente.
+    const match = conflictingHypotheses ? null : eligibleMatch;
+    const incompatibleAttributes = knowledge.kind === "match" && eligibleMatch === null;
+    const inferred = quantityFromObservation(observation, evidence, match, previous);
+    const quantity = conflictingHypotheses
+      ? withoutUnconfirmedPortion(inferred.quantity, evidence) : inferred.quantity;
+    const incompatiblePrevious = inferred.incompatiblePrevious;
     const quantityEvidenceConflict = hasConflictingQuantityEvidence(quantity, evidence);
     decision.quantity = quantity;
     if (quantity.value !== null || quantity.grams !== null || quantity.milliliters !== null) {
@@ -422,11 +482,18 @@ export async function resolveFoodObservation(
         !incompatiblePrevious && !quantityEvidenceConflict
         ? nutritionFromMatch(observation, match, quantity, evidence)
         : blankNutrition();
+      const nutritionEvidenceConflict =
+        hasConflictingVerifiedNutritionEvidence(decision.nutrition, evidence);
+      if (nutritionEvidenceConflict) decision.nutrition = blankNutrition();
       if (decision.nutrition.consumed !== null) {
         decision.unresolvedFields = decision.unresolvedFields.filter(field => field !== "nutrition");
       }
-      if (incompatiblePrevious || quantityEvidenceConflict) {
-        decision.unresolvedFields = Array.from(new Set([...decision.unresolvedFields, "quantity", "nutrition"]));
+      if (incompatiblePrevious || quantityEvidenceConflict || nutritionEvidenceConflict) {
+        decision.unresolvedFields = Array.from(new Set([
+          ...decision.unresolvedFields,
+          ...(incompatiblePrevious || quantityEvidenceConflict ? ["quantity" as const] : []),
+          "nutrition" as const,
+        ]));
         decision.reasonCodes = ["source_conflict"];
       } else if (match.governanceStatus !== "verified") {
         decision.reasonCodes = ["policy_not_calibrated"];
@@ -480,9 +547,10 @@ export async function resolveFoodObservation(
         evidenceIds: item.evidenceIds.length > 0 ? item.evidenceIds : identitySurfaceEvidence,
         confidence: item.confidence,
       })).filter(item => item.name.length > 0 && item.evidenceIds.length > 0);
-    if (observation.alternatives.length >= 2 && alternatives.length < 2) {
+    if (conflictingHypotheses && alternatives.length < 2) {
       decision.status = "unknown";
       decision.nextAction = "clarify";
+      decision.alternatives = alternatives;
       decision.reasonCodes = ["source_conflict"];
       decision.unresolvedFields = quantity.value === null && quantity.grams === null &&
         quantity.milliliters === null
@@ -494,7 +562,7 @@ export async function resolveFoodObservation(
         qualifiers: [], barcode: null, confidence: null, evidenceIds: [],
       };
       decision.nutrition = blankNutrition();
-    } else if (alternatives.length >= 2) {
+    } else if (conflictingHypotheses && alternatives.length >= 2) {
       decision.status = "ambiguous";
       decision.nextAction = "clarify";
       decision.alternatives = alternatives;
