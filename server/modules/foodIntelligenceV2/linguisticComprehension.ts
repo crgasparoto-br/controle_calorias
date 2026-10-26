@@ -235,8 +235,15 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   // "ovos sem lactose" for "ovos, e sem lactose". Do not strip a protected
   // brand coordinator or the conjunction between separate foods.
   const normalizedName = foldFoodSurface(name, true);
-  observed.foodName = name ? normalizedName : null;
   observed.qualifiers = detectQualifiers(name);
+  // A-040: a bare nutrient assertion is evidence about an attribute, not a
+  // food identity. Preserve ungoverned names such as "light": only complete
+  // explicit sem/com/zero claims qualify, including contradictory claims.
+  const qualifierOnly = observed.qualifiers.length > 0 &&
+    observed.qualifiers.every(item => /^(?:sem|com|zero)\s/iu.test(item.value)) &&
+    observed.qualifiers.reduce((rest, item) => rest.replace(item.value, " "), name)
+      .replace(/(?:[\s,;]|\be\b)+/giu, "").length === 0;
+  observed.foodName = name && !qualifierOnly ? normalizedName : null;
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,
     request.modality === "image" ? request.imageRegion ?? null : null);
   const q = emptyQuantity();
@@ -250,11 +257,30 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   // Confidence belongs to the transcription evidence, never to the normalized identity.
   const sourceConfidence = request.modality === "audio_transcript"
     ? request.transcriptionConfidence ?? null : null;
-  if (name) evidence.push({
+  if (name && !qualifierOnly) evidence.push({
     evidenceId: "ev-name-" + index, field: "identity.foodName",
     origin, value: name, unit: null, confidence: sourceConfidence, verified: false,
     anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
   });
+  if (qualifierOnly) {
+    // Anchor every asserted attribute to its own UTF-16 bytes. Do not emit a
+    // fictitious identity.foodName evidence for a qualifier-only utterance.
+    let searchFrom = 0;
+    observed.qualifiers.forEach((qualifier, qualifierIndex) => {
+      const localStart = foodSegment.text.indexOf(qualifier.value, searchFrom);
+      const qualifierSpan = localStart < 0
+        ? { start: foodSegment.start, end: foodSegment.end }
+        : { start: foodSegment.start + localStart,
+            end: foodSegment.start + localStart + qualifier.value.length };
+      if (localStart >= 0) searchFrom = localStart + qualifier.value.length;
+      evidence.push({
+        evidenceId: "ev-qualifier-" + index + "-" + qualifierIndex,
+        field: "identity.qualifiers", origin, value: qualifier.value,
+        unit: null, confidence: sourceConfidence, verified: false,
+        anchor: originalAnchor(qualifierSpan), sourceId: null,
+      });
+    });
+  }
   if (q.value !== null) evidence.push({
     evidenceId: "ev-quantity-" + index, field: "quantity.value",
     origin, value: q.value, unit: q.unit, confidence: sourceConfidence, verified: false,
@@ -298,7 +324,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   return {
     schemaVersion: 2, observationId: request.sourceRef.slice(0, 145) + ":obs:" + index,
     modality: request.modality, rawInput: request.rawText,
-    normalizedInput: supported ? normalizedName || null : null, locale,
+    normalizedInput: supported && !qualifierOnly ? normalizedName || null : null, locale,
     surfaceSpan: originalAnchor({ start: foodSegment.start, end: foodSegment.end }),
     identityHints: observed, quantityHints: q, evidence,
     normalizationPath, alternatives,

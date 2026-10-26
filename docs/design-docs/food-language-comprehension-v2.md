@@ -264,8 +264,13 @@ exact-HEAD antes de reauditoria independente.
 ## Remediacao AUD1304 A-040/A-041
 
 - A pontuacao opcional entre comandos/destinos de refeicao e a quantidade
-  inequivoca do alimento nao produz uma observacao fantasma. O parser
-  operacional continua sendo o unico responsavel pela `MealOperation`.
+  inequivoca do alimento nao produz uma observacao fantasma. Afirmacoes
+  isoladas e explicitas de atributo (`sem/com/zero` nutriente), mesmo com
+  enquadramento de refeicao, preservam os qualificadores com evidencia
+  individual e spans UTF-16, mas mantem `foodName` e `normalizedInput` nulos:
+  nao ha identidade de alimento comprovada. Termos isolados ambiguos como
+  `light` nao sao descartados como nome sem outra evidencia.
+  O parser operacional continua sendo o unico responsavel pela `MealOperation`.
 - Uma virgula seguida de `e` antes de um qualificador material explicito
   preserva o texto de origem e o span UTF-16, mas o conector nao altera a
   identidade normalizada nem bloqueia um alias S2 autorizado. Listas de

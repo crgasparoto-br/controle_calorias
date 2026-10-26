@@ -1256,10 +1256,38 @@ describe("Camada de Compreensão Linguística #1304", () => {
     const [uncounted] = await analyze("No almo\u00e7o, comi arroz", []);
     expect(uncounted.identityHints.foodName).toBe("arroz");
     expect(uncounted.quantityHints.value).toBeNull();
-    // A qualifier alone is not evidence of an unambiguous food.
+    // Qualifier-only utterances are not food names, but every original claim
+    // must survive as non-verified, field-level evidence with exact UTF-16 spans.
     const doubtful = "Adicionar ao caf\u00e9 da manh\u00e3, sem a\u00e7\u00facar";
-    const observed = await analyze(doubtful, []);
-    expect(observed[0].identityHints.foodName).not.toBe("sem acucar");
+    for (const [rawText, claims] of [
+      [doubtful, ["sem a\u00e7\u00facar"]],
+      ["No almo\u00e7o, comi sem lactose", ["sem lactose"]],
+      ["sem gl\u00faten", ["sem gl\u00faten"]],
+      ["sem a\u00e7\u00facar e com lactose", ["sem a\u00e7\u00facar", "com lactose"]],
+    ] as const) {
+      const observed = await analyze(rawText, []);
+      expect(observed).toHaveLength(1);
+      const [item] = observed;
+      expect(item.identityHints.foodName).toBeNull();
+      expect(item.normalizedInput).toBeNull();
+      expect(item.quantityHints.value).toBeNull();
+      expect(item.identityHints.qualifiers.map(q => q.value)).toEqual(claims);
+      const claimEvidence = item.evidence.filter(evidence => evidence.field === "identity.qualifiers");
+      expect(claimEvidence).toHaveLength(claims.length);
+      expect(item.evidence.some(evidence => evidence.field === "identity.foodName")).toBe(false);
+      expect(claimEvidence.map(evidence =>
+        rawText.slice(evidence.anchor.span!.start, evidence.anchor.span!.end))).toEqual(claims);
+      expect(claimEvidence.every(evidence => evidence.verified === false)).toBe(true);
+      expect(item.unresolvedReason).toBe("unknown_surface");
+      expect(item.rawInput).toBe(rawText);
+      expect("mealOperation" in item).toBe(false);
+    }
+    const [qualifiedFood] = await analyze("2 ovos sem a\u00e7\u00facar", []);
+    expect(qualifiedFood.identityHints.foodName).toBe("ovos sem acucar");
+    expect(qualifiedFood.quantityHints).toMatchObject({ value: 2, unit: "un" });
+    expect(qualifiedFood.identityHints.qualifiers.map(q => q.value)).toEqual(["sem a\u00e7\u00facar"]);
+    const [unprovenName] = await analyze("light", []);
+    expect(unprovenName.identityHints.foodName).toBe("light");
     const twoFoods = await analyze("Adicionar 2 ovos, 1 banana", []);
     expect(twoFoods.map(x => x.identityHints.foodName)).toEqual(["ovos", "banana"]);
   });
