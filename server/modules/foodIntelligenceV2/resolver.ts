@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
-import { normalizeUnitToken, type FoodReasonCode } from "./contracts";
+import { normalizeUnitToken } from "./contracts";
 import {
   isNutritionFacts, readThroughGovernedKnowledge,
   type FoodExternalLookup, type FoodKnowledgeStore, type GovernedFoodMatch,
@@ -332,7 +332,7 @@ export async function resolveFoodObservation(
       decision.nextAction = "clarify";
       decision.alternatives = alternatives;
       decision.reasonCodes = ["source_conflict"];
-      decision.unresolvedFields = ["identity", "variant", "nutrition"];
+      decision.unresolvedFields = quantity.value === null ? ["identity", "variant", "quantity", "nutrition"] : ["identity", "variant", "nutrition"];
       // No single alternative may borrow a profile/identity from the candidate read.
       decision.identity = {
         candidateKey: null, foodEntityId: null, variantId: null,
