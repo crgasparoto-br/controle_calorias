@@ -275,18 +275,26 @@ export async function resolveFoodObservation(
     // Continuation without a fresh identity assertion must not erase previously
     // accepted identity, nutritional provenance, or quantity. An identity claim
     // in the evidence envelope counts as new only when it differs materially.
-    const noIdentityHints = observation.identityHints.foodName === null &&
-      observation.identityHints.brand === null &&
-      observation.identityHints.barcode === null &&
-      observation.identityHints.variant === null &&
-      observation.identityHints.preparation.length === 0 &&
-      observation.identityHints.qualifiers.length === 0;
+    const hint = observation.identityHints;
+    const previousIdentity = previous?.identity;
+    const compatibleIdentityHints = !!previousIdentity &&
+      (hint.foodName === null || normalizeFoodName(hint.foodName) ===
+        normalizeFoodName(previousIdentity.canonicalName ?? "")) &&
+      (hint.brand === null || normalizeFoodName(hint.brand) ===
+        normalizeFoodName(previousIdentity.brand ?? "")) &&
+      (hint.barcode === null || hint.barcode === previousIdentity.barcode) &&
+      (hint.variant === null || normalizeFoodName(hint.variant) ===
+        normalizeFoodName(previousIdentity.variant ?? "")) &&
+      (hint.preparation.length === 0 ||
+        JSON.stringify(hint.preparation) === JSON.stringify(previousIdentity.preparation)) &&
+      (hint.qualifiers.length === 0 ||
+        JSON.stringify(hint.qualifiers) === JSON.stringify(previousIdentity.qualifiers));
     const changedIdentityEvidence = observation.evidence.some(item =>
       (item.field.startsWith("identity.") || item.field.startsWith("variant.")) &&
       item.value !== null && !previous?.evidence.some(old =>
         old.field === item.field && old.value === item.value));
     if (previous && previous.identity.canonicalName !== null &&
-        noIdentityHints && !changedIdentityEvidence) {
+        compatibleIdentityHints && !changedIdentityEvidence) {
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = q.value !== null && q.unit !== null &&
