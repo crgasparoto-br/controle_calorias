@@ -248,7 +248,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
     .split(/[\s,;]+/u).filter(Boolean);
   const qualifierOnly = observed.qualifiers.length > 0 &&
     observed.qualifiers.every(item => item.value.trim().split(/\s+/u).length > 1) &&
-    qualifierRemainder.every(token => token === "e");
+    qualifierRemainder.every(token => token.toLowerCase() === "e");
   observed.foodName = name && !qualifierOnly ? normalizedName : null;
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,
     request.modality === "image" ? request.imageRegion ?? null : null);

@@ -1297,6 +1297,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
       ["sem lactose e com lactose", ["sem lactose", "com lactose"]],
       ["sem açúcar e com lactose e sem glúten", ["sem açúcar", "com lactose", "sem glúten"]],
       ["sem lactose, e com lactose", ["sem lactose", "com lactose"]],
+      ["SEM LACTOSE E COM LACTOSE", ["SEM LACTOSE", "COM LACTOSE"]],
     ] as const) {
       const items = await analyze(rawText, []);
       expect(items).toHaveLength(1);
@@ -1309,7 +1310,8 @@ describe("Camada de Compreensão Linguística #1304", () => {
         .map(e => rawText.slice(e.anchor.span!.start, e.anchor.span!.end))).toEqual([...claims]);
       expect(item.rawInput).toBe(rawText);
     }
-    for (const rawText of ["azeite sem lactose", "light sem lactose", "iogurte, e sem lactose"]) {
+    for (const rawText of ["azeite sem lactose", "light sem lactose",
+      "iogurte, e sem lactose", "sem lactose É com lactose"]) {
       const [item] = await analyze(rawText, []);
       expect(item.identityHints.foodName).not.toBeNull();
       expect(item.rawInput).toBe(rawText);
