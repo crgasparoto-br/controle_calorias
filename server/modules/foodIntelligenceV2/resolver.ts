@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { normalizeUnitToken } from "./contracts";
+import { declaredPhysicalAmount } from "./nutritionConsistency";
 import {
   isNutritionFacts, readThroughGovernedKnowledge,
   type FoodExternalLookup, type FoodKnowledgeStore, type GovernedFoodMatch,
@@ -47,17 +48,9 @@ const blankQuantity = (): Quantity => ({
 });
 
 function amount(value: number, unit: string): { basis: "g" | "ml" | "serving"; value: number } | null {
-  const normalized = normalizeUnitToken(unit);
-  const units: Record<string, ["g" | "ml" | "serving", number]> = {
-    g: ["g", 1], grama: ["g", 1], gramas: ["g", 1], gram: ["g", 1], grams: ["g", 1],
-    kg: ["g", 1000], quilo: ["g", 1000], quilos: ["g", 1000], kilogram: ["g", 1000], kilograms: ["g", 1000],
-    ml: ["ml", 1], mililitro: ["ml", 1], mililitros: ["ml", 1], milliliter: ["ml", 1], milliliters: ["ml", 1],
-    l: ["ml", 1000], litro: ["ml", 1000], litros: ["ml", 1000], liter: ["ml", 1000], liters: ["ml", 1000],
-    serving: ["serving", 1], servings: ["serving", 1], porcao: ["serving", 1], "porção": ["serving", 1],
-  };
-  const scale = units[normalized];
-  if (!scale || !Number.isFinite(value * scale[1]) || value * scale[1] <= 0) return null;
-  return { basis: scale[0], value: value * scale[1] };
+  const physical = declaredPhysicalAmount(value, unit);
+  return physical && Number.isFinite(physical.amount) && physical.amount > 0
+    ? { basis: physical.basis, value: physical.amount } : null;
 }
 
 function makeEvidence(
