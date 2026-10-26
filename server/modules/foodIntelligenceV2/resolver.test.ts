@@ -73,6 +73,20 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(parseFoodResolutionDecision(decision).ok).toBe(true);
   });
 
+  it("não ignora qualificador explícito para reutilizar a composição genérica", async () => {
+    const observation = buildFoodObservationFixture({
+      identityHints: {
+        foodName: "mortadela",
+        qualifiers: [{ value: "sem açúcar", attributeCode: null, role: "sweetening", confidence: null }],
+      },
+    });
+    const decision = await resolveFoodObservation(observation, context, fakeStore(match));
+    expect(decision.status).toBe("unknown");
+    expect(decision.reasonCodes).toContain("brand_variant_unresolved");
+    expect(decision.nutrition.consumed).toBeNull();
+    expect(parseFoodResolutionDecision(decision).ok).toBe(true);
+  });
+
   it("não transforma uma fonte desconhecida em zeros ou alimento registrado", async () => {
     const store = fakeStore({ kind: "miss", reason: "not_found" });
     const decision = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
