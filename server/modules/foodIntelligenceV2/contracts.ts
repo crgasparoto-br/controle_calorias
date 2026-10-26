@@ -177,6 +177,7 @@ export const FOOD_REASON_CODES = [
   "provider_unavailable",
   "context_unavailable",
   "policy_not_calibrated",
+  "decision_validation_failed",
   "unsupported_schema_version",
 ] as const;
 export type FoodReasonCode = (typeof FOOD_REASON_CODES)[number];
