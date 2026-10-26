@@ -299,7 +299,7 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     const current = await resolveFoodObservation(
       continuation, { ...context, previousDecision: original }, store,
     );
-    expect(current.status).toBe("ambiguous");
+    expect(current.status).toBe("partially_resolved");
     expect(current.nextAction).toBe("clarify");
     expect(current.reasonCodes).toContain("source_conflict");
     expect(current.quantity).toEqual(original.quantity);
