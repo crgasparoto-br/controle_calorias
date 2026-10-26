@@ -137,6 +137,10 @@ async function readCurrentProfile(
   variantType: "generic" | "branded" | "custom",
   familyScope: "global" | "user" | null,
 ): Promise<{ profile: typeof foodNutritionProfiles.$inferSelect; sourceId: number; sourceVersion: string; sourceReference: string; personalEvidence: boolean } | "conflict" | null> {
+  // An explicit commercial assertion needs same-product nutritional proof
+  // even when a stored variant was classified as generic or custom.
+  const commercial = variantType === "branded" ||
+    !!request.brand?.trim() || !!request.barcode?.trim();
   const rows = await db.select().from(foodNutritionProfiles)
     .where(eq(foodNutritionProfiles.foodVariantId, variantId))
     .limit(MAX_CANDIDATES + 1);
@@ -167,7 +171,7 @@ async function readCurrentProfile(
         (!mapping || mapping.status !== "active" ||
           mapping.foodVariantId !== variantId || mapping.sourceId !== profile.sourceId)) continue;
     let personalEvidence = false;
-    if (variantType === "branded") {
+    if (commercial) {
       const proofs = await db.select().from(foodEvidence)
         .where(and(
           eq(foodEvidence.foodVariantId, variantId),
@@ -192,7 +196,7 @@ async function readCurrentProfile(
     }
     // A license reference proves permission, never nutritional provenance.
     // Exact commercial mapping already passed the same-SKU proof above.
-    const sourceReference = variantType === "branded"
+    const sourceReference = commercial
       ? mapping?.sourceUrl : permission.source.sourceUrl;
     if (!isValidHttpsSourceReference(sourceReference)) continue;
     usable.push({

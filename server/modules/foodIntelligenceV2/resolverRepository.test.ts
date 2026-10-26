@@ -50,7 +50,7 @@ function observation(foodName: string | null = "pao", brand: string | null = nul
 }
 
 type Mode = "brand" | "barcode" | "personal_alias" | "global_alias" | "generic_family";
-function installKnowledge(mode: Mode, invalid?: "brand" | "barcode" | "source") {
+function installKnowledge(mode: Mode, invalid?: "brand" | "barcode" | "source" | "commercial_profile") {
   const generic = mode === "global_alias" || mode === "generic_family";
   const row = {
     variant: { id: 22, status: "active", governanceStatus: "verified",
@@ -83,6 +83,10 @@ function installKnowledge(mode: Mode, invalid?: "brand" | "barcode" | "source") 
   if (invalid === "source") {
     pages = pages.slice(0, 2).concat([[]]);
     pages[1] = [{ source: { ...source, version: "v2" }, grant }];
+  }
+  if (invalid === "commercial_profile") {
+    row.variant.variantType = "generic";
+    pages[mode === "brand" ? 6 : 8] = [];
   }
   const select = vi.fn(() => ({
     from() { return this; }, innerJoin() { return this; }, leftJoin() { return this; },
@@ -117,6 +121,17 @@ describe("A-001: commercial proof through the actual repository", () => {
     expect(current.nutrition.verified).toBe(true);
     expect(parseFoodResolutionDecision(current).ok).toBe(true);
     expect(select).toHaveBeenCalledTimes(mode === "brand" ? 8 : 10);
+  });
+
+  it.each(["brand", "barcode"] as const)("does not let %s certify a generic profile without same-product nutrition proof", async mode => {
+    installKnowledge(mode, "commercial_profile");
+    const current = await resolveFoodObservation(observation("pao de forma",
+      mode === "brand" ? "Panco" : null, mode === "barcode" ? barcode : null),
+      context, createFoodV2KnowledgeRepository());
+    expect(current.nextAction).not.toBe("propose");
+    expect(current.nutrition.consumed).toBeNull();
+    expect(current.nutrition.verified).toBe(false);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
   });
 
   it.each(["brand", "barcode", "source"] as const)("rejects incompatible %s proof", async invalid => {
