@@ -155,6 +155,8 @@ function sourceCompatibleWithExplicitAttributes(
 function snapshot(match: GovernedFoodMatch): string {
   return "sha256:" + createHash("sha256").update(JSON.stringify({
     variantId: match.variantId, profileId: match.profileId,
+    matchingEvidence: match.matchingEvidence,
+    matchedBrand: match.matchedBrand ?? null, matchedBarcode: match.matchedBarcode ?? null,
     sourceId: match.sourceId, sourceVersion: match.sourceVersion,
     sourceReference: match.sourceReference, nutrition: match.nutrition,
   })).digest("hex");
