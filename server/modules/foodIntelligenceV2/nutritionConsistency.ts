@@ -208,12 +208,13 @@ export function hasConflictingVerifiedNutritionEvidence(
     const nutrient = foodNutrientKeyByEvidenceField.get(item.field);
     if (!nutrient) return false;
     const unit = foodNutritionValuesSchema.shape[nutrient].description;
-    if (typeof item.value !== "number" || !Number.isFinite(item.value) || item.unit !== unit) {
+    const observedValue = item.value;
+    if (typeof observedValue !== "number" || !Number.isFinite(observedValue) || item.unit !== unit) {
       return true;
     }
     const candidates = [basis.values[nutrient], consumed[nutrient]];
     return !candidates.some(value =>
-      value !== null && Math.abs(value - item.value) <= FOOD_QUANTITY_EPSILON);
+      value !== null && Math.abs(value - observedValue) <= FOOD_QUANTITY_EPSILON);
   });
 }
 
