@@ -1110,11 +1110,30 @@ describe("Camada de Compreensão Linguística #1304", () => {
     const unicode = "🍳 2 ovos, cozidos e uma banana";
     const values = await analyze(unicode);
     expect(values).toHaveLength(2);
-    expect(values.map(v => v.identityHints.foodName)).toEqual(["🍳 2 ovos cozidos", "banana"]);
-    for (const item of values) {
+    // S1 extracts quantity without promoting the emoji/quantity to food identity.
+    // The authorized S2 plural alias then maps "ovos cozidos" to "ovo cozido".
+    expect(values.map(v => v.identityHints.foodName)).toEqual(["ovo cozido", "banana"]);
+    expect(values.map(v => ({ value: v.quantityHints.value, unit: v.quantityHints.unit })))
+      .toEqual([{ value: 2, unit: "un" }, { value: 1, unit: "un" }]);
+    expect(values[0].normalizationPath.map(step => step.stage)).toEqual(["S1", "S2"]);
+    // Equivalent input without a pictogram must retain the same food semantics.
+    const withoutEmoji = await analyze("2 ovos, cozidos e uma banana");
+    expect(withoutEmoji.map(v => ({
+      food: v.identityHints.foodName, value: v.quantityHints.value, unit: v.quantityHints.unit,
+    }))).toEqual(values.map(v => ({
+      food: v.identityHints.foodName, value: v.quantityHints.value, unit: v.quantityHints.unit,
+    })));
+    // Negative control: no governed alias means no silent singularization.
+    const ungoverned = await analyze(unicode, []);
+    expect(ungoverned[0].identityHints.foodName).toBe("ovos cozidos");
+    expect(ungoverned[0].normalizationPath.map(step => step.stage)).toEqual(["S1"]);
+    for (const [index, item] of values.entries()) {
       const span = item.surfaceSpan.span!;
-      expect(unicode.slice(span.start, span.end)).toBeTruthy();
+      // Offsets address original UTF-16 bytes, including the two-code-unit emoji.
+      expect(unicode.slice(span.start, span.end))
+        .toBe(index === 0 ? "🍳 2 ovos, cozidos" : "uma banana");
       expect(item.evidence[0].anchor.span).toEqual(span);
+      expect(item.rawInput).toBe(unicode);
     }
     for (const surface of ["2 ovos, uma banana", "café, mel", "2 ovos; cozidos", "No almoço, sem açúcar"]) {
       expect(await analyze(surface)).toHaveLength(2);
