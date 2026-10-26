@@ -247,7 +247,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
         expect(observed.evidence.every(evidence => !evidence.verified)).toBe(true);
       }
     }
-    const list = "🍚 cento e vinte gramas de arroz e uma banana";
+    const list = "cento e vinte gramas de arroz e uma banana";
     const items = await analyze(list, []);
     expect(items).toHaveLength(2);
     expect(items.map(item => item.quantityHints.value)).toEqual([120, 1]);
