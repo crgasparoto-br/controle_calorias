@@ -136,12 +136,18 @@ function sourceCompatibleWithExplicitAttributes(
   // name matches. This conservative gate must be replaced by governed
   // variant-attribute compatibility rather than widening fuzzy thresholds.
   const governed = normalizeFoodName(match.variantName);
+  const observed = normalizeFoodName(observation.identityHints.foodName ?? "");
   const assertions = [
     observation.identityHints.variant,
     ...observation.identityHints.preparation,
     ...observation.identityHints.qualifiers.map(item => item.value),
   ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-  return assertions.every(value => governed.includes(normalizeFoodName(value)));
+  // A partial lexical overlap (e.g. "zero" inside "zero lactose") is not a
+  // governed materiality judgment. Until #1302 exposes indexed attributes,
+  // require the same complete variant name as well as the explicit assertions.
+  return assertions.length === 0 ||
+    (observed === governed &&
+      assertions.every(value => governed.includes(normalizeFoodName(value))));
 }
 
 function snapshot(match: GovernedFoodMatch): string {
