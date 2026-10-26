@@ -294,7 +294,7 @@ export async function resolveFoodObservation(
           normalizeUnitToken(prior.unit) !== normalizeUnitToken(q.unit));
       const preserved: FoodResolutionDecision = {
         ...previous, revision: previous.revision + 1, evidence,
-        status: quantityConflict ? "ambiguous" : previous.status,
+        status: quantityConflict ? "partially_resolved" : previous.status,
         nextAction: quantityConflict ? "clarify" : previous.nextAction,
         unresolvedFields: quantityConflict
           ? Array.from(new Set([...previous.unresolvedFields, "quantity"]))
