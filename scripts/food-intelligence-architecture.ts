@@ -1975,6 +1975,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     // lexical food vocabulary. A different prefix remains subject to gate 17.
     const fieldReceiver = unwrap(node.expression.expression);
     if (ts.isPropertyAccessExpression(fieldReceiver) &&
+        fieldReceiver.name.text === "unresolvedFields" &&
+        ["identity", "variant", "quantity", "nutrition"].includes(literal)) return null;
+    if (ts.isPropertyAccessExpression(fieldReceiver) &&
         fieldReceiver.name.text === "field" &&
         ["identity.", "variant.", "quantity.", "nutrition.", "classification."].includes(literal)) return null;
     const receiver = node.expression.expression.getText(source);
@@ -3287,6 +3290,7 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
     // Structurally typed basis/nutrient keys cannot be food-name rules.
     if (operand.text === "basisUnit") return ["g", "ml", "serving"].includes(literal);
     if (operand.text === "key") return ["calories", "protein", "carbs", "fat", "fiber", "sugar", "sodiumMg"].includes(literal);
+    if (operand.text === "field") return ["identity", "variant", "quantity", "nutrition"].includes(literal);
   }
   if (!ts.isPropertyAccessExpression(operand)) return false;
   const enumStates: Record<string, readonly string[]> = {
@@ -3311,6 +3315,7 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
       "external_evidence_invalid", "governed_store_unavailable"],
     unresolvedReason: ["unreadable_evidence", "image_identity_unresolved"],
     matchingEvidence: ["barcode", "exact_variant", "personal_alias", "global_alias", "generic_family"],
+    field: ["classification.isFood"],
   };
   return enumStates[operand.name.text]?.includes(literal) ?? false;
 }
