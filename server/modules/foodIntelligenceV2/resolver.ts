@@ -242,7 +242,8 @@ export async function resolveFoodObservation(
   };
   const decision: FoodResolutionDecision = {
     schemaVersion: 2,
-    decisionId: previous?.decisionId ?? "resolution-" + observation.observationId,
+    decisionId: previous?.decisionId ?? "resolution:" + createHash("sha256")
+      .update(JSON.stringify([context.traceId, observation.observationId])).digest("hex"),
     revision: previous ? previous.revision + 1 : 1,
     observationIds: [observation.observationId], traceId: context.traceId,
     status: "unknown", nextAction: "clarify", identity,
