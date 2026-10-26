@@ -94,6 +94,19 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
     }
   });
 
+  it("AUD1304 A-041 rejects a new lexical-regex shortcut for qualifier-only input", () => {
+    const source = readFileSync(file, "utf8");
+    const structural = 'qualifierRemainder.every(token => token === "e")';
+    expect(source).toContain(structural);
+    expect(findFoodStaticCandidates([{ path: file, content: source }])).toEqual([]);
+    const unsafe = source.replace(structural,
+      'observed.qualifiers.reduce((rest, item) => rest.replace(item.value, " "), name)' +
+      '.replace(/(?:[\\s,;]|\\be\\b)+/giu, "").length === 0');
+    const findings = findFoodStaticCandidates([{ path: file, content: unsafe }]);
+    expect(findings.some(finding => finding.ruleId === "18" &&
+      finding.symbol === "buildObservation:lexical-regex")).toBe(true);
+  });
+
   it("AUD1304 A-039 accepts only the exact transcription modality guard", () => {
     const source = readFileSync(file, "utf8");
     const guard = 'request.modality !== "audio_transcript"';

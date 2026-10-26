@@ -1292,6 +1292,30 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(twoFoods.map(x => x.identityHints.foodName)).toEqual(["ovos", "banana"]);
   });
 
+  it("AUD1304 A-041 keeps coordinated qualifier-only evidence without inventing food", async () => {
+    for (const [rawText, claims] of [
+      ["sem lactose e com lactose", ["sem lactose", "com lactose"]],
+      ["sem açúcar e com lactose e sem glúten", ["sem açúcar", "com lactose", "sem glúten"]],
+      ["sem lactose, e com lactose", ["sem lactose", "com lactose"]],
+    ] as const) {
+      const items = await analyze(rawText, []);
+      expect(items).toHaveLength(1);
+      const [item] = items;
+      expect(item.identityHints.foodName).toBeNull();
+      expect(item.normalizedInput).toBeNull();
+      expect(item.identityHints.qualifiers.map(q => q.value)).toEqual([...claims]);
+      expect(item.evidence.filter(e => e.field === "identity.foodName")).toEqual([]);
+      expect(item.evidence.filter(e => e.field === "identity.qualifiers")
+        .map(e => rawText.slice(e.anchor.span!.start, e.anchor.span!.end))).toEqual([...claims]);
+      expect(item.rawInput).toBe(rawText);
+    }
+    for (const rawText of ["azeite sem lactose", "light sem lactose", "iogurte, e sem lactose"]) {
+      const [item] = await analyze(rawText, []);
+      expect(item.identityHints.foodName).not.toBeNull();
+      expect(item.rawInput).toBe(rawText);
+    }
+  });
+
   it("AUD1304 A-041 treats comma-coordinated qualifiers as syntax for S2 matching", async () => {
     const governed = [entry({ id: 818, normalizedTerm: "ovos sem lactose",
       term: "ovos sem lactose", targetRef: "ovo sem lactose" })];

@@ -240,10 +240,15 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   // food identity. Reuse the existing qualifier grammar instead of adding
   // a second vocabulary; multiword claims can stand alone, but ambiguous
   // single-word descriptors such as "light" may still be food names.
+  // A-041: qualifier syntax may leave only separators and standalone list
+  // coordinators. Compare whole tokens so food names such as "azeite" retain
+  // their letters, without embedding a second lexical-regex materiality rule.
+  const qualifierRemainder = observed.qualifiers
+    .reduce((rest, item) => rest.replace(item.value, " "), name)
+    .split(/[\s,;]+/u).filter(Boolean);
   const qualifierOnly = observed.qualifiers.length > 0 &&
     observed.qualifiers.every(item => item.value.trim().split(/\s+/u).length > 1) &&
-    observed.qualifiers.reduce((rest, item) => rest.replace(item.value, " "), name)
-      .replace(/(?:[\s,;]|\be\b)+/giu, "").length === 0;
+    qualifierRemainder.every(token => token === "e");
   observed.foodName = name && !qualifierOnly ? normalizedName : null;
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,
     request.modality === "image" ? request.imageRegion ?? null : null);
