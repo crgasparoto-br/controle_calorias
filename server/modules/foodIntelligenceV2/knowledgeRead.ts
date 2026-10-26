@@ -26,6 +26,9 @@ export type NutritionFacts = {
 export type GovernedFoodMatch = {
   kind: "match";
   matchingEvidence: "barcode" | "exact_variant" | "personal_alias" | "global_alias" | "generic_family";
+  /** Governed identity proof returned by the authoritative store; request assertions alone are insufficient. */
+  matchedBrand?: string | null;
+  matchedBarcode?: string | null;
   foodId: number;
   variantId: number;
   profileId: number;
