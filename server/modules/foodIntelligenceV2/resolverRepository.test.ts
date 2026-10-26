@@ -49,9 +49,9 @@ function observation(foodName: string | null = "pao", brand: string | null = nul
   });
 }
 
-type Mode = "brand" | "barcode" | "personal_alias" | "global_alias";
+type Mode = "brand" | "barcode" | "personal_alias" | "global_alias" | "generic_family";
 function installKnowledge(mode: Mode, invalid?: "brand" | "barcode" | "source") {
-  const generic = mode === "global_alias";
+  const generic = mode === "global_alias" || mode === "generic_family";
   const row = {
     variant: { id: 22, status: "active", governanceStatus: "verified",
       variantType: generic ? "generic" : "branded",
@@ -70,6 +70,7 @@ function installKnowledge(mode: Mode, invalid?: "brand" | "barcode" | "source") 
     approval, [evidence("barcode", { barcode, identity: { barcode } })], [mapping], ...tail,
   ];
   else if (mode === "personal_alias") pages = [[{ id: 22 }], [], [], [], ...tail];
+  else if (mode === "generic_family") pages = [[], [], [], [{ id: 22 }], ...tail];
   else pages = [[], [], [{ foodId: 4, foodVariantId: 22, status: "active",
     governanceStatus: "verified", sourceId: 7, sourceVersion: "v1" }], approval, [], ...tail];
   if (invalid === "brand") pages = pages.slice(0, 3).concat([[]]);
@@ -130,18 +131,19 @@ describe("A-001: commercial proof through the actual repository", () => {
   });
 });
 
-describe("A-002: accepted governed aliases remain monotonic", () => {
-  it.each(["personal_alias", "global_alias"] as const)(
+describe("A-002: accepted governed identities remain monotonic", () => {
+  it.each(["personal_alias", "global_alias", "generic_family", "barcode"] as const)(
     "preserves %s through serialization, equivalent names and database unavailability", async mode => {
       installKnowledge(mode);
       const store = createFoodV2KnowledgeRepository();
-      const original = await resolveFoodObservation(observation(), context, store);
+      const code = mode === "barcode" ? barcode : null;
+      const original = await resolveFoodObservation(observation("pao", null, code), context, store);
       expect(original.status).toBe("resolved");
       const previous = JSON.parse(JSON.stringify(original)) as typeof original;
       const frozen = JSON.stringify(previous);
       vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
       for (const name of ["pao", " PAO ", "Pao de forma", null]) {
-        const current = await resolveFoodObservation(observation(name),
+        const current = await resolveFoodObservation(observation(name, null, code),
           { ...context, previousDecision: previous }, store);
         expect(current.status).toBe("resolved");
         expect(current.nextAction).toBe("propose");

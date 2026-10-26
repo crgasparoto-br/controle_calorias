@@ -451,10 +451,10 @@ export async function resolveFoodObservation(
         item.field.startsWith("identity.") || item.field.startsWith("variant.")).map(item => item.evidenceId);
       identity.evidenceIds.push(makeEvidence(observation, evidence, "variant.variantId", match.variantId,
         null, match.sourceId, match.governanceStatus === "verified", "catalog"));
-      if (match.governanceStatus === "verified" && request.normalizedName &&
-          (match.matchingEvidence === "personal_alias" || match.matchingEvidence === "global_alias")) {
-        // Record the surface actually accepted by the governed lookup alongside
-        // the variant proof. The alias is not attributed to the nutrition source.
+      if (match.governanceStatus === "verified" && request.normalizedName) {
+        // Retain the surface accepted by this governed lookup (including a
+        // family name accompanying a barcode), not just explicit aliases.
+        // Identity acceptance is not attributed to the nutrition source.
         identity.evidenceIds.push(makeEvidence(observation, evidence, "identity.foodName",
           request.normalizedName, null, null, true,
           match.matchingEvidence === "personal_alias" ? "memory" : "catalog"));
