@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { findFoodStaticCandidates } from "../../../scripts/food-intelligence-architecture";
+import { isCanonicalLinguisticGrammar } from "../../../scripts/food-architecture-linguistic-owner";
 import { evaluateFoodArchitectureGate } from "../../../scripts/food-architecture-enforcement";
 
 /** Source-behavior controls: structural bounds must not be confused with
@@ -75,5 +77,196 @@ describe("AUD1300 isolated test-fixture reachability", () => {
     expect(findings.some(f => f.file === fixture.path && f.ruleId === "17")).toBe(true);
     expect(evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-16T00:00:00Z"))
       .errors.length).toBeGreaterThan(0);
+  });
+});
+
+
+describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
+  const file = "server/modules/foodIntelligenceV2/linguisticComprehension.ts";
+  const repositoryFile = "server/modules/foodIntelligenceV2/linguisticLexiconRepository.ts";
+  const surfaceFile = "server/modules/foodIntelligenceV2/linguisticSurface.ts";
+
+  it("accepts only the canonical syntactic S1/S2 owner, not competing lexical channel rules", () => {
+    for (const path of [file, surfaceFile, repositoryFile]) {
+      const content = readFileSync(path, "utf8");
+      const findings = findFoodStaticCandidates([{ path, content }]);
+      expect(findings).toEqual([]);
+    }
+  });
+
+  it("AUD1304 A-041 rejects a new lexical-regex shortcut for qualifier-only input", () => {
+    const source = readFileSync(file, "utf8");
+    const structural = 'qualifierRemainder.every(token => token.toLowerCase() === "e")';
+    expect(source).toContain(structural);
+    expect(findFoodStaticCandidates([{ path: file, content: source }])).toEqual([]);
+    const unsafe = source.replace(structural,
+      'observed.qualifiers.reduce((rest, item) => rest.replace(item.value, " "), name)' +
+      '.replace(/(?:[\\s,;]|\\be\\b)+/giu, "").length === 0');
+    const findings = findFoodStaticCandidates([{ path: file, content: unsafe }]);
+    expect(findings.some(finding => finding.ruleId === "18" &&
+      finding.symbol === "buildObservation:lexical-regex")).toBe(true);
+  });
+
+  it("AUD1304 A-039 accepts only the exact transcription modality guard", () => {
+    const source = readFileSync(file, "utf8");
+    const guard = 'request.modality !== "audio_transcript"';
+    const symbol = "comprehendFoodLanguage:request.modality:lexical-branch";
+    const rule = { id: "18", kind: "literal-branch" };
+    expect(source.split(guard)).toHaveLength(2);
+    expect(isCanonicalLinguisticGrammar(file, rule, { symbol, subject: guard })).toBe(true);
+    expect(findFoodStaticCandidates([{ path: file, content: source }])).toEqual([]);
+
+    // A plausible but wrong food-identity comparison must still be rejected,
+    // as must reversing the modality guard or substituting another channel.
+    for (const mutation of [
+      'request.modality !== "panco"',
+      'request.modality === "audio_transcript"',
+      'request.modality !== "wrong_channel"',
+    ]) {
+      expect(isCanonicalLinguisticGrammar(file, rule, { symbol, subject: mutation })).toBe(false);
+      const findings = findFoodStaticCandidates([{
+        path: file, content: source.replace(guard, mutation),
+      }]);
+      expect(findings.some(finding => finding.ruleId === "18" &&
+        finding.symbol === symbol)).toBe(true);
+    }
+
+    // A syntactically identical guard in a competing owner or file cannot be
+    // exempted, nor can an unrelated rule or detector kind be suppressed.
+    for (const [path, ownerSymbol] of [
+      [surfaceFile, symbol],
+      ["server/modules/whatsapp/foodLanguage.ts", symbol],
+      [file, "otherOwner:request.modality:lexical-branch"],
+    ] as const) {
+      expect(isCanonicalLinguisticGrammar(path, rule, {
+        symbol: ownerSymbol, subject: guard,
+      })).toBe(false);
+    }
+    expect(isCanonicalLinguisticGrammar(file, { id: "17", kind: "literal-branch" }, {
+      symbol, subject: guard,
+    })).toBe(false);
+    expect(isCanonicalLinguisticGrammar(file, { id: "18", kind: "lexical-lookup" }, {
+      symbol, subject: guard,
+    })).toBe(false);
+  });
+
+  it("does not whitelist food-name comparisons hidden behind structural contract fields", () => {
+    const source = readFileSync(file, "utf8");
+    // The new S2 unit-alias helper also inspects targetType. Attack both
+    // occurrences independently; replacing the first occurrence and assuming
+    // comprehendFoodLanguage made this control fail without exercising its owner.
+    for (const [original, injected, operand, owner] of [
+      ['request.modality !== "image"', 'request.modality !== "panco"', "request.modality", "comprehendFoodLanguage"],
+      ['request.imageRegionRole !== "front_identity"', 'request.imageRegionRole !== "panco"', "request.imageRegionRole", "comprehendFoodLanguage"],
+      ['const unit = item.targetType === "canonical_term"', 'const unit = item.targetType === "panco"', "item.targetType", "governedUnitAliases"],
+      ['foodName: item.targetType === "canonical_term"', 'foodName: item.targetType === "panco"', "item.targetType", "comprehendFoodLanguage"],
+    ] as const) {
+      expect(source).toContain(original);
+      const findings = findFoodStaticCandidates([{ path: file, content: source.replace(original, injected) }]);
+      expect(findings.some(f => f.ruleId === "18" &&
+        f.symbol === `${owner}:${operand}:lexical-branch`)).toBe(true);
+    }
+  });
+
+  it("AUD1304 A-028 accepts only the governed S2 protected-token marker", () => {
+    const source = readFileSync(file, "utf8");
+    const original = 'entry.kind === "protected_token"';
+    expect(source.split(original)).toHaveLength(2);
+    // An ungoverned food-name literal, a different lexicon kind or a negated
+    // guard must still be flagged under architecture rule 18.
+    for (const mutation of [
+      'entry.kind === "panco"',
+      'entry.kind === "alias_surface"',
+      'entry.kind !== "protected_token"',
+    ]) {
+      const findings = findFoodStaticCandidates([{
+        path: file, content: source.replace(original, mutation),
+      }]);
+      expect(findings.some(finding => finding.ruleId === "18" &&
+        finding.symbol === "comprehendFoodLanguage:entry.kind:lexical-branch")).toBe(true);
+    }
+    // Whitelisting the marker cannot hide a second lexical owner.
+    const competing = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/newFoodNormalizer.ts",
+      content: 'export const FOOD_ALIASES = { "pão branco": "panco" };'
+        + ' export function normalizeFoodName(name: string) {'
+        + ' return FOOD_ALIASES[name as keyof typeof FOOD_ALIASES] ?? name; }',
+    }]);
+    expect(competing.some(finding => finding.ruleId === "11" ||
+      finding.ruleId === "17")).toBe(true);
+  });
+
+  it("AUD1304 A-031 exempts only the two spoon-unit accent discriminants", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    // The two allowed branches are canonical spellings of grammar units,
+    // not food identities or nutrition decisions.
+    for (const literal of ['qualifier === "cha"', 'qualifier === "cafe"']) {
+      expect(source.split(literal)).toHaveLength(2);
+    }
+    expect(findFoodStaticCandidates([{ path: surfaceFile, content: source }])).toEqual([]);
+
+    for (const [original, mutation] of [
+      ['qualifier === "cha"', 'qualifier === "panco"'],
+      ['qualifier === "cafe"', 'qualifier === "arroz"'],
+      ['qualifier === "cha"', 'qualifier !== "cha"'],
+      ['qualifier === "cafe"', 'qualifier !== "cafe"'],
+    ] as const) {
+      const findings = findFoodStaticCandidates([{
+        path: surfaceFile, content: source.replace(original, mutation),
+      }]);
+      expect(findings.some(finding => finding.ruleId === "18" &&
+        finding.symbol === "readQuantity:qualifier:lexical-branch")).toBe(true);
+    }
+
+    // The same expression outside the registered quantity owner is forbidden.
+    const competing = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/rogueSpoonParser.ts",
+      content: 'export function chooseFood(qualifier: string) { return qualifier === "cha"; }',
+    }]);
+    expect(competing.some(finding => finding.ruleId === "18")).toBe(true);
+  });
+
+  it("allows only the exact canonical numeric grammar, never nutrition disguised as numerals", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    for (const [needle, replacement, symbol] of [
+      ["onze: 11", "onze: 120", "writtenNumbers:numeric-food-map"],
+      ['"½": 0.5', '"½": 90', "vulgar:numeric-food-map"],
+      ['"¾": 0.75', '"pao": 140', "vulgar:numeric-food-map"],
+    ] as const) {
+      expect(source).toContain(needle);
+      const findings = findFoodStaticCandidates([{
+        path: surfaceFile, content: source.replace(needle, replacement),
+      }]);
+      expect(findings.some(f => (f.ruleId === "5" || f.ruleId === "17") &&
+        f.symbol === symbol)).toBe(true);
+    }
+  });
+
+  it("does not allow the extracted surface owner to hide food-specific nutrition maps", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    const infected = source + '\nexport const FOOD_NUTRITION_BY_NAME = { arroz: 120, feijao: 80 };\n'
+      + 'export function getFoodNutrition(name: string) {'
+      + ' return FOOD_NUTRITION_BY_NAME[name as keyof typeof FOOD_NUTRITION_BY_NAME]; }';
+    const findings = findFoodStaticCandidates([{ path: surfaceFile, content: infected }]);
+    expect(findings.some(f => f.ruleId === "5" || f.ruleId === "17")).toBe(true);
+  });
+
+  it("still rejects a literal nutrition lookup added inside the canonical owner", () => {
+    const extra = "export const FOOD_NUTRITION_BY_NAME = {pao: 150, arroz: 120};\n"
+      + "export function resolveFoodCalories(foodName: string) {\n"
+      + "  return FOOD_NUTRITION_BY_NAME[foodName as keyof typeof FOOD_NUTRITION_BY_NAME];\n}";
+    const content = readFileSync(file, "utf8") + "\n" + extra;
+    const findings = findFoodStaticCandidates([{ path: file, content }]);
+    expect(findings.some(f => f.ruleId === "5" || f.ruleId === "17")).toBe(true);
+  });
+
+  it("still rejects an unapproved lexical normalizer added in another module", () => {
+    const findings = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/newFoodNormalizer.ts",
+      content: 'export const FOOD_ALIASES = { "pão branco": "panco" };'
+        + ' export function normalizeFoodName(name: string) {'
+        + ' return FOOD_ALIASES[name as keyof typeof FOOD_ALIASES] ?? name; }',
+    }]);
+    expect(findings.some(f => f.ruleId === "11" || f.ruleId === "17")).toBe(true);
   });
 });
