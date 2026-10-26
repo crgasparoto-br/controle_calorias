@@ -323,4 +323,20 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(current.evidence).toHaveLength(200);
     expect(parseFoodResolutionDecision(current).ok).toBe(true);
   });
+
+  it("conserva perfil já verificado quando mesma identidade reaparece sem nova prova", async () => {
+    const store = fakeStore(match);
+    const original = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
+    vi.mocked(store.readLocal).mockRejectedValueOnce(new Error("temporarily unavailable"));
+    const continuation = buildFoodObservationFixture({
+      quantityHints: { value: null, unit: null, servingText: null },
+    });
+    const current = await resolveFoodObservation(
+      continuation, { ...context, previousDecision: original }, store,
+    );
+    expect(current.status).toBe("resolved");
+    expect(current.identity).toEqual(original.identity);
+    expect(current.nutrition).toEqual(original.nutrition);
+    expect(store.readLocal).toHaveBeenCalledTimes(1);
+  });
 });
