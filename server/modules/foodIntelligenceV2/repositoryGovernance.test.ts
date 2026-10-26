@@ -42,11 +42,12 @@ function commercialLabelEvidence(
   mapping: { foodVariantId: number; sourceId: number; sourceItemCode: string; sourceUrl: string },
   nutrition: { caloriesKcal: number; proteinG: number; carbG: number; fatG: number;
     basisQuantity: number; basisUnit: string },
+  sourceVersion = "v1",
 ) {
   const payload = {
     foodVariantId: mapping.foodVariantId, sourceId: mapping.sourceId,
     sourceItemCode: mapping.sourceItemCode, sourceReference: mapping.sourceUrl,
-    sourceVersion: "v1", nutrition,
+    sourceVersion, nutrition,
   };
   return {
     foodVariantId: mapping.foodVariantId, sourceId: mapping.sourceId, ownerUserId: null,
@@ -363,6 +364,10 @@ describe("B2 actual repository governed read", () => {
     expect(external).not.toHaveBeenCalled();
   });
   it("does not use the license reference as nutrition provenance when source URL is absent", async () => {
+    const nutrition = { caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2,
+      basisQuantity: 100, basisUnit: "g" };
+    const mapping = { id: 9, status: "active", foodVariantId: 22, sourceId: 7,
+      sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1" };
     installResults(
       [{ id: 22 }], [], // exact, global aliases
       [{ variant: { id: 22, status: "active", governanceStatus: "verified",
@@ -370,9 +375,9 @@ describe("B2 actual repository governed read", () => {
         family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
         brand: { name: "Panco" } }],
       [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
-        foodVariantSourceId: null, validFrom: null, validTo: null,
-        caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2, basisQuantity: 100, basisUnit: "g" }],
+        foodVariantSourceId: mapping.id, validFrom: null, validTo: null, ...nutrition }],
       [{ source: { ...source, sourceUrl: null }, grant }],
+      [mapping], [commercialLabelEvidence(mapping, nutrition)],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, brand: "Panco" }))
       .toEqual({ kind: "miss", reason: "not_found" });
@@ -507,9 +512,13 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
     family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
     brand: { name: "Panco" },
   };
+  // Version/portion scenarios must start with complete same-product proof;
+  // otherwise an unrelated commercial-provenance denial masks the oracle.
+  const mapping = { id: 9, status: "active", foodVariantId: 22, sourceId: 7,
+    sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1" };
   const profile = (version: string | null, kcal: number) => ({
     id: 10, currentSlot: 1, status: "verified", sourceId: 7,
-    sourceVersion: version, foodVariantSourceId: null,
+    sourceVersion: version, foodVariantSourceId: mapping.id,
     validFrom: null, validTo: null, ...nutrition(kcal),
   });
   const portion = (version: string | null, foodId = 4) => ({
@@ -528,6 +537,7 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
       [licensed(sourceVersion)],
     ];
     if (profileVersion === sourceVersion) {
+      pages.push([mapping], [commercialLabelEvidence(mapping, nutrition(kcal), sourceVersion)]);
       pages.push(portionVersion === undefined ? [] : [portion(portionVersion)]);
       if (portionVersion != null) pages.push([licensed(sourceVersion)]);
     }
@@ -540,7 +550,7 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
       kind: "match", sourceVersion: "v1",
       nutrition: { caloriesKcal: 100 }, portions: [{ label: "fatia", grams: 30 }],
     });
-    expect(select).toHaveBeenCalledTimes(7);
+    expect(select).toHaveBeenCalledTimes(9);
   });
 
   it("AUD-1302-031: never returns a portion belonging to a different food family", async () => {
@@ -548,6 +558,7 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
     // source/grant revisions and plausible, different physical weights.
     installResults(
       [{ id: 22 }], [], [variant], [profile("v1", 100)], [licensed("v1")],
+      [mapping], [commercialLabelEvidence(mapping, nutrition(100))],
       [portion("v1"), { ...portion("v1", 99), label: "pacote", grams: 250 }],
       [licensed("v1")],
     );
@@ -563,6 +574,7 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
   it("AUD-1302-031: a foreign-only serving cannot borrow an authorized variant", async () => {
     installResults(
       [{ id: 22 }], [], [variant], [profile("v1", 100)], [licensed("v1")],
+      [mapping], [commercialLabelEvidence(mapping, nutrition(100))],
       [portion("v1", 99)],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal(query))
@@ -586,7 +598,7 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
       kind: "match", sourceVersion: "v2",
       nutrition: { caloriesKcal: 160 }, portions: [],
     });
-    expect(select).toHaveBeenCalledTimes(7);
+    expect(select).toHaveBeenCalledTimes(9);
     stage("v2", "v2", "v2", 160);
     expect(await createFoodV2KnowledgeRepository().readLocal(query)).toMatchObject({
       kind: "match", sourceVersion: "v2",
