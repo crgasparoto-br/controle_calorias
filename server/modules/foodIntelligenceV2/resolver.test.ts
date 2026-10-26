@@ -230,4 +230,97 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(decision.nutrition.consumed).toBeNull();
     expect(parseFoodResolutionDecision(decision).ok).toBe(true);
   });
+
+  it("impede perfil genérico ou variante sem prova da marca explícita", async () => {
+    const observation = buildFoodObservationFixture({
+      identityHints: { brand: "Marca A" },
+    });
+    for (const local of [
+      { ...match, matchingEvidence: "generic_family" as const },
+      { ...match, matchingEvidence: "exact_variant" as const },
+      { ...match, matchingEvidence: "exact_variant" as const, matchedBrand: "Marca B" },
+    ]) {
+      const decision = await resolveFoodObservation(observation, context, fakeStore(local));
+      expect(decision.status).toBe("unknown");
+      expect(decision.nutrition.consumed).toBeNull();
+      expect(decision.reasonCodes).toContain("brand_variant_unresolved");
+    }
+    const granted = await resolveFoodObservation(observation, context, fakeStore({
+      ...match, matchingEvidence: "exact_variant", matchedBrand: "Marca A",
+    }));
+    expect(granted.status).toBe("resolved");
+    expect(granted.identity.brand).toBe("Marca A");
+  });
+
+  it("exige prova governada do mesmo barcode antes de aceitar nutrição comercial", async () => {
+    const observation = buildFoodObservationFixture({
+      identityHints: { barcode: "7891234567890" },
+    });
+    const negative = await resolveFoodObservation(observation, context, fakeStore({
+      ...match, matchingEvidence: "barcode", matchedBarcode: "7891234567891",
+    }));
+    expect(negative.status).toBe("unknown");
+    expect(negative.nutrition.consumed).toBeNull();
+    const positive = await resolveFoodObservation(observation, context, fakeStore({
+      ...match, matchingEvidence: "barcode", matchedBarcode: "7891234567890",
+    }));
+    expect(positive.status).toBe("resolved");
+    expect(positive.identity.barcode).toBe("7891234567890");
+  });
+
+  it("não degrada identidade e macros quando continuação omite alimento e quantidade", async () => {
+    const store = fakeStore(match);
+    const original = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
+    const continuation = buildFoodObservationFixture({
+      identityHints: { foodName: null },
+      quantityHints: { value: null, unit: null, servingText: null },
+      evidence: [],
+    });
+    const current = await resolveFoodObservation(
+      continuation, { ...context, previousDecision: original }, store,
+    );
+    expect(current.status).toBe("resolved");
+    expect(current.identity).toEqual(original.identity);
+    expect(current.quantity).toEqual(original.quantity);
+    expect(current.nutrition).toEqual(original.nutrition);
+    expect(current.revision).toBe(original.revision + 1);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    expect(store.readLocal).toHaveBeenCalledTimes(1);
+  });
+
+  it("continuação com quantidade divergente conserva fatos e exige clarificação", async () => {
+    const store = fakeStore(match);
+    const original = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
+    const continuation = buildFoodObservationFixture({
+      identityHints: { foodName: null },
+      quantityHints: { value: 2, unit: "fatia", servingText: "2 fatias" },
+      evidence: [],
+    });
+    const current = await resolveFoodObservation(
+      continuation, { ...context, previousDecision: original }, store,
+    );
+    expect(current.status).toBe("ambiguous");
+    expect(current.nextAction).toBe("clarify");
+    expect(current.reasonCodes).toContain("source_conflict");
+    expect(current.quantity).toEqual(original.quantity);
+    expect(current.nutrition).toEqual(original.nutrition);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+  });
+
+  it("não retorna decisão inválida quando evidências atingem limite máximo", async () => {
+    const seed = buildFoodObservationFixture();
+    const observation = buildFoodObservationFixture({
+      evidence: Array.from({ length: 200 }, (_, i) => ({
+        ...seed.evidence[0],
+        evidenceId: "ev-budget-" + i,
+      })),
+    });
+    const current = await resolveFoodObservation(observation, context, fakeStore(match));
+    expect(current.status).toBe("unknown");
+    expect(current.nextAction).not.toBe("propose");
+    expect(current.reasonCodes).toContain("decision_validation_failed");
+    expect(current.nutrition.consumed).toBeNull();
+    expect(current.evidence).toHaveLength(200);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+  });
 });
