@@ -87,6 +87,19 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(parseFoodResolutionDecision(decision).ok).toBe(true);
   });
 
+  it("perfil governado provisório não é usado sem política calibrada #1306", async () => {
+    const decision = await resolveFoodObservation(
+      buildFoodObservationFixture(), context,
+      fakeStore({ ...match, governanceStatus: "provisional" }),
+    );
+    expect(decision.status).toBe("partially_resolved");
+    expect(decision.nextAction).toBe("clarify");
+    expect(decision.reasonCodes).toContain("policy_not_calibrated");
+    expect(decision.nutrition.basis).toBeNull();
+    expect(decision.nutrition.consumed).toBeNull();
+    expect(parseFoodResolutionDecision(decision).ok).toBe(true);
+  });
+
   it("não transforma uma fonte desconhecida em zeros ou alimento registrado", async () => {
     const store = fakeStore({ kind: "miss", reason: "not_found" });
     const decision = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
