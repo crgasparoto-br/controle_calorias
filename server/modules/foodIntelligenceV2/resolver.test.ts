@@ -339,4 +339,16 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(current.nutrition).toEqual(original.nutrition);
     expect(store.readLocal).toHaveBeenCalledTimes(1);
   });
+
+  it("snapshot vincula a prova comercial, não apenas perfil e fonte", async () => {
+    const requestedA = buildFoodObservationFixture({ identityHints: { brand: "Marca A" } });
+    const requestedB = buildFoodObservationFixture({ identityHints: { brand: "Marca B" } });
+    const first = await resolveFoodObservation(requestedA, context,
+      fakeStore({ ...match, matchedBrand: "Marca A" }));
+    const second = await resolveFoodObservation(requestedB, context,
+      fakeStore({ ...match, matchedBrand: "Marca B" }));
+    expect(first.status).toBe("resolved");
+    expect(second.status).toBe("resolved");
+    expect(first.nutrition.snapshotHash).not.toBe(second.nutrition.snapshotHash);
+  });
 });
