@@ -41,6 +41,28 @@ describe("#1305 canonical resolver architecture control", () => {
     expect(findings.some(item => item.ruleId === "18")).toBe(true);
   });
 
+  it("distinguishes the governed reason-code enum from real food vocabulary", () => {
+    const contractsPath = "server/modules/foodIntelligenceV2/contracts.ts";
+    const current = findFoodStaticCandidates([{
+      path: contractsPath, content: readFileSync(contractsPath, "utf8"),
+    }]);
+    expect(current.filter(item => item.ruleId === "17" &&
+      item.symbol === "FOOD_REASON_CODES")).toEqual([]);
+
+    const forged = findFoodStaticCandidates([{
+      path: contractsPath,
+      content: 'export const FOOD_REASON_CODES = ["banana", "arroz"] as const;',
+    }]);
+    expect(forged.some(item => item.ruleId === "17" &&
+      item.symbol === "FOOD_REASON_CODES")).toBe(true);
+
+    const aliases = findFoodStaticCandidates([{
+      path: contractsPath,
+      content: 'export const FOOD_ALIASES = ["banana", "arroz"] as const;',
+    }]);
+    expect(aliases.some(item => item.ruleId === "17")).toBe(true);
+  });
+
   it("the real source has no new static-food architecture findings", () => {
     const findings = inspect(readFileSync(path, "utf8"));
     expect(findings.filter(item => ["1", "2", "17", "18"].includes(item.ruleId))).toEqual([]);
