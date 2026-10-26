@@ -308,13 +308,19 @@ export async function resolveFoodObservation(
           identity.barcode, null, null, false, "barcode"));
       }
       decision.unresolvedFields = decision.unresolvedFields.filter(field => field !== "identity" && field !== "variant");
-      decision.nutrition = nutritionFromMatch(observation, match, quantity, evidence);
+      // A provisional governed profile is not yet an authorized estimate:
+      // #1306 must calibrate the policy by family before it is usable.
+      decision.nutrition = match.governanceStatus === "verified"
+        ? nutritionFromMatch(observation, match, quantity, evidence)
+        : blankNutrition();
       if (decision.nutrition.consumed !== null) {
         decision.unresolvedFields = decision.unresolvedFields.filter(field => field !== "nutrition");
       }
       if (incompatiblePrevious) {
         decision.unresolvedFields = Array.from(new Set([...decision.unresolvedFields, "quantity"]));
         decision.reasonCodes = ["source_conflict"];
+      } else if (match.governanceStatus !== "verified") {
+        decision.reasonCodes = ["policy_not_calibrated"];
       } else if (decision.unresolvedFields.includes("quantity")) {
         decision.reasonCodes = ["quantity_missing"];
       } else if (decision.unresolvedFields.includes("nutrition")) {
