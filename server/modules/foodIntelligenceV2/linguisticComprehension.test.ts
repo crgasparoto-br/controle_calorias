@@ -300,6 +300,8 @@ describe("Camada de Compreensão Linguística #1304", () => {
     for (const [input, amount, unit, food] of [
       ["Consumi duzentas e duas fatias de pão e uma banana", 202, "fatia", "pao"],
       ["Anotar novecentos e noventa e nove ml de leite e um ovo", 999, "ml", "leite"],
+      ["Comi dois e meio ovos e uma banana", 2.5, "un", "ovos"],
+      ["Registrar duas e meia fatias de pão e um ovo", 2.5, "fatia", "pao"],
       ["🍳 dois ovos e uma banana", 2, "un", "ovos"],
     ] as const) {
       const items = await analyze(input, []);
@@ -312,6 +314,10 @@ describe("Camada de Compreensão Linguística #1304", () => {
   });
 
   it("AUD1304 A-044 não converte listas nem números malformados em porções certas", async () => {
+    const twoFoods = await analyze("Comi 2 ovos e meio copo de leite", []);
+    expect(twoFoods).toHaveLength(2);
+    expect(twoFoods[0].quantityHints.value).toBe(2);
+    expect(twoFoods[1].quantityHints).toMatchObject({ value: 0.5, unit: "copo" });
     const ordinary = await analyze("Comi cem ovos e banana", []);
     expect(ordinary).toHaveLength(2);
     expect(ordinary[0].quantityHints).toMatchObject({ value: 100, unit: "un" });

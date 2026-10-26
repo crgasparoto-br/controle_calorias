@@ -302,6 +302,8 @@ A alteração não muda operação, cutover produtivo nem elegibilidade S3
   pictográfico isolado. A conjunção que separa alimentos continua segmentando
   normalmente. A gramática preserva `rawInput`, âncoras UTF-16 e evidências
   sem criar identidade nutricional nem executar `MealOperation`.
+  Inteiros com fração (`dois e meio`, `duas e meia`) seguem a mesma proteção
+  quando o comando antecede a quantidade.
 - Um emoji separado antes de uma quantidade inequívoca não impede a leitura
   da quantidade textual; a imagem/símbolo original permanece em `rawInput` e
   no span. Emoji não é usado como fonte de identidade alimentar nem prova de

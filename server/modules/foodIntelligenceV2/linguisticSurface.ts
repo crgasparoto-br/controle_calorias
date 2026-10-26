@@ -453,8 +453,10 @@ export function splitFoodSurface(
         .test(left.trim()) && rangeEnd.test(right);
       // Written and numeric whole counts can take a following "e meio/meia".
       // Do not shield "2 ovos e meio copo": its left side is not a number.
-      const leadingHalf = new RegExp("^(?:" + quantityPattern + ")$", "iu").test(left.trim()) &&
-        Number.isInteger(parseNumber(left.trim())) && /^mei[ao]\b/iu.test(right);
+      const leadingAmount = new RegExp("(?:^|\\s)(" + quantityPattern + ")$", "iu")
+        .exec(left.trim());
+      const leadingHalf = leadingAmount !== null &&
+        Number.isInteger(parseNumber(leadingAmount[1])) && /^mei[ao]\b/iu.test(right);
       if (composedAmount || hundredsContinuation || isAttachedHalf || betweenBounds || leadingHalf ||
           /^mei[ao](?:\s+de\b|\s*$)/iu.test(right)) continue;
       const part = trimSpan(text, segment.start + offset, segment.start + match.index);
