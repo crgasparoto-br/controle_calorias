@@ -192,6 +192,32 @@ export function assertNutritionScaleConsistency(
 }
 
 /**
+ * Reconcilia TODAS as alegações nutricionais verificadas do envelope com a
+ * composição aceita, não apenas evidenceIds já escolhidos pelo perfil.
+ * Uma evidência nova incompatível deve bloquear proposta/continuação.
+ * A tolerância aqui é a exatidão física do contrato, não threshold OPEN #1306.
+ */
+export function hasConflictingVerifiedNutritionEvidence(
+  nutrition: FoodResolutionDecision["nutrition"],
+  evidence: readonly FoodEvidence[],
+): boolean {
+  const { basis, consumed } = nutrition;
+  if (!basis || !consumed) return false;
+  return evidence.some(item => {
+    if (!item.verified || item.value === null) return false;
+    const nutrient = foodNutrientKeyByEvidenceField.get(item.field);
+    if (!nutrient) return false;
+    const unit = foodNutritionValuesSchema.shape[nutrient].description;
+    if (typeof item.value !== "number" || !Number.isFinite(item.value) || item.unit !== unit) {
+      return true;
+    }
+    const candidates = [basis.values[nutrient], consumed[nutrient]];
+    return !candidates.some(value =>
+      value !== null && Math.abs(value - item.value) <= FOOD_QUANTITY_EPSILON);
+  });
+}
+
+/**
  * Evidência numérica de nutrição verificada OU provisória precisa concordar com
  * os valores e unidades da base/consumo, não apenas existir no envelope.
  */
