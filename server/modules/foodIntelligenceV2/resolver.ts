@@ -128,6 +128,22 @@ function quantityFromObservation(
   return { quantity, incompatiblePrevious: false };
 }
 
+function sourceCompatibleWithExplicitAttributes(
+  observation: FoodObservation, match: GovernedFoodMatch,
+): boolean {
+  // #1302 currently returns a governed variant label, not a full materiality
+  // proof snapshot. Do not silently drop explicit attributes when a generic
+  // name matches. This conservative gate must be replaced by governed
+  // variant-attribute compatibility rather than widening fuzzy thresholds.
+  const governed = normalizeFoodName(match.variantName);
+  const assertions = [
+    observation.identityHints.variant,
+    ...observation.identityHints.preparation,
+    ...observation.identityHints.qualifiers.map(item => item.value),
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return assertions.every(value => governed.includes(normalizeFoodName(value)));
+}
+
 function snapshot(match: GovernedFoodMatch): string {
   return "sha256:" + createHash("sha256").update(JSON.stringify({
     variantId: match.variantId, profileId: match.profileId,
@@ -257,7 +273,9 @@ export async function resolveFoodObservation(
       now: context.now,
     };
     const knowledge = await readThroughGovernedKnowledge(request, store, externalLookup);
-    const match = knowledge.kind === "match" ? knowledge : null;
+    const match = knowledge.kind === "match" &&
+      sourceCompatibleWithExplicitAttributes(observation, knowledge) ? knowledge : null;
+    const incompatibleAttributes = knowledge.kind === "match" && match === null;
     const { quantity, incompatiblePrevious } = quantityFromObservation(observation, evidence, match, previous);
     decision.quantity = quantity;
     if (quantity.value !== null || quantity.grams !== null || quantity.milliliters !== null) {
@@ -299,6 +317,8 @@ export async function resolveFoodObservation(
       }
       decision.status = decision.unresolvedFields.length === 0 ? "resolved" : "partially_resolved";
       decision.nextAction = decision.status === "resolved" ? "propose" : "clarify";
+    } else if (incompatibleAttributes) {
+      decision.reasonCodes = ["brand_variant_unresolved"];
     } else if (knowledge.kind === "unavailable") {
       decision.reasonCodes = [knowledge.reason === "provider_unavailable" ?
         "provider_unavailable" : "context_unavailable"];
