@@ -382,7 +382,10 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(current.reasonCodes).toContain("source_conflict");
     expect(current.alternatives.map(a => a.name)).toEqual(["Mortadela", "Presunto"]);
     expect(current.nutrition.consumed).toBeNull();
-    expect(current.quantity).toEqual(original.quantity);
+    expect(current.quantity.value).toBe(original.quantity.value);
+    expect(current.quantity.unit).toBe(original.quantity.unit);
+    expect(current.quantity.grams).toBeNull();
+    expect(current.quantity.source).toBe("observation");
     expect(parseFoodResolutionDecision(current).ok).toBe(true);
   });
 
@@ -466,6 +469,110 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(mismatched.unresolvedFields).toContain("quantity");
     expect(mismatched.nutrition.consumed).toBeNull();
     expect(parseFoodResolutionDecision(mismatched).ok).toBe(true);
+  });
+
+  it("F-1305-001: evidência nutricional nova incompatível bloqueia proposta inicial e continuação", async () => {
+    const seed = buildFoodObservationFixture();
+    const label = {
+      ...seed.evidence[1], evidenceId: "label-calories-conflict",
+      field: "nutrition.calories", origin: "nutrition_label" as const,
+      value: 999, unit: "kcal", verified: true,
+    };
+    const contradictory = { ...seed, evidence: [...seed.evidence, label] };
+    const store = fakeStore(match);
+
+    const first = await resolveFoodObservation(contradictory, context, store);
+    expect(first.status).toBe("partially_resolved");
+    expect(first.nextAction).toBe("clarify");
+    expect(first.reasonCodes).toContain("source_conflict");
+    expect(first.unresolvedFields).toContain("nutrition");
+    expect(first.nutrition.consumed).toBeNull();
+    expect(parseFoodResolutionDecision(first).ok).toBe(true);
+
+    const accepted = await resolveFoodObservation(seed, context, store);
+    const continued = await resolveFoodObservation(contradictory,
+      { ...context, previousDecision: accepted }, store);
+    expect(continued.status).toBe("partially_resolved");
+    expect(continued.nextAction).toBe("clarify");
+    expect(continued.unresolvedFields).toContain("nutrition");
+    expect(continued.reasonCodes).toContain("source_conflict");
+    expect(continued.nutrition).toEqual(accepted.nutrition);
+    expect(parseFoodResolutionDecision(continued).ok).toBe(true);
+  });
+
+  it("F-1305-001: evidência verificada de consumo compatível não cria falso conflito", async () => {
+    const seed = buildFoodObservationFixture();
+    const current = await resolveFoodObservation({
+      ...seed, evidence: [...seed.evidence, {
+        ...seed.evidence[1], evidenceId: "label-calories-compatible",
+        field: "nutrition.calories", origin: "nutrition_label",
+        value: 81, unit: "kcal", verified: true,
+      }],
+    }, context, fakeStore(match));
+    expect(current.status).toBe("resolved");
+    expect(current.nutrition.consumed?.calories).toBe(81);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+  });
+
+  it("F-1305-002: alternativas invalidam gramatura dependente da variante, não a quantidade textual", async () => {
+    const seed = buildFoodObservationFixture();
+    const candidates = buildFoodObservationFixture({
+      alternatives: [
+        alternativeFor("candidate-mortadela", "Mortadela"),
+        alternativeFor("candidate-presunto", "Presunto"),
+      ],
+    });
+    const store = fakeStore(match);
+    const first = await resolveFoodObservation(candidates, context, store);
+    expect(first.status).toBe("ambiguous");
+    expect(first.quantity.value).toBe(1.5);
+    expect(first.quantity.unit).toBe("fatia");
+    expect(first.quantity.grams).toBeNull();
+    expect(first.nutrition.consumed).toBeNull();
+    expect(first.evidence.some(item => item.field === "quantity.grams" && item.origin === "catalog")).toBe(false);
+    expect(parseFoodResolutionDecision(first).ok).toBe(true);
+
+    const accepted = await resolveFoodObservation(seed, context, store);
+    expect(accepted.quantity.grams).toBe(30);
+    const continued = await resolveFoodObservation(candidates,
+      { ...context, previousDecision: accepted }, store);
+    expect(continued.status).toBe("ambiguous");
+    expect(continued.quantity.value).toBe(accepted.quantity.value);
+    expect(continued.quantity.grams).toBeNull();
+    expect(continued.quantity.evidenceIds).not.toContain(
+      accepted.quantity.evidenceIds.find(id => id.startsWith("r-")));
+    expect(parseFoodResolutionDecision(continued).ok).toBe(true);
+  });
+
+  it("F-1305-003: hipótese única materialmente distinta exige clarificação", async () => {
+    const observation = buildFoodObservationFixture({
+      alternatives: [alternativeFor("candidate-presunto", "Presunto")],
+      unresolvedReason: "unknown_surface",
+    });
+    const current = await resolveFoodObservation(observation, context, fakeStore(match));
+    expect(current.status).toBe("unknown");
+    expect(current.nextAction).toBe("clarify");
+    expect(current.reasonCodes).toContain("source_conflict");
+    expect(current.alternatives).toHaveLength(1);
+    expect(current.quantity.value).toBe(1.5);
+    expect(current.quantity.grams).toBeNull();
+    expect(current.nutrition.consumed).toBeNull();
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+  });
+
+  it("F-1305-003: hipótese única comprovadamente equivalente não reabre decisão", async () => {
+    const seed = buildFoodObservationFixture();
+    const alternative = {
+      ...alternativeFor("same-governed-variant", "Mortadela"),
+      quantityHints: { ...seed.quantityHints },
+    };
+    const decision = await resolveFoodObservation({
+      ...seed, alternatives: [alternative],
+    }, context, fakeStore(match));
+    expect(decision.status).toBe("resolved");
+    expect(decision.quantity.grams).toBe(30);
+    expect(decision.nutrition.consumed?.calories).toBe(81);
+    expect(parseFoodResolutionDecision(decision).ok).toBe(true);
   });
 
 });
