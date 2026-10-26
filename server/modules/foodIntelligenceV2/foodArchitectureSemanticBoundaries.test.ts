@@ -96,7 +96,7 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
 
   it("AUD1304 A-041 rejects a new lexical-regex shortcut for qualifier-only input", () => {
     const source = readFileSync(file, "utf8");
-    const structural = 'qualifierRemainder.every(token => token === "e")';
+    const structural = 'qualifierRemainder.every(token => token.toLowerCase() === "e")';
     expect(source).toContain(structural);
     expect(findFoodStaticCandidates([{ path: file, content: source }])).toEqual([]);
     const unsafe = source.replace(structural,
