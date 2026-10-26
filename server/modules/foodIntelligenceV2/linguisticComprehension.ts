@@ -237,10 +237,11 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   const normalizedName = foldFoodSurface(name, true);
   observed.qualifiers = detectQualifiers(name);
   // A-040: a bare nutrient assertion is evidence about an attribute, not a
-  // food identity. Preserve ungoverned names such as "light": only complete
-  // explicit sem/com/zero claims qualify, including contradictory claims.
+  // food identity. Reuse the existing qualifier grammar instead of adding
+  // a second vocabulary; multiword claims can stand alone, but ambiguous
+  // single-word descriptors such as "light" may still be food names.
   const qualifierOnly = observed.qualifiers.length > 0 &&
-    observed.qualifiers.every(item => /^(?:sem|com|zero)\s/iu.test(item.value)) &&
+    observed.qualifiers.every(item => item.value.trim().split(/\s+/u).length > 1) &&
     observed.qualifiers.reduce((rest, item) => rest.replace(item.value, " "), name)
       .replace(/(?:[\s,;]|\be\b)+/giu, "").length === 0;
   observed.foodName = name && !qualifierOnly ? normalizedName : null;
