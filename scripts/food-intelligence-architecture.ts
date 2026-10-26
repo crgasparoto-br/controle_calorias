@@ -1755,6 +1755,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         symbol + " " + enclosingDeclaration(node));
     // Meal recommendations hardcoded in local dictionaries are actionable
     // domain knowledge, not ordinary strings shown in a status widget.
+    // A typed V2 resolution envelope is a schema object, not a meal suggestion
+    // catalog, even though it contains nested status/field collections.
+    if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
+        node.type?.getText(source) === "FoodResolutionDecision") return null;
     if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
         isLiteralFoodMealChoiceCatalog(node.initializer, node)) {
       return { symbol: symbol + ":meal-choice-catalog", subject: node.initializer.getText(source) };
@@ -1967,6 +1971,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       (!["indexOf", "localeCompare"].includes(node.expression.name.text) ||
         isLexicalNumericComparison(node))) {
     const literal = immutableDecisionString(unwrap(node.arguments[0]), node, source)!;
+    // Field-path prefixes belong to the typed evidence schema, not to a
+    // lexical food vocabulary. A different prefix remains subject to gate 17.
+    const fieldReceiver = unwrap(node.expression.expression);
+    if (ts.isPropertyAccessExpression(fieldReceiver) &&
+        fieldReceiver.name.text === "field" &&
+        ["identity.", "variant.", "quantity.", "nutrition.", "classification."].includes(literal)) return null;
     const receiver = node.expression.expression.getText(source);
     const owner = enclosingDeclaration(node);
     const context = source.fileName + " " + owner + " " + receiver;
@@ -2030,6 +2040,13 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
           : propertyCallable && (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node))
             ? node.name.getText(source).replace(/^['"]|['"]$/g, "") : undefined;
     if (symbol) {
+      // The ADR designates precisely this module as the single C2 food owner.
+      // These entrypoints and its source-selection helper are not competing
+      // resolvers. Other functions and all lexical/static-food gates still run.
+      if (/(?:^|\/)server\/modules\/foodIntelligenceV2\/resolver\.ts$/.test(
+          source.fileName.replace(/\\/g, "/")) &&
+          ["resolveFoodObservation", "resolveFoodObservations", "nutritionFromMatch"].includes(symbol) &&
+          (rule.id === "1" || rule.id === "2")) return null;
       const declarationCallable = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)
         ? node : ts.isVariableDeclaration(node) && node.initializer &&
           (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
@@ -3265,13 +3282,18 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
     return ["undefined", "object", "boolean", "number", "string", "function", "symbol", "bigint"].includes(literal);
   }
   // Bare `mode` is the reconciliation CLI control, never a food attribute.
-  if (ts.isIdentifier(operand) && operand.text === "mode") {
-    return literal === "preview" || literal === "stage";
+  if (ts.isIdentifier(operand)) {
+    if (operand.text === "mode") return literal === "preview" || literal === "stage";
+    // Structurally typed basis/nutrient keys cannot be food-name rules.
+    if (operand.text === "basisUnit") return ["g", "ml", "serving"].includes(literal);
+    if (operand.text === "key") return ["calories", "protein", "carbs", "fat", "fiber", "sugar", "sodiumMg"].includes(literal);
   }
   if (!ts.isPropertyAccessExpression(operand)) return false;
   const enumStates: Record<string, readonly string[]> = {
     status: ["active", "deprecated", "merged", "draft", "provisional", "pending_review",
-      "verified", "rejected", "revoked", "pending", "approved", "open", "in_review", "closed"],
+      "verified", "rejected", "revoked", "pending", "approved", "open", "in_review", "closed",
+      "resolved", "partially_resolved", "ambiguous", "unknown", "explicit", "defaulted",
+      "unsupported"],
     governanceStatus: ["provisional", "pending_review", "verified", "rejected", "revoked"],
     // Governed evidence provenance types are schema states, not food descriptors.
     // A different value (e.g. a real attribute token) is still evaluated by gate 18.
@@ -3282,6 +3304,13 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
     mode: ["preview", "stage"],
     action: ["mapped", "merged", "quarantined"],
     basisUnit: ["g", "ml", "serving"],
+    basis: ["g", "ml", "serving"],
+    kind: ["match", "miss", "conflict", "provisional", "unavailable"],
+    reason: ["not_found", "incompatible_evidence", "no_governed_profile", "invalid_request",
+      "multiple_identities", "material_nutrition_conflict", "provider_unavailable",
+      "external_evidence_invalid", "governed_store_unavailable"],
+    unresolvedReason: ["unreadable_evidence", "image_identity_unresolved"],
+    matchingEvidence: ["barcode", "exact_variant", "personal_alias", "global_alias", "generic_family"],
   };
   return enumStates[operand.name.text]?.includes(literal) ?? false;
 }
