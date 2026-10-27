@@ -63,6 +63,7 @@ function makeEvidence(
   observation: FoodObservation, existing: FoodEvidence[], field: FoodEvidence["field"],
   value: number | string, unit: string | null, sourceId: number | null,
   verified: boolean, origin: FoodEvidence["origin"],
+  anchor: FoodEvidence["anchor"] = observation.surfaceSpan,
 ): string {
   const ids = new Set(existing.map(item => item.evidenceId));
   let index = existing.length;
@@ -70,7 +71,7 @@ function makeEvidence(
   const evidenceId = "r-" + index;
   existing.push({
     evidenceId, field, value, unit, sourceId, verified, origin,
-    confidence: null, anchor: observation.surfaceSpan,
+    confidence: null, anchor,
   });
   return evidenceId;
 }
@@ -311,10 +312,16 @@ function nutritionFromMatch(
   if (![...Object.values(values), ...Object.values(consumed)]
       .every(value => value === null || Number.isFinite(value))) return empty;
   const verified = match.governanceStatus === "verified";
+  // A governed nutrient belongs to the selected versioned profile, never the
+  // user's text span. The snapshot also binds the exact variant and portion.
+  const nutrientAnchor: FoodEvidence["anchor"] = {
+    sourceRef: "food-nutrition-profile:" + match.profileId + ":" + snapshot(match, quantity),
+    span: null, region: null,
+  };
   const evidenceIds = (["calories", "protein", "carbs", "fat"] as const).map(key =>
     makeEvidence(observation, evidence, "nutrition." + key,
       values[key], key === "calories" ? "kcal" : "g",
-      match.sourceId, verified, "catalog"));
+      match.sourceId, verified, "catalog", nutrientAnchor));
   return {
     profileId: match.profileId, sourceId: match.sourceId,
     verified, provisional: !verified,
@@ -324,10 +331,15 @@ function nutritionFromMatch(
 }
 
 function sameObservation(previous: FoodResolutionDecision | undefined, context: FoodResolverContext, observation: FoodObservation) {
-  if (!previous) return false;
-  return previous.traceId === context.traceId &&
-    previous.observationIds.length === 1 && previous.observationIds[0] === observation.observationId &&
-    parseFoodResolutionDecision(previous).ok;
+  if (!previous || !parseFoodResolutionDecision(previous).ok || context.userId === null) return false;
+  // Older V2 snapshots may only carry an owner inside knowledgeValidity. If
+  // neither binding exists, re-resolve without importing any prior evidence.
+  const owner = previous.ownerUserId === undefined
+    ? previous.knowledgeValidity?.userId : previous.ownerUserId;
+  return owner === context.userId &&
+    (previous.knowledgeValidity === undefined || previous.knowledgeValidity.userId === context.userId) &&
+    previous.traceId === context.traceId &&
+    previous.observationIds.length === 1 && previous.observationIds[0] === observation.observationId;
 }
 
 /**
@@ -370,19 +382,26 @@ export async function resolveFoodObservation(
   const decision: FoodResolutionDecision = {
     schemaVersion: 2,
     decisionId: previous?.decisionId ?? "resolution:" + createHash("sha256")
-      .update(JSON.stringify([context.traceId, observation.observationId])).digest("hex"),
+      .update(JSON.stringify([context.userId, context.traceId, observation.observationId])).digest("hex"),
     revision: previous ? previous.revision + 1 : 1,
     observationIds: [observation.observationId], traceId: context.traceId,
+    ownerUserId: context.userId,
     status: "unknown", nextAction: "clarify", identity,
     quantity: blankQuantity(), nutrition: blankNutrition(), classification: null,
     unresolvedFields: ["identity", "variant", "quantity", "nutrition"],
     reasonCodes: ["unknown_surface"], alternatives: [], evidence,
     knowledgeRevision: context.knowledgeRevision, policyVersion: context.policyVersion,
   };
-  const negative = evidence.some(item =>
-    item.field === "classification.isFood" && item.value === false &&
+  const verifiedFoodClaims = evidence.filter(item =>
+    item.field === "classification.isFood" && typeof item.value === "boolean" &&
     item.verified && item.unit === null);
-  if (negative) {
+  const negative = verifiedFoodClaims.some(item => item.value === false);
+  const positive = verifiedFoodClaims.some(item => item.value === true);
+  if (negative && positive) {
+    // Two independently accepted classifications must not be collapsed into a
+    // rejection simply because one of them says this is not food.
+    decision.reasonCodes = ["source_conflict"];
+  } else if (negative) {
     decision.reasonCodes = ["non_food"];
     decision.nextAction = "reject";
   } else if (observation.locale.status === "unsupported") {
@@ -413,7 +432,7 @@ export async function resolveFoodObservation(
       const nutritionConflict = hasConflictingVerifiedNutritionEvidence(previous.nutrition, evidence);
       const conflict = quantityConflict || nutritionConflict;
       const preserved: FoodResolutionDecision = {
-        ...previous, revision: previous.revision + 1, evidence,
+        ...previous, ownerUserId: context.userId, revision: previous.revision + 1, evidence,
         status: conflict ? "partially_resolved" : previous.status,
         nextAction: conflict ? "clarify" : previous.nextAction,
         unresolvedFields: conflict

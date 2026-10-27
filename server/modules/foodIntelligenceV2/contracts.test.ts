@@ -1159,6 +1159,14 @@ describe("FoodResolutionDecision v2", () => {
     });
     expect(parseFoodResolutionDecision(confirmed).ok).toBe(true);
 
+    const contradictory = structuredClone(confirmed);
+    contradictory.evidence.push({
+      evidenceId: "ev-food-positive", field: "classification.isFood", origin: "catalog",
+      value: true, unit: null, confidence: 1, verified: true,
+      anchor: { sourceRef: "catalog:food-positive", span: null, region: null }, sourceId: 42,
+    });
+    expectInvalid(parseFoodResolutionDecision(contradictory));
+
     const notVerified = structuredClone(confirmed);
     notVerified.evidence[notVerified.evidence.length - 1].verified = false;
     expectInvalid(parseFoodResolutionDecision(notVerified));

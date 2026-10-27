@@ -156,6 +156,9 @@ export const foodResolutionDecisionSchema = z
       .min(1)
       .max(FOOD_CONTRACT_LIMITS.observations),
     traceId: opaqueId(),
+    // Resolver C2 always binds the authenticated owner. Optional solely to read
+    // older V2 snapshots, which cannot be reused without another owner proof.
+    ownerUserId: nullablePositiveInt.optional(),
     status: z.enum(FOOD_DECISION_STATUSES),
     nextAction: z.enum(FOOD_DECISION_NEXT_ACTIONS),
     identity: foodDecisionIdentitySchema,
@@ -176,6 +179,12 @@ export const foodResolutionDecisionSchema = z
     knowledgeValidity: foodKnowledgeValiditySchema.optional(),
   })
   .superRefine((decision, ctx) => {
+    if (decision.ownerUserId !== undefined && decision.knowledgeValidity &&
+        decision.ownerUserId !== decision.knowledgeValidity.userId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom,
+        message: "Proprietário da decisão e validade governada devem coincidir.",
+        path: ["ownerUserId"] });
+    }
     rejectDuplicates(decision.observationIds, ctx, ["observationIds"]);
     rejectDuplicates(
       decision.evidence.map(evidence => evidence.evidenceId),
@@ -457,7 +466,13 @@ export const foodResolutionDecisionSchema = z
         evidence.verified === true &&
         isGroundedEvidenceOrigin(evidence.origin)
       );
-      if (decision.status !== "unknown" || decision.nextAction !== "reject" || !negativeFoodEvidence) {
+      const positiveFoodEvidence = decision.evidence.some(evidence =>
+        evidence.field === "classification.isFood" &&
+        evidence.value === true && evidence.unit === null &&
+        evidence.verified === true && isGroundedEvidenceOrigin(evidence.origin)
+      );
+      if (decision.status !== "unknown" || decision.nextAction !== "reject" ||
+          !negativeFoodEvidence || positiveFoodEvidence) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "non_food só rejeita uma entrada unknown com evidência negativa afirmativa e verificada de classification.isFood=false; ausência de catálogo não é prova.",

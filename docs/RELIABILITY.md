@@ -56,6 +56,8 @@ Além da convergência funcional, o V2 deve ser validado como sistema operaciona
 - rollback deve ser não destrutivo: restaurar leitura/decisão anterior sem apagar evidências e dados V2 já persistidos;
 - continuação de proposta pendente revalida a elegibilidade temporal de perfil, porções e autorizações das fontes, inclusive quando somente o relógio avançou; snapshot sem metadado de validade exige reconsulta e snapshot confirmado permanece imutável;
 - regressões do núcleo C2 devem cobrir resposta apenas com quantidade, conflitos de identidade em todo o envelope de evidências, vencimento exato e preservação dos fatos ainda sustentados;
+- proveniência de macros deve apontar ao perfil governado, e classificação alimentar com afirmações verificadas contraditórias deve exigir clarificação;
+- nenhuma continuação pode importar evidência de outra conta: snapshots V2 novos incluem proprietário, snapshots antigos exigem prova de escopo e contextos anônimos não reutilizam decisões;
 - o gate arquitetural inspeciona conhecimento alimentar literal mesmo sob anotações ou aliases de tipos de decisão; controles estruturais benignos continuam aceitos sem isenção pelo nome textual do tipo.
 
 Os valores numéricos de SLO, timeout, orçamento e limites de rollout são definidos no ADR a partir de baseline e shadow mode, não por constante arbitrária isolada.

@@ -74,6 +74,132 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(store.readPendingEvidence).not.toHaveBeenCalled();
   });
 
+  it("F-1305-003: ancora cada macronutriente no perfil governado, não no texto", async () => {
+    const observation = buildFoodObservationFixture({
+      surfaceSpan: { sourceRef: "user:7:surface-only", span: { start: 0, end: 22 }, region: null },
+    });
+    const decision = await resolveFoodObservation(observation, context, fakeStore(match));
+    expect(decision.status).toBe("resolved");
+    const nutrientEvidence = decision.evidence.filter(item => decision.nutrition.evidenceIds.includes(item.evidenceId));
+    expect(nutrientEvidence).toHaveLength(4);
+    for (const item of nutrientEvidence) {
+      expect(item.sourceId).toBe(match.sourceId);
+      expect(item.origin).toBe("catalog");
+      expect(item.anchor).toStrictEqual({
+        sourceRef: "food-nutrition-profile:" + match.profileId + ":" + decision.nutrition.snapshotHash,
+        span: null, region: null,
+      });
+      expect(item.anchor.sourceRef).not.toBe(observation.surfaceSpan.sourceRef);
+    }
+    const otherSource = await resolveFoodObservation(observation, context, fakeStore({
+      ...match, sourceVersion: "source-2", sourceReference: "https://example.org/other-profile",
+    }));
+    expect(otherSource.nutrition.snapshotHash).not.toBe(decision.nutrition.snapshotHash);
+    expect(otherSource.evidence.filter(item => otherSource.nutrition.evidenceIds.includes(item.evidenceId))
+      .every(item => item.anchor.sourceRef !== nutrientEvidence[0].anchor.sourceRef)).toBe(true);
+    expect(parseFoodResolutionDecision(decision).ok).toBe(true);
+  });
+
+  it("F-1305-004: classificação alimentar positiva e negativa verificadas não podem rejeitar", async () => {
+    const observation = buildFoodObservationFixture();
+    const claim = (id: string, value: boolean, verified = true): FoodObservation["evidence"][number] => ({
+      ...observation.evidence[0], evidenceId: id, field: "classification.isFood", origin: "catalog",
+      value, unit: null, verified, sourceId: value ? 901 : 902,
+      anchor: { sourceRef: "catalog:" + id, span: null, region: null },
+    });
+    const positive = claim("food-true", true);
+    const negative = claim("food-false", false);
+    const conflicting = { ...observation, evidence: [...observation.evidence, positive, negative] };
+    const result = await resolveFoodObservation(conflicting, context, fakeStore(match));
+    expect(result.status).toBe("unknown");
+    expect(result.nextAction).toBe("clarify");
+    expect(result.reasonCodes).toContain("source_conflict");
+    expect(result.reasonCodes).not.toContain("non_food");
+    expect(result.nutrition.consumed).toBeNull();
+    expect(result.evidence).toEqual(expect.arrayContaining([positive, negative]));
+    expect(parseFoodResolutionDecision(result).ok).toBe(true);
+
+    const onlyNegative = await resolveFoodObservation({ ...observation,
+      evidence: [...observation.evidence, negative] }, context, fakeStore(match));
+    expect(onlyNegative.reasonCodes).toContain("non_food");
+    expect(onlyNegative.nextAction).toBe("reject");
+    const onlyPositive = await resolveFoodObservation({ ...observation,
+      evidence: [...observation.evidence, positive] }, context, fakeStore(match));
+    expect(onlyPositive.status).toBe("resolved");
+    const unverifiedNegative = await resolveFoodObservation({ ...observation,
+      evidence: [...observation.evidence, positive, claim("food-uncertain", false, false)] }, context, fakeStore(match));
+    expect(unverifiedNegative.status).toBe("resolved");
+  });
+
+  it("F-1305-005: não herda nenhuma evidência entre usuários, mesmo com trace e observação iguais", async () => {
+    const privateObservation = buildFoodObservationFixture({
+      surfaceSpan: { sourceRef: "user:7:private", span: { start: 0, end: 22 }, region: null },
+    });
+    privateObservation.evidence[0].anchor = privateObservation.surfaceSpan;
+    const previous = await resolveFoodObservation(privateObservation, context, fakeStore(match));
+    expect(previous.status).toBe("resolved");
+    expect(previous.ownerUserId).toBe(7);
+    const noClaims = buildFoodObservationFixture({
+      identityHints: { foodName: null }, evidence: [],
+      quantityHints: { value: null, unit: null, servingText: null },
+    });
+    const differentUser = await resolveFoodObservation(noClaims, {
+      ...context, userId: 8, previousDecision: previous,
+    }, fakeStore({ kind: "miss", reason: "not_found" }));
+    expect(differentUser.ownerUserId).toBe(8);
+    expect(differentUser.revision).toBe(1);
+    expect(differentUser.decisionId).not.toBe(previous.decisionId);
+    expect(differentUser.identity.foodEntityId).toBeNull();
+    expect(differentUser.quantity.value).toBeNull();
+    expect(differentUser.nutrition.consumed).toBeNull();
+    expect(differentUser.evidence).toStrictEqual([]);
+    expect(parseFoodResolutionDecision(differentUser).ok).toBe(true);
+
+    // Missing nutrition validity does not remove the new explicit owner binding.
+    const unresolved = await resolveFoodObservation(privateObservation, context,
+      fakeStore({ kind: "miss", reason: "not_found" }));
+    expect(unresolved.knowledgeValidity).toBeUndefined();
+    expect(unresolved.ownerUserId).toBe(7);
+    const otherUnresolved = await resolveFoodObservation(noClaims,
+      { ...context, userId: 8, previousDecision: unresolved },
+      fakeStore({ kind: "miss", reason: "not_found" }));
+    expect(otherUnresolved.evidence).toStrictEqual([]);
+    expect(otherUnresolved.revision).toBe(1);
+  });
+
+  it("F-1305-005: snapshot V2 legado só continua com proprietário autenticado comprovado", async () => {
+    const observation = buildFoodObservationFixture();
+    const previous = await resolveFoodObservation(observation, context, fakeStore(match));
+    const noClaims = buildFoodObservationFixture({
+      identityHints: { foodName: null }, evidence: [],
+      quantityHints: { value: null, unit: null, servingText: null },
+    });
+    const legacyWithProof = structuredClone(previous);
+    delete legacyWithProof.ownerUserId;
+    const allowed = await resolveFoodObservation(noClaims, { ...context,
+      previousDecision: legacyWithProof }, fakeStore({ kind: "miss", reason: "not_found" }));
+    expect(allowed.ownerUserId).toBe(7);
+    expect(allowed.revision).toBe(previous.revision + 1);
+    expect(allowed.nutrition).toEqual(previous.nutrition);
+    const unbound = structuredClone(legacyWithProof);
+    delete unbound.knowledgeValidity;
+    const denied = await resolveFoodObservation(noClaims, { ...context,
+      previousDecision: unbound }, fakeStore({ kind: "miss", reason: "not_found" }));
+    expect(denied.ownerUserId).toBe(7);
+    expect(denied.revision).toBe(1);
+    expect(denied.evidence).toStrictEqual([]);
+    const tampered = structuredClone(previous);
+    if (!tampered.knowledgeValidity) throw new Error("fixture sem validade");
+    tampered.knowledgeValidity.userId = 8;
+    const deniedTampered = await resolveFoodObservation(noClaims, { ...context,
+      previousDecision: tampered }, fakeStore({ kind: "miss", reason: "not_found" }));
+    expect(deniedTampered.evidence).toStrictEqual([]);
+    const anonymous = await resolveFoodObservation(noClaims, { ...context, userId: null,
+      previousDecision: previous }, fakeStore({ kind: "miss", reason: "not_found" }));
+    expect(anonymous.evidence).toStrictEqual([]);
+    expect(anonymous.ownerUserId).toBeNull();
+  });
+
   it("não inventa conversão de fatia nem calorias sem porção governada", async () => {
     const decision = await resolveFoodObservation(
       buildFoodObservationFixture(), context,
