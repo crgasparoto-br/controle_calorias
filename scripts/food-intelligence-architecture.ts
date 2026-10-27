@@ -345,28 +345,46 @@ function isPureContractSizeBounds(value: ts.Expression): boolean {
 }
 
 /**
- * A literal vocabulary of contract field paths is schema metadata, not
- * food-specific nutritional knowledge. Require both a structural naming
- * convention and dotted field keys; a mixed list or a food catalog still
- * reaches gate 17, including when disguised as a field list.
+ * Only the versioned, domain-neutral reason-code contract is exempt from
+ * food-knowledge gate 17. A suffix such as `_unresolved` cannot establish
+ * that its prefix is operational rather than an edible identity. Changes to
+ * this vocabulary must be explicitly reviewed together with the contract.
  */
+const CANONICAL_STRUCTURAL_FOOD_REASON_CODES = new Set([
+  "brand_variant_unresolved",
+  "commercial_identity_unverified",
+  "commercial_nutrition_unverified",
+  "image_identity_unresolved",
+  "unknown_surface",
+  "unsupported_locale",
+  "non_food",
+  "unreadable_evidence",
+  "quantity_missing",
+  "quantity_conversion_unproven",
+  "source_conflict",
+  "provider_unavailable",
+  "context_unavailable",
+  "policy_not_calibrated",
+  "decision_validation_failed",
+  "unsupported_schema_version",
+]);
+
 function isStructuralDecisionReasonCodeVocabulary(node: ts.VariableDeclaration): boolean {
   if (!node.initializer || !ts.isIdentifier(node.name) ||
       node.name.text !== "FOOD_REASON_CODES" ||
       !/(?:^|\/)server\/modules\/foodIntelligenceV2\/contracts\.ts$/.test(
         node.getSourceFile().fileName.replace(/\\/g, "/"))) return false;
   const value = unwrap(node.initializer);
-  // This is the typed set of operational *reasons*, not food names or a
-  // materiality/portion catalog. New reasons must preserve a control-flow
-  // suffix; an inserted edible name must still be caught by gate 17.
-  const reasonSuffix = /(?:_unresolved|_unverified|_missing|_unproven|_conflict|_unavailable|_failed|_locale|_surface|_evidence|_version|_calibrated)$|^non_food$/;
-  return ts.isArrayLiteralExpression(value) && value.elements.length > 0 &&
-    value.elements.every(element => {
-      const item = unwrap(element);
-      return isStaticText(item) &&
-        /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(item.text) &&
-        reasonSuffix.test(item.text);
-    });
+  if (!ts.isArrayLiteralExpression(value) ||
+      value.elements.length !== CANONICAL_STRUCTURAL_FOOD_REASON_CODES.size) return false;
+  const observed = new Set<string>();
+  for (const element of value.elements) {
+    const item = unwrap(element);
+    if (!isStaticText(item) || !CANONICAL_STRUCTURAL_FOOD_REASON_CODES.has(item.text) ||
+        observed.has(item.text)) return false;
+    observed.add(item.text);
+  }
+  return observed.size === CANONICAL_STRUCTURAL_FOOD_REASON_CODES.size;
 }
 
 function isStructuralEvidenceFieldVocabulary(node: ts.VariableDeclaration): boolean {

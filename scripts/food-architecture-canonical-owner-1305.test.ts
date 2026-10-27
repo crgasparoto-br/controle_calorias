@@ -205,26 +205,76 @@ describe("#1305 canonical resolver architecture control", () => {
     expect(findings.some(item => item.ruleId === "18")).toBe(true);
   });
 
-  it("distinguishes the governed reason-code enum from real food vocabulary", () => {
-    const contractsPath = "server/modules/foodIntelligenceV2/contracts.ts";
-    const current = findFoodStaticCandidates([{
-      path: contractsPath, content: readFileSync(contractsPath, "utf8"),
-    }]);
-    expect(current.filter(item => item.ruleId === "17" &&
+  const contractsPath = "server/modules/foodIntelligenceV2/contracts.ts";
+  const reasonDeclaration = () => {
+    const source = readFileSync(contractsPath, "utf8");
+    const declaration = source.match(/export const FOOD_REASON_CODES = \[([\s\S]*?)\] as const;/)?.[0];
+    if (!declaration) throw new Error("FOOD_REASON_CODES is absent from the canonical contract");
+    return { source, declaration };
+  };
+  const inspectReasonMutation = (mutate: (declaration: string) => string) => {
+    const { source, declaration } = reasonDeclaration();
+    return findFoodStaticCandidates([{
+      path: contractsPath, content: source.replace(declaration, mutate(declaration)),
+    }]).filter(item => item.ruleId === "17" && item.symbol === "FOOD_REASON_CODES");
+  };
+
+  it("exempts only the unchanged governed reason-code vocabulary", () => {
+    const { source } = reasonDeclaration();
+    const findings = findFoodStaticCandidates([{ path: contractsPath, content: source }]);
+    expect(findings.filter(item => item.ruleId === "17" &&
       item.symbol === "FOOD_REASON_CODES")).toEqual([]);
+    expect(inspectReasonMutation(declaration => declaration.replace(
+      '"brand_variant_unresolved",\n  "commercial_identity_unverified"',
+      '"commercial_identity_unverified",\n  "brand_variant_unresolved"',
+    ))).toEqual([]);
+  });
 
-    const forged = findFoodStaticCandidates([{
-      path: contractsPath,
-      content: 'export const FOOD_REASON_CODES = ["banana", "arroz"] as const;',
-    }]);
-    expect(forged.some(item => item.ruleId === "17" &&
-      item.symbol === "FOOD_REASON_CODES")).toBe(true);
+  it.each([
+    "banana_unresolved", "arroz_unresolved", "banana_unverified",
+    "banana_missing", "banana_unproven", "banana_conflict",
+    "banana_unavailable", "banana_failed", "banana_locale",
+    "banana_surface", "banana_evidence", "banana_version",
+    "banana_calibrated", "banana",
+  ])("blocks a food name hidden inside a reason-code suffix: %s", added => {
+    const findings = inspectReasonMutation(declaration => declaration.replace(
+      "] as const;", `  "${added}",\n] as const;`,
+    ));
+    expect(findings).toHaveLength(1);
+    expect(gate(findings).errors.some(error => error.includes("gate 17"))).toBe(true);
+  });
 
-    const aliases = findFoodStaticCandidates([{
+  it.each([
+    ["unknown_surface", "banana_surface"],
+    ["source_conflict", "arroz_conflict"],
+    ["provider_unavailable", "banana_unavailable"],
+  ])("blocks a replaced operational reason %s => %s", (original, replacement) => {
+    const findings = inspectReasonMutation(declaration => declaration.replace(
+      `"${original}"`, `"${replacement}"`,
+    ));
+    expect(findings).toHaveLength(1);
+    expect(gate(findings).errors.some(error => error.includes("gate 17"))).toBe(true);
+  });
+
+  it("does not exempt a duplicated or silently removed canonical reason", () => {
+    for (const mutate of [
+      (declaration: string) => declaration.replace('  "unknown_surface",\n', ""),
+      (declaration: string) => declaration.replace('"unknown_surface"', '"non_food"'),
+    ]) {
+      const findings = inspectReasonMutation(mutate);
+      expect(findings).toHaveLength(1);
+      expect(gate(findings).errors.some(error => error.includes("gate 17"))).toBe(true);
+    }
+  });
+
+  it("still flags a real food alias even if it looks like an operational reason", () => {
+    const findings = findFoodStaticCandidates([{
       path: contractsPath,
-      content: 'export const FOOD_ALIASES = ["banana", "arroz"] as const;',
+      content: 'export const FOOD_ALIASES = ["banana_unresolved", "arroz_unresolved"] as const;',
     }]);
-    expect(aliases.some(item => item.ruleId === "17")).toBe(true);
+    expect(findings.some(item => item.ruleId === "17" &&
+      item.symbol === "FOOD_ALIASES")).toBe(true);
+    expect(gate(findings).errors.some(error => error.includes("gate 17"))).toBe(true);
   });
 
   it("the real source has no new static-food architecture findings", () => {
