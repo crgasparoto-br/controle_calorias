@@ -23,6 +23,8 @@ Enquanto a migração não estiver concluída:
 - uma issue não pode considerar a unificação concluída apenas por reutilizar `semanticContract`, `processMealInput`, `foodItemResolution` ou nomenclatura de "owner canônico";
 - divergências entre a arquitetura alvo e o baseline atual devem ser tratadas explicitamente como migração, com golden flows e gate arquitetural.
 
+O núcleo C2 da #1305 vive em `server/modules/foodIntelligenceV2/resolver.ts` e produz decisões V2 revisáveis, sem executar operação de refeição. Na continuidade, a resposta pode completar a quantidade ausente usando a identidade aceita; evidências fortes contraditórias impedem proposta nutricional. A reutilização de uma proposta depende de `knowledgeValidity`, produzido pela leitura governada e validado junto de usuário, versões e revisão do conhecimento. Sem metadado de validade ou após seu vencimento, o núcleo reconsulta as fontes; essa regra não recalcula refeições históricas. Os entrypoints produtivos descritos a seguir permanecem no baseline V1 até o cutover correspondente.
+
 
 ## Diretrizes
 

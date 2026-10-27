@@ -115,6 +115,71 @@ function isLiteralCollection(expr: ts.Expression): boolean {
   return false;
 }
 
+/** Copying a runtime parameter is not a literal food catalog. Prove the
+ * projection from its data origin, never from the variable or type name.
+ * A pure copy-and-return body proves absence of mutations/escapes; larger
+ * workflows stay conservative. Only exact contract metadata may be added. */
+function isTransparentRuntimeProjection(expression: ts.Expression): boolean {
+  const declaration = expression.parent;
+  if (!ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name) ||
+      !ts.isVariableDeclarationList(declaration.parent) ||
+      !(declaration.parent.flags & ts.NodeFlags.Const)) return false;
+  let owner: ts.Node | undefined = declaration.parent;
+  while (owner && !ts.isFunctionLike(owner)) owner = owner.parent;
+  if (!owner || !ts.isFunctionLike(owner) || !("body" in owner) || !owner.body ||
+      !ts.isBlock(owner.body as ts.Node) || owner.parameters.some(parameter =>
+        !ts.isIdentifier(parameter.name) || parameter.initializer)) return false;
+  const body = owner.body as ts.Block;
+  const parameters = owner.parameters;
+  if (body.statements.length !== 2 || !ts.isVariableStatement(body.statements[0]) ||
+      body.statements[0].declarationList.declarations.length !== 1 ||
+      body.statements[0].declarationList.declarations[0] !== declaration ||
+      !ts.isReturnStatement(body.statements[1]) || !body.statements[1].expression) return false;
+  const returned = unwrap(body.statements[1].expression);
+  if (!ts.isIdentifier(returned) || returned.text !== declaration.name.text) return false;
+  const parameterPath = (expression: ts.Expression): string[] | null => {
+    let value = unwrap(expression);
+    const fields: string[] = [];
+    while (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) {
+      if (ts.isPropertyAccessExpression(value)) fields.unshift(value.name.text);
+      else {
+        const key = value.argumentExpression && unwrap(value.argumentExpression);
+        if (!key || !isStaticText(key)) return null;
+        fields.unshift(key.text);
+      }
+      value = unwrap(value.expression);
+    }
+    if (!ts.isIdentifier(value)) return null;
+    const name = value.text;
+    return name !== declaration.name.getText() && parameters.some(parameter =>
+      ts.isIdentifier(parameter.name) && parameter.name.text === name) ? [name, ...fields] : null;
+  };
+  const samePath = (left: string[] | null, right: string[]) =>
+    left !== null && left.length === right.length && left.every((part, index) => part === right[index]);
+  const isCopy = (expression: ts.Expression, expected?: string[]): boolean => {
+    const value = unwrap(expression);
+    if (expected && samePath(parameterPath(value), expected)) return true;
+    if (expected && ts.isArrayLiteralExpression(value)) {
+      return value.elements.length === 1 && ts.isSpreadElement(value.elements[0]) &&
+        samePath(parameterPath(value.elements[0].expression), expected);
+    }
+    if (!ts.isObjectLiteralExpression(value)) return false;
+    const spreads = value.properties.filter(ts.isSpreadAssignment);
+    if (spreads.length !== 1) return false;
+    const origin = parameterPath(spreads[0].expression);
+    if (!origin || expected && !samePath(origin, expected)) return false;
+    return value.properties.every(property => {
+      if (property === spreads[0]) return true;
+      if (!ts.isPropertyAssignment(property) || ts.isComputedPropertyName(property.name)) return false;
+      const key = ts.isIdentifier(property.name) || isStaticText(property.name) ? property.name.text : null;
+      const initializer = unwrap(property.initializer);
+      return key !== null && (isStaticText(initializer) && isStructuralContractValue(key, initializer.text) ||
+        isCopy(initializer, [...origin, key]));
+    });
+  };
+  return isCopy(expression);
+}
+
 /** A literal nutrition row is a rule even when returned without a named table. */
 function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
   const fields = new Map<string, ts.Expression>();
@@ -1774,10 +1839,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         symbol + " " + enclosingDeclaration(node));
     // Meal recommendations hardcoded in local dictionaries are actionable
     // domain knowledge, not ordinary strings shown in a status widget.
-    // A typed V2 resolution envelope is a schema object, not a meal suggestion
-    // catalog, even though it contains nested status/field collections.
-    if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
-        node.type?.getText(source) === "FoodResolutionDecision") return null;
+    // A type annotation does not prove structural content: aliases and local
+    // homonyms must not change whether literal food knowledge is inspected.
     if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
         isLiteralFoodMealChoiceCatalog(node.initializer, node)) {
       return { symbol: symbol + ":meal-choice-catalog", subject: node.initializer.getText(source) };
@@ -1789,6 +1852,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
           !isFoodNumericMapUse(node, source)) ||
           isStructuralEvidenceFieldVocabulary(node) ||
           isStructuralDecisionReasonCodeVocabulary(node) ||
+          isTransparentRuntimeProjection(node.initializer) ||
           isPresentationOnlyCollection(node, source) ||
           isPresentationOnlyFilter(node, source, unwrap))) return null;
     // Inline food rows are visited separately by isInlineFoodKnowledge.
@@ -3313,11 +3377,20 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
     if (operand.text === "field") return ["identity", "variant", "quantity", "nutrition"].includes(literal);
   }
   if (!ts.isPropertyAccessExpression(operand)) return false;
+  return isStructuralContractValue(operand.name.text, literal);
+}
+
+/** Shared by branch checks and runtime-envelope projections. Keep metadata
+ * field/value pairs exact so food words in similarly named fields stay gated. */
+function isStructuralContractValue(field: string, literal: string): boolean {
   const enumStates: Record<string, readonly string[]> = {
     status: ["active", "deprecated", "merged", "draft", "provisional", "pending_review",
       "verified", "rejected", "revoked", "pending", "approved", "open", "in_review", "closed",
       "resolved", "partially_resolved", "ambiguous", "unknown", "explicit", "defaulted",
       "unsupported"],
+    nextAction: ["propose", "clarify", "reject", "retry"],
+    origin: ["text", "transcription", "ocr", "vision", "memory", "catalog", "web_research",
+      "nutrition_label", "barcode", "provisional_estimate", "ai_estimate", "heuristic", "unavailable"],
     governanceStatus: ["provisional", "pending_review", "verified", "rejected", "revoked"],
     // Governed evidence provenance types are schema states, not food descriptors.
     // A different value (e.g. a real attribute token) is still evaluated by gate 18.
@@ -3335,9 +3408,9 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
       "external_evidence_invalid", "governed_store_unavailable"],
     unresolvedReason: ["unreadable_evidence", "image_identity_unresolved"],
     matchingEvidence: ["barcode", "exact_variant", "personal_alias", "global_alias", "generic_family"],
-    field: ["classification.isFood"],
+    field: ["classification.isFood", "identity.foodName"],
   };
-  return enumStates[operand.name.text]?.includes(literal) ?? false;
+  return enumStates[field]?.includes(literal) ?? false;
 }
 
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {

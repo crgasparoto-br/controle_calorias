@@ -94,9 +94,12 @@ A decisao anterior permanece imutavel, inclusive apos serializacao.
 
 Sem nova evidencia conflitante, com a mesma revisao e porcao ainda vigente, a
 continuidade pode preservar o snapshot aceito durante indisponibilidade do
-banco. Uma validade encerrada impede esse caminho. Revogacoes ou edicoes
-observadas em nova leitura/revisao nao reutilizam a conversao antiga. O nucleo
-nao afirma detectar mudanca remota sem nova leitura ou revisao de conhecimento.
+banco somente se `knowledgeValidity` comprovar a elegibilidade atual do
+conhecimento no mesmo usuario e versao do resolvedor (ADR §5). O prazo inclui
+perfil, autorizacoes de fontes e transicoes temporais que possam mudar a
+selecao. Metadado ausente ou validade encerrada exige reconsulta. Revogacoes
+ou edicoes observadas em nova leitura/revisao nao reutilizam a conversao antiga.
+O nucleo nao afirma detectar mudanca remota sem nova leitura ou revisao de conhecimento.
 
 A regressao integrada em `resolverRepository.test.ts` percorre repositorio,
 read-through, resolvedor e schema reais, simulando apenas o acesso SQL: uma

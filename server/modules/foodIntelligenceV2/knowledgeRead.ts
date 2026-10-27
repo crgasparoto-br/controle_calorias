@@ -1,5 +1,6 @@
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import type { GovernedFoodPortion } from "./portionProvenance";
+import type { FoodKnowledgeValidity } from "./knowledgeValidity";
 
 /**
  * Issue #1302: single V2 read contract / cache-through orchestrator.
@@ -40,6 +41,8 @@ export type GovernedFoodMatch = {
   nutrition: NutritionFacts;
   governanceStatus: "verified" | "provisional";
   portions: readonly GovernedFoodPortion[];
+  /** Absence never authorizes reuse; the repository includes all validity dependencies. */
+  knowledgeValidity?: FoodKnowledgeValidity;
 };
 
 export type FoodKnowledgeLocalResult =

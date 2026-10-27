@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { foodPortionSnapshotSchema, assertGovernedPortionConsistency } from "./portionProvenance";
+import { foodKnowledgeValiditySchema } from "./knowledgeValidity";
 import {
   assertDeclaredPhysicalConsistency,
   assertNutritionEvidenceAndScaleConsistency,
@@ -171,6 +172,8 @@ export const foodResolutionDecisionSchema = z
     evidence: z.array(foodEvidenceSchema).max(FOOD_CONTRACT_LIMITS.collection),
     knowledgeRevision: nonEmptyText.max(FOOD_CONTRACT_LIMITS.shortText),
     policyVersion: nonEmptyText.max(FOOD_CONTRACT_LIMITS.shortText),
+    // Historical snapshots remain readable; absence forces a fresh governed lookup.
+    knowledgeValidity: foodKnowledgeValiditySchema.optional(),
   })
   .superRefine((decision, ctx) => {
     rejectDuplicates(decision.observationIds, ctx, ["observationIds"]);

@@ -402,3 +402,97 @@ describe("F-1305-001/002: variant-bound portions through the actual repository",
     },
   );
 });
+
+const temporalStart = new Date("2026-10-26T10:00:00Z");
+const temporalBoundary = new Date("2026-10-26T10:01:00Z");
+type TemporalDependency = "profile" | "nutrition-source" | "portion-source";
+function installTemporalKnowledge(which: TemporalDependency, instant: Date) {
+  const row = { variant: { id: 22, status: "active", governanceStatus: "verified", variantType: "generic",
+    normalizedName: "mortadela", displayName: "Mortadela" },
+    family: { id: 4, status: "active", scope: "global", ownerUserId: null }, brand: null };
+  const currentProfile = { ...profile, foodVariantSourceId: null, validTo: which === "profile" ? temporalBoundary : null };
+  const portionSource = { id: 19, version: "portion-v1", sourceUrl: "https://example.org/portions/31" };
+  const portion = { id: 31, foodId: 4, foodVariantId: 22, label: "fatia", unit: "fatia", quantity: 1,
+    grams: 20, status: "verified", measureKind: "exact", confidence: null, evidenceId: 55,
+    sourceId: 19, sourceVersion: "portion-v1", sourcePortionCode: "slice-31",
+    validFrom: null, validTo: null, updatedAt: now };
+  const pages: unknown[][] = [[{ id: 22 }], [], [], [row], [currentProfile]];
+  if (which !== "profile" || instant < temporalBoundary) {
+    pages.push([{ source, grant: { ...grant, validUntil: which === "nutrition-source" ? temporalBoundary : null } }]);
+    if (which !== "nutrition-source" || instant < temporalBoundary) {
+      pages.push([portion], [{ source: portionSource, grant: { ...grant, sourceVersion: "portion-v1",
+        validUntil: which === "portion-source" ? temporalBoundary : null } }]);
+    }
+  }
+  return installPages(pages);
+}
+
+describe("source validity bounds pending resolver proposals", () => {
+  it.each(["profile", "nutrition-source", "portion-source"] as const)(
+    "revalidates at and after %s expiry, with unchanged knowledge revision", async which => {
+      const scoped = { ...context, userId: null, now: temporalStart };
+      const input = buildFoodObservationFixture();
+      installTemporalKnowledge(which, temporalStart);
+      const first = await resolveFoodObservation(input, scoped, createFoodV2KnowledgeRepository());
+      expect(first.status).toBe("resolved");
+      expect(first.knowledgeValidity).toEqual({ checkedAt: temporalStart.toISOString(),
+        validUntil: temporalBoundary.toISOString(), userId: null, resolverVersion: context.resolverVersion });
+      const frozen = JSON.stringify(first);
+      // Eligible reuse survives temporary SQL unavailability before the boundary.
+      vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
+      const live = await resolveFoodObservation(input, { ...scoped,
+        now: new Date("2026-10-26T10:00:59Z"), previousDecision: JSON.parse(frozen) },
+        createFoodV2KnowledgeRepository());
+      expect(live.status).toBe("resolved");
+      expect(live.nutrition).toEqual(first.nutrition);
+      for (const instant of [temporalBoundary, new Date("2026-10-26T10:02:00Z")]) {
+        const queries = installTemporalKnowledge(which, instant);
+        const next = await resolveFoodObservation(input,
+          { ...scoped, now: instant, previousDecision: JSON.parse(frozen) }, createFoodV2KnowledgeRepository());
+        expect(queries).toHaveBeenCalled();
+        expect(next.nextAction).not.toBe("propose");
+        expect(next.nutrition.consumed).toBeNull();
+        expect(parseFoodResolutionDecision(next).ok).toBe(true);
+        installTemporalKnowledge(which, instant);
+        const fresh = await resolveFoodObservation(input, { ...scoped, now: instant }, createFoodV2KnowledgeRepository());
+        expect(fresh.nextAction).toBe(next.nextAction);
+        expect(fresh.reasonCodes).toEqual(next.reasonCodes);
+      }
+      expect(JSON.stringify(first)).toBe(frozen);
+    });
+
+  it.each(["same-variant", "later-candidate"] as const)(
+    "expires reuse when a future profile becomes eligible: %s", async selection => {
+    const row = { variant: { id: 22, status: "active", governanceStatus: "verified", variantType: "generic",
+      normalizedName: "mortadela", displayName: "Mortadela" },
+      family: { id: 4, status: "active", scope: "global", ownerUserId: null }, brand: null };
+    const firstProfile = { ...profile, profileKey: "variant:22/source:7/g:100", foodVariantSourceId: null };
+    // Distinct sources/profile keys can coexist in the current slots.
+    const futureProfile = { ...firstProfile, id: 11, sourceId: 20,
+      profileKey: "variant:22/source:20/g:100", validFrom: temporalBoundary, caloriesKcal: 500 };
+    const futureSource = { ...source, id: 20, sourceUrl: "https://other-source.example/profile/22" };
+    const laterRow = { ...row, variant: { ...row.variant, id: 23 } };
+    const pages = (at: Date) => selection === "same-variant"
+      ? [[{ id: 22 }], [], [], [row], [firstProfile, futureProfile], [{ source, grant }],
+        ...(at >= temporalBoundary ? [[{ source: futureSource, grant }]] : [[]])]
+      : [[{ id: 22 }, { id: 23 }], [], [], [row], [firstProfile], [{ source, grant }], [],
+        [laterRow], [{ ...futureProfile, profileKey: "variant:23/source:20/g:100" }],
+        ...(at >= temporalBoundary ? [[{ source: futureSource, grant }], []] : [])];
+    const scoped = { ...context, userId: null };
+    const input = observation("mortadela");
+    installPages(pages(temporalStart));
+    const first = await resolveFoodObservation(input, { ...scoped, now: temporalStart }, createFoodV2KnowledgeRepository());
+    expect(first.status).toBe("resolved");
+    expect(first.knowledgeValidity?.validUntil).toBe(temporalBoundary.toISOString());
+    const frozen = JSON.stringify(first);
+    for (const previousDecision of [undefined, JSON.parse(frozen)]) {
+      installPages(pages(temporalBoundary));
+      const current = await resolveFoodObservation(input,
+        { ...scoped, now: temporalBoundary, previousDecision }, createFoodV2KnowledgeRepository());
+      expect(current.nextAction).not.toBe("propose");
+      expect(current.reasonCodes).toContain("source_conflict");
+      expect(current.nutrition.consumed).toBeNull();
+    }
+    expect(JSON.stringify(first)).toBe(frozen);
+  });
+});

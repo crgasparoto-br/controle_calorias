@@ -26,6 +26,8 @@ const match: GovernedFoodMatch = {
     basisQuantity: 100, basisUnit: "g",
   },
   governanceStatus: "verified",
+  knowledgeValidity: { checkedAt: "2026-01-01T00:00:00Z", validUntil: null,
+    userId: context.userId, resolverVersion: context.resolverVersion },
   portions: [{ portionId: 105, foodEntityId: 101, variantId: 102,
     label: "fatia", unit: "fatia", quantity: 1, grams: 20, status: "verified",
     measureKind: "exact", confidence: null, sourceId: 106, sourceVersion: "portion-v1",
@@ -641,6 +643,221 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(second.nutrition.consumed).toBeNull();
     expect(store.readLocal).toHaveBeenCalledTimes(2);
     expect(parseFoodResolutionDecision(second).ok).toBe(true);
+  });
+
+
+  it.each([
+    { value: 100, unit: "g", grams: 100, calories: 270 },
+    { value: 2, unit: "fatia", grams: 40, calories: 108 },
+  ])("completa quantidade ausente com $value $unit, inclusive sem repetir identidade", async supplied => {
+    const seed = buildFoodObservationFixture();
+    const missing = buildFoodObservationFixture({
+      quantityHints: { value: null, unit: null, servingText: null },
+    });
+    missing.evidence = seed.evidence.filter(item => !item.field.startsWith("quantity."));
+    const store = fakeStore(match);
+    const first = await resolveFoodObservation(missing, context, store);
+    expect(first.reasonCodes).toContain("quantity_missing");
+    const frozen = JSON.stringify(first);
+    for (const foodName of ["mortadela", null]) {
+      const reply = buildFoodObservationFixture({
+        identityHints: { foodName },
+        quantityHints: { value: supplied.value, unit: supplied.unit, servingText: null },
+      });
+      reply.evidence = [{ ...seed.evidence[1], value: supplied.value, unit: supplied.unit }];
+      const current = await resolveFoodObservation(reply,
+        { ...context, previousDecision: JSON.parse(frozen) }, store);
+      expect(current.status).toBe("resolved");
+      expect(current.nextAction).toBe("propose");
+      expect(current.quantity.value).toBe(supplied.value);
+      expect(current.quantity.grams).toBe(supplied.grams);
+      expect(current.nutrition.consumed?.calories).toBe(supplied.calories);
+      expect(current.reasonCodes).not.toContain("source_conflict");
+      expect(current.identity.variantId).toBe(first.identity.variantId);
+      expect(parseFoodResolutionDecision(current).ok).toBe(true);
+      expect(store.readLocal).toHaveBeenLastCalledWith(expect.objectContaining({ normalizedName: "mortadela" }));
+    }
+    expect(JSON.stringify(first)).toBe(frozen);
+  });
+
+  it.each([
+    ["variant.variantId", 202], ["variant.foodEntityId", 201],
+    ["variant.candidateKey", "variant:202"], ["identity.brand", "Outra marca"],
+    ["identity.barcode", "7899999999999"], ["identity.variant", "Outra variante"],
+  ] as const)("reconcilia evidência forte %s antes da proposta inicial e continuada", async (field, value) => {
+    const seed = buildFoodObservationFixture();
+    const store = fakeStore(match);
+    const first = await resolveFoodObservation(seed, context, store);
+    const frozen = JSON.stringify(first);
+    const observed = buildFoodObservationFixture({ evidence: [...seed.evidence, {
+      ...seed.evidence[0], evidenceId: "independent-verified-identity", field, value,
+      verified: true, origin: "catalog", sourceId: 501,
+      anchor: { sourceRef: "catalog:independent", span: null, region: null },
+    }] });
+    for (const previousDecision of [undefined, JSON.parse(frozen)]) {
+      const current = await resolveFoodObservation(observed, { ...context, previousDecision }, store);
+      expect(current.nextAction).toBe("clarify");
+      expect(current.reasonCodes).toContain("source_conflict");
+      expect(current.unresolvedFields).toContain("identity");
+      expect(current.unresolvedFields).toContain("variant");
+      expect(current.identity.variantId).toBeNull();
+      expect(current.quantity.value).toBe(seed.quantityHints.value);
+      expect(current.quantity.grams).toBeNull();
+      expect(current.nutrition.consumed).toBeNull();
+      expect(current.evidence).toContainEqual(expect.objectContaining({ evidenceId: "independent-verified-identity", value }));
+      expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    }
+    expect(JSON.stringify(first)).toBe(frozen);
+  });
+
+  it("aceita identidade verificada concordante sem inventar conflito", async () => {
+    const seed = buildFoodObservationFixture();
+    const decision = await resolveFoodObservation(buildFoodObservationFixture({
+      evidence: [...seed.evidence, { ...seed.evidence[0], evidenceId: "verified-variant",
+        field: "variant.variantId", value: match.variantId, verified: true, origin: "catalog", sourceId: 501 }],
+    }), context, fakeStore(match));
+    expect(decision.status).toBe("resolved");
+    expect(decision.nextAction).toBe("propose");
+    expect(decision.reasonCodes).toEqual([]);
+  });
+
+  it.each(["missing", "expired", "not-yet-valid", "other-user", "other-resolver"] as const)(
+    "reconsulta quando elegibilidade temporal é %s sem mutar histórico", async change => {
+      const at = new Date("2026-10-26T10:00:00Z");
+      const store = fakeStore(match);
+      const original = await resolveFoodObservation(buildFoodObservationFixture(), { ...context, now: at }, store);
+      const previous = JSON.parse(JSON.stringify(original));
+      if (change === "missing") delete previous.knowledgeValidity;
+      if (change === "expired") previous.knowledgeValidity.validUntil = at.toISOString();
+      if (change === "not-yet-valid") previous.knowledgeValidity.checkedAt = "2026-10-26T10:01:00Z";
+      if (change === "other-user") previous.knowledgeValidity.userId = 99;
+      if (change === "other-resolver") previous.knowledgeValidity.resolverVersion = "retired";
+      const frozen = JSON.stringify(previous);
+      vi.mocked(store.readLocal).mockRejectedValue(new Error("unavailable"));
+      const current = await resolveFoodObservation(buildFoodObservationFixture(),
+        { ...context, now: at, previousDecision: previous }, store);
+      expect(store.readLocal).toHaveBeenCalledTimes(2);
+      expect(current.nextAction).not.toBe("propose");
+      expect(current.nutrition.consumed).toBeNull();
+      expect(JSON.stringify(previous)).toBe(frozen);
+    });
+
+
+  it.each(["defumada", "Mortadela defumada", "crua"])(
+    "preserva qualificadores de variante comprovados e rejeita contradição: %s", async claim => {
+      const seed = buildFoodObservationFixture();
+      const input = buildFoodObservationFixture({
+        identityHints: { foodName: "mortadela defumada", variant: "defumada" },
+        evidence: [{ ...seed.evidence[0], value: "mortadela defumada" }, seed.evidence[1], {
+          ...seed.evidence[0], evidenceId: "verified-variant-attribute", field: "identity.variant",
+          value: claim, sourceId: 501, origin: "catalog", verified: true,
+        }],
+      });
+      const store = fakeStore({ ...match, variantName: "Mortadela defumada" });
+      const current = await resolveFoodObservation(input, context, store);
+      if (claim === "crua") {
+        expect(current.nextAction).not.toBe("propose");
+        expect(current.reasonCodes).toContain("source_conflict");
+      } else {
+        expect(current.status).toBe("resolved");
+        expect(current.nextAction).toBe("propose");
+        expect(current.reasonCodes).toEqual([]);
+        expect(current.identity.variant).toBe("defumada");
+        const snapshot = JSON.stringify(current);
+        vi.mocked(store.readLocal).mockRejectedValue(new Error("temporarily unavailable"));
+        const repeated = await resolveFoodObservation(input,
+          { ...context, previousDecision: JSON.parse(snapshot) }, store);
+        expect(repeated.identity).toEqual(current.identity);
+        expect(repeated.quantity).toEqual(current.quantity);
+        expect(repeated.status).toBe("resolved");
+        expect(store.readLocal).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(current)).toBe(snapshot);
+      }
+      expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    });
+
+  it("preserva identidade elegível e quantidade respondida durante falha, e tenta novamente", async () => {
+    const seed = buildFoodObservationFixture();
+    const missing = buildFoodObservationFixture({ quantityHints: { value: null, unit: null, servingText: null } });
+    missing.evidence = [seed.evidence[0]];
+    const store = fakeStore(match);
+    const first = await resolveFoodObservation(missing, context, store);
+    const reply = buildFoodObservationFixture({ identityHints: { foodName: null },
+      quantityHints: { value: 100, unit: "g", servingText: null } });
+    reply.evidence = [{ ...seed.evidence[1], value: 100, unit: "g" }];
+    vi.mocked(store.readLocal).mockRejectedValueOnce(new Error("unavailable"));
+    const pending = await resolveFoodObservation(reply, { ...context, previousDecision: first }, store);
+    expect(pending.status).toBe("partially_resolved");
+    expect(pending.nextAction).toBe("retry");
+    expect(pending.identity).toEqual(first.identity);
+    expect(pending.quantity.grams).toBe(100);
+    expect(pending.nutrition.consumed).toBeNull();
+    expect(pending.unresolvedFields).toEqual(["nutrition"]);
+    const retried = await resolveFoodObservation(reply, { ...context, previousDecision: pending }, store);
+    expect(store.readLocal).toHaveBeenCalledTimes(3);
+    expect(retried.status).toBe("resolved");
+    expect(retried.quantity.grams).toBe(100);
+    expect(retried.nutrition.consumed?.calories).toBe(270);
+  });
+
+
+  it("completa quantidade usando nome canônico sem contradizer alias já comprovado da mesma variante", async () => {
+    const seed = buildFoodObservationFixture();
+    const initial = buildFoodObservationFixture({ identityHints: { foodName: "meu lanche" },
+      quantityHints: { value: null, unit: null, servingText: null } });
+    initial.evidence = [{ ...seed.evidence[0], value: "meu lanche" }];
+    const store = fakeStore({ ...match, matchingEvidence: "personal_alias" });
+    const previous = await resolveFoodObservation(initial, context, store);
+    expect(previous.reasonCodes).toContain("quantity_missing");
+    const reply = buildFoodObservationFixture({ identityHints: { foodName: "Mortadela" },
+      quantityHints: { value: 100, unit: "g", servingText: null } });
+    reply.evidence = [{ ...seed.evidence[1], value: 100, unit: "g" }];
+    const current = await resolveFoodObservation(reply, { ...context, previousDecision: previous }, store);
+    expect(current.status).toBe("resolved");
+    expect(current.identity.variantId).toBe(previous.identity.variantId);
+    expect(current.nutrition.consumed?.calories).toBe(270);
+    expect(current.reasonCodes).toEqual([]);
+  });
+
+
+  it("mantém evidência independente de variante em três turnos após completar só a quantidade", async () => {
+    const seed = buildFoodObservationFixture();
+    const entry = (name: string | null, value: number | null) => {
+      const rawInput = [value, value === null ? null : "g", name].filter(item => item !== null).join(" ");
+      const anchor = { ...seed.surfaceSpan, span: { start: 0, end: rawInput.length } };
+      return { ...structuredClone(seed), rawInput, normalizedInput: rawInput, surfaceSpan: anchor,
+        normalizationPath: seed.normalizationPath.map(item => ({ ...item, anchor })),
+        identityHints: { ...seed.identityHints, foodName: name, variant: name ? "defumada" : null },
+        quantityHints: { ...seed.quantityHints, value, unit: value === null ? null : "g", servingText: null },
+        evidence: [
+          ...(name === null ? [] : [{ ...seed.evidence[0], value: name, anchor }, {
+            ...seed.evidence[0], evidenceId: "verified-variant-attribute", field: "identity.variant",
+            value: "defumada", sourceId: 501, origin: "catalog" as const,
+            anchor: { sourceRef: "catalog:variant-attribute", span: null, region: null },
+          }]),
+          ...(value === null ? [] : [{ ...seed.evidence[1], value, unit: "g", anchor }]),
+        ],
+      };
+    };
+    const store = fakeStore({ ...match, variantName: "Mortadela defumada" });
+    const first = await resolveFoodObservation(entry("mortadela defumada", null), context, store);
+    expect(first.reasonCodes).toContain("quantity_missing");
+    const second = await resolveFoodObservation(entry(null, 100), { ...context, previousDecision: first }, store);
+    expect(second.status).toBe("resolved");
+    expect(second.identity.variant).toBe("defumada");
+    expect(second.identity.evidenceIds).toContain("verified-variant-attribute");
+    expect(second.evidence).toContainEqual(first.evidence.find(item => item.evidenceId === "verified-variant-attribute"));
+    const frozen = JSON.stringify(second);
+    vi.mocked(store.readLocal).mockRejectedValue(new Error("unavailable"));
+    const third = await resolveFoodObservation(entry("mortadela defumada", 100),
+      { ...context, previousDecision: JSON.parse(frozen) }, store);
+    expect(store.readLocal).toHaveBeenCalledTimes(2);
+    expect(third.status).toBe("resolved");
+    expect(third.identity).toEqual(second.identity);
+    expect(third.quantity).toEqual(second.quantity);
+    expect(third.nutrition).toEqual(second.nutrition);
+    expect(parseFoodResolutionDecision(third).ok).toBe(true);
+    expect(JSON.stringify(second)).toBe(frozen);
   });
 
 });

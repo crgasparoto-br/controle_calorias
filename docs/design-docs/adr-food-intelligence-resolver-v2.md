@@ -421,6 +421,12 @@ type FoodResolutionDecision = {
   evidence: FoodEvidence[];
   knowledgeRevision: string;
   policyVersion: string;
+  knowledgeValidity?: {
+    checkedAt: string;
+    validUntil: string | null;
+    userId: number | null;
+    resolverVersion: string;
+  };
 };
 ```
 
@@ -429,6 +435,8 @@ type FoodResolutionDecision = {
 A base nutricional explícita substitui `per100g` como único formato: o modelo físico já suporta `g`, `ml` e `serving`. Calorias usam kcal, macros/fibra/açúcar usam g e sódio usa mg. Quantidades de base e de consumo aceitas são positivas; nutrientes são finitos e não negativos. Zero comprovado é valor válido; ausência de nutrição usa `basis=null`/`consumed=null`, nunca um conjunto de zeros. `consumed` é calculado pela relação física comprovada e preserva a base original. Converter ml em g exige densidade/evidência; peso de embalagem não é quantidade consumida e 100 g não é uma unidade implícita.
 
 `revision` é inteiro positivo crescente na mesma decisão; nova evidência pode gerar nova revisão com vínculo à anterior na continuidade persistente. Referências de evidência, hipóteses e candidatos não podem apontar para outro proprietário. `status` segue precedência: conflito material → `ambiguous`; sem identidade sustentada → `unknown`; identidade sustentada com lacuna material → `partially_resolved`; demais fatos necessários suficientes → `resolved`.
+
+`knowledgeValidity` registra a elegibilidade temporal comprovada pelo repositório governado para reutilizar uma proposta pendente. `checkedAt` e `validUntil` são instantes ISO; o prazo considera conservadoramente vencimentos de perfil, autorizações das fontes, provas de identidade e porções, além do início de vigência de registros consultados que possa mudar a seleção. `validUntil=null` declara que não há transição temporal conhecida nessas dependências verificadas; campo ausente em snapshots anteriores significa validade não demonstrada e exige reconsulta. O reuso exige o mesmo usuário, versão do resolvedor, revisão do conhecimento e política, relógio não anterior a `checkedAt` e estritamente anterior a `validUntil`, quando houver prazo. Expiração torna a proposta inelegível para novo `propose`; não autoriza alterar refeição histórica confirmada nem o snapshot anterior.
 
 Semântica obrigatória:
 
@@ -463,6 +471,8 @@ Consequências obrigatórias:
 - itens resolvidos em uma entrada multi-item não podem ser descartados porque outro item permanece ambíguo.
 
 - nenhum leitor pode recomputar macro ou remapear identidade de item histórico, e nenhuma correção de catálogo, nutrição ou classificação pode alterar relatório registrado sem operação explícita e auditada (§8.14).
+
+Uma resposta de clarificação pode preencher a quantidade ausente usando a identidade já aceita, mesmo quando o usuário informa somente a medida. Ausência anterior não é conflito com um valor aceito. Evidência forte nova de identidade, família, variante ou atributos comerciais deve ser reconciliada com o conjunto de evidências e o candidato governado antes de propor nutrição; contradições materiais permanecem explícitas, inclusive na continuidade.
 
 ## 7. Separação entre operação da refeição e alimento
 
