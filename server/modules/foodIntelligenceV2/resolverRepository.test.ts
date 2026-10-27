@@ -6,7 +6,7 @@ import { getDb } from "../../db";
 import { createFoodV2KnowledgeRepository } from "./repository";
 import { resolveFoodObservation } from "./resolver";
 import { buildFoodObservationFixture } from "./fixtures";
-import { parseFoodResolutionDecision } from "./schemas";
+import { parseFoodResolutionDecision, type FoodObservation } from "./schemas";
 
 vi.mock("../../db", () => ({ getDb: vi.fn() }));
 
@@ -284,6 +284,14 @@ function sliceObservation(name = "Pao de forma", quantity: number | null = 1) {
   };
 }
 
+/** A correction is a new user turn, not another claim on the same surface.
+ * The generic fixture defaults to turn:1:text for every observation. */
+function fromNextTurn(value: FoodObservation): FoodObservation {
+  const sourceRef = "turn:2:text";
+  return { ...value, surfaceSpan: { ...value.surfaceSpan, sourceRef },
+    evidence: value.evidence.map(item => ({ ...item, anchor: { ...item.anchor, sourceRef } })) };
+}
+
 describe("F-1305-001/002: variant-bound portions through the actual repository", () => {
   it.each([false, true])("replaces 20g with the new variant's 45g; omitted count=%s", async omitted => {
     installPortionKnowledge();
@@ -295,7 +303,7 @@ describe("F-1305-001/002: variant-bound portions through the actual repository",
     const previous = JSON.parse(JSON.stringify(first)) as typeof first;
     const frozen = JSON.stringify(previous);
     installPortionKnowledge({ variantId: 23, name: "Pao integral", grams: 45 });
-    const current = await resolveFoodObservation(sliceObservation("Pao integral", omitted ? null : 1),
+    const current = await resolveFoodObservation(fromNextTurn(sliceObservation("Pao integral", omitted ? null : 1)),
       { ...context, previousDecision: previous }, store);
     expect(current.status).toBe("resolved");
     expect(current.nextAction).toBe("propose");
@@ -313,7 +321,7 @@ describe("F-1305-001/002: variant-bound portions through the actual repository",
     const store = createFoodV2KnowledgeRepository();
     const previous = await resolveFoodObservation(sliceObservation(), context, store);
     installPortionKnowledge({ variantId: 23, name: "Pao integral", portionExists: false });
-    const current = await resolveFoodObservation(sliceObservation("Pao integral", null),
+    const current = await resolveFoodObservation(fromNextTurn(sliceObservation("Pao integral", null)),
       { ...context, previousDecision: previous }, store);
     expect(current.status).toBe("partially_resolved");
     expect(current.nextAction).toBe("clarify");
@@ -329,13 +337,31 @@ describe("F-1305-001/002: variant-bound portions through the actual repository",
     const store = createFoodV2KnowledgeRepository();
     const previous = await resolveFoodObservation(observation("Pao de forma"), context, store);
     installPortionKnowledge({ variantId: 23, name: "Pao integral", grams: 45 });
-    const current = await resolveFoodObservation(observation("Pao integral"),
+    const current = await resolveFoodObservation(fromNextTurn(observation("Pao integral")),
       { ...context, previousDecision: previous }, store);
     expect(current.status).toBe("resolved");
     expect(current.quantity).toEqual(previous.quantity);
     expect(current.quantity.grams).toBe(30);
     expect(current.quantity.portionSnapshot).toBeNull();
     expect(current.nutrition.consumed?.calories).toBe(30);
+  });
+
+  it("a contradictory name on the same surface is never silently accepted via a reused evidenceId", async () => {
+    installPortionKnowledge();
+    const store = createFoodV2KnowledgeRepository();
+    const previous = await resolveFoodObservation(sliceObservation(), context, store);
+    expect(previous.status).toBe("resolved");
+    installPortionKnowledge({ variantId: 23, name: "Pao integral", grams: 45 });
+    // Deliberately keep turn:1:text and ev-ident: two competing statements
+    // on the same surface are not a verified user correction.
+    const current = await resolveFoodObservation(sliceObservation("Pao integral"),
+      { ...context, previousDecision: previous }, store);
+    expect(current.status).toBe("unknown");
+    expect(current.nextAction).toBe("clarify");
+    expect(current.reasonCodes).toContain("source_conflict");
+    expect(current.nutrition.consumed).toBeNull();
+    expect(current.evidence.some(item => item.value === "Pao de forma" && item.origin === "text")).toBe(true);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
   });
 
   it("retains the actual portion source, evidence, version and non-exact measure kind", async () => {
