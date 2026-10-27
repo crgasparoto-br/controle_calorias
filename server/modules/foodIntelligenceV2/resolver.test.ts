@@ -397,8 +397,16 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
   });
 
   it("A-007: preserva marca governada sem alegação e revalida sua prova após mudar o produto", async () => {
-    const seed = buildFoodObservationFixture();
-    const original = await resolveFoodObservation(seed, context, fakeStore({ ...match, matchedBrand: "Marca A" }));
+    const measured = (brand: string | null) => {
+      const input = buildFoodObservationFixture({
+        identityHints: { brand }, quantityHints: { value: 30, unit: "g", servingText: "30 g" },
+      });
+      input.evidence[1] = { ...input.evidence[1], value: 30, unit: "g" };
+      return input;
+    };
+    const original = await resolveFoodObservation(measured(null), context, fakeStore({
+      ...match, matchedBrand: "Marca A",
+    }));
     expect(original.status).toBe("resolved");
     expect(original.identity.brand).toBe("Marca A");
     const originalProof = original.evidence.find(item =>
@@ -407,11 +415,10 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(originalProof).toMatchObject({ verified: true, sourceId: null,
       anchor: { sourceRef: "food-variant:102" } });
     const previous = JSON.parse(JSON.stringify(original)) as typeof original;
-    const next = await resolveFoodObservation(buildFoodObservationFixture({
-      identityHints: { brand: "Marca B" },
-    }), { ...context, previousDecision: previous }, fakeStore({
-      ...match, variantId: 203, matchedBrand: "Marca B",
-    }));
+    const next = await resolveFoodObservation(measured("Marca B"),
+      { ...context, previousDecision: previous }, fakeStore({
+        ...match, variantId: 203, matchedBrand: "Marca B",
+      }));
     expect(next.status).toBe("resolved");
     expect(next.identity.variantId).toBe(203);
     expect(next.identity.brand).toBe("Marca B");
