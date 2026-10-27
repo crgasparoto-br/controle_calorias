@@ -344,6 +344,52 @@ function isPureContractSizeBounds(value: ts.Expression): boolean {
     staticNutritionNumber(property.initializer) !== null);
 }
 
+/** Only an exact, runtime-bound nutrition profile anchor is structural
+ * provenance. Food literals, extra nutrient fields and substituted bindings
+ * must remain subject to the static-food gate. */
+function isGovernedNutritionProvenanceAnchor(node: ts.VariableDeclaration): boolean {
+  const object = node.initializer && unwrap(node.initializer);
+  if (!object || !ts.isObjectLiteralExpression(object) || object.properties.length !== 3) return false;
+  const fields = new Map<string, ts.Expression>();
+  for (const property of object.properties) {
+    if (!ts.isPropertyAssignment(property) ||
+        !(ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) ||
+        fields.has(property.name.text)) return false;
+    fields.set(property.name.text, unwrap(property.initializer));
+  }
+  if (fields.size !== 3 || fields.get("span")?.kind !== ts.SyntaxKind.NullKeyword ||
+      fields.get("region")?.kind !== ts.SyntaxKind.NullKeyword ||
+      !fields.has("sourceRef")) return false;
+  const tokens: string[] = [];
+  const collect = (input: ts.Expression): boolean => {
+    const value = unwrap(input);
+    if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      return collect(value.left) && collect(value.right);
+    }
+    if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
+      tokens.push(value.text);
+      return true;
+    }
+    if (ts.isPropertyAccessExpression(value) && ts.isIdentifier(value.expression) &&
+        value.expression.text === "match" && value.name.text === "profileId") {
+      tokens.push("<profileId>");
+      return true;
+    }
+    if (ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
+        value.expression.text === "snapshot" && value.arguments.length === 2 &&
+        value.arguments.every((argument, index) => {
+          const param = unwrap(argument);
+          return ts.isIdentifier(param) && param.text === (index === 0 ? "match" : "quantity");
+        })) {
+      tokens.push("<snapshot>");
+      return true;
+    }
+    return false;
+  };
+  return collect(fields.get("sourceRef")!) &&
+    tokens.join("|") === "food-nutrition-profile:|<profileId>|:|<snapshot>";
+}
+
 /**
  * Only the versioned, domain-neutral reason-code contract is exempt from
  * food-knowledge gate 17. A suffix such as `_unresolved` cannot establish
@@ -1864,7 +1910,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       return { symbol: symbol + ":meal-choice-catalog", subject: node.initializer.getText(source) };
     }
     if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
-        ((ts.isIdentifier(node.name) &&
+        (isGovernedNutritionProvenanceAnchor(node) ||
+        (ts.isIdentifier(node.name) &&
           /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(node.name.text) &&
           isPureContractSizeBounds(node.initializer) &&
           !isFoodNumericMapUse(node, source)) ||

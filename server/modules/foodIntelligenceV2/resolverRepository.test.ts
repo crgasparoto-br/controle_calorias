@@ -416,7 +416,8 @@ function installTemporalKnowledge(which: TemporalDependency, instant: Date) {
     grams: 20, status: "verified", measureKind: "exact", confidence: null, evidenceId: 55,
     sourceId: 19, sourceVersion: "portion-v1", sourcePortionCode: "slice-31",
     validFrom: null, validTo: null, updatedAt: now };
-  const pages: unknown[][] = [[{ id: 22 }], [], [], [row], [currentProfile]];
+  // An authenticated request queries personal aliases before the exact variant.
+  const pages: unknown[][] = [[], [{ id: 22 }], [], [], [row], [currentProfile]];
   if (which !== "profile" || instant < temporalBoundary) {
     pages.push([{ source, grant: { ...grant, validUntil: which === "nutrition-source" ? temporalBoundary : null } }]);
     if (which !== "nutrition-source" || instant < temporalBoundary) {

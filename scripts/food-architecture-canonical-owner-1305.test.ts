@@ -277,6 +277,28 @@ describe("#1305 canonical resolver architecture control", () => {
     expect(gate(findings).errors.some(error => error.includes("gate 17"))).toBe(true);
   });
 
+  it("exempts only a bound structural nutrition anchor, not food literals or fake provenance", () => {
+    const anchor = '{ sourceRef: "food-nutrition-profile:" + match.profileId + ":" + snapshot(match, quantity), span: null, region: null }';
+    const scan = (value: string) => inspect(`
+      export function nutritionFromMatch(match: { profileId: number }, quantity: unknown) {
+        const nutrientAnchor = ${value};
+        return nutrientAnchor;
+      }
+    `).filter(item => item.ruleId === "17" && item.symbol === "nutrientAnchor");
+    expect(scan(anchor)).toEqual([]);
+    for (const tampered of [
+      '{ sourceRef: "banana", span: null, region: null }',
+      '{ sourceRef: "food-nutrition-profile:" + match.profileId + ":banana", span: null, region: null }',
+      '{ sourceRef: "food-nutrition-profile:" + 7 + ":" + snapshot(match, quantity), span: null, region: null }',
+      anchor.replace("region: null", "region: null, calories: 120"),
+      anchor.replace("span: null", 'span: "banana"'),
+    ]) {
+      const findings = scan(tampered);
+      expect(findings.length).toBeGreaterThan(0);
+      expect(gate(findings).errors.some(error => error.includes("gate 17"))).toBe(true);
+    }
+  });
+
   it("the real source has no new static-food architecture findings", () => {
     const findings = inspect(readFileSync(path, "utf8"));
     expect(findings.filter(item => ["1", "2", "17", "18"].includes(item.ruleId))).toEqual([]);
