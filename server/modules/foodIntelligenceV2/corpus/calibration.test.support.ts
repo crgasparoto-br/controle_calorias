@@ -9,6 +9,8 @@ import {
   GOLDEN_CORPUS_MIN_MATCH_RATE,
   isUnpinnedRevision,
   type CorpusRevisions,
+  type CorpusGateStatus,
+  CORPUS_DECISION_CLASSES,
   type GoldenCorpus,
   type GoldenCorpusCase,
 } from "./contracts";
@@ -68,6 +70,25 @@ export interface CalibrationSegment {
   matchedResolvable: number;
   failedCases: number;
 }
+/** Independent expectation labels and observed failures, never resolver answers. */
+export interface CalibrationCaseFact {
+  caseId: string;
+  decisionClass: GoldenCorpusCase["decisionClass"];
+  nonRecurrenceClasses: string[];
+  modality: string;
+  brand: string;
+  measure: string;
+  failed: boolean;
+}
+
+/** The global gate is recorded but not consumed during calibration selection:
+ * holdout failure must never influence which candidate is selected. It is
+ * mandatory, however, before any result can await external approval. */
+export interface CalibrationCorpusGate {
+  status: CorpusGateStatus;
+  blockReasons: string[];
+}
+
 export interface SplitEvidence {
   planId: string;
   candidateId: string;
@@ -91,7 +112,9 @@ export interface SplitEvidence {
   failuresByClass: Record<string, number>;
   /** Per-case evidence avoids compensating one new regression with another improvement. */
   failedCaseIds: string[];
+  caseFacts: CalibrationCaseFact[];
   segments: CalibrationSegment[];
+  corpusGate: CalibrationCorpusGate;
   /** Structural integrity failures block comparison, never become tuning feedback. */
   structuralViolations: string[];
 }
@@ -197,6 +220,46 @@ function segmentsFor(
   return out.sort((a, b) => a.dimension.localeCompare(b.dimension) || a.label.localeCompare(b.label));
 }
 
+/** Each exhaustive dimension counts each case exactly once. Non-recurrence
+ * classes may overlap, so they are rebuilt from case identities independently. */
+function segmentsFromFacts(facts: readonly CalibrationCaseFact[]): CalibrationSegment[] {
+  const dimensions = ["modality", "brand", "measure", "decisionClass", "nonRecurrenceClass"] as const;
+  const out: CalibrationSegment[] = [];
+  for (const dimension of dimensions) {
+    const grouped = new Map<string, CalibrationCaseFact[]>();
+    for (const fact of facts) {
+      const value = dimension === "nonRecurrenceClass" ? fact.nonRecurrenceClasses : fact[dimension];
+      for (const label of typeof value === "string" ? [value] : value) {
+        grouped.set(label, [...(grouped.get(label) ?? []), fact]);
+      }
+    }
+    for (const [label, cases] of grouped) {
+      out.push({
+        dimension, label, cases: cases.length,
+        resolvableLabeled: cases.filter(c => c.decisionClass === "resolvable").length,
+        matchedResolvable: cases.filter(c => c.decisionClass === "resolvable" && !c.failed).length,
+        failedCases: cases.filter(c => c.failed).length,
+      });
+    }
+  }
+  return out.sort((a, b) => a.dimension.localeCompare(b.dimension) || a.label.localeCompare(b.label));
+}
+
+function failuresByFacts(facts: readonly CalibrationCaseFact[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of facts) {
+    if (!item.failed) continue;
+    for (const name of ["decision:" + item.decisionClass,
+      ...item.nonRecurrenceClasses.map(code => "nonrecurrence:" + code)]) {
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+const canonicalCounts = (counts: Record<string, number>): string =>
+  JSON.stringify(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+
 /**
  * One-way projection: the selection API never receives a CorpusReport or holdout
  * results. Failure and segment calculations use ONLY labelled cases in the
@@ -237,14 +300,15 @@ export function projectSplitEvidence(
         Math.abs(splitMetric.matchRate - expectedRate) > 1e-10))) {
     throw new Error("calibration: harness counters inconsistent with independent labels");
   }
-  const failuresByClass: Record<string, number> = {};
-  for (const item of entries) {
-    if (!failed.has(item.caseId)) continue;
-    for (const name of ["decision:" + item.decisionClass,
-      ...item.nonRecurrenceClasses.map(code => "nonrecurrence:" + code)]) {
-      failuresByClass[name] = (failuresByClass[name] ?? 0) + 1;
-    }
-  }
+  const caseFacts: CalibrationCaseFact[] = entries.map(entry => {
+    const labels = segmentKeysOf(entry);
+    return {
+      caseId: entry.caseId, decisionClass: entry.decisionClass,
+      nonRecurrenceClasses: [...entry.nonRecurrenceClasses], modality: labels.modality,
+      brand: labels.brand, measure: labels.measure, failed: failed.has(entry.caseId),
+    };
+  }).sort((a, b) => a.caseId.localeCompare(b.caseId));
+  const failuresByClass = failuresByFacts(caseFacts);
   const structuralViolations: string[] = [];
   if (report.integrity.status !== "valid" || !report.integrity.reference.verified ||
       report.integrity.splitLeakage.length > 0) structuralViolations.push("corpus_integrity");
@@ -252,6 +316,15 @@ export function projectSplitEvidence(
       report.integrity.knowledgeWritesOutside.length ||
       report.integrity.knowledgeWritesAfterStep.length) structuralViolations.push("knowledge_write");
   if (report.resolver.id.startsWith("self-test:")) structuralViolations.push("synthetic_resolver");
+  // This is a global signal and may include holdout failures. Keep it out of
+  // parameter selection; enforce it at the separate approval boundary.
+  const gate = report.gate;
+  const corpusGate: CalibrationCorpusGate = gate
+    ? { status: gate.status, blockReasons: [...gate.blockReasons] }
+    : { status: "blocked", blockReasons: ["gate_missing"] };
+  if (gate?.status === "passed" && report.failures.length > 0) {
+    structuralViolations.push("corpus_gate_inconsistent");
+  }
   if (CORPUS_REVISION_KEYS.some(key => isUnpinnedRevision(report.revisions[key])) ||
       report.resolver.revision !== report.revisions.resolver) structuralViolations.push("revision_mismatch");
   return {
@@ -263,8 +336,8 @@ export function projectSplitEvidence(
     abstentions: splitMetric.abstentions, matchedCases: splitMetric.matchedCases,
     totalCostUsd: splitMetric.totalCostUsd, costSamples: splitMetric.costSamples,
     totalLatencyMs: splitMetric.totalLatencyMs, latencySamples: splitMetric.latencySamples,
-    failuresByClass, failedCaseIds: [...failed].sort(),
-    segments: segmentsFor(entries, failed), structuralViolations,
+    failuresByClass, failedCaseIds: [...failed].sort(), caseFacts,
+    segments: segmentsFor(entries, failed), corpusGate, structuralViolations,
   };
 }
 
@@ -298,10 +371,50 @@ function assertEvidence(
       new Set(evidence.failedCaseIds).size !== evidence.failedCaseIds.length) {
     throw new Error("calibration: missing or invalid denominator");
   }
+  // Reconstruct every published aggregate from individually-labelled cases.
+  // This catches bogus segment/class counters even when global rate improves.
+  if (!Array.isArray(evidence.caseFacts) || evidence.caseFacts.length !== evidence.cases ||
+      evidence.caseFacts.some(fact =>
+        !fact || typeof fact.caseId !== "string" || !fact.caseId.trim() ||
+        !CORPUS_DECISION_CLASSES.includes(fact.decisionClass) ||
+        !Array.isArray(fact.nonRecurrenceClasses) ||
+        fact.nonRecurrenceClasses.some(value => typeof value !== "string" || !value.trim()) ||
+        new Set(fact.nonRecurrenceClasses).size !== fact.nonRecurrenceClasses.length ||
+        [fact.modality, fact.brand, fact.measure].some(value => typeof value !== "string" || !value.trim()) ||
+        typeof fact.failed !== "boolean") ||
+      new Set(evidence.caseFacts.map(f => f.caseId)).size !== evidence.cases) {
+    throw new Error("calibration: invalid or duplicate per-case evidence");
+  }
+  const facts = evidence.caseFacts;
+  const failedIds = facts.filter(f => f.failed).map(f => f.caseId).sort();
+  const matchedResolvable = facts.filter(f => f.decisionClass === "resolvable" && !f.failed).length;
+  if (facts.filter(f => f.decisionClass === "resolvable").length !== evidence.resolvableLabeled ||
+      matchedResolvable !== evidence.matchedResolvable ||
+      facts.filter(f => f.failed && f.decisionClass !== "resolvable").length !== evidence.nonResolvableFailures ||
+      JSON.stringify(failedIds) !== JSON.stringify([...evidence.failedCaseIds].sort()) ||
+      canonicalCounts(failuresByFacts(facts)) !== canonicalCounts(evidence.failuresByClass) ||
+      JSON.stringify(segmentsFromFacts(facts)) !== JSON.stringify(
+        [...evidence.segments].sort((a, b) => a.dimension.localeCompare(b.dimension) || a.label.localeCompare(b.label)))) {
+    throw new Error("calibration: per-case, class or segment metrics inconsistent");
+  }
+  if (!evidence.corpusGate ||
+      !["passed", "failed", "blocked", "sample_missing"].includes(evidence.corpusGate.status) ||
+      !Array.isArray(evidence.corpusGate.blockReasons) ||
+      evidence.corpusGate.blockReasons.some(v => typeof v !== "string" || !v.trim()) ||
+      new Set(evidence.corpusGate.blockReasons).size !== evidence.corpusGate.blockReasons.length ||
+      (evidence.corpusGate.status === "passed" && evidence.corpusGate.blockReasons.length > 0)) {
+    throw new Error("calibration: missing or contradictory corpus gate");
+  }
 }
 
 function comparable(baseline: SplitEvidence, trial: SplitEvidence): string[] {
   const reasons: string[] = [];
+  const sampleOf = (evidence: SplitEvidence): string => JSON.stringify(evidence.caseFacts.map(fact => ({
+    caseId: fact.caseId, decisionClass: fact.decisionClass, modality: fact.modality,
+    brand: fact.brand, measure: fact.measure,
+    nonRecurrenceClasses: [...fact.nonRecurrenceClasses].sort(),
+  })).sort((a, b) => a.caseId.localeCompare(b.caseId)));
+  if (sampleOf(baseline) !== sampleOf(trial)) reasons.push("case_universe_mismatch");
   if (baseline.cases !== trial.cases ||
       baseline.resolvableLabeled !== trial.resolvableLabeled ||
       baseline.segments.length !== trial.segments.length) reasons.push("sample_mismatch");
@@ -384,7 +497,11 @@ export function selectCalibrationCandidate(
   return {
     status: "locked_for_holdout", planId: plan.id,
     selectedCandidateId: feasible[0].candidateId, lockedAt,
-    calibrationDigest: digest({ plan, baseline, candidates, lockedAt }),
+    // The global gate may reflect holdout outcomes and is intentionally not
+    // used to rank candidates or to bind the pre-holdout selection.
+    calibrationDigest: digest({ plan,
+      baseline: { ...baseline, corpusGate: null },
+      candidates: candidates.map(item => ({ ...item, corpusGate: null })), lockedAt }),
     calibrationComparison: comparisons.map(c => ({
       candidateId: c.candidateId, reasons: c.reasons,
       matchedResolvable: c.matchedResolvable,
@@ -433,6 +550,19 @@ export function evaluateLockedHoldout(
     throw new Error("calibration: holdout exposed before selection lock");
   }
   const reasons = comparable(baseline, selected);
+  // A Golden report can carry independent blockers (e.g. wrong macro
+  // tolerance, metamorphic failures) even with 100% per-case counters.
+  // Fail closed at approval, never use the global gate while tuning.
+  for (const [role, evidence] of [
+    ["calibration_baseline", proof.baseline],
+    ...proof.candidates.map((item): [string, SplitEvidence] => ["calibration_candidate:" + item.candidateId, item]),
+    ["holdout_baseline", baseline], ["holdout_candidate", selected],
+  ] as [string, SplitEvidence][]) {
+    if (evidence.corpusGate.status !== "passed") {
+      reasons.push(role + ":corpus_gate_" + evidence.corpusGate.status);
+      reasons.push(...evidence.corpusGate.blockReasons.map(reason => role + ":" + reason));
+    }
+  }
   if (selected.matchedResolvable / selected.resolvableLabeled < GOLDEN_CORPUS_MIN_MATCH_RATE) {
     reasons.push("minimum_95_percent_not_met");
   }

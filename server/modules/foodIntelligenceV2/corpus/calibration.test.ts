@@ -4,7 +4,7 @@ import type { CorpusReport } from "./harness";
 import {
   CALIBRATION_PARAMETERS, evaluateLockedHoldout, projectSplitEvidence,
   selectCalibrationCandidate, verifyCalibrationPlan,
-  type CalibrationPlan, type CalibrationSegment, type SplitEvidence,
+  type CalibrationPlan, type CalibrationSegment, type CalibrationCaseFact, type SplitEvidence,
 } from "./calibration.test.support";
 
 const registeredAt = "2026-10-26T10:00:00.000Z";
@@ -45,18 +45,26 @@ function segments(matched = 12): CalibrationSegment[] {
     { dimension: "decisionClass", label: "resolvable", cases: 15, resolvableLabeled: 15, matchedResolvable: matched, failedCases: failed },
     { dimension: "decisionClass", label: "clarification", cases: 5, resolvableLabeled: 0, matchedResolvable: 0, failedCases: 0 },
     { dimension: "nonRecurrenceClass", label: "A", cases: 20, resolvableLabeled: 15, matchedResolvable: matched, failedCases: failed },
-  ];
+  ].sort((a, b) => a.dimension.localeCompare(b.dimension) || a.label.localeCompare(b.label));
 }
 
 /** Synthetic measurements solely to test the selector, never calibration evidence. */
 function evidence(
   candidateId: string, matched = 12,
-  split: SplitEvidence["split"] = "calibration",
+  split: SplitEvidence["split"] = "calibration", failureOffset = 0,
 ): SplitEvidence {
   const policies: Record<string, string> = {
     baseline: "test-policy-baseline", "candidate-a": "test-policy-a",
     "candidate-b": "test-policy-b",
   };
+  const failures = new Set(Array.from({ length: 15 - matched }, (_, i) =>
+    "synthetic-case-" + (failureOffset + i)));
+  const caseFacts: CalibrationCaseFact[] = Array.from({ length: 20 }, (_, i) => ({
+    caseId: "synthetic-case-" + i,
+    decisionClass: i < 15 ? "resolvable" as const : "clarification" as const,
+    nonRecurrenceClasses: ["A"], modality: "text", brand: "none", measure: "g",
+    failed: failures.has("synthetic-case-" + i),
+  }));
   return {
     planId: "pre-registered-c3-1", candidateId,
     runId: split + ":" + candidateId,
@@ -69,9 +77,11 @@ function evidence(
     nonResolvableFailures: 0, abstentions: 0,
     totalCostUsd: 0.05, costSamples: 20,
     totalLatencyMs: 300, latencySamples: 20,
-    failuresByClass: { "decision:resolvable": 15 - matched },
-    failedCaseIds: Array.from({ length: 15 - matched }, (_, i) => "synthetic-failure-" + i),
-    segments: segments(matched), structuralViolations: [],
+    failuresByClass: matched < 15
+      ? { "decision:resolvable": 15 - matched, "nonrecurrence:A": 15 - matched } : {},
+    failedCaseIds: [...failures].sort(), caseFacts,
+    segments: segments(matched), corpusGate: { status: "passed", blockReasons: [] },
+    structuralViolations: [],
   };
 }
 
@@ -131,14 +141,34 @@ describe("#1306 C3: pre-registration and offline calibration", () => {
       [evidence("candidate-a", 14), evidence("candidate-b", 15)], lockedAt)).toEqual(result);
   });
 
-  it("blocks calibration regression even when aggregate rate is improved", () => {
-    const worseSegment = evidence("candidate-a", 15);
-    worseSegment.segments.find(item => item.dimension === "brand")!.matchedResolvable = 11;
-    const result = selectCalibrationCandidate(parameterPlan(), evidence("baseline", 12),
-      [worseSegment, evidence("candidate-b", 11)], lockedAt);
+  it("blocks a genuine brand regression even when aggregate rate improves", () => {
+    const brandBuckets = (item: SplitEvidence): SplitEvidence => {
+      const caseFacts = item.caseFacts.map((fact, i) => ({
+        ...fact, brand: i < 10 ? "none" : "other",
+      }));
+      const brandRows: CalibrationSegment[] = ["none", "other"].map(label => {
+        const cases = caseFacts.filter(fact => fact.brand === label);
+        return {
+          dimension: "brand", label, cases: cases.length,
+          resolvableLabeled: cases.filter(fact => fact.decisionClass === "resolvable").length,
+          matchedResolvable: cases.filter(fact => fact.decisionClass === "resolvable" && !fact.failed).length,
+          failedCases: cases.filter(fact => fact.failed).length,
+        };
+      });
+      return { ...item, caseFacts, segments: [
+        ...item.segments.filter(row => row.dimension !== "brand"), ...brandRows,
+      ].sort((a, b) => a.dimension.localeCompare(b.dimension) || a.label.localeCompare(b.label)) };
+    };
+    const baseline = brandBuckets(evidence("baseline", 12));
+    // The candidate fixes one net case, but starts failing in a previously
+    // perfect brand segment; averages cannot erase that regression.
+    const candidate = brandBuckets(evidence("candidate-a", 13, "calibration", 10));
+    const worse = brandBuckets(evidence("candidate-b", 11));
+    const result = selectCalibrationCandidate(parameterPlan(), baseline,
+      [candidate, worse], lockedAt);
     expect(result.status).toBe("blocked");
     if (result.status === "blocked") {
-      expect(result.comparisons[0].reasons).toContain("segment_regression:brand:none");
+      expect(result.comparisons[0].reasons).toContain("segment_regression:brand:other");
       expect(result.comparisons[1].reasons).toContain("match_regression");
     }
   });
@@ -188,8 +218,7 @@ describe("#1306 C3: pre-registration and offline calibration", () => {
 
   it("prevents new per-case regressions hidden by improved aggregates", () => {
     const candidate = evidence("candidate-a", 15);
-    const compensation = evidence("candidate-b", 14);
-    compensation.failedCaseIds = ["different-case"];
+    const compensation = evidence("candidate-b", 14, "calibration", 6);
     const selected = selectCalibrationCandidate(parameterPlan(), evidence("baseline", 12),
       [candidate, compensation], lockedAt);
     expect(selected.status).toBe("locked_for_holdout");
@@ -228,6 +257,54 @@ describe("#1306 C3: pre-registration and offline calibration", () => {
       { ...base, failedCaseIds: [] },
       [evidence("candidate-a"), evidence("candidate-b")], lockedAt)).toThrow();
   });
+  it("A-002: a blocked gate forbids any holdout acceptance, preserving all blockers", () => {
+    const plan = parameterPlan();
+    const proof = { baseline: evidence("baseline", 12),
+      candidates: [evidence("candidate-a", 15), evidence("candidate-b", 14)] };
+    const lock = selectCalibrationCandidate(plan, proof.baseline, proof.candidates, lockedAt);
+    expect(lock.status).toBe("locked_for_holdout");
+    if (lock.status !== "locked_for_holdout") return;
+    const malicious = {
+      ...evidence("candidate-a", 15, "holdout"),
+      corpusGate: { status: "blocked" as const, blockReasons: ["rounding_tolerance_not_calibrated"] },
+    };
+    const result = evaluateLockedHoldout(plan, lock,
+      evidence("baseline", 12, "holdout"), malicious, proof);
+    expect(result).toMatchObject({ status: "rejected", approved: false });
+    expect(result.reasons).toEqual(expect.arrayContaining([
+      "holdout_candidate:corpus_gate_blocked",
+      "holdout_candidate:rounding_tolerance_not_calibrated",
+    ]));
+    const blockedCalibration = { ...proof.candidates[0], corpusGate: malicious.corpusGate };
+    const changedProof = { ...proof, candidates: [blockedCalibration, proof.candidates[1]] };
+    // The reserved gate does not change which candidate was selected.
+    expect(selectCalibrationCandidate(plan, proof.baseline, changedProof.candidates, lockedAt)).toEqual(lock);
+    const result2 = evaluateLockedHoldout(plan, lock,
+      evidence("baseline", 12, "holdout"), evidence("candidate-a", 15, "holdout"), changedProof);
+    expect(result2.reasons).toContain("calibration_candidate:candidate-a:corpus_gate_blocked");
+  });
+
+  it("A-003: contradicting class, segment, per-case and source universes fail closed", () => {
+    const p = parameterPlan();
+    const base = evidence("baseline", 12);
+    const good = evidence("candidate-a", 15);
+    const other = evidence("candidate-b", 14);
+    const accept = (candidate: SplitEvidence) => selectCalibrationCandidate(p, base, [candidate, other], lockedAt);
+    expect(() => accept({ ...good, segments: good.segments.map((row, i) =>
+      i === 0 ? { ...row, failedCases: 17 } : row) })).toThrow(/metrics inconsistent/);
+    expect(() => accept({ ...good, failuresByClass: { "decision:clarification": 17 } })).toThrow(/metrics inconsistent/);
+    expect(() => accept({ ...good, failedCaseIds: ["unknown-case"] })).toThrow();
+    const badFacts = good.caseFacts.map((fact, i) => i === 0
+      ? { ...fact, caseId: "invented-case" } : fact);
+    const universe = accept({ ...good, caseFacts: badFacts });
+    expect(universe.status).toBe("locked_for_holdout");
+    if (universe.status === "locked_for_holdout") {
+      expect(universe.calibrationComparison[0].reasons).toContain("case_universe_mismatch");
+      expect(universe.selectedCandidateId).toBe("candidate-b");
+    }
+    expect(() => accept({ ...good, caseFacts: [...good.caseFacts, good.caseFacts[0]] })).toThrow();
+  });
+
 });
 
 describe("#1306: only split-scoped independent Golden labels reach tuning", () => {
@@ -258,6 +335,7 @@ describe("#1306: only split-scoped independent Golden labels reach tuning", () =
         status: "valid", reference: { verified: true }, splitLeakage: [],
         holdoutKnowledgeWrites: [], knowledgeWritesOutside: [], knowledgeWritesAfterStep: [],
       },
+      gate: { status: holdoutCaseId ? "failed" : "passed", blockReasons: [] },
     } as unknown as CorpusReport;
   }
 
@@ -269,7 +347,9 @@ describe("#1306: only split-scoped independent Golden labels reach tuning", () =
       "p", "baseline", "a", "2026-10-26T10:02:00.000Z", "calibration");
     const changed = projectSplitEvidence(goldenFoodCorpus, reportWithHoldoutFailure(caseId!),
       "p", "baseline", "a", "2026-10-26T10:02:00.000Z", "calibration");
-    expect(changed).toEqual(first);
+    // The global gate may reflect reserved answers, but must never affect
+    // calibration's local metrics, ranking or lock digest.
+    expect({ ...changed, corpusGate: null }).toEqual({ ...first, corpusGate: null });
     expect(first.segments.some(item => item.dimension === "modality")).toBe(true);
     expect(first.segments.some(item => item.dimension === "brand")).toBe(true);
     expect(first.segments.some(item => item.dimension === "measure")).toBe(true);
