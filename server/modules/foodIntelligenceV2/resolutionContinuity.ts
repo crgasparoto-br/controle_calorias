@@ -103,7 +103,7 @@ export function discardSupersededUserIdentityEvidence(
     if (!priorIds.has(old.evidenceId) || currentIds.has(old.evidenceId) ||
         !Object.hasOwn(currentValues, old.field) || typeof old.value !== "string" ||
         old.sourceId !== null ||
-        (old.origin !== "text" && old.origin !== "transcription" && old.origin !== "memory") ||
+        (old.origin !== "text" && old.origin !== "transcription") ||
         currentValues[old.field].some(hint => sameValue(hint, old.value as string))) continue;
     // A new turn may supersede a previous user statement, not a contradictory
     // statement from this same surface or an independently verified source.
