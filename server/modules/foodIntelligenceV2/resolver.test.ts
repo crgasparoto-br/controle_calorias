@@ -1136,6 +1136,185 @@ describe("F-1305-006: correção entre turnos não herda alegações supersedida
     expect(conflicting.reasonCodes).toContain("source_conflict");
   });
 
+  it("A-003: colisão de evidenceId entre catálogo e novo texto não apaga prova independente", async () => {
+    const store = selectFood();
+    const initial = turn("Mortadela", 61, { grams: 100 });
+    const independent = { ...initial.evidence[0], evidenceId: "independent:catalog",
+      origin: "catalog" as const, sourceId: 501,
+      anchor: { sourceRef: "catalog:verified", span: null, region: null } };
+    initial.evidence.push(independent);
+    const previous = await resolveFoodObservation(initial, context, store);
+    expect(previous.status).toBe("resolved");
+    const snapshot = JSON.stringify(previous);
+
+    const distinct = await resolveFoodObservation(turn("Presunto", 62),
+      { ...context, previousDecision: previous }, store);
+    const colliding = turn("Presunto", 62);
+    colliding.evidence[0].evidenceId = independent.evidenceId;
+    const originalInput = JSON.stringify(colliding);
+    const result = await resolveFoodObservation(colliding,
+      { ...context, previousDecision: previous }, store);
+    for (const decision of [distinct, result]) {
+      expect(decision.status).toBe("unknown");
+      expect(decision.nextAction).toBe("clarify");
+      expect(decision.reasonCodes).toContain("source_conflict");
+      expect(decision.nutrition.consumed).toBeNull();
+      expect(decision.evidence).toContainEqual(independent);
+      expect(parseFoodResolutionDecision(decision).ok).toBe(true);
+    }
+    expect(result.evidence.find(item => item.evidenceId === independent.evidenceId)).toEqual(independent);
+    expect(result.evidence.filter(item => item.value === "Presunto" && item.origin === "text"))
+      .toEqual([expect.objectContaining({ evidenceId: expect.stringMatching(/^turn-[0-9a-f]{40}$/) })]);
+    expect(new Set(result.evidence.map(item => item.evidenceId)).size).toBe(result.evidence.length);
+    expect(JSON.stringify(previous)).toBe(snapshot);
+    expect(JSON.stringify(colliding)).toBe(originalInput);
+  });
+
+  it("A-003: ID reutilizado não esconde classificação negativa verificada", async () => {
+    const initial = turn("Mortadela", 63);
+    initial.evidence.push({ ...initial.evidence[0], evidenceId: "independent:negative",
+      field: "classification.isFood", value: false, origin: "catalog", sourceId: 701,
+      anchor: { sourceRef: "catalog:negative", span: null, region: null } });
+    const store = selectFood();
+    const previous = await resolveFoodObservation(initial, context, store);
+    expect(previous.nextAction).toBe("reject");
+    const current = turn("Mortadela", 64, { grams: 100 });
+    current.evidence.push({ ...current.evidence[0], evidenceId: "independent:negative",
+      field: "classification.isFood", value: true, origin: "catalog", sourceId: 702,
+      anchor: { sourceRef: "catalog:positive", span: null, region: null } });
+    const result = await resolveFoodObservation(current,
+      { ...context, previousDecision: previous }, store);
+    expect(result.status).toBe("unknown");
+    expect(result.nextAction).toBe("clarify");
+    expect(result.reasonCodes).toContain("source_conflict");
+    expect(result.nutrition.consumed).toBeNull();
+    expect(result.evidence.filter(item => item.field === "classification.isFood")
+      .map(item => item.value)).toEqual([true, false]);
+    expect(parseFoodResolutionDecision(result).ok).toBe(true);
+  });
+
+  it("A-003: ID colidido em hipóteses concorrentes preserva os links e o snapshot", async () => {
+    const initial = turn("Mortadela", 65, { grams: 100 });
+    initial.evidence.push({ ...initial.evidence[0], evidenceId: "independent:catalog",
+      origin: "catalog", sourceId: 501,
+      anchor: { sourceRef: "catalog:verified", span: null, region: null } });
+    const store = selectFood();
+    const previous = await resolveFoodObservation(initial, context, store);
+    const current = turn("Presunto", 66);
+    current.evidence[0].evidenceId = "independent:catalog";
+    current.alternatives = [
+      { ...alternativeFor("presunto", "Presunto"), evidenceIds: ["independent:catalog"] },
+      { ...alternativeFor("mortadela", "Mortadela"), evidenceIds: ["independent:catalog"] },
+    ];
+    const result = await resolveFoodObservation(current,
+      { ...context, previousDecision: previous }, store);
+    const newEvidence = result.evidence.find(item => item.origin === "text" && item.value === "Presunto");
+    expect(newEvidence?.evidenceId).toMatch(/^turn-[0-9a-f]{40}$/);
+    expect(result.alternatives).toHaveLength(2);
+    expect(result.alternatives.every(item => item.evidenceIds.includes(newEvidence!.evidenceId))).toBe(true);
+    expect(result.evidence.some(item => item.evidenceId === "independent:catalog" &&
+      item.origin === "catalog" && item.value === "Mortadela")).toBe(true);
+    expect(result.nextAction).toBe("clarify");
+    expect(parseFoodResolutionDecision(result).ok).toBe(true);
+  });
+
+  it("A-003: a repetição do mesmo registro não duplica evidência nem inventa conflito", async () => {
+    const initial = turn("Mortadela", 67, { grams: 100 });
+    initial.evidence.push({ ...initial.evidence[0], evidenceId: "independent:catalog",
+      origin: "catalog", sourceId: 501,
+      anchor: { sourceRef: "catalog:verified", span: null, region: null } });
+    const store = selectFood();
+    const previous = await resolveFoodObservation(initial, context, store);
+    const equivalent = turn("Mortadela", 68);
+    equivalent.evidence.push(structuredClone(initial.evidence[initial.evidence.length - 1]));
+    const result = await resolveFoodObservation(equivalent,
+      { ...context, previousDecision: previous }, store);
+    expect(result.status).toBe("resolved");
+    expect(result.reasonCodes).toEqual([]);
+    expect(result.evidence.filter(item => item.evidenceId === "independent:catalog")).toHaveLength(1);
+    expect(result.evidence.some(item => item.evidenceId.startsWith("turn-"))).toBe(false);
+    expect(parseFoodResolutionDecision(result).ok).toBe(true);
+  });
+
+  it.each([
+    { next: 50, unit: "g", conflict: true },
+    { next: 0.05, unit: "kg", conflict: true },
+    { next: 100, unit: "g", conflict: false },
+    { next: 0.1, unit: "kg", conflict: false },
+    { next: 100, unit: "ml", conflict: true },
+  ])("A-004: snapshot grams-only versus $next $unit respeita conflito=$conflict", async row => {
+    const store = selectFood();
+    const previous = await resolveFoodObservation(turn("Mortadela", 71, { grams: 100 }), context, store);
+    expect(previous.status).toBe("resolved");
+    const gramsOnly = structuredClone(previous);
+    gramsOnly.quantity.value = null;
+    gramsOnly.quantity.unit = null;
+    gramsOnly.evidence = gramsOnly.evidence.map(item => item.field === "quantity.value"
+      ? { ...item, field: "quantity.grams" } : item);
+    expect(parseFoodResolutionDecision(gramsOnly).ok).toBe(true);
+    const immutable = JSON.stringify(gramsOnly);
+    const next = turn("Mortadela", 72, { grams: row.next });
+    next.quantityHints.unit = row.unit;
+    next.evidence.find(item => item.field === "quantity.value")!.unit = row.unit;
+    const decision = await resolveFoodObservation(next,
+      { ...context, previousDecision: gramsOnly }, store);
+    if (row.conflict) {
+      expect(decision.status).toBe("partially_resolved");
+      expect(decision.nextAction).toBe("clarify");
+      expect(decision.unresolvedFields).toContain("quantity");
+      expect(decision.reasonCodes).toContain("source_conflict");
+    } else {
+      expect(decision.status).toBe("resolved");
+      expect(decision.nextAction).toBe("propose");
+      expect(decision.reasonCodes).toEqual([]);
+      expect(decision.quantity.grams).toBe(100);
+      expect(decision.nutrition.consumed?.calories).toBe(270);
+    }
+    expect(parseFoodResolutionDecision(decision).ok).toBe(true);
+    expect(JSON.stringify(gramsOnly)).toBe(immutable);
+  });
+
+  it.each([
+    { next: 50, unit: "ml", conflict: true },
+    { next: 0.05, unit: "l", conflict: true },
+    { next: 100, unit: "ml", conflict: false },
+    { next: 0.1, unit: "l", conflict: false },
+    { next: 100, unit: "g", conflict: true },
+  ])("A-004: snapshot milliliters-only versus $next $unit respeita conflito=$conflict", async row => {
+    const volumeMatch = { ...match, nutrition: { ...match.nutrition, basisUnit: "ml" as const } };
+    const store = fakeStore(volumeMatch);
+    const original = turn("Mortadela", 73, { grams: 100 });
+    original.quantityHints.unit = "ml";
+    original.evidence.find(item => item.field === "quantity.value")!.unit = "ml";
+    const previous = await resolveFoodObservation(original, context, store);
+    expect(previous.status).toBe("resolved");
+    const volumeOnly = structuredClone(previous);
+    volumeOnly.quantity.value = null;
+    volumeOnly.quantity.unit = null;
+    volumeOnly.evidence = volumeOnly.evidence.map(item => item.field === "quantity.value"
+      ? { ...item, field: "quantity.milliliters" } : item);
+    expect(parseFoodResolutionDecision(volumeOnly).ok).toBe(true);
+    const immutable = JSON.stringify(volumeOnly);
+    const next = turn("Mortadela", 74, { grams: row.next });
+    next.quantityHints.unit = row.unit;
+    next.evidence.find(item => item.field === "quantity.value")!.unit = row.unit;
+    const decision = await resolveFoodObservation(next,
+      { ...context, previousDecision: volumeOnly }, store);
+    if (row.conflict) {
+      expect(decision.status).toBe("partially_resolved");
+      expect(decision.nextAction).toBe("clarify");
+      expect(decision.reasonCodes).toContain("source_conflict");
+      expect(decision.unresolvedFields).toContain("quantity");
+    } else {
+      expect(decision.status).toBe("resolved");
+      expect(decision.nextAction).toBe("propose");
+      expect(decision.quantity.milliliters).toBe(100);
+      expect(decision.nutrition.consumed?.calories).toBe(270);
+    }
+    expect(parseFoodResolutionDecision(decision).ok).toBe(true);
+    expect(JSON.stringify(volumeOnly)).toBe(immutable);
+  });
+
   it("não herda afirmações de outra conta ao receber correção direta", async () => {
     const store = selectFood();
     const original = await resolveFoodObservation(turn("Mortadela", 51, { grams: 100 }), context, store);

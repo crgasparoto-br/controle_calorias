@@ -93,6 +93,22 @@ function sameDeclaredQuantity(
     Math.abs(leftValue - rightValue) <= FOOD_QUANTITY_EPSILON;
 }
 
+/** A verified physical basis is authoritative even when a persisted decision
+ * omits value/unit. A household unit cannot silently equal a mass or volume. */
+function conflictsWithResolvedQuantity(quantity: Quantity, value: number, unit: string | null): boolean {
+  const declared = unit === null ? null : amount(value, unit);
+  if (declared?.basis === "g" && quantity.grams !== null) {
+    return Math.abs(quantity.grams - declared.value) > FOOD_QUANTITY_EPSILON;
+  }
+  if (declared?.basis === "ml" && quantity.milliliters !== null) {
+    return Math.abs(quantity.milliliters - declared.value) > FOOD_QUANTITY_EPSILON;
+  }
+  if (quantity.value !== null && quantity.unit !== null) {
+    return !sameDeclaredQuantity(quantity.value, quantity.unit, value, unit);
+  }
+  return quantity.grams !== null || quantity.milliliters !== null;
+}
+
 /** Strong numeric evidence cannot be used as provenance for a different quantity.
  * Compare direct value+unit claims and converted physical facts separately;
  * the latter is meaningful only after a governed conversion was performed. */
@@ -101,14 +117,14 @@ function hasConflictingQuantityEvidence(quantity: Quantity, evidence: readonly F
     typeof item.value === "number" && Number.isFinite(item.value));
   const valueClaims = verified.filter(item => item.field === "quantity.value");
   for (const claim of valueClaims) {
-    if (quantity.value !== null &&
-        !sameDeclaredQuantity(quantity.value, quantity.unit, claim.value as number, claim.unit)) {
-      return true;
-    }
+    if (conflictsWithResolvedQuantity(quantity, claim.value as number, claim.unit)) return true;
   }
   for (let i = 1; i < valueClaims.length; i++) {
     if (!sameDeclaredQuantity(valueClaims[0].value as number, valueClaims[0].unit,
-        valueClaims[i].value as number, valueClaims[i].unit)) return true;
+        valueClaims[i].value as number, valueClaims[i].unit) &&
+        !((quantity.grams !== null || quantity.milliliters !== null) &&
+          !conflictsWithResolvedQuantity(quantity, valueClaims[0].value as number, valueClaims[0].unit) &&
+          !conflictsWithResolvedQuantity(quantity, valueClaims[i].value as number, valueClaims[i].unit))) return true;
   }
   for (const [field, physical, unit] of [
     ["quantity.grams", quantity.grams, "g"],
@@ -140,8 +156,8 @@ function quantityFromObservation(
   if (prior && (prior.value !== null || prior.grams !== null || prior.milliliters !== null)) {
     // A fresh lookup revalidates the conversion even for a same-ID edited portion.
     quantity = withoutUnconfirmedPortion({ ...prior, evidenceIds: [...prior.evidenceIds] }, previous?.evidence ?? []);
-    incompatiblePrevious = q.value !== null && q.unit !== null && prior.value !== null &&
-      !sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit);
+    incompatiblePrevious = q.value !== null && q.unit !== null &&
+      conflictsWithResolvedQuantity(prior, q.value, q.unit);
   } else if (q.value !== null && q.unit !== null) {
     quantity.value = q.value;
     quantity.unit = q.unit;
@@ -342,6 +358,35 @@ function sameObservation(previous: FoodResolutionDecision | undefined, context: 
     previous.observationIds.length === 1 && previous.observationIds[0] === observation.observationId;
 }
 
+/** Evidence IDs are local identifiers, not cross-turn authority. Preserve an
+ * older independent fact even when the next observation reuses its ID for a
+ * different payload; remap only the incoming claim and its alternative links. */
+function namespaceCollidingTurnEvidence(
+  observation: FoodObservation, previous: FoodResolutionDecision,
+): FoodObservation {
+  const oldById = new Map(previous.evidence.map(item => [item.evidenceId, item]));
+  const reserved = new Set([...oldById.keys(), ...observation.evidence.map(item => item.evidenceId)]);
+  const remapped = new Map<string, string>();
+  const incoming = observation.evidence.map(item => {
+    const old = oldById.get(item.evidenceId);
+    if (!old || JSON.stringify(old) === JSON.stringify(item)) return item;
+    let nextId: string;
+    let attempt = 0;
+    do {
+      nextId = "turn-" + createHash("sha256").update(JSON.stringify([
+        previous.decisionId, observation.observationId, item, attempt++,
+      ])).digest("hex").slice(0, 40);
+    } while (reserved.has(nextId));
+    reserved.add(nextId);
+    remapped.set(item.evidenceId, nextId);
+    return { ...item, evidenceId: nextId };
+  });
+  if (remapped.size === 0) return observation;
+  return { ...observation, evidence: incoming, alternatives: observation.alternatives.map(candidate => ({
+    ...candidate, evidenceIds: candidate.evidenceIds.map(id => remapped.get(id) ?? id),
+  })) };
+}
+
 /**
  * Total for valid FoodObservation inputs and operational failures. Unknown,
  * conflicting and offline knowledge produce typed fail-closed decisions.
@@ -355,7 +400,7 @@ export async function resolveFoodObservation(
 ): Promise<FoodResolutionDecision> {
   const parsed = parseFoodObservation(observationInput);
   if (!parsed.ok) throw new TypeError("FoodObservation V2 inválida: " + parsed.code);
-  const observation = parsed.value;
+  let observation = parsed.value;
   if (!context.traceId?.trim() || !context.knowledgeRevision?.trim() ||
       !context.policyVersion?.trim() || !context.resolverVersion?.trim() ||
       context.userId !== null && (!Number.isSafeInteger(context.userId) || context.userId <= 0)) {
@@ -363,6 +408,7 @@ export async function resolveFoodObservation(
   }
   const previous = sameObservation(context.previousDecision, context, observation)
     ? context.previousDecision ?? null : null;
+  if (previous) observation = namespaceCollidingTurnEvidence(observation, previous);
   const now = context.now ?? new Date();
   const evidence: FoodEvidence[] = [...observation.evidence];
   if (previous) {
@@ -419,6 +465,7 @@ export async function resolveFoodObservation(
     const compatiblePreviousIdentity = previous !== null && canPreserveAcceptedIdentity(observation, previous);
     const fillsMissingQuantity = previous !== null &&
       (previous.quantity.value === null || previous.quantity.unit === null) &&
+      previous.quantity.grams === null && previous.quantity.milliliters === null &&
       observation.quantityHints.value !== null && observation.quantityHints.unit !== null;
     if (previous && previous.nextAction !== "retry" && !fillsMissingQuantity &&
         previous.knowledgeRevision === context.knowledgeRevision &&
@@ -429,8 +476,7 @@ export async function resolveFoodObservation(
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = (q.value !== null && q.unit !== null &&
-        prior.value !== null && prior.unit !== null &&
-        !sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit)) ||
+        conflictsWithResolvedQuantity(prior, q.value, q.unit)) ||
         hasConflictingQuantityEvidence(prior, evidence);
       const nutritionConflict = hasConflictingVerifiedNutritionEvidence(previous.nutrition, evidence);
       const conflict = quantityConflict || nutritionConflict;
