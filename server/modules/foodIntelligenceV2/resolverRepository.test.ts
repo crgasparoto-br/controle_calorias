@@ -497,3 +497,88 @@ describe("source validity bounds pending resolver proposals", () => {
     expect(JSON.stringify(first)).toBe(frozen);
   });
 });
+
+describe("F-1305-006: correção de usuário atravessa a leitura SQL governada", () => {
+  function genericDb(name: string, foodId: number, variantId: number, profileId: number) {
+    const row = {
+      variant: { id: variantId, status: "active", governanceStatus: "verified",
+        variantType: "generic", normalizedName: name, displayName: name },
+      family: { id: foodId, status: "active", scope: "global", ownerUserId: null,
+        normalizedName: name }, brand: null,
+    };
+    const pages: unknown[][] = [
+      [], [{ id: variantId }], [], [{ id: variantId }], [row],
+      [{ ...profile, id: profileId, foodVariantSourceId: null,
+        caloriesKcal: name === "pao" ? 250 : 180 }],
+      [{ source, grant }], [],
+    ];
+    const select = vi.fn(() => ({
+      from() { return this; }, innerJoin() { return this; }, leftJoin() { return this; },
+      where() { return this; },
+      limit: vi.fn(async () => {
+        if (!pages.length) throw new Error("Unexpected governed read");
+        return pages.shift();
+      }),
+    }));
+    return { select };
+  }
+
+  it.each([false, true] as const)(
+    "substitui evidência textual anterior sem apagar fonte independente (independente=%s)",
+    async independent => {
+      const db1 = genericDb("pao", 4, 22, 10);
+      const db2 = genericDb("presunto", 5, 23, 11);
+      vi.mocked(getDb).mockResolvedValueOnce(db1 as never).mockResolvedValueOnce(db2 as never);
+      const seed = buildFoodObservationFixture();
+      const firstAnchor = { sourceRef: "turn:1:text", span: { start: 0, end: 8 }, region: null };
+      const firstEvidence: ReturnType<typeof buildFoodObservationFixture>["evidence"] = [
+        { ...seed.evidence[0], evidenceId: "turn:1:name", value: "pao", anchor: firstAnchor },
+        { ...seed.evidence[1], evidenceId: "turn:1:quantity", value: 30, unit: "g", anchor: firstAnchor },
+      ];
+      if (independent) firstEvidence.push({
+        ...seed.evidence[0], evidenceId: "catalog:validated-name", origin: "catalog",
+        value: "pao", sourceId: 7,
+        anchor: { sourceRef: "catalog:source-7", span: null, region: null },
+      });
+      const firstInput = buildFoodObservationFixture({
+        rawInput: "pao 30 g", normalizedInput: "pao 30 g", normalizationPath: [],
+        surfaceSpan: firstAnchor, identityHints: { foodName: "pao" },
+        quantityHints: { value: 30, unit: "g", servingText: "30 g" }, evidence: firstEvidence,
+      });
+      const store = createFoodV2KnowledgeRepository();
+      const first = await resolveFoodObservation(firstInput, context, store);
+      expect(first.status).toBe("resolved");
+      const frozen = JSON.stringify(first);
+      const secondAnchor = { sourceRef: "turn:2:text", span: { start: 0, end: 8 }, region: null };
+      const secondInput = buildFoodObservationFixture({
+        rawInput: "presunto", normalizedInput: "presunto", normalizationPath: [],
+        surfaceSpan: secondAnchor, identityHints: { foodName: "presunto" },
+        quantityHints: { value: null, unit: null, servingText: null }, evidence: [],
+      });
+      secondInput.evidence = [{ ...seed.evidence[0], evidenceId: "turn:2:name",
+        value: "presunto", anchor: secondAnchor }];
+      const second = await resolveFoodObservation(secondInput,
+        { ...context, previousDecision: first }, store);
+      expect(db1.select).toHaveBeenCalled();
+      expect(db2.select).toHaveBeenCalled();
+      expect(second.quantity.value).toBe(30);
+      expect(second.quantity.unit).toBe("g");
+      expect(second.evidence.map(item => item.evidenceId)).not.toContain("turn:1:name");
+      expect(second.evidence.map(item => item.evidenceId)).toContain("turn:1:quantity");
+      if (independent) {
+        expect(second.status).toBe("unknown");
+        expect(second.reasonCodes).toContain("source_conflict");
+        expect(second.evidence.map(item => item.evidenceId)).toContain("catalog:validated-name");
+        expect(second.nutrition.consumed).toBeNull();
+      } else {
+        expect(second.status).toBe("resolved");
+        expect(second.nextAction).toBe("propose");
+        expect(second.identity.variantId).toBe(23);
+        expect(second.nutrition.profileId).toBe(11);
+        expect(second.nutrition.consumed?.calories).toBe(54);
+      }
+      expect(parseFoodResolutionDecision(second).ok).toBe(true);
+      expect(JSON.stringify(first)).toBe(frozen);
+    },
+  );
+});
