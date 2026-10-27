@@ -88,6 +88,10 @@ function installKnowledge(mode: Mode, invalid?: "brand" | "barcode" | "source" |
     row.variant.variantType = "generic";
     pages[mode === "brand" ? 6 : 8] = [];
   }
+  return installPages(pages);
+}
+
+function installPages(pages: unknown[][]) {
   const select = vi.fn(() => ({
     from() { return this; }, innerJoin() { return this; }, leftJoin() { return this; },
     where() { return this; },
@@ -238,4 +242,163 @@ describe("A-002: accepted governed identities remain monotonic", () => {
     expect(current.nutrition.consumed).toBeNull();
     expect(getDb).toHaveBeenCalledTimes(2);
   });
+});
+
+// The SQL adapter is doubled, but the repository, read-through, resolver and
+// Zod decision boundary are all real, including independent portion sources.
+function installPortionKnowledge(options: {
+  variantId?: number; name?: string; grams?: number; portionStatus?: string;
+  portionVersion?: string; sourceVersion?: string; sourceRevoked?: boolean;
+  updatedAt?: Date; portionExists?: boolean; measureKind?: "exact" | "usual_average";
+} = {}) {
+  const id = options.variantId ?? 22;
+  const name = options.name ?? "Pao de forma";
+  const portionSource = { id: 19, version: options.sourceVersion ?? "portion-v1",
+    sourceUrl: "https://manufacturer.example/portions/slice" };
+  const row = { variant: { id, status: "active", governanceStatus: "verified",
+    variantType: "generic", normalizedName: name.toLowerCase(), displayName: name },
+    family: { id: 4, status: "active", scope: "global", ownerUserId: null }, brand: null };
+  const portion = { id: 31, foodId: 4, foodVariantId: id, label: "fatia", unit: "fatia",
+    quantity: 1, grams: options.grams ?? 20, status: options.portionStatus ?? "verified",
+    measureKind: options.measureKind ?? "exact", confidence: 0.8, evidenceId: 55,
+    sourceId: 19, sourceVersion: options.portionVersion ?? "portion-v1",
+    sourcePortionCode: "SLICE-31", validFrom: null, validTo: null,
+    updatedAt: options.updatedAt ?? now };
+  return installPages([
+    [], [{ id }], [], [], [row],
+    [{ ...profile, foodVariantSourceId: null, caloriesKcal: 100 }], [{ source, grant }],
+    options.portionExists === false ? [] : [portion],
+    [{ source: portionSource, grant: { ...grant, sourceVersion: portionSource.version,
+      status: options.sourceRevoked ? "revoked" : "approved",
+      revokedAt: options.sourceRevoked ? now : null } }],
+  ]);
+}
+
+function sliceObservation(name = "Pao de forma", quantity: number | null = 1) {
+  const seed = observation(name);
+  return { ...seed,
+    quantityHints: { ...seed.quantityHints, value: quantity,
+      unit: quantity === null ? null : "fatia", servingText: null },
+    evidence: [seed.evidence[0], ...(quantity === null ? [] :
+      [{ ...seed.evidence[1], value: quantity, unit: "fatia" }])],
+  };
+}
+
+describe("F-1305-001/002: variant-bound portions through the actual repository", () => {
+  it.each([false, true])("replaces 20g with the new variant's 45g; omitted count=%s", async omitted => {
+    installPortionKnowledge();
+    const store = createFoodV2KnowledgeRepository();
+    const first = await resolveFoodObservation(sliceObservation(), context, store);
+    expect(first.status).toBe("resolved");
+    expect(first.quantity.grams).toBe(20);
+    expect(first.nutrition.consumed?.calories).toBe(20);
+    const previous = JSON.parse(JSON.stringify(first)) as typeof first;
+    const frozen = JSON.stringify(previous);
+    installPortionKnowledge({ variantId: 23, name: "Pao integral", grams: 45 });
+    const current = await resolveFoodObservation(sliceObservation("Pao integral", omitted ? null : 1),
+      { ...context, previousDecision: previous }, store);
+    expect(current.status).toBe("resolved");
+    expect(current.nextAction).toBe("propose");
+    expect(current.identity.variantId).toBe(23);
+    expect(current.quantity).toMatchObject({ value: 1, unit: "fatia", grams: 45,
+      portionId: 31, portionSnapshot: { variantId: 23, grams: 45 } });
+    expect(current.nutrition.consumed?.calories).toBe(45);
+    expect(current.evidence.some(item => item.field === "quantity.grams" && item.value === 20)).toBe(false);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    expect(JSON.stringify(previous)).toBe(frozen);
+  });
+
+  it("does not reuse the old conversion when the new identity has no eligible portion", async () => {
+    installPortionKnowledge();
+    const store = createFoodV2KnowledgeRepository();
+    const previous = await resolveFoodObservation(sliceObservation(), context, store);
+    installPortionKnowledge({ variantId: 23, name: "Pao integral", portionExists: false });
+    const current = await resolveFoodObservation(sliceObservation("Pao integral", null),
+      { ...context, previousDecision: previous }, store);
+    expect(current.status).toBe("partially_resolved");
+    expect(current.nextAction).toBe("clarify");
+    expect(current.quantity).toMatchObject({ value: 1, unit: "fatia", grams: null,
+      portionId: null, portionSnapshot: null });
+    expect(current.nutrition.consumed).toBeNull();
+    expect(current.reasonCodes).toContain("quantity_conversion_unproven");
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+  });
+
+  it("keeps independent measured mass across an identity change", async () => {
+    installPortionKnowledge();
+    const store = createFoodV2KnowledgeRepository();
+    const previous = await resolveFoodObservation(observation("Pao de forma"), context, store);
+    installPortionKnowledge({ variantId: 23, name: "Pao integral", grams: 45 });
+    const current = await resolveFoodObservation(observation("Pao integral"),
+      { ...context, previousDecision: previous }, store);
+    expect(current.status).toBe("resolved");
+    expect(current.quantity).toEqual(previous.quantity);
+    expect(current.quantity.grams).toBe(30);
+    expect(current.quantity.portionSnapshot).toBeNull();
+    expect(current.nutrition.consumed?.calories).toBe(30);
+  });
+
+  it("retains the actual portion source, evidence, version and non-exact measure kind", async () => {
+    const select = installPortionKnowledge({ measureKind: "usual_average" });
+    const current = await resolveFoodObservation(sliceObservation(), context, createFoodV2KnowledgeRepository());
+    expect(current.status).toBe("resolved");
+    expect(current.quantity).toMatchObject({ portionId: 31, measureKind: "usual_average", confidence: 0.8,
+      portionSnapshot: { portionId: 31, foodEntityId: 4, variantId: 22, sourceId: 19,
+        sourceVersion: "portion-v1", sourcePortionCode: "SLICE-31", evidenceId: 55,
+        sourceReference: "https://manufacturer.example/portions/slice",
+        updatedAt: now.toISOString(), status: "verified", grams: 20 } });
+    expect(current.nutrition.sourceId).toBe(7);
+    const proof = current.evidence.filter(item => current.quantity.evidenceIds.includes(item.evidenceId) &&
+      (item.field === "quantity.grams" || item.field === "quantity.portionId"));
+    expect(proof).toHaveLength(2);
+    expect(proof.every(item => item.sourceId === 19 && item.verified && item.origin === "catalog" &&
+      item.anchor.sourceRef.startsWith("food-portion:31:") && item.anchor.span === null)).toBe(true);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    expect(select).toHaveBeenCalledTimes(9);
+  });
+
+  it("preserves the same accepted portion after serialization during database unavailability", async () => {
+    installPortionKnowledge();
+    const store = createFoodV2KnowledgeRepository();
+    const first = await resolveFoodObservation(sliceObservation(), context, store);
+    const previous = JSON.parse(JSON.stringify(first)) as typeof first;
+    vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
+    const current = await resolveFoodObservation(sliceObservation("Pao de forma", null),
+      { ...context, previousDecision: previous }, store);
+    expect(current.status).toBe("resolved");
+    expect(current.quantity).toEqual(first.quantity);
+    expect(current.nutrition).toEqual(first.nutrition);
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    expect(getDb).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["edited", "revoked", "source-revoked", "source-stale"] as const)(
+    "revalidates same-ID portion on a new knowledge revision: %s", async change => {
+      installPortionKnowledge();
+      const store = createFoodV2KnowledgeRepository();
+      const first = await resolveFoodObservation(sliceObservation(), context, store);
+      const frozen = JSON.stringify(first);
+      installPortionKnowledge({ grams: 45, updatedAt: new Date("2026-10-21T12:01:00Z"),
+        portionStatus: change === "revoked" ? "revoked" : "verified",
+        sourceRevoked: change === "source-revoked",
+        sourceVersion: change === "source-stale" ? "portion-v2" : "portion-v1" });
+      const current = await resolveFoodObservation(sliceObservation("Pao de forma", null),
+        { ...context, knowledgeRevision: "k2", previousDecision: first }, store);
+      expect(current.quantity.value).toBe(1);
+      if (change === "edited") {
+        expect(current.status).toBe("resolved");
+        expect(current.quantity.grams).toBe(45);
+        expect(current.nutrition.consumed?.calories).toBe(45);
+        expect(current.nutrition.snapshotHash).not.toBe(first.nutrition.snapshotHash);
+      } else {
+        expect(current.nextAction).not.toBe("propose");
+        expect(current.quantity.grams).toBeNull();
+        expect(current.quantity.portionSnapshot).toBeNull();
+        expect(current.nutrition.consumed).toBeNull();
+      }
+      expect(current.knowledgeRevision).toBe("k2");
+      expect(parseFoodResolutionDecision(current).ok).toBe(true);
+      expect(JSON.stringify(first)).toBe(frozen);
+    },
+  );
 });

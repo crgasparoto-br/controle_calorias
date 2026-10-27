@@ -522,9 +522,10 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
     validFrom: null, validTo: null, ...nutrition(kcal),
   });
   const portion = (version: string | null, foodId = 4) => ({
-    foodId, status: "verified", sourceId: 7, sourceVersion: version,
+    id: 31, foodId, foodVariantId: 22, status: "verified", sourceId: 7, sourceVersion: version,
     validFrom: null, validTo: null, grams: 30, label: "fatia",
-    unit: "serving", quantity: 1,
+    unit: "serving", quantity: 1, measureKind: "usual_average", confidence: 0.8,
+    evidenceId: 32, sourcePortionCode: "slice-31", updatedAt: now,
   });
   const licensed = (version: string) => ({
     source: { ...source, version },

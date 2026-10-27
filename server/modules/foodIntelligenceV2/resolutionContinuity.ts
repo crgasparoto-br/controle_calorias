@@ -2,6 +2,7 @@
  * This does not discover aliases or decide a new identity by text similarity. */
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
+import { portionConversionEvidenceIds } from "./portionProvenance";
 
 export function canPreserveAcceptedIdentity(
   observation: FoodObservation, previous: FoodResolutionDecision,
@@ -32,4 +33,18 @@ export function canPreserveAcceptedIdentity(
     item.value !== null &&
     !accepted.some(old => old.field === item.field && old.value === item.value) &&
     !(item.field === "identity.foodName" && typeof item.value === "string" && acceptedName(item.value)));
+}
+
+/** Keep old derived facts in the previous immutable decision, not in the new
+ * identity's evidence scope. Independently supplied incoming claims survive. */
+export function discardSupersededDerivedEvidence(
+  observation: FoodObservation, previous: FoodResolutionDecision,
+  evidence: FoodResolutionDecision["evidence"],
+): void {
+  const incomingIds = new Set(observation.evidence.map(item => item.evidenceId));
+  const derivedIds = new Set([...previous.nutrition.evidenceIds,
+    ...portionConversionEvidenceIds(previous.quantity, previous.evidence)]);
+  for (let i = evidence.length - 1; i >= 0; i--) {
+    if (derivedIds.has(evidence[i].evidenceId) && !incomingIds.has(evidence[i].evidenceId)) evidence.splice(i, 1);
+  }
 }

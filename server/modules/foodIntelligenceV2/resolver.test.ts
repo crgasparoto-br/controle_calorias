@@ -26,7 +26,11 @@ const match: GovernedFoodMatch = {
     basisQuantity: 100, basisUnit: "g",
   },
   governanceStatus: "verified",
-  portions: [{ label: "fatia", unit: "fatia", quantity: 1, grams: 20, status: "verified" }],
+  portions: [{ portionId: 105, foodEntityId: 101, variantId: 102,
+    label: "fatia", unit: "fatia", quantity: 1, grams: 20, status: "verified",
+    measureKind: "exact", confidence: null, sourceId: 106, sourceVersion: "portion-v1",
+    sourceReference: "https://example.org/portions/105", sourcePortionCode: "slice-105",
+    evidenceId: 107, validFrom: null, validTo: null, updatedAt: "2026-10-20T00:00:00Z" }],
 };
 
 function fakeStore(local: FoodKnowledgeLocalResult): FoodKnowledgeStore {
@@ -573,6 +577,70 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(decision.quantity.grams).toBe(30);
     expect(decision.nutrition.consumed?.calories).toBe(81);
     expect(parseFoodResolutionDecision(decision).ok).toBe(true);
+  });
+
+  it.each(["foreign-variant", "foreign-family", "missing-source", "missing-revision", "expired", "not-yet-valid"])(
+    "portion provenance fails closed: %s", async failure => {
+      const portion = { ...match.portions[0] };
+      if (failure === "foreign-variant") portion.variantId = 999;
+      if (failure === "foreign-family") portion.foodEntityId = 999;
+      if (failure === "missing-source") portion.sourceId = 0;
+      if (failure === "missing-revision") portion.sourceVersion = "";
+      if (failure === "expired") portion.validTo = "2026-10-20T00:00:00Z";
+      if (failure === "not-yet-valid") portion.validFrom = "2026-11-01T00:00:00Z";
+      const current = await resolveFoodObservation(buildFoodObservationFixture(),
+        { ...context, now: new Date("2026-10-21T12:00:00Z") }, fakeStore({ ...match, portions: [portion] }));
+      expect(current.nextAction).not.toBe("propose");
+      expect(current.quantity.grams).toBeNull();
+      expect(current.quantity.portionId).toBeNull();
+      expect(current.nutrition.consumed).toBeNull();
+      expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    },
+  );
+
+  it.each(["variant", "portion-id", "source", "revision", "grams", "measure-kind", "missing-snapshot"])(
+    "the public schema rejects a forged portion binding: %s", async change => {
+      const valid = await resolveFoodObservation(buildFoodObservationFixture(), context, fakeStore(match));
+      expect(valid.status).toBe("resolved");
+      const forged = JSON.parse(JSON.stringify(valid)) as typeof valid;
+      if (change === "variant") forged.identity.variantId = 999;
+      if (change === "portion-id") forged.quantity.portionId = 999;
+      if (change === "source") forged.quantity.portionSnapshot!.sourceId = 999;
+      if (change === "revision") forged.quantity.portionSnapshot!.sourceVersion = "other-version";
+      if (change === "grams") forged.quantity.portionSnapshot!.grams = 45;
+      if (change === "measure-kind") forged.quantity.measureKind = "usual_average";
+      if (change === "missing-snapshot") forged.quantity.portionSnapshot = null;
+      expect(parseFoodResolutionDecision(forged).ok).toBe(false);
+    },
+  );
+
+  it("binds the nutritional snapshot to the selected portion revision even with identical macros", async () => {
+    const seed = buildFoodObservationFixture();
+    const first = await resolveFoodObservation(seed, context, fakeStore(match));
+    const edited = { ...match, portions: [{ ...match.portions[0], sourceVersion: "portion-v2" }] };
+    const second = await resolveFoodObservation(seed, context, fakeStore(edited));
+    expect(first.status).toBe("resolved");
+    expect(second.status).toBe("resolved");
+    expect(second.nutrition.consumed).toEqual(first.nutrition.consumed);
+    expect(second.nutrition.snapshotHash).not.toBe(first.nutrition.snapshotHash);
+    expect(second.quantity.portionSnapshot?.sourceVersion).toBe("portion-v2");
+  });
+
+  it("does not reuse an expired portion through the continuity fast path", async () => {
+    const at = new Date("2026-10-21T12:00:00Z");
+    const expiring = { ...match, portions: [{ ...match.portions[0], validTo: "2026-10-22T00:00:00Z" }] };
+    const store = fakeStore(expiring);
+    const first = await resolveFoodObservation(buildFoodObservationFixture(), { ...context, now: at }, store);
+    expect(first.status).toBe("resolved");
+    const second = await resolveFoodObservation(buildFoodObservationFixture(),
+      { ...context, now: new Date("2026-10-22T00:00:00Z"), previousDecision: first }, store);
+    expect(second.nextAction).not.toBe("propose");
+    expect(second.quantity.value).toBe(1.5);
+    expect(second.quantity.grams).toBeNull();
+    expect(second.quantity.portionSnapshot).toBeNull();
+    expect(second.nutrition.consumed).toBeNull();
+    expect(store.readLocal).toHaveBeenCalledTimes(2);
+    expect(parseFoodResolutionDecision(second).ok).toBe(true);
   });
 
 });

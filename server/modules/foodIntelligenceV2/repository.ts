@@ -14,6 +14,7 @@ import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_
 import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference, isValidHttpsSourceReference } from "./sourceGrants";
 import { isGovernedFamilyVisible, eligibleCommercialProfileProofScope, hasCurrentBarcodeProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
 import { isExternalFoodAssertionConsistent, isNutritionFacts } from "./knowledgeRead";
+import { foodPortionSnapshotSchema, type GovernedFoodPortion } from "./portionProvenance";
 import { getDb } from "../../db";
 import type {
   ExternalProvisionalCandidate, FoodKnowledgeLocalResult, FoodKnowledgeRequest,
@@ -228,12 +229,12 @@ async function portionsFor(
   const rows = await db.select().from(foodPortions)
     .where(eq(foodPortions.foodVariantId, variantId))
     .limit(50);
-  const result: Array<{ label: string; unit: string; quantity: number; grams: number; status: string }> = [];
+  const result: GovernedFoodPortion[] = [];
   for (const portion of rows) {
     // The two independent foreign keys do not guarantee that a portion's
     // family is the family owning the selected variant. Never return a
     // serving measure from another food, even if its variant ID matches.
-    if (portion.foodId !== familyId ||
+    if (portion.foodId !== familyId || portion.foodVariantId !== variantId ||
         (portion.status !== "verified" && portion.status !== "provisional") ||
         !currentlyValid(portion.validFrom, portion.validTo, at(request)) ||
         !portion.sourceId || !portion.sourceVersion ||
@@ -243,10 +244,20 @@ async function portionsFor(
     );
     if (!approvedPortionSource ||
         portion.sourceVersion !== approvedPortionSource.source.version) continue;
-    result.push({
-      label: portion.label, unit: portion.unit, quantity: portion.quantity,
-      grams: portion.grams, status: portion.status,
+    // Preserve the actual record and its approved source; never borrow the profile source.
+    const snapshot = foodPortionSnapshotSchema.safeParse({
+      portionId: portion.id, foodEntityId: portion.foodId, variantId: portion.foodVariantId,
+      label: portion.label, unit: portion.unit, quantity: portion.quantity, grams: portion.grams,
+      measureKind: portion.measureKind, confidence: portion.confidence,
+      sourceId: portion.sourceId, sourceVersion: portion.sourceVersion,
+      sourceReference: approvedPortionSource.source.sourceUrl,
+      sourcePortionCode: portion.sourcePortionCode, evidenceId: portion.evidenceId,
+      status: portion.status,
+      validFrom: portion.validFrom?.toISOString() ?? null,
+      validTo: portion.validTo?.toISOString() ?? null,
+      updatedAt: portion.updatedAt?.toISOString(),
     });
+    if (snapshot.success) result.push(snapshot.data);
   }
   return result;
 }

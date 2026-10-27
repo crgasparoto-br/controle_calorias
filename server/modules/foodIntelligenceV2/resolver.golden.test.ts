@@ -22,7 +22,11 @@ const known: GovernedFoodMatch = {
     caloriesKcal: 270, proteinG: 12, carbG: 3, fatG: 23,
     basisQuantity: 100, basisUnit: "g",
   },
-  portions: [{ label: "fatia", unit: "fatia", quantity: 1, grams: 20, status: "verified" }],
+  portions: [{ portionId: 105, foodEntityId: 101, variantId: 102,
+    label: "fatia", unit: "fatia", quantity: 1, grams: 20, status: "verified",
+    measureKind: "exact", confidence: null, sourceId: 106, sourceVersion: "portion-v1",
+    sourceReference: "https://example.org/portions/105", sourcePortionCode: "slice-105",
+    evidenceId: 107, validFrom: null, validTo: null, updatedAt: "2026-10-20T00:00:00Z" }],
 };
 /** Fixture for the repository boundary, not a second resolver or an oracle. */
 const store: FoodKnowledgeStore = {

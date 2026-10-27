@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { foodPortionSnapshotSchema, assertGovernedPortionConsistency } from "./portionProvenance";
 import {
   assertDeclaredPhysicalConsistency,
   assertNutritionEvidenceAndScaleConsistency,
@@ -83,6 +84,8 @@ export const foodDecisionQuantitySchema = z.strictObject({
   grams: z.number().finite().positive().nullable(),
   milliliters: z.number().finite().positive().nullable(),
   portionId: nullablePositiveInt,
+  // Optional for existing non-governed/historical snapshots; mandatory for new governed conversions.
+  portionSnapshot: foodPortionSnapshotSchema.nullable().optional(),
   source: nullableText(FOOD_CONTRACT_LIMITS.shortText),
   measureKind: z.enum(FOOD_MEASURE_KINDS).nullable(),
   confidence,
@@ -487,6 +490,7 @@ export const foodResolutionDecisionSchema = z
         }
       }
     }
+    assertGovernedPortionConsistency(decision, ctx);
     assertDeclaredPhysicalConsistency(decision, ctx);
     assertPhysicalBasisProvenance(decision, evidenceById, ctx);
     assertNutritionEvidenceAndScaleConsistency(decision, evidenceById, ctx);

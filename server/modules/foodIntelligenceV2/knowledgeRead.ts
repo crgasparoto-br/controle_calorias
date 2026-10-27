@@ -1,4 +1,5 @@
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
+import type { GovernedFoodPortion } from "./portionProvenance";
 
 /**
  * Issue #1302: single V2 read contract / cache-through orchestrator.
@@ -38,7 +39,7 @@ export type GovernedFoodMatch = {
   sourceReference: string;
   nutrition: NutritionFacts;
   governanceStatus: "verified" | "provisional";
-  portions: ReadonlyArray<{ label: string; unit: string; quantity: number; grams: number; status: string }>;
+  portions: readonly GovernedFoodPortion[];
 };
 
 export type FoodKnowledgeLocalResult =

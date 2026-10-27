@@ -8,7 +8,8 @@
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
-import { canPreserveAcceptedIdentity } from "./resolutionContinuity";
+import { canPreserveAcceptedIdentity, discardSupersededDerivedEvidence } from "./resolutionContinuity";
+import { foodPortionSnapshotSchema, isCurrentPortion, portionEvidenceReference, portionConversionEvidenceIds } from "./portionProvenance";
 import {
   declaredPhysicalAmount, hasConflictingVerifiedNutritionEvidence,
 } from "./nutritionConsistency";
@@ -47,7 +48,7 @@ const blankNutrition = (): Nutrition => ({
 });
 const blankQuantity = (): Quantity => ({
   value: null, unit: null, grams: null, milliliters: null,
-  portionId: null, source: null, measureKind: null, confidence: null, evidenceIds: [],
+  portionId: null, portionSnapshot: null, source: null, measureKind: null, confidence: null, evidenceIds: [],
 });
 
 function amount(value: number, unit: string): { basis: "g" | "ml" | "serving"; value: number } | null {
@@ -127,70 +128,77 @@ function hasConflictingQuantityEvidence(quantity: Quantity, evidence: readonly F
 
 function quantityFromObservation(
   observation: FoodObservation, evidence: FoodEvidence[], match: GovernedFoodMatch | null,
-  previous: FoodResolutionDecision | null,
+  previous: FoodResolutionDecision | null, now: Date,
 ): { quantity: Quantity; incompatiblePrevious: boolean } {
   const q = observation.quantityHints;
-  const quantity = blankQuantity();
   const prior = previous?.quantity;
-  if (q.value === null || q.unit === null) {
-    if (prior && (prior.value !== null || prior.grams !== null || prior.milliliters !== null)) {
-      // Carry the exact structured fact and its original evidence; never reparse a string.
-      return { quantity: { ...prior, evidenceIds: [...prior.evidenceIds] }, incompatiblePrevious: false };
+  let quantity = blankQuantity();
+  let incompatiblePrevious = false;
+  if (prior && (prior.value !== null || prior.grams !== null || prior.milliliters !== null)) {
+    // A fresh lookup revalidates the conversion even for a same-ID edited portion.
+    quantity = withoutUnconfirmedPortion({ ...prior, evidenceIds: [...prior.evidenceIds] }, previous?.evidence ?? []);
+    incompatiblePrevious = q.value !== null && q.unit !== null && prior.value !== null &&
+      !sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit);
+  } else if (q.value !== null && q.unit !== null) {
+    quantity.value = q.value;
+    quantity.unit = q.unit;
+    quantity.source = "observation";
+    quantity.measureKind = "exact";
+    quantity.evidenceIds = observation.evidence.filter(item =>
+      item.field.startsWith("quantity.") && item.value !== null).map(item => item.evidenceId);
+    const physical = amount(q.value, q.unit);
+    if (physical?.basis === "g") quantity.grams = physical.value;
+    if (physical?.basis === "ml") quantity.milliliters = physical.value;
+    if (quantity.evidenceIds.length === 0) {
+      quantity.evidenceIds.push(makeEvidence(observation, evidence, "quantity.value", q.value, q.unit, null, false, "text"));
     }
-    return { quantity, incompatiblePrevious: false };
   }
-  if (prior?.value !== null && prior?.value !== undefined &&
-      !sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit)) {
-    // New conflicting assertion: do not overwrite a previously accepted quantity.
-    return { quantity: { ...prior, evidenceIds: [...prior.evidenceIds] }, incompatiblePrevious: true };
-  }
-  if (prior?.value !== null && prior?.value !== undefined && prior.unit !== null &&
-      sameDeclaredQuantity(prior.value, prior.unit, q.value, q.unit)) {
-    // A compatible restatement does not reconstruct grams or rewrite the
-    // accepted evidence IDs, even when a separate identity becomes ambiguous.
-    return { quantity: { ...prior, evidenceIds: [...prior.evidenceIds] }, incompatiblePrevious: false };
-  }
-  const matchingIds = observation.evidence.filter(item =>
-    item.field.startsWith("quantity.") && item.value !== null).map(item => item.evidenceId);
-  quantity.value = q.value;
-  quantity.unit = q.unit;
-  quantity.evidenceIds = matchingIds;
-  quantity.source = "observation";
-  quantity.measureKind = "exact";
-  const physical = amount(q.value, q.unit);
-  if (physical?.basis === "g") quantity.grams = physical.value;
-  if (physical?.basis === "ml") quantity.milliliters = physical.value;
-  if (quantity.evidenceIds.length === 0) {
-    quantity.evidenceIds.push(makeEvidence(observation, evidence, "quantity.value", q.value, q.unit, null, false, "text"));
-  }
-  // Portion conversion uses only source-granted, current V2 portions returned by #1302.
-  // A named household unit is NOT guessed from a package or a generic average.
-  if (!physical && match) {
-    const key = normalizeFoodName(q.unit);
-    const eligible = match.portions.filter(p =>
-      p.status === "verified" && Number.isFinite(p.quantity) && p.quantity > 0 &&
-      Number.isFinite(p.grams) && p.grams > 0 &&
-      (normalizeFoodName(p.unit) === key || normalizeFoodName(p.label) === key));
+  const value = quantity.value;
+  const unit = quantity.unit;
+  if (value !== null && unit !== null && !amount(value, unit) && match && !incompatiblePrevious) {
+    const key = normalizeFoodName(unit);
+    const eligible = match.portions.flatMap(candidate => {
+      const checked = foodPortionSnapshotSchema.safeParse(candidate);
+      if (!checked.success) return [];
+      const p = checked.data;
+      return isCurrentPortion(p, now) && p.variantId === match.variantId &&
+        p.foodEntityId === match.foodId &&
+        (normalizeFoodName(p.unit) === key || normalizeFoodName(p.label) === key) ? [p] : [];
+    });
     if (eligible.length === 1) {
-      const grams = q.value * eligible[0].grams / eligible[0].quantity;
+      const portion = eligible[0];
+      const grams = value * portion.grams / portion.quantity;
       if (Number.isFinite(grams) && grams > 0) {
         quantity.grams = grams;
+        quantity.portionId = portion.portionId;
+        quantity.portionSnapshot = portion;
         quantity.source = "governed_portion";
-        quantity.evidenceIds.push(makeEvidence(observation, evidence, "quantity.grams", grams, "g", null, true, "catalog"));
+        quantity.measureKind = portion.measureKind;
+        quantity.confidence = portion.confidence;
+        for (const [field, fact, physicalUnit] of [
+          ["quantity.portionId", portion.portionId, null], ["quantity.grams", grams, "g"],
+        ] as const) {
+          const id = makeEvidence(observation, evidence, field, fact, physicalUnit, portion.sourceId, true, "catalog");
+          // A catalog record is not anchored to the user's text span.
+          evidence[evidence.length - 1].anchor = {
+            sourceRef: portionEvidenceReference(portion), span: null, region: null,
+          };
+          quantity.evidenceIds.push(id);
+        }
       }
     }
   }
-  return { quantity, incompatiblePrevious: false };
+  return { quantity, incompatiblePrevious };
 }
 
 /** Uma gramatura de porção pertence à variante usada para convertê-la.
  * Com identidade concorrente, só a quantidade expressa pelo usuário sobrevive. */
 function withoutUnconfirmedPortion(quantity: Quantity, evidence: readonly FoodEvidence[]): Quantity {
   if (quantity.source !== "governed_portion") return quantity;
-  const derivedIds = new Set(evidence.filter(item =>
-    item.field === "quantity.grams" && item.origin === "catalog").map(item => item.evidenceId));
+  const derivedIds = portionConversionEvidenceIds(quantity, [...evidence]);
   return {
-    ...quantity, grams: null, portionId: null, source: "observation",
+    ...quantity, grams: null, portionId: null, portionSnapshot: null,
+    source: "observation", measureKind: "exact", confidence: null,
     evidenceIds: quantity.evidenceIds.filter(id => !derivedIds.has(id)),
   };
 }
@@ -259,13 +267,14 @@ function sourceCompatibleWithExplicitAttributes(
       assertions.every(value => governed.includes(normalizeFoodName(value))));
 }
 
-function snapshot(match: GovernedFoodMatch): string {
+function snapshot(match: GovernedFoodMatch, quantity: Quantity): string {
   return "sha256:" + createHash("sha256").update(JSON.stringify({
     variantId: match.variantId, profileId: match.profileId,
     matchingEvidence: match.matchingEvidence,
     matchedBrand: match.matchedBrand ?? null, matchedBarcode: match.matchedBarcode ?? null,
     sourceId: match.sourceId, sourceVersion: match.sourceVersion,
     sourceReference: match.sourceReference, nutrition: match.nutrition,
+    portion: quantity.portionSnapshot ?? null,
   })).digest("hex");
 }
 
@@ -308,15 +317,13 @@ function nutritionFromMatch(
     profileId: match.profileId, sourceId: match.sourceId,
     verified, provisional: !verified,
     basis: { quantity: match.nutrition.basisQuantity, unit: basisUnit, values },
-    consumed, snapshotHash: snapshot(match), evidenceIds,
+    consumed, snapshotHash: snapshot(match, quantity), evidenceIds,
   };
 }
 
 function sameObservation(previous: FoodResolutionDecision | undefined, context: FoodResolverContext, observation: FoodObservation) {
   if (!previous) return false;
   return previous.traceId === context.traceId &&
-    previous.knowledgeRevision === context.knowledgeRevision &&
-    previous.policyVersion === context.policyVersion &&
     previous.observationIds.length === 1 && previous.observationIds[0] === observation.observationId &&
     parseFoodResolutionDecision(previous).ok;
 }
@@ -384,7 +391,10 @@ export async function resolveFoodObservation(
     // Continuation without a fresh identity assertion must not erase previously
     // accepted identity, nutritional provenance, or quantity. An identity claim
     // in the evidence envelope counts as new only when it differs materially.
-    if (previous && canPreserveAcceptedIdentity(observation, previous)) {
+    if (previous && previous.knowledgeRevision === context.knowledgeRevision &&
+        previous.policyVersion === context.policyVersion &&
+        (!previous.quantity.portionSnapshot || isCurrentPortion(previous.quantity.portionSnapshot, context.now ?? new Date())) &&
+        canPreserveAcceptedIdentity(observation, previous)) {
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = (q.value !== null && q.unit !== null &&
@@ -411,6 +421,7 @@ export async function resolveFoodObservation(
       const checked = parseFoodResolutionDecision(preserved);
       if (checked.ok) return checked.value;
     }
+    if (previous) discardSupersededDerivedEvidence(observation, previous, evidence);
     const request = {
       normalizedName: normalizeFoodName(observation.identityHints.foodName ?? ""),
       brand: observation.identityHints.brand,
@@ -428,7 +439,7 @@ export async function resolveFoodObservation(
     // Não usar porção ou perfil de uma identidade ainda concorrente.
     const match = conflictingHypotheses ? null : eligibleMatch;
     const incompatibleAttributes = knowledge.kind === "match" && eligibleMatch === null;
-    const inferred = quantityFromObservation(observation, evidence, match, previous);
+    const inferred = quantityFromObservation(observation, evidence, match, previous, context.now ?? new Date());
     const quantity = conflictingHypotheses
       ? withoutUnconfirmedPortion(inferred.quantity, evidence) : inferred.quantity;
     const incompatiblePrevious = inferred.incompatiblePrevious;
