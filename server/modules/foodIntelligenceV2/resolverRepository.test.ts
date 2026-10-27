@@ -120,11 +120,28 @@ describe("A-001: commercial proof through the actual repository", () => {
     expect(current.status).toBe("resolved");
     expect(current.nextAction).toBe("propose");
     expect(current.identity.variantId).toBe(22);
+    expect(current.identity.brand).toBe("Panco");
+    const brandProof = current.evidence.filter(item => current.identity.evidenceIds.includes(item.evidenceId) &&
+      item.field === "identity.brand" && item.origin === "catalog");
+    expect(brandProof).toHaveLength(1);
+    expect(brandProof[0]).toMatchObject({ value: "Panco", verified: true, sourceId: null,
+      anchor: { sourceRef: "food-variant:22", span: null, region: null } });
     expect(current.nutrition.profileId).toBe(10);
     expect(current.nutrition.consumed?.calories).toBe(75);
     expect(current.nutrition.verified).toBe(true);
     expect(parseFoodResolutionDecision(current).ok).toBe(true);
     expect(select).toHaveBeenCalledTimes(mode === "brand" ? 8 : 10);
+  });
+
+  it("does not use a barcode to override a contradictory explicit brand", async () => {
+    installKnowledge("barcode");
+    const current = await resolveFoodObservation(observation("pao de forma", "Outra marca", barcode),
+      context, createFoodV2KnowledgeRepository());
+    expect(current.nextAction).not.toBe("propose");
+    expect(current.identity.brand).toBeNull();
+    expect(current.nutrition.consumed).toBeNull();
+    expect(current.reasonCodes).toContain("brand_variant_unresolved");
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
   });
 
   it.each(["brand", "barcode"] as const)("does not let %s certify a generic profile without same-product nutrition proof", async mode => {

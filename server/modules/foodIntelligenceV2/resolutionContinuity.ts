@@ -129,7 +129,8 @@ export function discardSupersededDerivedEvidence(
   const acceptedIds = new Set(previous.identity.evidenceIds);
   for (const item of previous.evidence) {
     if (acceptedIds.has(item.evidenceId) && (
-      (item.field === "variant.variantId" && item.origin === "catalog" &&
+      ((item.field === "variant.variantId" || item.field === "identity.brand") &&
+        item.origin === "catalog" &&
         item.anchor.sourceRef === "food-variant:" + previous.identity.variantId) ||
       (item.field === "identity.foodName" && (item.origin === "catalog" || item.origin === "memory") &&
         item.anchor.sourceRef === "food-lookup:" + previous.decisionId))) {

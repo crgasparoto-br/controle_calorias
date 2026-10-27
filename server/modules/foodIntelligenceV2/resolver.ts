@@ -559,7 +559,9 @@ export async function resolveFoodObservation(
       // Preserve the explicit, compatible variant label separately from the
       // full canonical food name so equivalent replies retain the same fact.
       identity.variant = effectiveObservation.identityHints.variant ?? match.variantName;
-      identity.brand = request.brand ?? null;
+      // The canonical brand belongs to the governed variant, not the user's
+      // assertion. Explicit mismatches were rejected before selecting match.
+      identity.brand = match.matchedBrand?.trim() || null;
       identity.preparation = effectiveObservation.identityHints.preparation;
       identity.qualifiers = effectiveObservation.identityHints.qualifiers;
       identity.evidenceIds = observation.evidence.filter(item =>
@@ -580,6 +582,14 @@ export async function resolveFoodObservation(
       evidence[evidence.length - 1].anchor = {
         sourceRef: "food-variant:" + match.variantId, span: null, region: null,
       };
+      if (identity.brand !== null) {
+        // A variant/brand relation is not a nutrition-source assertion.
+        // Revalidate this derived fact whenever the governed lookup runs again.
+        identity.evidenceIds.push(makeEvidence(observation, evidence, "identity.brand", identity.brand,
+          null, null, match.governanceStatus === "verified", "catalog", {
+            sourceRef: "food-variant:" + match.variantId, span: null, region: null,
+          }));
+      }
       if (match.governanceStatus === "verified" && request.normalizedName) {
         // Retain the surface accepted by this governed lookup (including a
         // family name accompanying a barcode), not just explicit aliases.
