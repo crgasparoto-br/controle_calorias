@@ -422,7 +422,8 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(next.status).toBe("resolved");
     expect(next.identity.variantId).toBe(203);
     expect(next.identity.brand).toBe("Marca B");
-    expect(next.evidence.some(item => item.evidenceId === originalProof?.evidenceId)).toBe(false);
+    expect(next.evidence.some(item => item.field === "identity.brand" && item.value === "Marca A" &&
+      item.origin === "catalog" && item.anchor.sourceRef === "food-variant:102")).toBe(false);
     expect(next.evidence.some(item => item.field === "identity.brand" && item.value === "Marca B" &&
       item.verified && item.origin === "catalog" && item.anchor.sourceRef === "food-variant:203")).toBe(true);
     expect(original.identity.brand).toBe("Marca A");
