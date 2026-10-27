@@ -70,6 +70,51 @@ export function hasConflictingIdentityEvidence(
   });
 }
 
+/** A later, independently anchored user assertion can replace only the same
+ * user's earlier input for that field. This is not a last-write-wins policy:
+ * governed/barcode/label evidence, competing claims in the current turn and
+ * old observations from other owners remain subject to conflict checks. */
+export function discardSupersededUserIdentityEvidence(
+  observation: FoodObservation, previous: FoodResolutionDecision,
+  evidence: FoodResolutionDecision["evidence"],
+): void {
+  if (observation.alternatives.length > 0 || observation.unresolvedReason !== null ||
+      (observation.modality !== "text" && observation.modality !== "audio_transcript")) return;
+  const hints = observation.identityHints;
+  const currentValues: Record<string, readonly string[]> = {
+    "identity.foodName": hints.foodName === null ? [] : [hints.foodName],
+    "identity.brand": hints.brand === null ? [] : [hints.brand],
+    "identity.variant": hints.variant === null ? [] : [hints.variant],
+    "identity.preparation": hints.preparation,
+    "identity.qualifiers": hints.qualifiers.map(item => item.value),
+  };
+  const sameValue = (a: string, b: string) => normalizeFoodName(a) === normalizeFoodName(b);
+  const incoming = observation.evidence.filter(item =>
+    Object.hasOwn(currentValues, item.field) && typeof item.value === "string" &&
+    item.verified && item.sourceId === null &&
+    (item.origin === "text" || item.origin === "transcription") &&
+    item.anchor.sourceRef === observation.surfaceSpan.sourceRef &&
+    currentValues[item.field].some(hint => sameValue(hint, item.value as string)));
+  if (incoming.length === 0) return;
+  const currentIds = new Set(observation.evidence.map(item => item.evidenceId));
+  const priorIds = new Set(previous.evidence.map(item => item.evidenceId));
+  for (let i = evidence.length - 1; i >= 0; i--) {
+    const old = evidence[i];
+    if (!priorIds.has(old.evidenceId) || currentIds.has(old.evidenceId) ||
+        !Object.hasOwn(currentValues, old.field) || typeof old.value !== "string" ||
+        old.sourceId !== null ||
+        (old.origin !== "text" && old.origin !== "transcription" && old.origin !== "memory") ||
+        currentValues[old.field].some(hint => sameValue(hint, old.value as string))) continue;
+    // A new turn may supersede a previous user statement, not a contradictory
+    // statement from this same surface or an independently verified source.
+    if (incoming.some(item => item.field === old.field &&
+        item.anchor.sourceRef !== old.anchor.sourceRef &&
+        !sameValue(item.value as string, old.value as string))) {
+      evidence.splice(i, 1);
+    }
+  }
+}
+
 /** Keep old derived facts in the previous immutable decision, not in the new
  * identity's evidence scope. Independently supplied incoming claims survive. */
 export function discardSupersededDerivedEvidence(

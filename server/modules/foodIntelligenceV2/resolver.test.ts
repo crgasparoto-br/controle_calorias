@@ -987,3 +987,164 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
   });
 
 });
+
+describe("F-1305-006: correção entre turnos não herda alegações supersedidas", () => {
+  function turn(name: string, id: number, options: {
+    brand?: string; barcode?: string; grams?: number;
+  } = {}): FoodObservation {
+    const raw = [name, options.brand].filter(Boolean).join(" ");
+    const anchor = { sourceRef: `turn:${id}:text`, span: { start: 0, end: raw.length }, region: null };
+    const observation = buildFoodObservationFixture({
+      rawInput: raw, normalizedInput: raw, surfaceSpan: anchor, normalizationPath: [], evidence: [],
+      identityHints: { foodName: name, brand: options.brand ?? null, barcode: options.barcode ?? null },
+      quantityHints: { value: options.grams ?? null, unit: options.grams == null ? null : "g",
+        servingText: options.grams == null ? null : `${options.grams} g` },
+    });
+    const text = (suffix: string, field: "identity.foodName" | "identity.brand" | "quantity.value",
+      value: string | number, unit: string | null = null): FoodObservation["evidence"][number] => ({
+      evidenceId: `turn:${id}:${suffix}`, field, origin: "text", value, unit,
+      confidence: 1, verified: true, anchor, sourceId: null,
+    });
+    observation.evidence = [text("name", "identity.foodName", name)];
+    if (options.brand) observation.evidence.push(text("brand", "identity.brand", options.brand));
+    if (options.grams !== undefined) observation.evidence.push(text("mass", "quantity.value", options.grams, "g"));
+    if (options.barcode) observation.evidence.push({
+      ...text("barcode", "identity.foodName", name),
+      evidenceId: `turn:${id}:barcode`, field: "identity.barcode", origin: "barcode",
+      value: options.barcode,
+    });
+    return observation;
+  }
+
+  const presunto: GovernedFoodMatch = {
+    ...match, foodId: 201, variantId: 202, profileId: 203,
+    variantName: "Presunto", portions: [], nutrition: { ...match.nutrition, caloriesKcal: 180 },
+  };
+  const selectFood = (): FoodKnowledgeStore => ({
+    ...fakeStore(match),
+    readLocal: vi.fn(async (request: Parameters<FoodKnowledgeStore["readLocal"]>[0]): Promise<FoodKnowledgeLocalResult> => request.normalizedName === "mortadela" ? match :
+      request.normalizedName === "presunto" ? presunto : { kind: "miss", reason: "not_found" }),
+  });
+
+  it("aceita correção por nova superfície e IDs, converge em turnos posteriores e preserva quantidade/snapshot", async () => {
+    const store = selectFood();
+    const original = await resolveFoodObservation(turn("Mortadela", 1, { grams: 100 }), context, store);
+    const frozen = JSON.stringify(original);
+    expect(original.status).toBe("resolved");
+    const corrected = await resolveFoodObservation(turn("Presunto", 2),
+      { ...context, previousDecision: original }, store);
+    expect(corrected.status).toBe("resolved");
+    expect(corrected.nextAction).toBe("propose");
+    expect(corrected.identity.variantId).toBe(presunto.variantId);
+    expect(corrected.quantity).toEqual(original.quantity);
+    expect(corrected.nutrition.consumed?.calories).toBe(180);
+    expect(corrected.nutrition.profileId).toBe(presunto.profileId);
+    expect(corrected.evidence.map(item => item.evidenceId)).not.toContain("turn:1:name");
+    expect(corrected.evidence.map(item => item.evidenceId)).toContain("turn:1:mass");
+    expect(corrected.evidence.map(item => item.evidenceId)).toContain("turn:2:name");
+    expect(parseFoodResolutionDecision(corrected).ok).toBe(true);
+    expect(JSON.stringify(original)).toBe(frozen);
+    const repeated = await resolveFoodObservation(turn("Presunto", 3),
+      { ...context, previousDecision: corrected }, store);
+    expect(repeated.status).toBe("resolved");
+    expect(repeated.reasonCodes).toEqual([]);
+    expect(repeated.evidence.map(item => item.evidenceId)).not.toContain("turn:1:name");
+    expect(parseFoodResolutionDecision(repeated).ok).toBe(true);
+  });
+
+  it("aceita marca corrigida sem aceitar macro de outro SKU", async () => {
+    const store: FoodKnowledgeStore = {
+      ...fakeStore(match),
+      readLocal: vi.fn(async (request: Parameters<FoodKnowledgeStore["readLocal"]>[0]): Promise<FoodKnowledgeLocalResult> => request.brand === "Marca A" || request.brand === "Marca B" ? {
+        ...match, portions: [], matchedBrand: request.brand,
+        foodId: request.brand === "Marca A" ? 301 : 302,
+        variantId: request.brand === "Marca A" ? 311 : 312,
+        profileId: request.brand === "Marca A" ? 321 : 322,
+        nutrition: { ...match.nutrition, caloriesKcal: request.brand === "Marca A" ? 150 : 250 },
+      } : { kind: "miss", reason: "incompatible_evidence" }),
+    };
+    const original = await resolveFoodObservation(turn("Mortadela", 11,
+      { brand: "Marca A", grams: 100 }), context, store);
+    expect(original.status).toBe("resolved");
+    const corrected = await resolveFoodObservation(turn("Mortadela", 12, { brand: "Marca B" }),
+      { ...context, previousDecision: original }, store);
+    expect(corrected.status).toBe("resolved");
+    expect(corrected.identity.brand).toBe("Marca B");
+    expect(corrected.identity.variantId).toBe(312);
+    expect(corrected.nutrition.profileId).toBe(322);
+    expect(corrected.nutrition.consumed?.calories).toBe(250);
+    expect(corrected.evidence.map(item => item.evidenceId)).not.toContain("turn:11:brand");
+    expect(parseFoodResolutionDecision(corrected).ok).toBe(true);
+  });
+
+  it("não descarta evidência independente verificada quando o usuário altera a identidade", async () => {
+    const input = turn("Mortadela", 21, { grams: 100 });
+    input.evidence.push({ ...input.evidence[0], evidenceId: "independent:catalog",
+      origin: "catalog", sourceId: 501, anchor: { sourceRef: "catalog:verified", span: null, region: null } });
+    const store = selectFood();
+    const original = await resolveFoodObservation(input, context, store);
+    expect(original.status).toBe("resolved");
+    const current = await resolveFoodObservation(turn("Presunto", 22),
+      { ...context, previousDecision: original }, store);
+    expect(current.status).toBe("unknown");
+    expect(current.nextAction).toBe("clarify");
+    expect(current.reasonCodes).toContain("source_conflict");
+    expect(current.evidence.map(item => item.evidenceId)).toContain("independent:catalog");
+    expect(current.nutrition.consumed).toBeNull();
+    expect(parseFoodResolutionDecision(current).ok).toBe(true);
+  });
+
+  it("não transforma repetição da mesma superfície nem transcrição não verificada em supersessão", async () => {
+    const store = selectFood();
+    const original = await resolveFoodObservation(turn("Mortadela", 31, { grams: 100 }), context, store);
+    const repeatedSurface = turn("Presunto", 32);
+    repeatedSurface.surfaceSpan.sourceRef = original.evidence[0].anchor.sourceRef;
+    repeatedSurface.evidence[0].anchor.sourceRef = original.evidence[0].anchor.sourceRef;
+    const unverified = turn("Presunto", 33);
+    unverified.evidence[0] = { ...unverified.evidence[0], verified: false };
+    for (const changed of [repeatedSurface, unverified]) {
+      const current = await resolveFoodObservation(changed,
+        { ...context, previousDecision: original }, store);
+      expect(current.status).toBe("unknown");
+      expect(current.reasonCodes).toContain("source_conflict");
+      expect(current.evidence.map(item => item.evidenceId)).toContain("turn:31:name");
+      expect(current.nutrition.consumed).toBeNull();
+      expect(parseFoodResolutionDecision(current).ok).toBe(true);
+    }
+  });
+
+  it("barcode validado e conflito atual de catálogo não podem ser sobrescritos por novo texto", async () => {
+    const barcode = "7891234567890";
+    const initial = { ...match, matchingEvidence: "barcode" as const, matchedBarcode: barcode, portions: [] };
+    const store: FoodKnowledgeStore = {
+      ...fakeStore(match),
+      readLocal: vi.fn(async (request: Parameters<FoodKnowledgeStore["readLocal"]>[0]): Promise<FoodKnowledgeLocalResult> => request.barcode === barcode ? initial : presunto),
+    };
+    const original = await resolveFoodObservation(turn("Mortadela", 41, { grams: 100, barcode }), context, store);
+    expect(original.status).toBe("resolved");
+    const corrected = await resolveFoodObservation(turn("Presunto", 42),
+      { ...context, previousDecision: original }, store);
+    expect(corrected.status).toBe("unknown");
+    expect(corrected.reasonCodes).toContain("source_conflict");
+    expect(corrected.evidence.some(item => item.field === "identity.barcode" && item.value === barcode)).toBe(true);
+    const sameTurn = turn("Presunto", 43);
+    sameTurn.evidence.push({ ...sameTurn.evidence[0], evidenceId: "same-turn:independent",
+      origin: "catalog", value: "Mortadela", sourceId: 502,
+      anchor: { sourceRef: "catalog:current", span: null, region: null } });
+    const conflicting = await resolveFoodObservation(sameTurn, context, selectFood());
+    expect(conflicting.status).toBe("unknown");
+    expect(conflicting.reasonCodes).toContain("source_conflict");
+  });
+
+  it("não herda afirmações de outra conta ao receber correção direta", async () => {
+    const store = selectFood();
+    const original = await resolveFoodObservation(turn("Mortadela", 51, { grams: 100 }), context, store);
+    const other = await resolveFoodObservation(turn("Presunto", 52),
+      { ...context, userId: 19, previousDecision: original }, store);
+    expect(other.decisionId).not.toBe(original.decisionId);
+    expect(other.ownerUserId).toBe(19);
+    expect(other.evidence.map(item => item.evidenceId)).not.toContain("turn:51:name");
+    expect(other.quantity.value).toBeNull();
+    expect(parseFoodResolutionDecision(other).ok).toBe(true);
+  });
+});

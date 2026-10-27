@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
 import { canPreserveAcceptedIdentity, discardSupersededDerivedEvidence,
-  hasConflictingIdentityEvidence } from "./resolutionContinuity";
+  discardSupersededUserIdentityEvidence, hasConflictingIdentityEvidence } from "./resolutionContinuity";
 import { isCurrentKnowledgeValidity } from "./knowledgeValidity";
 import { foodPortionSnapshotSchema, isCurrentPortion, portionEvidenceReference, portionConversionEvidenceIds } from "./portionProvenance";
 import {
@@ -369,6 +369,9 @@ export async function resolveFoodObservation(
     for (const item of previous.evidence) {
       if (!evidence.some(other => other.evidenceId === item.evidenceId)) evidence.push(item);
     }
+    // A verified statement on a new user turn supersedes older user-origin
+    // assertions for the same changed field, not independent source proof.
+    discardSupersededUserIdentityEvidence(observation, previous, evidence);
   }
   const identity = {
     candidateKey: null as string | null,
