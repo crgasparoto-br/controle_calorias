@@ -158,23 +158,31 @@ describe("#1306 C3: pre-registration and offline calibration", () => {
 
   it("holdout needs 95%, zero expected failures and separate approval even with full success", () => {
     const plan = parameterPlan();
-    const selection = selectCalibrationCandidate(plan, evidence("baseline", 12),
-      [evidence("candidate-a", 15), evidence("candidate-b", 14)], lockedAt);
+    const proof = {
+      baseline: evidence("baseline", 12),
+      candidates: [evidence("candidate-a", 15), evidence("candidate-b", 14)],
+    };
+    const selection = selectCalibrationCandidate(plan, proof.baseline, proof.candidates, lockedAt);
     expect(selection.status).toBe("locked_for_holdout");
     if (selection.status !== "locked_for_holdout") return;
     const baseline = evidence("baseline", 12, "holdout");
     const successful = evidence("candidate-a", 15, "holdout");
-    const approved = evaluateLockedHoldout(plan, selection, baseline, successful);
+    const approved = evaluateLockedHoldout(plan, selection, baseline, successful, proof);
     expect(approved).toMatchObject({ status: "awaiting_independent_approval", approved: false, item: 30 });
     expect(approved.evidenceDigest).toMatch(/^[0-9a-f]{64}$/);
     expect(evaluateLockedHoldout(plan, selection, baseline,
-      evidence("candidate-a", 14, "holdout"))).toMatchObject({
+      evidence("candidate-a", 14, "holdout"), proof)).toMatchObject({
         status: "rejected", approved: false, reasons: expect.arrayContaining(["minimum_95_percent_not_met"]),
       });
     expect(() => evaluateLockedHoldout(plan, selection, baseline,
-      evidence("candidate-b", 15, "holdout"))).toThrow();
+      evidence("candidate-b", 15, "holdout"), proof)).toThrow();
     expect(() => evaluateLockedHoldout(plan, selection, baseline,
-      { ...successful, recordedAt: registeredAt })).toThrow();
+      { ...successful, recordedAt: registeredAt }, proof)).toThrow();
+    expect(() => evaluateLockedHoldout(plan,
+      { ...selection, calibrationDigest: "0".repeat(64) },
+      baseline, successful, proof)).toThrow();
+    expect(() => evaluateLockedHoldout(plan, selection, baseline, successful,
+      { ...proof, candidates: [evidence("candidate-a", 14), proof.candidates[1]] })).toThrow();
   });
 
 

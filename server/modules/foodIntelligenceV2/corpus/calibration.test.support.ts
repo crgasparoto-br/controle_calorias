@@ -160,6 +160,9 @@ export function verifyCalibrationPlan(plan: CalibrationPlan): void {
   }
   if (!plan.candidates.length) throw new Error("calibration: no candidate range");
   const unit = CALIBRATION_PARAMETERS[plan.parameter].unit;
+  if (plan.baseline.policyRevision !== plan.revisions.policy) {
+    throw new Error("calibration: baseline policy revision is not pinned");
+  }
   const all = [plan.baseline, ...plan.candidates];
   all.forEach(candidate => assertCandidate(candidate, unit));
   if (new Set(all.map(candidate => candidate.id)).size !== all.length ||
@@ -281,6 +284,12 @@ function assertEvidence(
   }
   if (evidence.cases <= 0 || evidence.resolvableLabeled <= 0 ||
       evidence.matchedResolvable < 0 || evidence.matchedResolvable > evidence.resolvableLabeled ||
+      evidence.matchedResolvable > evidence.matchedCases ||
+      !Number.isSafeInteger(evidence.failedCases) || !Number.isSafeInteger(evidence.abstentions) ||
+      !Number.isSafeInteger(evidence.costSamples) || evidence.costSamples < 0 ||
+      evidence.costSamples > evidence.cases ||
+      (evidence.totalCostUsd !== null && (!Number.isFinite(evidence.totalCostUsd) || evidence.totalCostUsd < 0)) ||
+      (evidence.totalLatencyMs !== null && (!Number.isFinite(evidence.totalLatencyMs) || evidence.totalLatencyMs < 0)) ||
       evidence.matchedCases < 0 || evidence.matchedCases > evidence.cases ||
       evidence.failedCases !== evidence.cases - evidence.matchedCases ||
       evidence.nonResolvableFailures < 0 || evidence.abstentions < 0 ||
@@ -383,6 +392,12 @@ export function selectCalibrationCandidate(
   };
 }
 
+/** The exact calibration measurements must accompany the holdout package to
+ * rederive the lock. A syntactically valid digest alone is not authentication. */
+export interface CalibrationLockProof {
+  baseline: SplitEvidence;
+  candidates: readonly SplitEvidence[];
+}
 export interface HoldoutResult {
   status: "rejected" | "awaiting_independent_approval";
   reasons: readonly string[];
@@ -395,8 +410,15 @@ export interface HoldoutResult {
 export function evaluateLockedHoldout(
   plan: CalibrationPlan, lock: CalibrationLock,
   baseline: SplitEvidence, selected: SplitEvidence,
+  proof: CalibrationLockProof,
 ): HoldoutResult {
   verifyCalibrationPlan(plan);
+  const rederived = selectCalibrationCandidate(plan, proof.baseline, proof.candidates, lock.lockedAt);
+  if (rederived.status !== "locked_for_holdout" ||
+      rederived.calibrationDigest !== lock.calibrationDigest ||
+      rederived.selectedCandidateId !== lock.selectedCandidateId) {
+    throw new Error("calibration: selection lock has no matching calibration proof");
+  }
   const candidate = plan.candidates.find(c => c.id === lock.selectedCandidateId);
   if (!candidate || lock.planId !== plan.id ||
       !/^[0-9a-f]{64}$/.test(lock.calibrationDigest) ||
