@@ -1,4 +1,6 @@
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
+import type { GovernedFoodPortion } from "./portionProvenance";
+import type { FoodKnowledgeValidity } from "./knowledgeValidity";
 
 /**
  * Issue #1302: single V2 read contract / cache-through orchestrator.
@@ -26,6 +28,9 @@ export type NutritionFacts = {
 export type GovernedFoodMatch = {
   kind: "match";
   matchingEvidence: "barcode" | "exact_variant" | "personal_alias" | "global_alias" | "generic_family";
+  /** Governed identity proof returned by the authoritative store; request assertions alone are insufficient. */
+  matchedBrand?: string | null;
+  matchedBarcode?: string | null;
   foodId: number;
   variantId: number;
   profileId: number;
@@ -35,7 +40,9 @@ export type GovernedFoodMatch = {
   sourceReference: string;
   nutrition: NutritionFacts;
   governanceStatus: "verified" | "provisional";
-  portions: ReadonlyArray<{ label: string; unit: string; quantity: number; grams: number; status: string }>;
+  portions: readonly GovernedFoodPortion[];
+  /** Absence never authorizes reuse; the repository includes all validity dependencies. */
+  knowledgeValidity?: FoodKnowledgeValidity;
 };
 
 export type FoodKnowledgeLocalResult =

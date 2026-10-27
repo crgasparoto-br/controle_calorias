@@ -60,6 +60,55 @@ a bebida não era registrada. O mecanismo é o mesmo já previsto no preflight:
 variante declarada pela referência local não é tratada como variante comercial
 não comprovada. Bebidas sem referência local continuam fail-closed.
 
+## Nucleo V2 isolado: proveniencia e continuidade de porcoes (#1305)
+
+Esta secao descreve somente o nucleo C2 em `server/modules/foodIntelligenceV2`,
+sem migrar entrypoints produtivos nem ativar politicas da #1306. Implementa os
+vinculos de variante, fonte e snapshot exigidos na ADR V2, secoes 5, 6 e 8.7;
+nao introduz outra tabela, catalogo ou autoridade nutricional.
+
+`quantity.portionId` identifica o registro efetivamente selecionado. Para uma
+conversao `source=governed_portion`, o detalhe aditivo `quantity.portionSnapshot`
+conserva `portionId`, `foodEntityId`, `variantId`, medida de referencia, gramatura,
+`measureKind`, confianca, `sourceId`, `sourceVersion`, `sourceReference`,
+`sourcePortionCode`, `evidenceId`, governanca, validade e `updatedAt`. A referencia
+da fonte da porcao vem da aprovacao dessa fonte, nunca da fonte dos macros.
+Uma media usual permanece `usual_average`; verificacao da fonte nao a torna exata.
+O campo e opcional em contratos anteriores sem conversao governada. Nao ha
+reescrita de snapshots historicos nem recomputacao de refeicoes registradas.
+
+O schema da decisao exige correspondencia entre snapshot, variante/familia,
+`portionId`, unidade, natureza da medida e gramas calculados. As evidencias de
+`quantity.portionId` e `quantity.grams` carregam a fonte real e um anchor
+`food-portion:<id>:<sha256-do-snapshot>`, sem atribuir o registro de catalogo ao
+span da mensagem. O hash nutricional incorpora a porcao selecionada: alterar
+sua revisao muda o snapshot mesmo quando os macros finais coincidirem.
+
+Na continuidade, a quantidade declarada, como `1 fatia`, e independente da
+conversao, como `20 g` da variante A. Uma nova identidade ou revisao de
+conhecimento/politica exige nova leitura governada. A conversao anterior e suas
+evidencias derivadas nao passam a fundamentar a variante B; usa-se a porcao
+corrente de B ou mantem-se a quantidade textual com nutricao indisponivel e
+clarificacao. Massa/volume diretamente declarados continuam preservados.
+A decisao anterior permanece imutavel, inclusive apos serializacao.
+
+Sem nova evidencia conflitante, com a mesma revisao e porcao ainda vigente, a
+continuidade pode preservar o snapshot aceito durante indisponibilidade do
+banco somente se `knowledgeValidity` comprovar a elegibilidade atual do
+conhecimento no mesmo usuario e versao do resolvedor (ADR §5). O prazo inclui
+perfil, autorizacoes de fontes e transicoes temporais que possam mudar a
+selecao. Metadado ausente ou validade encerrada exige reconsulta. Revogacoes
+ou edicoes observadas em nova leitura/revisao nao reutilizam a conversao antiga.
+O nucleo nao afirma detectar mudanca remota sem nova leitura ou revisao de conhecimento.
+
+A regressao integrada em `resolverRepository.test.ts` percorre repositorio,
+read-through, resolvedor e schema reais, simulando apenas o acesso SQL: uma
+fatia de 20 g da variante A deve passar a 45 g ao selecionar a porcao de B,
+inclusive quando a segunda mensagem omite a quantidade. Cobre ainda ausencia
+de porcao, fonte independente, medida media, serializacao, revisao e revogacao.
+`resolver.test.ts` testa vinculos adulterados, validade, fonte/revisao ausentes
+e hashes; os oraculos anteriores do corpus permanecem inalterados.
+
 ## Fluxo no registro de refeicao
 
 O item de refeicao passa a aceitar:

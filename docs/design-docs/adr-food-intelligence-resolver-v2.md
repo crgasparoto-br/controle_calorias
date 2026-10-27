@@ -360,6 +360,7 @@ type FoodResolutionDecision = {
   revision: number;
   observationIds: string[];
   traceId: string;
+  ownerUserId?: number | null; // obrigatório na emissão C2; opcional ao ler snapshots V2 legados
   status: "resolved" | "partially_resolved" | "ambiguous" | "unknown";
   nextAction: "propose" | "clarify" | "reject" | "retry";
   identity: {
@@ -421,6 +422,12 @@ type FoodResolutionDecision = {
   evidence: FoodEvidence[];
   knowledgeRevision: string;
   policyVersion: string;
+  knowledgeValidity?: {
+    checkedAt: string;
+    validUntil: string | null;
+    userId: number | null;
+    resolverVersion: string;
+  };
 };
 ```
 
@@ -428,7 +435,9 @@ type FoodResolutionDecision = {
 
 A base nutricional explícita substitui `per100g` como único formato: o modelo físico já suporta `g`, `ml` e `serving`. Calorias usam kcal, macros/fibra/açúcar usam g e sódio usa mg. Quantidades de base e de consumo aceitas são positivas; nutrientes são finitos e não negativos. Zero comprovado é valor válido; ausência de nutrição usa `basis=null`/`consumed=null`, nunca um conjunto de zeros. `consumed` é calculado pela relação física comprovada e preserva a base original. Converter ml em g exige densidade/evidência; peso de embalagem não é quantidade consumida e 100 g não é uma unidade implícita.
 
-`revision` é inteiro positivo crescente na mesma decisão; nova evidência pode gerar nova revisão com vínculo à anterior na continuidade persistente. Referências de evidência, hipóteses e candidatos não podem apontar para outro proprietário. `status` segue precedência: conflito material → `ambiguous`; sem identidade sustentada → `unknown`; identidade sustentada com lacuna material → `partially_resolved`; demais fatos necessários suficientes → `resolved`.
+`revision` é inteiro positivo crescente na mesma decisão; nova evidência pode gerar nova revisão com vínculo à anterior na continuidade persistente. Referências de evidência, hipóteses e candidatos não podem apontar para outro proprietário. O resolvedor C2 inclui `ownerUserId` em toda decisão nova, inclusive incompleta, e o vincula ao usuário autenticado do contexto. Reuso de `previousDecision` exige o mesmo proprietário e a mesma observação/trace; em snapshots V2 legados, `knowledgeValidity.userId` pode comprovar o proprietário, mas ausência de ambos impede herdar **qualquer** evidência, identidade ou quantidade. Continuidade sem usuário autenticado não herda decisões anteriores. `decisionId` novo é segregado pelo proprietário para não colidir entre contas que apresentem os mesmos identificadores de trace/observação. `status` segue precedência: conflito material → `ambiguous`; sem identidade sustentada → `unknown`; identidade sustentada com lacuna material → `partially_resolved`; demais fatos necessários suficientes → `resolved`.
+
+`knowledgeValidity` registra a elegibilidade temporal comprovada pelo repositório governado para reutilizar uma proposta pendente. `checkedAt` e `validUntil` são instantes ISO; o prazo considera conservadoramente vencimentos de perfil, autorizações das fontes, provas de identidade e porções, além do início de vigência de registros consultados que possa mudar a seleção. `validUntil=null` declara que não há transição temporal conhecida nessas dependências verificadas; campo ausente em snapshots anteriores significa validade não demonstrada e exige reconsulta. O reuso exige o mesmo usuário, versão do resolvedor, revisão do conhecimento e política, relógio não anterior a `checkedAt` e estritamente anterior a `validUntil`, quando houver prazo. Expiração torna a proposta inelegível para novo `propose`; não autoriza alterar refeição histórica confirmada nem o snapshot anterior.
 
 Semântica obrigatória:
 
@@ -439,9 +448,11 @@ Semântica obrigatória:
 | `ambiguous`          | Evidência/alternativas materialmente concorrentes                                                                 | `clarify` com o campo faltante e alternativas rastreáveis; não selecionar apenas pelo maior score.                                         |
 | `unknown`            | Nenhuma identidade sustentada ou entrada rejeitável                                                               | `clarify` para falta recuperável, `retry` para falha transitória, `reject` para não alimento/entrada inválida com motivo; nunca `propose`. |
 
+No núcleo C2, evidências geradas de macros governados mantêm `sourceId` e âncora estrutural do perfil selecionado, com ID do perfil e hash do snapshot contendo versão da fonte, variante e porção. Jamais atribuir à superfície textual do usuário uma caloria ou macronutriente que só foi obtido no catálogo. Evidências de identidade/quantidade observadas continuam vinculadas à sua própria superfície. Classificações verificadas e contraditórias de `classification.isFood=true` e `false` exigem `source_conflict`/`clarify` (sem nutrição final), não `non_food`/`reject`; o schema também rejeita o `non_food` contraditório.
+
 Os flags nutricionais são exclusivos: verificado `(true,false)`, provisório utilizável `(false,true)` e indisponível `(false,false)` com valores nulos; `(true,true)` é inválido. Perfil verificado com quantidade estimada não torna a quantidade exata. Classificação nula ou provisória não pode virar classificação verificada nos relatórios.
 
-`reasonCodes` referencia o registro tipado de motivos do domínio: preservar os códigos comerciais existentes (`brand_variant_unresolved`, `commercial_identity_unverified`, `commercial_nutrition_unverified`, `image_identity_unresolved`) e distinguir `unknown_surface`, `unsupported_locale`, `non_food`, `unreadable_evidence`, `quantity_missing`, `quantity_conversion_unproven`, `source_conflict`, `provider_unavailable`, `context_unavailable`, `policy_not_calibrated` e `unsupported_schema_version`. Acrescentar motivo exige contrato/teste, não mensagem livre interpretada como comando. Resultado não resolvido exige motivo e campos faltantes quando aplicáveis. `retry` não ordena repetidas chamadas: sem condição de recuperação (por exemplo, política ainda não aprovada), o fluxo permanece explicitamente bloqueado, sem loop.
+`reasonCodes` referencia o registro tipado de motivos do domínio: preservar os códigos comerciais existentes (`brand_variant_unresolved`, `commercial_identity_unverified`, `commercial_nutrition_unverified`, `image_identity_unresolved`) e distinguir `unknown_surface`, `unsupported_locale`, `non_food`, `unreadable_evidence`, `quantity_missing`, `quantity_conversion_unproven`, `source_conflict`, `provider_unavailable`, `context_unavailable`, `policy_not_calibrated`, `decision_validation_failed` e `unsupported_schema_version`. `decision_validation_failed` representa falha fechada do contrato de saída (por exemplo, orçamento de evidências esgotado): nunca publica nutrição ou quantidade não representável, e a resposta de falha precisa validar no mesmo schema. Acrescentar motivo exige contrato/teste, não mensagem livre interpretada como comando. Resultado não resolvido exige motivo e campos faltantes quando aplicáveis. `retry` não ordena repetidas chamadas: sem condição de recuperação (por exemplo, política ainda não aprovada), o fluxo permanece explicitamente bloqueado, sem loop.
 
 O resultado de lote associa cada `observationId` a uma decisão, preserva multiplicidade e apresenta separadamente itens propostos e pendentes/rejeitados. O executor existente da operação é quem retorna o efeito persistido e a resposta terminal. Falha de banco não pode ser ocultada por `status=resolved`, e retry não repete itens já confirmados (§7.2/§19.5).
 
@@ -463,6 +474,8 @@ Consequências obrigatórias:
 - itens resolvidos em uma entrada multi-item não podem ser descartados porque outro item permanece ambíguo.
 
 - nenhum leitor pode recomputar macro ou remapear identidade de item histórico, e nenhuma correção de catálogo, nutrição ou classificação pode alterar relatório registrado sem operação explícita e auditada (§8.14).
+
+Uma resposta de clarificação pode preencher a quantidade ausente usando a identidade já aceita, mesmo quando o usuário informa somente a medida. Ausência anterior não é conflito com um valor aceito. Evidência forte nova de identidade, família, variante ou atributos comerciais deve ser reconciliada com o conjunto de evidências e o candidato governado antes de propor nutrição; contradições materiais permanecem explícitas, inclusive na continuidade.
 
 ## 7. Separação entre operação da refeição e alimento
 

@@ -14,7 +14,9 @@ import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_
 import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference, isValidHttpsSourceReference } from "./sourceGrants";
 import { isGovernedFamilyVisible, eligibleCommercialProfileProofScope, hasCurrentBarcodeProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
 import { isExternalFoodAssertionConsistent, isNutritionFacts } from "./knowledgeRead";
+import { foodPortionSnapshotSchema, type GovernedFoodPortion } from "./portionProvenance";
 import { getDb } from "../../db";
+import { createKnowledgeValidityTracker } from "./knowledgeValidity";
 import type {
   ExternalProvisionalCandidate, FoodKnowledgeLocalResult, FoodKnowledgeRequest,
   FoodKnowledgeStore, GovernedFoodMatch, NutritionFacts,
@@ -23,6 +25,7 @@ import type {
 const MAX_CANDIDATES = 30;
 type V2Database = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type MatchType = GovernedFoodMatch["matchingEvidence"];
+type ValidityTracker = ReturnType<typeof createKnowledgeValidityTracker>;
 
 const hash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -47,6 +50,7 @@ function evidenceCacheKey(request: FoodKnowledgeRequest) {
 
 async function readApprovedSource(
   db: V2Database, sourceId: number, now: Date, requireGlobalPublication = false,
+  validity?: ValidityTracker,
 ) {
   const [row] = await db.select({
     source: foodSources,
@@ -55,11 +59,15 @@ async function readApprovedSource(
     .innerJoin(foodSourceReadGrants, eq(foodSourceReadGrants.sourceId, foodSources.id))
     .where(eq(foodSources.id, sourceId))
     .limit(1);
+  // A scheduled approval can make another candidate eligible without a data
+  // revision. Reuse must end before that time-dependent selection changes.
+  if (row) validity?.includeFutureStart(row.grant.approvedAt);
   if (
     !row ||
     !canReadFoodSource(row.grant, row.source.version, now) ||
     (requireGlobalPublication && !canPublishGlobalKnowledge(row.grant, row.source.version, now))
   ) return null;
+  validity?.include(row.grant.validUntil);
   return row;
 }
 
@@ -98,6 +106,7 @@ async function barcodeNameIsCompatible(
   db: V2Database,
   request: FoodKnowledgeRequest,
   row: NonNullable<Awaited<ReturnType<typeof eligibleVariant>>>,
+  validity: ValidityTracker,
 ): Promise<boolean> {
   const name = normalizeFoodName(request.normalizedName);
   if (!name) return true;
@@ -126,7 +135,7 @@ async function barcodeNameIsCompatible(
   if (aliases.length > MAX_CANDIDATES) return false;
   for (const alias of aliases) {
     if (alias.foodId !== row.family.id || !alias.sourceVersion || !alias.sourceId) continue;
-    const approval = await readApprovedSource(db, alias.sourceId, at(request), true);
+    const approval = await readApprovedSource(db, alias.sourceId, at(request), true, validity);
     if (approval?.source.version === alias.sourceVersion) return true;
   }
   return false;
@@ -136,7 +145,12 @@ async function readCurrentProfile(
   db: V2Database, variantId: number, request: FoodKnowledgeRequest,
   variantType: "generic" | "branded" | "custom",
   familyScope: "global" | "user" | null,
+  validity: ValidityTracker,
 ): Promise<{ profile: typeof foodNutritionProfiles.$inferSelect; sourceId: number; sourceVersion: string; sourceReference: string; personalEvidence: boolean } | "conflict" | null> {
+  // An explicit commercial assertion needs same-product nutritional proof
+  // even when a stored variant was classified as generic or custom.
+  const commercial = variantType === "branded" ||
+    !!request.brand?.trim() || !!request.barcode?.trim();
   const rows = await db.select().from(foodNutritionProfiles)
     .where(eq(foodNutritionProfiles.foodVariantId, variantId))
     .limit(MAX_CANDIDATES + 1);
@@ -150,10 +164,11 @@ async function readCurrentProfile(
     personalEvidence: boolean;
   }> = [];
   for (const profile of rows) {
+    validity.includeFutureStart(profile.validFrom);
     if (profile.currentSlot !== 1 ||
         (profile.status !== "verified" && profile.status !== "provisional") ||
         !currentlyValid(profile.validFrom, profile.validTo, at(request))) continue;
-    const permission = await readApprovedSource(db, profile.sourceId, at(request), familyScope === "global");
+    const permission = await readApprovedSource(db, profile.sourceId, at(request), familyScope === "global", validity);
     // A freshly approved grant does not certify older source-version macros.
     // Unversioned B1/legacy rows are ineligible until explicitly reviewed.
     if (!permission || !profile.sourceVersion ||
@@ -167,7 +182,7 @@ async function readCurrentProfile(
         (!mapping || mapping.status !== "active" ||
           mapping.foodVariantId !== variantId || mapping.sourceId !== profile.sourceId)) continue;
     let personalEvidence = false;
-    if (variantType === "branded") {
+    if (commercial) {
       const proofs = await db.select().from(foodEvidence)
         .where(and(
           eq(foodEvidence.foodVariantId, variantId),
@@ -188,13 +203,27 @@ async function readCurrentProfile(
         proofs, at(request), familyScope === "user" ? "user" : "global", request.userId,
       );
       if (!proofScope) continue;
+      // Every matching proof that can support this selection contributes its
+      // retention bound; an expired proof is never silently kept by reuse.
+      for (const proof of proofs) {
+        if (eligibleCommercialProfileProofScope({
+          variantId, sourceId: profile.sourceId, mapping,
+          sourceUrl: permission.source.sourceUrl, sourceVersion: permission.source.version,
+          nutrition: { basisQuantity: profile.basisQuantity, basisUnit: profile.basisUnit,
+            caloriesKcal: profile.caloriesKcal, proteinG: profile.proteinG,
+            carbG: profile.carbG, fatG: profile.fatG },
+        }, [proof], at(request), familyScope === "user" ? "user" : "global", request.userId) === proofScope) {
+          validity.include(proof.retentionUntil);
+        }
+      }
       personalEvidence = proofScope === "personal";
     }
     // A license reference proves permission, never nutritional provenance.
     // Exact commercial mapping already passed the same-SKU proof above.
-    const sourceReference = variantType === "branded"
+    const sourceReference = commercial
       ? mapping?.sourceUrl : permission.source.sourceUrl;
     if (!isValidHttpsSourceReference(sourceReference)) continue;
+    validity.include(profile.validTo);
     usable.push({
       profile, sourceId: permission.source.id,
       sourceVersion: permission.source.version,
@@ -220,29 +249,44 @@ async function readCurrentProfile(
 async function portionsFor(
   db: V2Database, variantId: number, familyId: number, request: FoodKnowledgeRequest,
   familyScope: "global" | "user" | null,
+  validity: ValidityTracker,
 ): Promise<GovernedFoodMatch["portions"]> {
   const rows = await db.select().from(foodPortions)
     .where(eq(foodPortions.foodVariantId, variantId))
     .limit(50);
-  const result: Array<{ label: string; unit: string; quantity: number; grams: number; status: string }> = [];
+  const result: GovernedFoodPortion[] = [];
   for (const portion of rows) {
+    validity.includeFutureStart(portion.validFrom);
     // The two independent foreign keys do not guarantee that a portion's
     // family is the family owning the selected variant. Never return a
     // serving measure from another food, even if its variant ID matches.
-    if (portion.foodId !== familyId ||
+    if (portion.foodId !== familyId || portion.foodVariantId !== variantId ||
         (portion.status !== "verified" && portion.status !== "provisional") ||
         !currentlyValid(portion.validFrom, portion.validTo, at(request)) ||
         !portion.sourceId || !portion.sourceVersion ||
         !Number.isFinite(portion.grams) || portion.grams <= 0) continue;
     const approvedPortionSource = await readApprovedSource(
-      db, portion.sourceId, at(request), familyScope === "global",
+      db, portion.sourceId, at(request), familyScope === "global", validity,
     );
     if (!approvedPortionSource ||
         portion.sourceVersion !== approvedPortionSource.source.version) continue;
-    result.push({
-      label: portion.label, unit: portion.unit, quantity: portion.quantity,
-      grams: portion.grams, status: portion.status,
+    // Preserve the actual record and its approved source; never borrow the profile source.
+    const snapshot = foodPortionSnapshotSchema.safeParse({
+      portionId: portion.id, foodEntityId: portion.foodId, variantId: portion.foodVariantId,
+      label: portion.label, unit: portion.unit, quantity: portion.quantity, grams: portion.grams,
+      measureKind: portion.measureKind, confidence: portion.confidence,
+      sourceId: portion.sourceId, sourceVersion: portion.sourceVersion,
+      sourceReference: approvedPortionSource.source.sourceUrl,
+      sourcePortionCode: portion.sourcePortionCode, evidenceId: portion.evidenceId,
+      status: portion.status,
+      validFrom: portion.validFrom?.toISOString() ?? null,
+      validTo: portion.validTo?.toISOString() ?? null,
+      updatedAt: portion.updatedAt?.toISOString(),
     });
+    if (snapshot.success) {
+      validity.include(portion.validTo);
+      result.push(snapshot.data);
+    }
   }
   return result;
 }
@@ -250,11 +294,14 @@ async function portionsFor(
 export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
   return {
     async readLocal(request): Promise<FoodKnowledgeLocalResult> {
+      // One instant for every dependency, including calls without an injected clock.
+      request = { ...request, now: at(request) };
+      const validity = createKnowledgeValidityTracker(at(request), request.userId, request.resolverVersion);
       const db = await getDb();
       if (!db) throw new Error("Governed Food V2 database unavailable");
 
       const name = request.normalizedName.trim();
-      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number; barcodeEvidenceOwnerUserId?: number | null; aliasFamilyIds?: Map<number, number> }> = [];
+      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number; barcodeEvidenceOwnerUserId?: number | null; matchedBarcode?: string; aliasFamilyIds?: Map<number, number> }> = [];
       if (request.barcode?.trim()) {
         const barcodeRows = await db.select().from(foodBarcodes)
           .where(eq(foodBarcodes.barcode, request.barcode.trim())).limit(MAX_CANDIDATES + 1);
@@ -263,7 +310,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         if (barcode.status !== "active" || !barcode.sourceId || !barcode.evidenceId) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }
-        const source = await readApprovedSource(db, barcode.sourceId, at(request));
+        const source = await readApprovedSource(db, barcode.sourceId, at(request), false, validity);
         if (!source) return { kind: "miss", reason: "incompatible_evidence" };
         const [proof] = await db.select().from(foodEvidence)
           .where(eq(foodEvidence.id, barcode.evidenceId)).limit(1);
@@ -282,9 +329,11 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         )) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }
+        validity.include(proof.retentionUntil);
         groups.push({
           match: "barcode", ids: [barcode.foodVariantId], identitySourceId: barcode.sourceId,
           barcodeEvidenceOwnerUserId: proof?.ownerUserId,
+          matchedBarcode: barcode.barcode,
         });
       } else if (name) {
         // Personal confirmation takes precedence over a homonymous generic
@@ -313,7 +362,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
               !alias.sourceId || !alias.sourceVersion) continue;
           // A current grant cannot silently re-approve an alias asserted by an
           // older source revision. Unversioned V1 aliases remain ineligible.
-          const approval = await readApprovedSource(db, alias.sourceId, at(request), true);
+          const approval = await readApprovedSource(db, alias.sourceId, at(request), true, validity);
           if (approval?.source.version !== alias.sourceVersion) continue;
           licensedGlobalIds.push(alias.foodVariantId);
           aliasFamilyIds.set(alias.foodVariantId, alias.foodId);
@@ -347,15 +396,15 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
               group.barcodeEvidenceOwnerUserId !== null) {
             return { kind: "miss", reason: "incompatible_evidence" };
           }
-          if (group.match === "barcode" && !await barcodeNameIsCompatible(db, request, row)) {
+          if (group.match === "barcode" && !await barcodeNameIsCompatible(db, request, row, validity)) {
             return { kind: "conflict", reason: "multiple_identities" };
           }
           // A globally visible barcode identity also needs permission to
           // publish the barcode's source, independently of the macro profile.
           if (group.identitySourceId && row.family.scope === "global" &&
-              !await readApprovedSource(db, group.identitySourceId, at(request), true)) continue;
+              !await readApprovedSource(db, group.identitySourceId, at(request), true, validity)) continue;
           const profileResult = await readCurrentProfile(
-            db, id, request, row.variant.variantType, row.family.scope,
+            db, id, request, row.variant.variantType, row.family.scope, validity,
           );
           if (profileResult === "conflict") {
             return { kind: "conflict", reason: "material_nutrition_conflict" };
@@ -370,17 +419,23 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             kind: "match", matchingEvidence: group.match,
             foodId: row.family.id, variantId: id, profileId: p.id,
             variantName: row.variant.displayName,
+            // Return the stored identity that passed the governance checks,
+            // never manufacture commercial proof from the request assertions.
+            matchedBrand: row.brand?.name ?? null,
+            matchedBarcode: group.matchedBarcode ?? null,
             sourceId: profileResult.sourceId, sourceVersion: profileResult.sourceVersion,
             sourceReference: profileResult.sourceReference,
             nutrition: profileValues,
             governanceStatus: p.status === "verified" &&
               row.variant.governanceStatus === "verified" &&
               !profileResult.personalEvidence ? "verified" : "provisional",
-            portions: await portionsFor(db, id, row.family.id, request, row.family.scope),
+            portions: await portionsFor(db, id, row.family.id, request, row.family.scope, validity),
           });
         }
         if (matches.length > 1) return { kind: "conflict", reason: "multiple_identities" };
-        if (matches.length === 1) return matches[0];
+        // Include later candidates whose scheduled activation may change the
+        // currently unique result, not only dependencies read before the hit.
+        if (matches.length === 1) return { ...matches[0], knowledgeValidity: validity.snapshot() };
         // An existing confirmed personal alias already fixes identity. If its
         // variant/profile is revoked, expired or unavailable, never borrow
         // macros from a same-name variant or an external cache/provider.

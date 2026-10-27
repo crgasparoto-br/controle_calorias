@@ -44,9 +44,23 @@ const variantRow = {
 };
 const profile = {
   id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
-  foodVariantSourceId: null, validFrom: null, validTo: null,
+  foodVariantSourceId: barcodeMapping.id, validFrom: null, validTo: null,
   caloriesKcal: 250, proteinG: 9, carbG: 48, fatG: 3,
   basisQuantity: 100, basisUnit: "g",
+};
+
+// Barcode identity proof is distinct from the same-product nutritional proof.
+// Positive identity/scope scenarios need both before exercising their oracle.
+const nutritionPayload = {
+  foodVariantId: 22, sourceId: 7, sourceItemCode: barcodeMapping.sourceItemCode,
+  sourceReference: reference, sourceVersion: profile.sourceVersion,
+  nutrition: { caloriesKcal: profile.caloriesKcal, proteinG: profile.proteinG,
+    carbG: profile.carbG, fatG: profile.fatG,
+    basisQuantity: profile.basisQuantity, basisUnit: profile.basisUnit },
+};
+const nutritionProof = {
+  ...proof, evidenceType: "nutrition_label", payloadJson: JSON.stringify(nutritionPayload),
+  contentHash: createHash("sha256").update(JSON.stringify(nutritionPayload)).digest("hex"),
 };
 
 function installResults(...pages: unknown[][]) {
@@ -210,32 +224,32 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
       [{ source, grant }], [proof], [barcodeMapping], [globalVariant],
-      [{ source, grant }], [profile], [{ source, grant }], [],
+      [{ source, grant }], [profile], [{ source, grant }], [barcodeMapping], [nutritionProof], [],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal(request))
       .toMatchObject({ kind: "match", matchingEvidence: "barcode", variantId: 22 });
-    expect(select).toHaveBeenCalledTimes(9);
+    expect(select).toHaveBeenCalledTimes(11);
   });
 
   it("AUD-1302-024: the owner can still use personal proof for a private barcode", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
       [{ source, grant }], [{ ...proof, ownerUserId: 41 }],
-      [barcodeMapping], [variantRow], [profile], [{ source, grant }], [],
+      [barcodeMapping], [variantRow], [profile], [{ source, grant }], [barcodeMapping], [nutritionProof], [],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal(request))
       .toMatchObject({ kind: "match", matchingEvidence: "barcode", variantId: 22 });
-    expect(select).toHaveBeenCalledTimes(8);
+    expect(select).toHaveBeenCalledTimes(10);
   });
   it("resolves a valid barcode with a matching governed variant", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant }], [proof], [barcodeMapping], [variantRow], [profile], [{ source, grant }], [],
+      [{ source, grant }], [proof], [barcodeMapping], [variantRow], [profile], [{ source, grant }], [barcodeMapping], [nutritionProof], [],
     );
     const result = await createFoodV2KnowledgeRepository().readLocal(request);
     expect(result).toMatchObject({ kind: "match", variantId: 22,
       matchingEvidence: "barcode", nutrition: { caloriesKcal: 250 } });
-    expect(select).toHaveBeenCalledTimes(8);
+    expect(select).toHaveBeenCalledTimes(10);
   });
 
   it("AUD-1302-023: generic manufacturer page is not a barcode identity", async () => {
@@ -325,12 +339,12 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
       [{ source, grant }], [proof], [barcodeMapping], [variantRow], [{ id: 22 }],
-      [profile], [{ source, grant }], [],
+      [profile], [{ source, grant }], [barcodeMapping], [nutritionProof], [],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal({
       ...request, normalizedName: "meu pao",
     })).toMatchObject({ kind: "match", variantId: 22 });
-    expect(select).toHaveBeenCalledTimes(9);
+    expect(select).toHaveBeenCalledTimes(11);
   });
 
   it("does not read a local variant when barcode evidence points to another code", async () => {
