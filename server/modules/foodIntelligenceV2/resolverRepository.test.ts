@@ -430,13 +430,13 @@ function installTemporalKnowledge(which: TemporalDependency, instant: Date) {
 describe("source validity bounds pending resolver proposals", () => {
   it.each(["profile", "nutrition-source", "portion-source"] as const)(
     "revalidates at and after %s expiry, with unchanged knowledge revision", async which => {
-      const scoped = { ...context, userId: null, now: temporalStart };
+      const scoped = { ...context, userId: context.userId, now: temporalStart };
       const input = buildFoodObservationFixture();
       installTemporalKnowledge(which, temporalStart);
       const first = await resolveFoodObservation(input, scoped, createFoodV2KnowledgeRepository());
       expect(first.status).toBe("resolved");
       expect(first.knowledgeValidity).toEqual({ checkedAt: temporalStart.toISOString(),
-        validUntil: temporalBoundary.toISOString(), userId: null, resolverVersion: context.resolverVersion });
+        validUntil: temporalBoundary.toISOString(), userId: context.userId, resolverVersion: context.resolverVersion });
       const frozen = JSON.stringify(first);
       // Eligible reuse survives temporary SQL unavailability before the boundary.
       vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
