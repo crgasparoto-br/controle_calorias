@@ -29,10 +29,10 @@ export const CANONICAL_ADR_PATH =
  * declaradas. Alterar a ADR sem atualizar este pino **reprova** a verificação:
  * a referência precisa ser reexaminada, não herdada.
  */
-// #1305: revalidated after documenting knowledgeValidity in ADR §5 and
-// clarification/identity reconciliation in §6. Independent food oracles are unchanged.
+// #1305: revalidated after documenting nutrition provenance, contradictory
+// classification and owner-scoped continuation. Food oracles are unchanged.
 export const CANONICAL_ADR_SHA256 =
-  "93605f5707b99e72688f0b7773a5538ccf9a32c4738cacc07e5a078097712df3";
+  "0d4975b6a219e34d74e9dc64da90243cd14d2c95b57dd222b2647f1412b41360";
 
 export interface CanonicalReference {
   readonly path: string;
