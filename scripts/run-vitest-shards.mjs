@@ -228,8 +228,8 @@ export function extractC3Evidence(log) {
         Array.isArray(ready.blockers?.[item]) && ready.blockers[item].length) ||
       baseline.resolver?.id !== "food-intelligence-v2-domain-resolver" ||
       baseline.gate === "passed" || !baseline.failureClasses ||
-      !baseline.bySplit?.some(row => row.segment === "calibration") ||
-      !baseline.bySplit?.some(row => row.segment === "holdout")) {
+      !baseline.bySplit?.some(row => row.split === "calibration") ||
+      !baseline.bySplit?.some(row => row.split === "holdout")) {
     throw new Error("C3: incomplete readiness or falsely approved resolver baseline");
   }
   return reports;

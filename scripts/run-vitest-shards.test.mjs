@@ -162,7 +162,7 @@ function c3Fixtures() {
   };
   const ready = { blockers: Object.fromEntries(["2", "7", "8", "17", "19", "22"].map(item => [item, ["ground_truth_absent"]])) };
   const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" }, gate: "failed",
-    failureClasses: { mismatch: 1 }, bySplit: [{ segment: "calibration" }, { segment: "holdout" }] };
+    failureClasses: { mismatch: 1 }, bySplit: [{ split: "acquisition" }, { split: "calibration" }, { split: "holdout" }] };
   return { [C3_EVIDENCE_MARKERS[0]]: rounding, [C3_EVIDENCE_MARKERS[1]]: ready,
     [C3_EVIDENCE_MARKERS[2]]: baseline };
 }
@@ -207,6 +207,11 @@ test("A-004 negative: forged counts, holdout leakage and artificial approval fai
   const fake = c3Fixtures();
   fake.C3_REAL_RESOLVER_FIXTURE_BASELINE.gate = "passed";
   assert.throws(() => extractC3Evidence(c3Log(fake)), /falsely approved/);
+  const wrongSchema = c3Fixtures();
+  wrongSchema.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit = [
+    { segment: "calibration" }, { segment: "holdout" }
+  ];
+  assert.throws(() => extractC3Evidence(c3Log(wrongSchema)), /incomplete readiness/);
 });
 
 test("A-004 regression: refuses stale SHA and preserves Vitest ANSI stdout", () => {
