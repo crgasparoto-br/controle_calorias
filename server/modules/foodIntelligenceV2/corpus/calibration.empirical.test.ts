@@ -12,17 +12,34 @@ import { comprehendFoodLanguage } from "../linguisticComprehension";
 import { resolveFoodObservations } from "../resolver";
 import type { FoodKnowledgeStore, GovernedFoodMatch } from "../knowledgeRead";
 import { goldenFoodCorpus } from "./data";
-import { CALIBRATION_PARAMETERS } from "./calibration.test.support";
+import { CALIBRATION_PARAMETERS, C3_PRE_REGISTERED_PARAMETER_DEFINITIONS } from "./calibration.test.support";
 
 const TACO_PRIMARY_SOURCE =
   "https://nepa.unicamp.br/wp-content/uploads/sites/27/2023/10/taco_4_edicao_ampliada_e_revisada.pdf";
 
-const ENERGY_CANDIDATES = [0, 1e-12, 1e-9, 1e-6, 0.001, 0.01, 0.1] as const;
-const MACRO_CANDIDATES = [0, 1e-12, 1e-9, 1e-6, 0.0001, 0.001, 0.01, 0.1] as const;
+function numericCandidateSet(parameter: "rounding:energy" | "rounding:macros"): readonly number[] {
+  const values = C3_PRE_REGISTERED_PARAMETER_DEFINITIONS[parameter].candidates;
+  if (!values.every(value => typeof value === "number" && Number.isFinite(value))) {
+    throw new Error("C3 rounding candidates must be finite numbers");
+  }
+  return values as readonly number[];
+}
+
+const ENERGY_CANDIDATES = numericCandidateSet("rounding:energy");
+const MACRO_CANDIDATES = numericCandidateSet("rounding:macros");
 const CORE_FIELDS = ["calories", "protein", "carbs", "fat"] as const;
 const MEASURED_ITEM30_CANDIDATE = { calories: 0, protein: 0, carbs: 0, fat: 0 } as const;
 type CoreField = (typeof CORE_FIELDS)[number];
 type CoreValues = Record<CoreField, number>;
+type RoundingSample = Readonly<{ profile: string; deltas: CoreValues }>;
+type RoundingCandidateMetric = Readonly<{
+  candidate: number;
+  cases: number;
+  passed: number;
+  failed: number;
+  maxDelta: number;
+  failuresByClass: Readonly<Record<string, number>>;
+}>;
 
 type TacoRow = ReturnType<typeof getTacoCatalog>[number];
 
@@ -127,6 +144,50 @@ function selectCandidate(field: CoreField, observed: number): number {
   return selected;
 }
 
+function candidatesForField(field: CoreField): readonly number[] {
+  return field === "calories" ? ENERGY_CANDIDATES : MACRO_CANDIDATES;
+}
+
+function evaluateRoundingCandidate(
+  samples: readonly RoundingSample[], field: CoreField, candidate: number,
+): RoundingCandidateMetric {
+  const deltas = samples.map(sample => sample.deltas[field]);
+  const failed = deltas.filter(delta => delta > candidate).length;
+  const failureClass = "rounding_delta_exceeds_candidate:" + field;
+  return {
+    candidate,
+    cases: deltas.length,
+    passed: deltas.length - failed,
+    failed,
+    maxDelta: deltas.length ? Math.max(...deltas) : 0,
+    failuresByClass: failed ? { [failureClass]: failed } : {},
+  };
+}
+
+function comparisonToBaseline(
+  samples: readonly RoundingSample[], field: CoreField, selected: number,
+) {
+  const baseline = evaluateRoundingCandidate(samples, field, 0);
+  const candidate = evaluateRoundingCandidate(samples, field, selected);
+  return {
+    baselinePolicy: "open-fail-closed-zero-divergence",
+    baseline,
+    selected: candidate,
+    passedDelta: candidate.passed - baseline.passed,
+    failedDelta: candidate.failed - baseline.failed,
+  };
+}
+
+function mergeFailureClasses(metrics: readonly RoundingCandidateMetric[]): Record<string, number> {
+  const merged: Record<string, number> = {};
+  for (const metric of metrics) {
+    for (const [failureClass, count] of Object.entries(metric.failuresByClass)) {
+      merged[failureClass] = (merged[failureClass] ?? 0) + count;
+    }
+  }
+  return merged;
+}
+
 describe("#1306 C3 empirical evidence campaign", () => {
   it("selects rounding candidates only from calibration and validates them on reserved profiles", async () => {
     const calibrationProfiles = [
@@ -138,11 +199,11 @@ describe("#1306 C3 empirical evidence campaign", () => {
       [requireTacoRow("Pêra, Williams, crua"), "pêra Williams"],
     ] as const;
 
-    const calibration = [];
+    const calibration: RoundingSample[] = [];
     for (const [row, label] of calibrationProfiles) {
-      calibration.push(await measureEquivalentPair(row, label));
+      calibration.push({ profile: row.slug, deltas: await measureEquivalentPair(row, label) });
     }
-    const calibrationMax = maxByField(calibration);
+    const calibrationMax = maxByField(calibration.map(sample => sample.deltas));
     const selected = Object.fromEntries(
       CORE_FIELDS.map(field => [field, selectCandidate(field, calibrationMax[field])]),
     ) as CoreValues;
@@ -150,25 +211,64 @@ describe("#1306 C3 empirical evidence campaign", () => {
     // The reserved set is opened only after the candidate map is frozen.
     expect(selected).toEqual(MEASURED_ITEM30_CANDIDATE);
     Object.freeze(selected);
-    const holdout = [];
+    const holdout: RoundingSample[] = [];
     for (const [row, label] of holdoutProfiles) {
-      holdout.push(await measureEquivalentPair(row, label));
+      holdout.push({ profile: row.slug, deltas: await measureEquivalentPair(row, label) });
     }
-    const holdoutMax = maxByField(holdout);
+    const holdoutMax = maxByField(holdout.map(sample => sample.deltas));
     for (const field of CORE_FIELDS) {
       expect(holdoutMax[field]).toBeLessThanOrEqual(selected[field]);
     }
 
+    const calibrationCandidateMetrics = Object.fromEntries(CORE_FIELDS.map(field => [
+      field,
+      candidatesForField(field).map(candidate => evaluateRoundingCandidate(calibration, field, candidate)),
+    ]));
+    const baselineComparison = Object.fromEntries(CORE_FIELDS.map(field => [
+      field, comparisonToBaseline(calibration, field, selected[field]),
+    ]));
+    const holdoutSelectedMetrics = Object.fromEntries(CORE_FIELDS.map(field => [
+      field, evaluateRoundingCandidate(holdout, field, selected[field]),
+    ])) as Record<CoreField, RoundingCandidateMetric>;
+    const selectedCalibrationMetrics = CORE_FIELDS.map(field =>
+      evaluateRoundingCandidate(calibration, field, selected[field]));
+    const selectedHoldoutMetrics = CORE_FIELDS.map(field => holdoutSelectedMetrics[field]);
+    const failuresByClass = mergeFailureClasses([
+      ...selectedCalibrationMetrics, ...selectedHoldoutMetrics,
+    ]);
+    expect(failuresByClass).toEqual({});
+
     console.info("C3_ITEM30_ROUNDING_CAMPAIGN " + JSON.stringify({
       source: { kind: "TACO_4E", reference: TACO_PRIMARY_SOURCE },
       splitPolicy: "candidate-selected-from-calibration-before-holdout",
+      baselinePolicy: "open-fail-closed-zero-divergence",
       candidates: { caloriesKcal: ENERGY_CANDIDATES, macroGrams: MACRO_CANDIDATES },
-      calibrationProfiles: calibrationProfiles.map(([row]) => row.slug),
-      holdoutProfiles: holdoutProfiles.map(([row]) => row.slug),
+      calibrationProfiles: calibration.map(sample => sample.profile),
+      holdoutProfiles: holdout.map(sample => sample.profile),
       calibrationMaxDelta: calibrationMax,
+      calibrationCandidateMetrics,
       selectedTolerance: selected,
+      comparisonToBaseline: baselineComparison,
       holdoutMaxDelta: holdoutMax,
+      holdoutSelectedMetrics,
+      failuresByClass,
     }));
+  });
+
+  it("reports discriminating failure classes and comparison deltas for rounding candidates", () => {
+    const samples: RoundingSample[] = [{
+      profile: "synthetic-rounding-control",
+      deltas: { calories: 0.02, protein: 0, carbs: 0, fat: 0 },
+    }];
+    const baseline = evaluateRoundingCandidate(samples, "calories", 0);
+    const relaxed = evaluateRoundingCandidate(samples, "calories", 0.1);
+    const comparison = comparisonToBaseline(samples, "calories", 0.1);
+    expect(baseline).toMatchObject({
+      cases: 1, passed: 0, failed: 1,
+      failuresByClass: { "rounding_delta_exceeds_candidate:calories": 1 },
+    });
+    expect(relaxed).toMatchObject({ cases: 1, passed: 1, failed: 0, failuresByClass: {} });
+    expect(comparison).toMatchObject({ passedDelta: 1, failedDelta: -1 });
   });
 
   it("measures why the remaining C3 decisions cannot be promoted from current repository evidence", async () => {

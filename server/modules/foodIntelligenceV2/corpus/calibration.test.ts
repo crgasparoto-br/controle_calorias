@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { goldenFoodCorpus } from "./data";
 import type { CorpusReport } from "./harness";
 import {
-  CALIBRATION_PARAMETERS, evaluateLockedHoldout, projectSplitEvidence,
+  CALIBRATION_PARAMETERS, C3_PRE_REGISTERED_PARAMETER_DEFINITIONS, evaluateLockedHoldout, projectSplitEvidence,
   selectCalibrationCandidate, verifyCalibrationPlan,
   type CalibrationPlan, type CalibrationSegment, type CalibrationCaseFact, type SplitEvidence,
 } from "./calibration.test.support";
@@ -95,6 +95,31 @@ describe("#1306 C3: pre-registration and offline calibration", () => {
     expect(CALIBRATION_PARAMETERS["confidence:source-field"].unit).toBe("probability");
     verifyCalibrationPlan(parameterPlan());
     expect(Object.values(CALIBRATION_PARAMETERS).every(item => !("approved" in item))).toBe(true);
+  });
+
+  it("pre-registers concrete candidates and a selection criterion for every C3 parameter", () => {
+    const parameters = Object.keys(CALIBRATION_PARAMETERS).sort() as Array<keyof typeof CALIBRATION_PARAMETERS>;
+    expect(Object.keys(C3_PRE_REGISTERED_PARAMETER_DEFINITIONS).sort()).toEqual(parameters);
+    for (const parameter of parameters) {
+      const definition = C3_PRE_REGISTERED_PARAMETER_DEFINITIONS[parameter];
+      expect(definition.candidates.length).toBeGreaterThan(0);
+      expect(definition.selectionCriterion.trim().length).toBeGreaterThan(40);
+      expect(definition.baseline.reference.trim()).not.toBe("");
+      expect(new Set(definition.candidates.map(value => JSON.stringify(value))).size)
+        .toBe(definition.candidates.length);
+      for (const value of definition.candidates) {
+        if (typeof value === "number") expect(Number.isFinite(value)).toBe(true);
+        else expect(value.trim()).not.toBe("");
+      }
+    }
+    expect(C3_PRE_REGISTERED_PARAMETER_DEFINITIONS["search:semantic-similarity"].baseline)
+      .toMatchObject({ value: 0.82 });
+    expect(C3_PRE_REGISTERED_PARAMETER_DEFINITIONS["rounding:energy"].candidates)
+      .toEqual([0, 1e-12, 1e-9, 1e-6, 0.001, 0.01, 0.1]);
+    expect(C3_PRE_REGISTERED_PARAMETER_DEFINITIONS["rounding:macros"].candidates)
+      .toEqual([0, 1e-12, 1e-9, 1e-6, 0.0001, 0.001, 0.01, 0.1]);
+    expect(C3_PRE_REGISTERED_PARAMETER_DEFINITIONS["materiality:profile-macros"].candidates)
+      .not.toEqual(C3_PRE_REGISTERED_PARAMETER_DEFINITIONS["rounding:macros"].candidates);
   });
 
   it("rejects missing owner, generic scope, unpinned source and candidate duplicates", () => {

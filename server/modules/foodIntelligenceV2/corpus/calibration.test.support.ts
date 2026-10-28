@@ -62,6 +62,130 @@ export interface CalibrationPlan {
   maxExternalCalls: 0;
 }
 
+export interface PreRegisteredCalibrationDefinition {
+  /** Observed comparison point only; null means there is no approved V2 baseline value. */
+  baseline: Readonly<{ value: number | string | null; reference: string }>;
+  /** Experimental candidates fixed before results. They are never production policy by themselves. */
+  candidates: readonly (number | string)[];
+  selectionCriterion: string;
+  /** Evidence that must exist before this parameter can be evaluated or promoted. */
+  blockedUntil: readonly string[];
+}
+
+function steppedCandidates(start: number, end: number, step: number): readonly number[] {
+  const values: number[] = [];
+  for (let value = start; value <= end + step / 1000; value += step) {
+    values.push(Number(value.toFixed(12)));
+  }
+  return Object.freeze(values);
+}
+
+function integerCandidates(start: number, end: number): readonly number[] {
+  return Object.freeze(Array.from({ length: end - start + 1 }, (_, index) => start + index));
+}
+
+/**
+ * #1306 C3 pre-registration.
+ *
+ * Candidate grids are evaluation inputs, not approved thresholds. Numerical grids
+ * are bounded by the unit's mathematical/physical domain; policy/algorithm IDs
+ * name experimental configurations to compare once their required ground truth
+ * is available. Missing evidence keeps the item OPEN instead of selecting a value.
+ */
+export const C3_PRE_REGISTERED_PARAMETER_DEFINITIONS:
+Readonly<Record<CalibrationParameter, PreRegisteredCalibrationDefinition>> = Object.freeze({
+  "confidence:source-field": {
+    baseline: { value: null, reference: "ADR §25 item 2: V2 confidence matrix OPEN" },
+    candidates: steppedCandidates(0, 1, 0.05),
+    selectionCriterion: "Per source×field, maximize correct verified acceptance with zero incompatible acceptance; ties choose the more conservative threshold and may not regress any case or segment.",
+    blockedUntil: ["independent_confidence_labels_by_source_and_field"],
+  },
+  "search:text-algorithm": {
+    baseline: { value: "v1-catalog-score", reference: "server/catalogMatching.ts::findCatalogFood" },
+    candidates: Object.freeze(["v1-exact-substring-only", "v2-governed-lexical-score"]),
+    selectionCriterion: "Replay the same labeled identities against the V1 textual baseline and each textual candidate; require no brand/negation/variant regression, then prefer fewer false candidates and lower cost/latency.",
+    blockedUntil: ["governed_textual_replay_ground_truth"],
+  },
+  "search:candidate-limit": {
+    baseline: { value: null, reference: "ADR §9.5: V2 candidate limit OPEN" },
+    candidates: integerCandidates(1, 20),
+    selectionCriterion: "Choose the smallest candidate limit that preserves every correct eligible identity/alternative relative to baseline with no case or segment regression.",
+    blockedUntil: ["governed_search_replay_ground_truth"],
+  },
+  "search:semantic-similarity": {
+    baseline: { value: 0.82, reference: "server/catalogSemanticSearchCore.ts::SIMILARITY_THRESHOLD (V1 observation only)" },
+    candidates: steppedCandidates(0, 1, 0.05),
+    selectionCriterion: "On authorized paired textual×semantic replay, require zero incompatible semantic acceptance and no correct-match regression; ties choose the higher, more conservative similarity threshold.",
+    blockedUntil: ["authorized_embedding_replay", "governed_search_replay_ground_truth"],
+  },
+  "search:top-margin": {
+    baseline: { value: null, reference: "ADR §9.5: material tie margin OPEN" },
+    candidates: steppedCandidates(0, 1, 0.05),
+    selectionCriterion: "Choose the smallest margin that keeps every labeled material tie ambiguous while preserving correct singleton decisions and all baseline cases.",
+    blockedUntil: ["governed_search_replay_ground_truth"],
+  },
+  "linguistic:s3-escalation": {
+    baseline: { value: null, reference: "ADR §25 item 17: S1/S2→S3 threshold OPEN" },
+    candidates: steppedCandidates(0, 1, 0.05),
+    selectionCriterion: "Preserve or improve labeled correctness with no new false acceptance, then minimize S3 invocation cost/latency; a candidate cannot win without observed external-cost reduction.",
+    blockedUntil: ["authorized_s3_trials", "s3_error_cost_latency_ground_truth"],
+  },
+  "estimate:family-dispersion": {
+    baseline: { value: null, reference: "ADR §10.1/§25 item 7: dispersion boundary OPEN" },
+    candidates: steppedCandidates(0, 2, 0.1),
+    selectionCriterion: "Choose boundaries that separate labeled safe/intermediate/unsafe estimate families without permitting a labeled unsafe estimate; ties choose the more conservative boundary.",
+    blockedUntil: ["governed_family_anchor_impact_ground_truth"],
+  },
+  "estimate:generic-anchor": {
+    baseline: { value: null, reference: "ADR §10.1/§25 item 7: generic-anchor policy OPEN" },
+    candidates: Object.freeze(["verified-generic-variant", "verified-family-preparation", "no-provisional-estimate"]),
+    selectionCriterion: "Require an independently verified anchor for every provisional estimate; reject any policy that produces an ungrounded estimate, then prefer the strongest provenance with no coverage regression.",
+    blockedUntil: ["governed_family_anchor_impact_ground_truth"],
+  },
+  "estimate:caloric-impact": {
+    baseline: { value: null, reference: "ADR §10.1/§25 item 7: caloric-impact boundary OPEN" },
+    candidates: steppedCandidates(0, 900, 25),
+    selectionCriterion: "Using labeled estimate error by family, reject any boundary that permits a high-impact unsafe estimate; among non-regressing candidates choose the lowest risk-adjusted kcal/100g boundary.",
+    blockedUntil: ["governed_family_anchor_impact_ground_truth"],
+  },
+  "estimate:ladder-policy": {
+    baseline: { value: null, reference: "ADR §9.2/§25 item 19: numeric ladder policy OPEN" },
+    candidates: Object.freeze(["strict-no-estimate", "estimate-low-only", "estimate-low-and-intermediate-with-review"]),
+    selectionCriterion: "Evaluate all seven §9.2 outcomes against labeled expected policy; zero unsupported estimates/hidden fallbacks is mandatory, then choose the most useful policy with no baseline regression.",
+    blockedUntil: ["estimate_policy_ground_truth_by_family_and_anchor"],
+  },
+  "materiality:profile-kcal": {
+    baseline: { value: null, reference: "ADR §9.1.1/§25 item 22: kcal materiality OPEN" },
+    candidates: steppedCandidates(0, 900, 25),
+    selectionCriterion: "Against governed comparable-variant labels, reject every threshold that marks a labeled material kcal divergence immaterial; ties choose the lower divergence tolerance.",
+    blockedUntil: ["governed_materiality_labels", "comparable_variant_pairs"],
+  },
+  "materiality:profile-macros": {
+    baseline: { value: null, reference: "ADR §9.1.1/§25 item 22: macro materiality OPEN" },
+    candidates: steppedCandidates(0, 100, 5),
+    selectionCriterion: "Per macro and family, reject every threshold that hides a labeled material g/100g divergence; ties choose the lower tolerance and must not share the rounding policy.",
+    blockedUntil: ["governed_materiality_labels", "comparable_variant_pairs"],
+  },
+  "materiality:sparse-family": {
+    baseline: { value: null, reference: "ADR §25 item 22: sparse-family rule OPEN" },
+    candidates: integerCandidates(1, 20),
+    selectionCriterion: "Choose the minimum comparable-pair count after which labeled immateriality remains stable; any false immateriality blocks the candidate.",
+    blockedUntil: ["governed_materiality_labels", "comparable_variant_pairs"],
+  },
+  "rounding:energy": {
+    baseline: { value: null, reference: "ADR §25 item 30: current OPEN policy is fail-closed on divergence" },
+    candidates: Object.freeze([0, 1e-12, 1e-9, 1e-6, 0.001, 0.01, 0.1]),
+    selectionCriterion: "Select the smallest kcal tolerance covering every calibration-equivalent pair; freeze it before opening holdout and reject on any reserved exceedance.",
+    blockedUntil: ["independent_nominal_approval"],
+  },
+  "rounding:macros": {
+    baseline: { value: null, reference: "ADR §25 item 30: current OPEN policy is fail-closed on divergence" },
+    candidates: Object.freeze([0, 1e-12, 1e-9, 1e-6, 0.0001, 0.001, 0.01, 0.1]),
+    selectionCriterion: "For each macro independently, select the smallest gram tolerance covering every calibration-equivalent pair; freeze before holdout and reject on any reserved exceedance.",
+    blockedUntil: ["independent_nominal_approval"],
+  },
+});
+
 export interface CalibrationSegment {
   dimension: "modality" | "brand" | "measure" | "decisionClass" | "nonRecurrenceClass";
   label: string;
