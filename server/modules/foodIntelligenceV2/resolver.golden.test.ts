@@ -81,5 +81,32 @@ describe("#1305 Golden Food Corpus through the real V2 resolver", () => {
     expect(report.gate.status).not.toBe("passed");
     expect(report.byModality.length).toBeGreaterThan(0);
     expect(report.byDecisionClass.length).toBeGreaterThan(0);
+    // The actual C2 resolver, with one deliberately limited governed fixture,
+    // is the only baseline measured here. This is NOT a calibrated V2 accuracy
+    // result and MUST NOT be substituted by the corpus self-test oracle.
+    const splitSummary = report.bySplit.map(split => ({
+      split: split.segment,
+      cases: split.cases,
+      resolvableLabeled: split.resolvableLabeled,
+      matchRate: split.matchRate,
+      matchedCases: split.matchedCases,
+      failedCases: split.failedCases,
+      abstentions: split.abstentions,
+    }));
+    expect(splitSummary.some(row => row.split === "calibration")).toBe(true);
+    expect(splitSummary.some(row => row.split === "holdout")).toBe(true);
+    expect(report.byBrand.length).toBeGreaterThan(0);
+    expect(report.byMeasure.length).toBeGreaterThan(0);
+    // Safe aggregate statistics: no raw food text, personal history or media.
+    console.info("C3_REAL_RESOLVER_FIXTURE_BASELINE " + JSON.stringify({
+      resolver: report.resolver, corpusVersion: report.corpusVersion,
+      revisions: report.revisions, calls: report.resolveCalls,
+      gate: report.gate.status, blockingReasons: report.gate.blockReasons,
+      bySplit: splitSummary,
+      failureClasses: Object.fromEntries(
+        [...new Set(report.failures.flatMap(item => item.codes))].sort()
+          .map(code => [code, report.failures.filter(item => item.codes.includes(code)).length])
+      ),
+    }));
   });
 });

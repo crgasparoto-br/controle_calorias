@@ -2200,6 +2200,20 @@ Experimentos externos exigem previamente limites finitos de chamadas, custo, ten
 
 O resultado informa, para cada candidato, métricas, incerteza/amostra, falhas por classe, comparação com baseline e decisão de aprovar/rejeitar. Aprovação exige evidência e responsável nominal antes do uso correspondente; não ajustar o limite após ver o holdout só para fazer passar. Falha exige nova revisão e conjunto reservado adequado. A meta de §1.1 e os invariantes de limite zero não são relaxados por calibração. Um item só sai de `OPEN` quando seu valor/política e resultado aprovados estiverem versionados, não porque o harness foi implementado.
 
+#### 16.2.1. Campanha C3 pré-registrada da #1306
+
+A campanha material da #1306 usa o Golden Food Corpus e fontes versionadas do repositório sem promover valores antes da medição. O conjunto de candidatos é fixado no código de teste antes da primeira execução. Chamadas externas permanecem em zero; uma capacidade que exija provider externo continua bloqueada até existir orçamento e autorização separados.
+
+Para arredondamento, a fronteira medida é o contrato numérico canônico do V2, antes de formatação de UI. O mesmo perfil TACO é resolvido com quantidades fisicamente equivalentes. Calibração usa Mortadela e Amendoim; o holdout reservado usa Iogurte natural e Pêra Williams. Para cada nutriente central, seleciona-se a menor tolerância pré-registrada que cubra toda a calibração; o holdout apenas valida o valor já congelado.
+
+Candidatos pré-registrados:
+- energia, em kcal: `0, 1e-12, 1e-9, 1e-6, 0.001, 0.01, 0.1`;
+- proteína, carboidratos e gordura, em g: `0, 1e-12, 1e-9, 1e-6, 0.0001, 0.001, 0.01, 0.1`.
+
+A fonte primária declarada para os perfis é TACO 4ª edição, NEPA/UNICAMP; a cópia versionada usada pela execução é `server/tacoCatalog.json`. A campanha não converte essa cópia em aprovação de licenciamento nem em base governada produtiva. O relatório executável fica em `server/modules/foodIntelligenceV2/corpus/calibration.empirical.test.ts` e publica somente agregados sem texto pessoal.
+
+Os demais itens 2/7/8/17/19/22 só deixam `OPEN` quando a campanha possuir os rótulos independentes exigidos pelo próprio item. A ausência é medida e registrada pelo mesmo teste: falta de rótulos fonte×campo de confiança, família/âncora governada, comparação semântica executada, trials reais de S3, ground truth da escada de estimativa ou rótulos governados de materialidade não pode ser substituída por fixture nem por saída do próprio resolvedor.
+
 ## 17. Testes metamórficos
 
 A mesma intenção alimentar deve convergir sob variações como:
