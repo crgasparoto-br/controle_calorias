@@ -13,7 +13,7 @@ import { comprehendFoodLanguage } from "../linguisticComprehension";
 import { resolveFoodObservations } from "../resolver";
 import type { FoodKnowledgeStore, GovernedFoodMatch } from "../knowledgeRead";
 import { goldenFoodCorpus } from "./data";
-import { FOOD_INPUT_TYPE_VALUES } from "./contracts";
+import { FOOD_INPUT_TYPE_VALUES, GOLDEN_CORPUS_VERSION } from "./contracts";
 import { CALIBRATION_PARAMETERS, C3_PRE_REGISTERED_PARAMETER_DEFINITIONS } from "./calibration.test.support";
 
 const TACO_PRIMARY_SOURCE =
@@ -489,6 +489,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
       corpusCases: cases.length,
       representativity: {
         source: "golden-food-corpus-synthetic",
+        corpusVersion: GOLDEN_CORPUS_VERSION,
         byModality, labeledBrandedCases,
         roundingBrandedProfiles: 0,
         roundingNutritionSource: "TACO_4E",

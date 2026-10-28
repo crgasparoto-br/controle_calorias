@@ -234,11 +234,17 @@ function c3RoundingCohortValid(rounding) {
 // are NOT evidence of ASR/OCR quality or independent production labels.
 function c3RepresentativityValid(ready, rounding) {
   const scope = ready?.representativity;
-  const modalityKeys = ["text", "audio_transcript", "image", "multimodal"];
+  // The exact distribution is a frozen reference, independent of the test's
+  // reported counts. Changes require a deliberate corpus version revision.
+  const expected = { text: 65, audio_transcript: 3, image: 5, multimodal: 2 };
+  const expectedSplits = { acquisition: 3, calibration: 65, holdout: 7 };
+  const modalityKeys = Object.keys(expected);
   if (!scope || scope.source !== "golden-food-corpus-synthetic" ||
+      !Object.entries(expectedSplits).every(([split, count]) => ready.splits?.[split] === count) ||
+      scope.corpusVersion !== "golden-2026-10-06.2" || ready.corpusCases !== 75 ||
       !scope.byModality || typeof scope.byModality !== "object" ||
       Object.keys(scope.byModality).sort().join(",") !== [...modalityKeys].sort().join(",") ||
-      !modalityKeys.every(key => c3Count(scope.byModality[key]) && scope.byModality[key] > 0) ||
+      !modalityKeys.every(key => scope.byModality[key] === expected[key]) ||
       Object.values(scope.byModality).reduce((sum, count) => sum + count, 0) !== ready.corpusCases ||
       !c3Count(scope.labeledBrandedCases) || scope.labeledBrandedCases === 0 ||
       scope.labeledBrandedCases > ready.corpusCases || scope.roundingBrandedProfiles !== 0 ||
@@ -378,6 +384,7 @@ export function extractC3Evidence(log) {
       baseline.resolver?.id !== "food-intelligence-v2-domain-resolver" ||
       !["blocked", "failed", "sample_missing"].includes(baseline.gate) ||
       !c3BaselineConsistent(ready, baseline) ||
+      baseline.corpusVersion !== ready.representativity?.corpusVersion ||
       !c3RepresentativityValid(ready, rounding)) {
     throw new Error("C3: incomplete or contradictory resolver baseline/readiness metrics");
   }

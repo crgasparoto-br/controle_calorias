@@ -173,11 +173,11 @@ function c3Fixtures() {
       },
     })),
   };
-  const splits = { acquisition: 1, calibration: 2, holdout: 1 };
-  const ready = { corpusCases: 4, splits,
+  const splits = { acquisition: 3, calibration: 65, holdout: 7 };
+  const ready = { corpusCases: 75, splits,
     representativity: {
-      source: "golden-food-corpus-synthetic",
-      byModality: { text: 1, audio_transcript: 1, image: 1, multimodal: 1 },
+      source: "golden-food-corpus-synthetic", corpusVersion: "golden-2026-10-06.2",
+      byModality: { text: 65, audio_transcript: 3, image: 5, multimodal: 2 },
       labeledBrandedCases: 1, roundingBrandedProfiles: 0,
       roundingNutritionSource: "TACO_4E",
       productionDecision: "blocked-no-independent-representative-evidence",
@@ -185,8 +185,9 @@ function c3Fixtures() {
         "population_sampling", "independent_nominal_approval"],
     },
     blockers: Object.fromEntries(["2", "7", "8", "17", "19", "22"].map(item => [item, ["ground_truth_absent"]])) };
-  const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" }, gate: "failed", calls: 4,
-    failureClasses: { mismatch: 4 }, bySplit: Object.entries(splits).map(([split, cases]) => ({
+  const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" },
+    corpusVersion: "golden-2026-10-06.2", gate: "failed", calls: 75,
+    failureClasses: { mismatch: 75 }, bySplit: Object.entries(splits).map(([split, cases]) => ({
       split, cases, resolvableLabeled: cases, matchedCases: 0,
       failedCases: cases, abstentions: 0, matchRate: 0,
     })) };
@@ -381,6 +382,21 @@ for (const [label, mutate] of [
   }],
   ["wrong reported modality total", reports => {
     reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.text += 1;
+  }],
+  ["same total but forged modality distribution", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.text += 1;
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.image -= 1;
+  }],
+  ["invented corpus version", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.corpusVersion = "golden-new";
+  }],
+  ["same total but forged corpus split", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.splits.calibration += 1;
+    reports.C3_OPEN_EVIDENCE_READINESS.splits.holdout -= 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[1].cases += 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[1].failedCases += 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[2].cases -= 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[2].failedCases -= 1;
   }],
   ["fabricated branded coverage", reports => {
     reports.C3_OPEN_EVIDENCE_READINESS.representativity.roundingBrandedProfiles = 1;
