@@ -165,9 +165,25 @@ function c3Fixtures() {
     comparisonToBaseline: per(() => ({ baselinePolicy: "open-fail-closed-zero-divergence",
       baseline: metric(0), selected: metric(0), passedDelta: 0, failedDelta: 0 })),
     holdoutSelectedMetrics: per(() => metric(0)), failuresByClass: {},
+    exploratoryModalityDiagnostics: ["audio_transcript", "image"].map(modality => ({
+      modality, inputKind: modality === "image" ? "synthetic_caption" : "synthetic_transcript",
+      candidateSelection: "excluded", bySplit: {
+        calibration: { cases: 36, maxDelta: per(() => 0) },
+        holdout: { cases: 36, maxDelta: per(() => 0) },
+      },
+    })),
   };
   const splits = { acquisition: 1, calibration: 2, holdout: 1 };
   const ready = { corpusCases: 4, splits,
+    representativity: {
+      source: "golden-food-corpus-synthetic",
+      byModality: { text: 1, audio_transcript: 1, image: 1, multimodal: 1 },
+      labeledBrandedCases: 1, roundingBrandedProfiles: 0,
+      roundingNutritionSource: "TACO_4E",
+      productionDecision: "blocked-no-independent-representative-evidence",
+      untestedDimensions: ["real_asr", "real_vision_ocr", "branded_nutrition",
+        "population_sampling", "independent_nominal_approval"],
+    },
     blockers: Object.fromEntries(["2", "7", "8", "17", "19", "22"].map(item => [item, ["ground_truth_absent"]])) };
   const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" }, gate: "failed", calls: 4,
     failureClasses: { mismatch: 4 }, bySplit: Object.entries(splits).map(([split, cases]) => ({
@@ -355,6 +371,37 @@ test("A-007: replacing a holdout profile with another valid TACO food fails clos
       id.startsWith(original + "@") ? id.replace(original + "@", replacement + "@") : id);
   });
 });
+
+for (const [label, mutate] of [
+  ["false claim of production eligibility", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.productionDecision = "approved";
+  }],
+  ["unreported image cases from synthetic corpus", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.image = 0;
+  }],
+  ["wrong reported modality total", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.text += 1;
+  }],
+  ["fabricated branded coverage", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.roundingBrandedProfiles = 1;
+  }],
+  ["one diagnostic modality missing", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics.pop();
+  }],
+  ["diagnostic counts were inflated", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics[0].bySplit.holdout.cases += 1;
+  }],
+  ["supplementary modality silently used for candidate selection", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics[1].candidateSelection = "included";
+  }],
+  ["audio diagnostic hides macro divergence", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics[0].bySplit.calibration.maxDelta.protein = 0.2;
+  }],
+]) {
+  test("RISK-001: misrepresented coverage fails closed: " + label, () => {
+    assertC3MutationBlocked(mutate);
+  });
+}
 
 test("A-005: legitimate nonzero delta and multi-label baseline classes still publish", () => {
   const reports = c3Fixtures();

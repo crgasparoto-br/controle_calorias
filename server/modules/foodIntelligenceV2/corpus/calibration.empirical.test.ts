@@ -13,6 +13,7 @@ import { comprehendFoodLanguage } from "../linguisticComprehension";
 import { resolveFoodObservations } from "../resolver";
 import type { FoodKnowledgeStore, GovernedFoodMatch } from "../knowledgeRead";
 import { goldenFoodCorpus } from "./data";
+import { FOOD_INPUT_TYPE_VALUES } from "./contracts";
 import { CALIBRATION_PARAMETERS, C3_PRE_REGISTERED_PARAMETER_DEFINITIONS } from "./calibration.test.support";
 
 const TACO_PRIMARY_SOURCE =
@@ -29,6 +30,8 @@ function numericCandidateSet(parameter: "rounding:energy" | "rounding:macros"): 
 const ENERGY_CANDIDATES = numericCandidateSet("rounding:energy");
 const MACRO_CANDIDATES = numericCandidateSet("rounding:macros");
 const CORE_FIELDS = ["calories", "protein", "carbs", "fat"] as const;
+const EXPLORATORY_MODALITIES = ["audio_transcript", "image"] as const;
+// Diagnostics are downstream of calibration lock; never candidate-selection inputs.
 // This v2 cohort is fixed before its first CI measurement (issue comment
 // #6478971288); it supplements, never retunes, the original 2+2 campaign.
 // Nutrition profiles/families are disjoint between calibration and holdout.
@@ -127,12 +130,17 @@ function campaignStore(row: TacoRow): FoodKnowledgeStore {
   };
 }
 
-async function resolveCore(row: TacoRow, surface: string, expectedGrams: number): Promise<CoreValues> {
+async function resolveCore(
+  row: TacoRow, surface: string, expectedGrams: number,
+  modality: "text" | "audio_transcript" | "image" = "text",
+): Promise<CoreValues> {
   const observations = await comprehendFoodLanguage(
     {
       rawText: surface,
       sourceRef: "c3:rounding-campaign",
-      modality: "text",
+      modality,
+      ...(modality === "image" ? { imageRegionRole: "caption" as const } : {}),
+      ...(modality === "audio_transcript" ? { transcriptionConfidence: 0.95 } : {}),
       ownerUserId: 1306,
       lexiconRevision: "c3-rounding-preregistered-v1",
     },
@@ -178,9 +186,10 @@ async function resolveCore(row: TacoRow, surface: string, expectedGrams: number)
 
 async function measureEquivalentPair(
   row: TacoRow, label: string, scenario: RoundingQuantityScenario,
+  modality: "text" | "audio_transcript" | "image" = "text",
 ) {
-  const grams = await resolveCore(row, scenario.grams + " g de " + label, scenario.grams);
-  const kilograms = await resolveCore(row, scenario.kilograms + " kg de " + label, scenario.grams);
+  const grams = await resolveCore(row, scenario.grams + " g de " + label, scenario.grams, modality);
+  const kilograms = await resolveCore(row, scenario.kilograms + " kg de " + label, scenario.grams, modality);
   return Object.fromEntries(
     CORE_FIELDS.map(field => [field, Math.abs(grams[field] - kilograms[field])]),
   ) as CoreValues;
@@ -301,6 +310,37 @@ describe("#1306 C3 empirical evidence campaign", () => {
     ]);
     expect(failuresByClass).toEqual({});
 
+    // RISK-001: exercise real S1/S2 + C2 with synthetic audio transcripts
+    // and image captions. This happens AFTER selection and holdout verification;
+    // it cannot retune, enlarge or replace the preregistered v2 holdout.
+    const exploratoryModalityDiagnostics = [];
+    for (const modality of EXPLORATORY_MODALITIES) {
+      const bySplit = {} as Record<"calibration" | "holdout", {
+        cases: number; maxDelta: CoreValues;
+      }>;
+      for (const [split, profiles] of [
+        ["calibration", calibrationProfiles], ["holdout", holdoutProfiles],
+      ] as const) {
+        const deltas: CoreValues[] = [];
+        for (const row of profiles) {
+          for (const scenario of ROUNDING_QUANTITY_SCENARIOS) {
+            deltas.push(await measureEquivalentPair(
+              row, normalizeFoodName(row.name), scenario, modality));
+          }
+        }
+        const maxDelta = maxByField(deltas);
+        for (const field of CORE_FIELDS) {
+          expect(maxDelta[field], "C3 diagnostic " + modality + "/" + split + "/" + field)
+            .toBeLessThanOrEqual(selected[field]);
+        }
+        bySplit[split] = { cases: deltas.length, maxDelta };
+      }
+      exploratoryModalityDiagnostics.push({
+        modality, inputKind: modality === "image" ? "synthetic_caption" : "synthetic_transcript",
+        candidateSelection: "excluded", bySplit,
+      });
+    }
+
     console.info("C3_ITEM30_ROUNDING_CAMPAIGN " + JSON.stringify({
       source: { kind: "TACO_4E", reference: TACO_PRIMARY_SOURCE },
       splitPolicy: "candidate-selected-from-calibration-before-holdout",
@@ -319,6 +359,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
       holdoutMaxDelta: holdoutMax,
       holdoutSelectedMetrics,
       failuresByClass,
+      exploratoryModalityDiagnostics,
     }));
   });
 
@@ -434,8 +475,27 @@ describe("#1306 C3 empirical evidence campaign", () => {
     expect(taco.length).toBeGreaterThanOrEqual(597);
     expect(zeroCoreProfiles).toBeGreaterThan(0);
 
+    const byModality = Object.fromEntries(FOOD_INPUT_TYPE_VALUES.map(modality => [
+      modality, cases.filter(entry => entry.modality === modality).length,
+    ]));
+    const labeledBrandedCases = cases.filter(entry => entry.expected.decisions.some(
+      decision => Boolean(decision.identity.brand),
+    )).length;
+    expect(labeledBrandedCases).toBeGreaterThan(0);
+    for (const modality of FOOD_INPUT_TYPE_VALUES) {
+      expect(byModality[modality]).toBeGreaterThan(0);
+    }
     console.info("C3_OPEN_EVIDENCE_READINESS " + JSON.stringify({
       corpusCases: cases.length,
+      representativity: {
+        source: "golden-food-corpus-synthetic",
+        byModality, labeledBrandedCases,
+        roundingBrandedProfiles: 0,
+        roundingNutritionSource: "TACO_4E",
+        productionDecision: "blocked-no-independent-representative-evidence",
+        untestedDimensions: ["real_asr", "real_vision_ocr", "branded_nutrition",
+          "population_sampling", "independent_nominal_approval"],
+      },
       splits: Object.fromEntries(["acquisition", "calibration", "holdout"].map(split => [
         split, cases.filter(entry => entry.split === split).length,
       ])),

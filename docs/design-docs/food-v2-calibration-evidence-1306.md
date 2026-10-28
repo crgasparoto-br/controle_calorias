@@ -104,6 +104,43 @@ governado**, não certifica reconhecimento de aliases nem altera a política
 de compatibilidade do resolvedor. Perfis, splits, quantidades e tolerâncias
 pré-registrados permanecem inalterados.
 
+## Diagnóstico complementar RISK-001 — representatividade e fronteira de evidência
+
+Pré-registrado antes da primeira alteração material da presente rodada em
+[issuecomment #6482193953](https://github.com/crgasparoto-br/controle_calorias/issues/1306#issuecomment-6482193953),
+partindo de `develop@5e64e7615945f013c19f9c0efc154e2d59ea8de1` e da PR #1333.
+**Não altera os 24 perfis, as três quantidades, os candidatos, o lock ou o holdout v2.**
+
+- Após selecionar candidatos pela calibração textual e verificar o holdout textual,
+  executar diagnóstico **não decisório** com o mesmo resolvedor C2: para cada
+  um dos 12+12 perfis e cada quantidade de 30/125/750 g, comparar as duas
+  superfícies físicas equivalentes como `audio_transcript` (transcrição
+  **sintética**) e como `image` com `imageRegionRole=caption` (legenda **sintética**).
+  Por modalidade: 36 pares de calibração + 36 de holdout, **144 pares extras**
+  entre as duas modalidades e 288 resoluções; o resultado é segmentado por
+  `modality`, `split`, `cases` e `maxDelta` dos quatro nutrientes. A fonte
+  TACO e a identidade da variante continuam fixas e os macros são conferidos
+  contra o perfil por 100 g, não só entre duas respostas iguais.
+- O relatório `C3_OPEN_EVIDENCE_READINESS.representativity` inventaria as
+  modalidades sintéticas presentes no Golden Food Corpus, o número de casos
+  com marca esperada, a fonte nutricional da campanha e os limites reais
+  de cobertura. O extrator recusa ausência/troca de modalidade, falsa
+  promoção produtiva, declaração de marca testada, contagens adulteradas,
+  uso do diagnóstico para selecionar candidato e divergência acima do lock.
+- **Não confundir modalidades de *texto fornecido* com reconhecimento de
+  áudio ou imagem reais.** O diagnóstico não executa ASR, OCR, visão,
+  interpretação de fotos, comparação de marcas/variantes comerciais nem
+  amostragem populacional. Golden Food Corpus possui rótulos normativos
+  sintéticos; não fornece aprovação independente dos thresholds C3. Por
+  isso o relatório declara sempre
+  `productionDecision=blocked-no-independent-representative-evidence`.
+- Liberar valor numérico em produção continua exigindo amostra governada
+  com diversidade externa comprovada, evidência por fonte/campo/modalidade,
+  comparativo com baseline, qualidade/custo/latência quando aplicáveis,
+  revalidação de holdout no SHA exato, responsável nominal e aprovação
+  versionada na ADR §16.2/§25. Sem esses requisitos, itens 2/7/8/17/19/22/30
+  e a issue #1306 permanecem `OPEN`. Não alterar rollout nem metas de §1.1.
+
 ## Pré-registro integral dos parâmetros C3
 
 A fonte executável é `C3_PRE_REGISTERED_PARAMETER_DEFINITIONS` em `calibration.test.support.ts`. Cada um dos 15 parâmetros possui baseline observado (ou `null` quando não existe valor V2 aprovado), candidatos concretos, critério de seleção anterior ao resultado e bloqueadores de evidência. Os intervalos abaixo são inclusivos; são **grades experimentais**, não valores aprovados.

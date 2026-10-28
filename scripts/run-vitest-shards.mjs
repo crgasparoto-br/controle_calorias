@@ -230,6 +230,44 @@ function c3RoundingCohortValid(rounding) {
   // quantities in calibration and holdout.
   return new Set(names).size === names.length;
 }
+// The synthetic adapters exercise text supplied as transcript/caption; they
+// are NOT evidence of ASR/OCR quality or independent production labels.
+function c3RepresentativityValid(ready, rounding) {
+  const scope = ready?.representativity;
+  const modalityKeys = ["text", "audio_transcript", "image", "multimodal"];
+  if (!scope || scope.source !== "golden-food-corpus-synthetic" ||
+      !scope.byModality || typeof scope.byModality !== "object" ||
+      Object.keys(scope.byModality).sort().join(",") !== [...modalityKeys].sort().join(",") ||
+      !modalityKeys.every(key => c3Count(scope.byModality[key]) && scope.byModality[key] > 0) ||
+      Object.values(scope.byModality).reduce((sum, count) => sum + count, 0) !== ready.corpusCases ||
+      !c3Count(scope.labeledBrandedCases) || scope.labeledBrandedCases === 0 ||
+      scope.labeledBrandedCases > ready.corpusCases || scope.roundingBrandedProfiles !== 0 ||
+      scope.roundingNutritionSource !== "TACO_4E" ||
+      scope.productionDecision !== "blocked-no-independent-representative-evidence" ||
+      JSON.stringify(scope.untestedDimensions) !== JSON.stringify([
+        "real_asr", "real_vision_ocr", "branded_nutrition",
+        "population_sampling", "independent_nominal_approval",
+      ])) return false;
+  const diagnostics = rounding.exploratoryModalityDiagnostics;
+  if (!Array.isArray(diagnostics) || diagnostics.length !== 2 ||
+      diagnostics[0]?.modality !== "audio_transcript" ||
+      diagnostics[1]?.modality !== "image") return false;
+  for (const row of diagnostics) {
+    if (row.candidateSelection !== "excluded" || row.inputKind !==
+        (row.modality === "image" ? "synthetic_caption" : "synthetic_transcript") ||
+        !row.bySplit || Object.keys(row.bySplit).sort().join(",") !== "calibration,holdout") return false;
+    for (const split of ["calibration", "holdout"]) {
+      const part = row.bySplit[split];
+      if (!part || part.cases !== rounding[split + "Profiles"].length ||
+          !part.maxDelta || Object.keys(part.maxDelta).sort().join(",") !== "calories,carbs,fat,protein" ||
+          !["calories", "protein", "carbs", "fat"].every(field =>
+            Number.isFinite(part.maxDelta[field]) && part.maxDelta[field] >= 0 &&
+            part.maxDelta[field] <= rounding.selectedTolerance[field])) return false;
+    }
+  }
+  return true;
+}
+
 function c3FailureClassesValid(classes, expectedTotal) {
   if (!classes || typeof classes !== "object" || Array.isArray(classes)) return false;
   const counts = Object.values(classes);
@@ -339,7 +377,8 @@ export function extractC3Evidence(log) {
         Array.isArray(ready.blockers?.[item]) && ready.blockers[item].length) ||
       baseline.resolver?.id !== "food-intelligence-v2-domain-resolver" ||
       !["blocked", "failed", "sample_missing"].includes(baseline.gate) ||
-      !c3BaselineConsistent(ready, baseline)) {
+      !c3BaselineConsistent(ready, baseline) ||
+      !c3RepresentativityValid(ready, rounding)) {
     throw new Error("C3: incomplete or contradictory resolver baseline/readiness metrics");
   }
   return reports;
