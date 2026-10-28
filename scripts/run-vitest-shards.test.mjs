@@ -251,10 +251,10 @@ function assertC3MutationBlocked(mutate) {
   const reports = c3Fixtures();
   mutate(reports);
   const log = c3Log(reports);
-  assert.throws(() => extractC3Evidence(log), /C3: (incomplete|contradictory)/);
+  assert.throws(() => extractC3Evidence(log), /C3: (incomplete|contradictory|invalid independent)/);
   const dir = mkdtempSync(join(tmpdir(), "c3-fail-closed-"));
   try {
-    assert.throws(() => publishC3Evidence(log, dir, c3Identity), /C3: (incomplete|contradictory)/);
+    assert.throws(() => publishC3Evidence(log, dir, c3Identity), /C3: (incomplete|contradictory|invalid independent)/);
     assert.equal(existsSync(join(dir, "calibration-evidence.json")), false);
     assert.equal(existsSync(join(dir, "manifest.json")), false);
   } finally { rmSync(dir, { recursive: true, force: true }); }
