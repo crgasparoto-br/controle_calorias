@@ -82,6 +82,16 @@ A campanha executável registra as contagens e blockers em C3_OPEN_EVIDENCE_READ
 
 A campanha é reexecutada pelo **Agent-first gate do HEAD material corrente**. O run ID e o SHA exatos são evidência remota da PR/Actions e não ficam congelados neste documento, evitando tratar uma medição ancestral como prova de um HEAD posterior. O teste emite o registro estruturado `C3_ITEM30_ROUNDING_CAMPAIGN` no mesmo run que executa a suíte.
 
+Após o Vitest completo, o `run-vitest-shards.mjs` extrai e valida os três
+marcadores `C3_ITEM30_ROUNDING_CAMPAIGN`, `C3_OPEN_EVIDENCE_READINESS` e
+`C3_REAL_RESOLVER_FIXTURE_BASELINE`. O GitHub Actions publica o artefato
+`food-v2-c3-calibration-<HEAD-SHA>` **também em execução bem-sucedida**,
+com `calibration-evidence.json` (todos os candidatos, baseline, holdout e
+bloqueios) e `manifest.json` (SHA exato, ID do run e SHA-256 do relatório).
+Marcador ausente, duplicado, métrica contraditória ou holdout incompatível
+impede que o CI completo passe. A coleta não reexecuta testes nem aprova
+thresholds produtivos. Retenção do artefato: 30 dias.
+
 ### Item 30 — candidato medido, ainda não aprovado
 
 Os quatro campos numéricos centrais do contrato V2 (`calories`, `protein`, `carbs`, `fat`) apresentaram **delta máximo 0** entre as superfícies fisicamente equivalentes `30 g` e `0,03 kg` nos perfis de calibração. Pelo critério pré-registrado, o menor candidato selecionado foi:

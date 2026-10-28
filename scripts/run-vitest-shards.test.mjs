@@ -137,3 +137,93 @@ test("real child process ignores TERM, escalates to KILL and is reaped", { timeo
   assert.equal(result.results.length, 1);
   assert.deepEqual(delivered, ["SIGTERM", "SIGKILL"]);
 });
+// #1306 / A-004: successful shards must leave reviewable C3 evidence, not
+// only the PASS counters previously visible in successful GitHub jobs.
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { C3_EVIDENCE_MARKERS, extractC3Evidence, publishC3Evidence } from "./run-vitest-shards.mjs";
+
+const c3Fields = ["calories", "protein", "carbs", "fat"];
+function c3Fixtures() {
+  const metric = candidate => ({ candidate, cases: 2, passed: 2, failed: 0, maxDelta: 0, failuresByClass: {} });
+  const grid = [0, 0.01, 0.1];
+  const per = callback => Object.fromEntries(c3Fields.map(field => [field, callback(field)]));
+  const rounding = {
+    splitPolicy: "candidate-selected-from-calibration-before-holdout",
+    baselinePolicy: "open-fail-closed-zero-divergence",
+    calibrationProfiles: ["mortadela", "amendoim"], holdoutProfiles: ["iogurte", "pera"],
+    candidates: { caloriesKcal: grid, macroGrams: grid },
+    calibrationMaxDelta: per(() => 0), holdoutMaxDelta: per(() => 0), selectedTolerance: per(() => 0),
+    calibrationCandidateMetrics: per(() => grid.map(metric)),
+    comparisonToBaseline: per(() => ({ baselinePolicy: "open-fail-closed-zero-divergence",
+      baseline: metric(0), selected: metric(0), passedDelta: 0, failedDelta: 0 })),
+    holdoutSelectedMetrics: per(() => metric(0)), failuresByClass: {},
+  };
+  const ready = { blockers: Object.fromEntries(["2", "7", "8", "17", "19", "22"].map(item => [item, ["ground_truth_absent"]])) };
+  const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" }, gate: "failed",
+    failureClasses: { mismatch: 1 }, bySplit: [{ segment: "calibration" }, { segment: "holdout" }] };
+  return { [C3_EVIDENCE_MARKERS[0]]: rounding, [C3_EVIDENCE_MARKERS[1]]: ready,
+    [C3_EVIDENCE_MARKERS[2]]: baseline };
+}
+function c3Log(reports = c3Fixtures()) {
+  return Object.entries(reports).map(([marker, value], i) =>
+    "--- Vitest shard " + (i + 1) + "/24 ---\nstdout | test\n" +
+    marker + " " + JSON.stringify(value) + "\nPASS: Vitest shard " + (i + 1) + "/24")
+    .join("\n");
+}
+const c3Identity = { repository: "crgasparoto-br/controle_calorias", headSha: "a".repeat(40),
+  checkoutSha: "a".repeat(40), runId: "40674390083", pullRequestNumber: 1332 };
+
+test("A-004 positive: all three measured C3 reports survive a passing CI in an exact-SHA artifact", () => {
+  const dir = mkdtempSync(join(tmpdir(), "c3-artifact-"));
+  try {
+    const sha = publishC3Evidence(c3Log(), dir, c3Identity);
+    const artifact = JSON.parse(readFileSync(join(dir, "calibration-evidence.json")));
+    const manifest = JSON.parse(readFileSync(join(dir, "manifest.json")));
+    assert.equal(manifest.reportSha256, sha);
+    assert.equal(artifact.materialHeadSha, c3Identity.headSha);
+    assert.equal(artifact.runId, c3Identity.runId);
+    assert.equal(artifact.decision, "measured-only-never-promoted");
+    assert.deepEqual(Object.keys(artifact.reports), C3_EVIDENCE_MARKERS);
+    assert.equal(artifact.reports.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationCandidateMetrics.calories.length, 3);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("A-004 negative: missing, duplicate or malformed marker blocks success", () => {
+  const reports = c3Fixtures();
+  assert.throws(() => extractC3Evidence(c3Log({ [C3_EVIDENCE_MARKERS[0]]: reports[C3_EVIDENCE_MARKERS[0]] })), /missing/);
+  assert.throws(() => extractC3Evidence(c3Log() + "\n" + c3Log()), /duplicate/);
+  assert.throws(() => extractC3Evidence(c3Log().replace(/C3_OPEN_EVIDENCE_READINESS \{[^\n]+/, "C3_OPEN_EVIDENCE_READINESS {broken}")), /invalid/);
+});
+
+test("A-004 negative: forged counts, holdout leakage and artificial approval fail closed", () => {
+  const count = c3Fixtures();
+  count.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationCandidateMetrics.calories[1].passed = 99;
+  assert.throws(() => extractC3Evidence(c3Log(count)), /inconsistent/);
+  const overlap = c3Fixtures();
+  overlap.C3_ITEM30_ROUNDING_CAMPAIGN.holdoutProfiles[0] = "mortadela";
+  assert.throws(() => extractC3Evidence(c3Log(overlap)), /holdout/);
+  const fake = c3Fixtures();
+  fake.C3_REAL_RESOLVER_FIXTURE_BASELINE.gate = "passed";
+  assert.throws(() => extractC3Evidence(c3Log(fake)), /falsely approved/);
+});
+
+test("A-004 regression: refuses stale SHA and preserves Vitest ANSI stdout", () => {
+  assert.throws(() => publishC3Evidence(c3Log(), tmpdir(),
+    { ...c3Identity, checkoutSha: "b".repeat(40) }), /exact-HEAD/);
+  assert.deepEqual(extractC3Evidence(c3Log().replace("C3_ITEM30_ROUNDING_CAMPAIGN",
+    "\u001b[32mC3_ITEM30_ROUNDING_CAMPAIGN\u001b[0m")), c3Fixtures());
+});
+
+test("A-004 regression: workflow uploads C3 artifact on success, never just failure diagnostics", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/agent-check.yml", import.meta.url), "utf8");
+  const full = workflow.indexOf("      - name: Full tests\n");
+  const upload = workflow.indexOf("      - name: Upload exact-HEAD C3 calibration evidence\n");
+  assert.ok(full >= 0 && upload > full);
+  const portion = workflow.slice(upload, workflow.indexOf("      - name: Upload Vitest diagnostics\n", upload));
+  assert.match(portion, /uses: actions\/upload-artifact@v4/);
+  assert.match(portion, /if-no-files-found: error/);
+  assert.doesNotMatch(portion, /if: failure\(\)/);
+  assert.match(workflow.slice(full, upload), /C3_EVIDENCE_OUTPUT_DIR: \/tmp\/food-v2-c3-calibration/);
+});

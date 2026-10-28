@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -161,6 +162,106 @@ export function formatShardLog(item, output = "") {
   return `--- Vitest shard ${item.shard}/24 ---\n${output}\n${msg}`;
 }
 
+/** Durable, exact-HEAD evidence from tests already executed in the shard suite.
+ * These reports are measurements, never approved production thresholds. */
+export const C3_EVIDENCE_MARKERS = [
+  "C3_ITEM30_ROUNDING_CAMPAIGN", "C3_OPEN_EVIDENCE_READINESS",
+  "C3_REAL_RESOLVER_FIXTURE_BASELINE",
+];
+export function extractC3Evidence(log) {
+  const reports = {};
+  for (const rawLine of log.split(/\r?\n/)) {
+    const line = rawLine.replace(/\x1b\[[0-9;]*m/g, "");
+    for (const marker of C3_EVIDENCE_MARKERS) {
+      const match = line.match(new RegExp("(?:^|\\s)" + marker + "\\s+(\\{.*\\})\\s*$"));
+      if (!match) continue;
+      if (marker in reports) throw new Error("C3: duplicate " + marker);
+      try { reports[marker] = JSON.parse(match[1]); }
+      catch { throw new Error("C3: invalid " + marker + " JSON"); }
+    }
+  }
+  for (const marker of C3_EVIDENCE_MARKERS) {
+    if (!reports[marker]) throw new Error("C3: missing " + marker);
+  }
+  const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+  const ready = reports.C3_OPEN_EVIDENCE_READINESS;
+  const baseline = reports.C3_REAL_RESOLVER_FIXTURE_BASELINE;
+  if (rounding.splitPolicy !== "candidate-selected-from-calibration-before-holdout" ||
+      rounding.baselinePolicy !== "open-fail-closed-zero-divergence" ||
+      !Array.isArray(rounding.calibrationProfiles) || !rounding.calibrationProfiles.length ||
+      !Array.isArray(rounding.holdoutProfiles) || !rounding.holdoutProfiles.length ||
+      new Set([...rounding.calibrationProfiles, ...rounding.holdoutProfiles]).size !==
+        rounding.calibrationProfiles.length + rounding.holdoutProfiles.length) {
+    throw new Error("C3: invalid independent calibration/holdout or baseline");
+  }
+  for (const field of ["calories", "protein", "carbs", "fat"]) {
+    const grid = field === "calories" ? rounding.candidates?.caloriesKcal : rounding.candidates?.macroGrams;
+    const rows = rounding.calibrationCandidateMetrics?.[field];
+    const selected = rounding.selectedTolerance?.[field];
+    const comparison = rounding.comparisonToBaseline?.[field];
+    const holdout = rounding.holdoutSelectedMetrics?.[field];
+    if (!Array.isArray(grid) || !grid.length || grid[0] !== 0 ||
+        !Array.isArray(rows) || rows.length !== grid.length ||
+        !grid.every((value, i) => Number.isFinite(value) && value >= 0 && (!i || value > grid[i - 1])) ||
+        !rows.every((row, i) => row.candidate === grid[i] &&
+          row.cases === rounding.calibrationProfiles.length && row.cases > 0 &&
+          Number.isInteger(row.passed) && Number.isInteger(row.failed) &&
+          row.passed + row.failed === row.cases &&
+          Number.isFinite(row.maxDelta) && row.maxDelta >= 0 &&
+          row.maxDelta === rounding.calibrationMaxDelta?.[field] &&
+          row.failuresByClass && typeof row.failuresByClass === "object" &&
+          Object.values(row.failuresByClass).reduce((a, b) => a + b, 0) === row.failed) ||
+        selected !== grid.find(value => value >= rounding.calibrationMaxDelta?.[field]) ||
+        comparison?.baselinePolicy !== rounding.baselinePolicy ||
+        JSON.stringify(comparison.baseline) !== JSON.stringify(rows[0]) ||
+        JSON.stringify(comparison.selected) !== JSON.stringify(rows.find(row => row.candidate === selected)) ||
+        comparison.passedDelta !== comparison.selected.passed - comparison.baseline.passed ||
+        comparison.failedDelta !== comparison.selected.failed - comparison.baseline.failed ||
+        !holdout || holdout.candidate !== selected || holdout.cases !== rounding.holdoutProfiles.length ||
+        holdout.failed !== 0 || holdout.passed !== holdout.cases ||
+        holdout.maxDelta !== rounding.holdoutMaxDelta?.[field] || holdout.maxDelta > selected) {
+      throw new Error("C3: incomplete or inconsistent candidate/holdout metrics: " + field);
+    }
+  }
+  if (Object.keys(rounding.failuresByClass || {}).length ||
+      !["2", "7", "8", "17", "19", "22"].every(item =>
+        Array.isArray(ready.blockers?.[item]) && ready.blockers[item].length) ||
+      baseline.resolver?.id !== "food-intelligence-v2-domain-resolver" ||
+      baseline.gate === "passed" || !baseline.failureClasses ||
+      !baseline.bySplit?.some(row => row.segment === "calibration") ||
+      !baseline.bySplit?.some(row => row.segment === "holdout")) {
+    throw new Error("C3: incomplete readiness or falsely approved resolver baseline");
+  }
+  return reports;
+}
+
+export function publishC3Evidence(log, directory, identity) {
+  if (!/^[0-9a-f]{40}$/.test(identity.headSha) || identity.headSha !== identity.checkoutSha ||
+      !/^[1-9]\d*$/.test(String(identity.runId)) || !identity.repository) {
+    throw new Error("C3: invalid exact-HEAD run identity");
+  }
+  const report = {
+    schemaVersion: 1, repository: identity.repository, materialHeadSha: identity.headSha,
+    checkoutSha: identity.checkoutSha, runId: String(identity.runId),
+    pullRequestNumber: identity.pullRequestNumber || null,
+    producer: "Agent-first gate / Vitest 24-shard complete run",
+    decision: "measured-only-never-promoted", reports: extractC3Evidence(log),
+  };
+  const bytes = JSON.stringify(report, null, 2) + "\n";
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(resolve(directory, "calibration-evidence.json"), bytes);
+  writeFileSync(resolve(directory, "manifest.json"), JSON.stringify({
+    schemaVersion: 1, materialHeadSha: identity.headSha,
+    runId: String(identity.runId), reportFile: "calibration-evidence.json",
+    reportSha256: sha, markers: C3_EVIDENCE_MARKERS,
+  }, null, 2) + "\n");
+  if (createHash("sha256").update(readFileSync(resolve(directory, "calibration-evidence.json"))).digest("hex") !== sha) {
+    throw new Error("C3: output integrity mismatch");
+  }
+  return sha;
+}
+
 async function main() {
   const logPath = process.env.VITEST_LOG_PATH || "/tmp/vitest.log";
   const start = now();
@@ -210,6 +311,19 @@ async function main() {
   ].join("\n");
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+  if (result.success && process.env.C3_EVIDENCE_OUTPUT_DIR) {
+    const checkoutSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const digest = publishC3Evidence(readFileSync(logPath, "utf8"),
+      process.env.C3_EVIDENCE_OUTPUT_DIR, {
+        repository: process.env.GITHUB_REPOSITORY, headSha: process.env.VERIFICATION_HEAD_SHA,
+        checkoutSha, runId: process.env.GITHUB_RUN_ID,
+        pullRequestNumber: Number(process.env.C3_PR_NUMBER || 0),
+      });
+    console.log("C3_CALIBRATION_ARTIFACT sha256=" + digest + " head=" + checkoutSha);
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+      "\n## C3 calibration evidence (#1306)\n\n- HEAD: " + checkoutSha +
+      "\n- SHA-256: " + digest + "\n- Decision: measurements only; no threshold approved\n");
+  }
   if (!result.success) {
     console.error(readFileSync(logPath, "utf8").split("\n").slice(-250).join("\n"));
     process.exitCode = 1;

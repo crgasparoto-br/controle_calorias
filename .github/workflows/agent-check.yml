@@ -224,7 +224,18 @@ jobs:
         env:
           NODE_ENV: test
           DATABASE_URL: ""
+          C3_EVIDENCE_OUTPUT_DIR: /tmp/food-v2-c3-calibration
+          C3_PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
         run: node scripts/run-vitest-shards.mjs
+
+      - name: Upload exact-HEAD C3 calibration evidence
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'
+        uses: actions/upload-artifact@v4
+        with:
+          name: food-v2-c3-calibration-${{ github.event.pull_request.head.sha || github.sha }}
+          path: /tmp/food-v2-c3-calibration/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload Vitest diagnostics
         if: failure()
