@@ -20,7 +20,7 @@ Estado deste arquivo: **pré-registro preservado + resultados posteriores**. As 
 
 A fonte primária TACO é pública e produzida pelo NEPA/UNICAMP. O snapshot do repositório não recebe, por isso, autorização automática para promoção global: licenciamento, governança e validade continuam sendo controles próprios.
 
-## Campanha item 30 — arredondamento
+## Campanha inicial v1, item 30 — arredondamento
 
 Fronteira: valores canônicos internos antes de formatação de UI.
 
@@ -39,6 +39,43 @@ Candidatos:
 - proteína/carboidratos/gordura, em g: 0; 1e-12; 1e-9; 1e-6; 0.0001; 0.001; 0.01; 0.1.
 
 Seleção: menor candidato que cubra todas as diferenças da calibração. Depois do lock, o mesmo valor precisa cobrir todo o holdout. Resultado de teste não significa aprovação nominal.
+
+## Ampliação da campanha de arredondamento v2 (pré-registro 28/10/2026)
+
+Esta extensão trata **RISK-001**, sem substituir o pré-registro, as medições ou o
+holdout histórico v1 (2 perfis + 2 perfis, 30 g ↔ 0,03 kg).
+A seleção da nova coorte e das quantidades foi depositada na issue **antes**
+da primeira execução: [pré-registro #6478971288](https://github.com/crgasparoto-br/controle_calorias/issues/1306#issuecomment-6478971288).
+
+- **Calibração v2:** 12 perfis TACO independentes da escolha do resolver;
+  inclui Mortadela e Amendoim, além de arroz, queijo, banana, batata,
+  pão, tomate, suco de laranja, chocolate, macarrão e ovo.
+- **Holdout v2:** 12 perfis TACO reservados; inclui Iogurte e Pêra, além
+  de feijão, abacate, aveia, biscoito, leite de cabra, mamão, alface,
+  frango, carne bovina e margarina. Nenhum perfil TACO pode aparecer nos
+  dois conjuntos, mesmo em outra quantidade.
+- **Equivalências por perfil:** 30 g ↔ 0,03 kg, 125 g ↔ 0,125 kg e
+  750 g ↔ 0,75 kg: **36 pares de calibração + 36 pares de holdout**.
+  Cada comparação afirma também a quantidade e os quatro nutrientes
+  calculados sobre o perfil TACO de 100 g, rejeitando falsos resultados
+  iguais derivados de quantidade ou base nutricional errada.
+- **Critério:** mesma grade original de candidatos, menor candidato que
+  cubra os pares da calibração; holdout não participa da escolha.
+  A CI publica `cohortRevision=c3-rounding-expanded-v2`,
+  `calibrationFoodProfiles`, `holdoutFoodProfiles`, `quantityGrams` e
+  as métricas de cada caso/candidato. O extrator bloqueia perfil repetido,
+  quantidade ausente, casos redundantes e contagens inconsistentes.
+- **Exclusões:** perfis sem qualquer nutriente central válido (por exemplo
+  registros com os quatro campos zero) são inválidos para esta medição.
+  Não representam um novo oráculo nutricional nem devem ser tratados como
+  valor calórico zero real.
+- **Limite:** ampliação de **equivalência numérica texto/quantidade**
+  em fonte controlada; não comprova equivalência multimodal, segurança
+  de decisão por fonte, materialidade, acurácia ≥95% ou amostragem
+  populacional. Os itens ADR 2/7/8/17/19/22 continuam dependentes de
+  rótulos independentes e/ou ensaios externos autorizados.
+  O item 30 **permanece OPEN até aprovação nominal e evidência
+  governada**. Nenhuma tolerância é aplicada em produção.
 
 ## Pré-registro integral dos parâmetros C3
 
@@ -103,7 +140,7 @@ rejeita métricas contraditórias sem gerar manifesto, mantém controles positiv
 e inclui ataques irmãos além dos quatro cenários originais da auditoria.
 O gate valida evidências, **não** aprova automaticamente nenhum threshold.
 
-### Item 30 — candidato medido, ainda não aprovado
+### Item 30 — resultado da campanha inicial v1, ainda não aprovado
 
 Os quatro campos numéricos centrais do contrato V2 (`calories`, `protein`, `carbs`, `fat`) apresentaram **delta máximo 0** entre as superfícies fisicamente equivalentes `30 g` e `0,03 kg` nos perfis de calibração. Pelo critério pré-registrado, o menor candidato selecionado foi:
 

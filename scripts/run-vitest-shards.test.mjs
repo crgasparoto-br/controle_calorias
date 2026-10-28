@@ -146,13 +146,20 @@ import { C3_EVIDENCE_MARKERS, extractC3Evidence, publishC3Evidence } from "./run
 
 const c3Fields = ["calories", "protein", "carbs", "fat"];
 function c3Fixtures() {
-  const metric = candidate => ({ candidate, cases: 2, passed: 2, failed: 0, maxDelta: 0, failuresByClass: {} });
+  const profileGroup = split => Array.from({ length: 12 }, (_, index) => "taco-" + split + "-" + index);
+  const caseIds = foods => foods.flatMap(food => [30, 125, 750].map(grams => food + "@" + grams + "g"));
+  const calibrationFoodProfiles = profileGroup("calibration");
+  const holdoutFoodProfiles = profileGroup("holdout");
+  const metric = candidate => ({ candidate, cases: 36, passed: 36, failed: 0, maxDelta: 0, failuresByClass: {} });
   const grid = [0, 0.01, 0.1];
   const per = callback => Object.fromEntries(c3Fields.map(field => [field, callback(field)]));
   const rounding = {
     splitPolicy: "candidate-selected-from-calibration-before-holdout",
     baselinePolicy: "open-fail-closed-zero-divergence",
-    calibrationProfiles: ["mortadela", "amendoim"], holdoutProfiles: ["iogurte", "pera"],
+    cohortRevision: "c3-rounding-expanded-v2",
+    quantityGrams: [30, 125, 750], calibrationFoodProfiles, holdoutFoodProfiles,
+    calibrationProfiles: caseIds(calibrationFoodProfiles),
+    holdoutProfiles: caseIds(holdoutFoodProfiles),
     candidates: { caloriesKcal: grid, macroGrams: grid },
     calibrationMaxDelta: per(() => 0), holdoutMaxDelta: per(() => 0), selectedTolerance: per(() => 0),
     calibrationCandidateMetrics: per(() => grid.map(metric)),
@@ -207,7 +214,7 @@ test("A-004 negative: forged counts, holdout leakage and artificial approval fai
   count.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationCandidateMetrics.calories[1].passed = 99;
   assert.throws(() => extractC3Evidence(c3Log(count)), /inconsistent/);
   const overlap = c3Fixtures();
-  overlap.C3_ITEM30_ROUNDING_CAMPAIGN.holdoutProfiles[0] = "mortadela";
+  overlap.C3_ITEM30_ROUNDING_CAMPAIGN.holdoutProfiles[0] = overlap.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationProfiles[0];
   assert.throws(() => extractC3Evidence(c3Log(overlap)), /holdout/);
   const fake = c3Fixtures();
   fake.C3_REAL_RESOLVER_FIXTURE_BASELINE.gate = "passed";
@@ -305,6 +312,21 @@ const a005Mutations = [
   ["failure classes undercount failed cases", reports => {
     reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.failureClasses.mismatch = 1;
   }],
+  ["food profile leaks across calibration and holdout via another quantity", reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    const leakedFood = rounding.calibrationFoodProfiles[0];
+    const oldFood = rounding.holdoutFoodProfiles[0];
+    rounding.holdoutFoodProfiles[0] = leakedFood;
+    rounding.holdoutProfiles = rounding.holdoutProfiles.map(caseId =>
+      caseId.startsWith(oldFood + "@") ? caseId.replace(oldFood + "@", leakedFood + "@") : caseId);
+  }],
+  ["one measured quantity pair silently disappears", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationProfiles.pop();
+  }],
+  ["a food profile is duplicated under another candidate label", reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    rounding.calibrationFoodProfiles[1] = rounding.calibrationFoodProfiles[0];
+  }],
 ];
 
 for (const [label, mutate] of a005Mutations) {
@@ -320,7 +342,7 @@ test("A-005: legitimate nonzero delta and multi-label baseline classes still pub
   for (const row of rounding.calibrationCandidateMetrics.calories) {
     row.maxDelta = 0.005;
     if (row.candidate < 0.005) Object.assign(row, {
-      passed: 1, failed: 1, failuresByClass: { rounding_delta: 1 },
+      passed: 35, failed: 1, failuresByClass: { rounding_delta: 1 },
     });
   }
   rounding.selectedTolerance.calories = 0.01;

@@ -171,6 +171,31 @@ export const C3_EVIDENCE_MARKERS = [
 const C3_SPLITS = ["acquisition", "calibration", "holdout"];
 const c3Count = value => Number.isSafeInteger(value) && value >= 0;
 
+// Exact cohort contract is preregistered in #1306 before any v2 CI run.
+const C3_ROUNDING_QUANTITIES_G = [30, 125, 750];
+const C3_ROUNDING_PROFILES_PER_SPLIT = 12;
+function c3RoundingCohortValid(rounding) {
+  if (rounding?.cohortRevision !== "c3-rounding-expanded-v2" ||
+      JSON.stringify(rounding.quantityGrams) !== JSON.stringify(C3_ROUNDING_QUANTITIES_G)) return false;
+  const names = [];
+  for (const [foodsKey, casesKey] of [
+    ["calibrationFoodProfiles", "calibrationProfiles"],
+    ["holdoutFoodProfiles", "holdoutProfiles"],
+  ]) {
+    const foods = rounding[foodsKey], cases = rounding[casesKey];
+    if (!Array.isArray(foods) || foods.length !== C3_ROUNDING_PROFILES_PER_SPLIT ||
+        !foods.every(food => typeof food === "string" && /^taco-[a-z0-9-]+$/.test(food)) ||
+        new Set(foods).size !== foods.length || !Array.isArray(cases)) return false;
+    names.push(...foods);
+    const expected = new Set(foods.flatMap(food =>
+      C3_ROUNDING_QUANTITIES_G.map(grams => food + "@" + grams + "g")));
+    if (cases.length !== expected.size || new Set(cases).size !== expected.size ||
+        !cases.every(value => expected.has(value))) return false;
+  }
+  // Comparing case IDs alone would miss the same TACO food on different
+  // quantities in calibration and holdout.
+  return new Set(names).size === names.length;
+}
 function c3FailureClassesValid(classes, expectedTotal) {
   if (!classes || typeof classes !== "object" || Array.isArray(classes)) return false;
   const counts = Object.values(classes);
@@ -239,7 +264,8 @@ export function extractC3Evidence(log) {
       !Array.isArray(rounding.calibrationProfiles) || !rounding.calibrationProfiles.length ||
       !Array.isArray(rounding.holdoutProfiles) || !rounding.holdoutProfiles.length ||
       new Set([...rounding.calibrationProfiles, ...rounding.holdoutProfiles]).size !==
-        rounding.calibrationProfiles.length + rounding.holdoutProfiles.length) {
+        rounding.calibrationProfiles.length + rounding.holdoutProfiles.length ||
+       !c3RoundingCohortValid(rounding)) {
     throw new Error("C3: invalid independent calibration/holdout or baseline");
   }
   for (const field of ["calories", "protein", "carbs", "fat"]) {

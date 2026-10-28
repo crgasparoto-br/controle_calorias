@@ -28,7 +28,45 @@ function numericCandidateSet(parameter: "rounding:energy" | "rounding:macros"): 
 const ENERGY_CANDIDATES = numericCandidateSet("rounding:energy");
 const MACRO_CANDIDATES = numericCandidateSet("rounding:macros");
 const CORE_FIELDS = ["calories", "protein", "carbs", "fat"] as const;
-const MEASURED_ITEM30_CANDIDATE = { calories: 0, protein: 0, carbs: 0, fat: 0 } as const;
+// This v2 cohort is fixed before its first CI measurement (issue comment
+// #6478971288); it supplements, never retunes, the original 2+2 campaign.
+// Nutrition profiles/families are disjoint between calibration and holdout.
+const ROUNDING_QUANTITY_SCENARIOS = [
+  { grams: 30, kilograms: "0,03" },
+  { grams: 125, kilograms: "0,125" },
+  { grams: 750, kilograms: "0,75" },
+] as const;
+type RoundingQuantityScenario = (typeof ROUNDING_QUANTITY_SCENARIOS)[number];
+const ROUNDING_COHORT = {
+  calibration: [
+    ["Mortadela", "mortadela"],
+    ["Amendoim, grão, cru", "amendoim cru"],
+    ["Arroz, integral, cozido", "arroz integral cozido"],
+    ["Queijo, minas, frescal", "queijo minas frescal"],
+    ["Banana, nanica, crua", "banana nanica crua"],
+    ["Batata, doce, cozida", "batata doce cozida"],
+    ["Pão, trigo, forma, integral", "pão integral"],
+    ["Tomate, com semente, cru", "tomate cru"],
+    ["Laranja, baía, suco", "suco de laranja"],
+    ["Chocolate, ao leite", "chocolate ao leite"],
+    ["Macarrão, instantâneo", "macarrão instantâneo"],
+    ["Ovo, de galinha, inteiro, cozido/10minutos", "ovo cozido"],
+  ],
+  holdout: [
+    ["Iogurte, natural", "iogurte natural"],
+    ["Pêra, Williams, crua", "pêra Williams"],
+    ["Feijão, carioca, cozido", "feijão carioca cozido"],
+    ["Abacate, cru", "abacate cru"],
+    ["Aveia, flocos, crua", "aveia crua"],
+    ["Biscoito, doce, maisena", "biscoito maisena"],
+    ["Leite, de cabra", "leite de cabra"],
+    ["Mamão, Papaia, cru", "mamão papaia cru"],
+    ["Alface, americana, crua", "alface americana"],
+    ["Frango, asa, com pele, crua", "asa de frango crua"],
+    ["Carne, bovina, acém, moído, cozido", "acém moído cozido"],
+    ["Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)", "margarina sem sal"],
+  ],
+} as const;
 type CoreField = (typeof CORE_FIELDS)[number];
 type CoreValues = Record<CoreField, number>;
 type RoundingSample = Readonly<{ profile: string; deltas: CoreValues }>;
@@ -46,8 +84,9 @@ type TacoRow = ReturnType<typeof getTacoCatalog>[number];
 function requireTacoRow(name: string): TacoRow {
   const row = getTacoCatalog().find(item => item.name === name);
   if (!row) throw new Error("C3 source profile missing: " + name);
-  for (const value of [row.calories, row.protein, row.carbs, row.fat]) {
-    if (!Number.isFinite(value)) throw new Error("C3 invalid source profile: " + name);
+  const core = [row.calories, row.protein, row.carbs, row.fat];
+  if (core.some(value => !Number.isFinite(value)) || core.every(value => value === 0)) {
+    throw new Error("C3 invalid or absent core nutrition source profile: " + name);
   }
   return row;
 }
@@ -87,7 +126,7 @@ function campaignStore(row: TacoRow): FoodKnowledgeStore {
   };
 }
 
-async function resolveCore(row: TacoRow, surface: string): Promise<CoreValues> {
+async function resolveCore(row: TacoRow, surface: string, expectedGrams: number): Promise<CoreValues> {
   const observations = await comprehendFoodLanguage(
     {
       rawText: surface,
@@ -111,10 +150,17 @@ async function resolveCore(row: TacoRow, surface: string): Promise<CoreValues> {
   );
   expect(decisions).toHaveLength(1);
   expect(decisions[0].quantity.grams).not.toBeNull();
-  expect(decisions[0].quantity.grams!).toBeCloseTo(30, 10);
+  expect(decisions[0].quantity.grams!).toBeCloseTo(expectedGrams, 10);
   const consumed = decisions[0].nutrition.consumed;
   expect(consumed).not.toBeNull();
   if (!consumed) throw new Error("C3 nutrition sample missing");
+  const source: CoreValues = {
+    calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
+  };
+  for (const field of CORE_FIELDS) {
+    expect(consumed[field]).not.toBeNull();
+    expect(consumed[field]!).toBeCloseTo(source[field] * expectedGrams / 100, 8);
+  }
   return {
     calories: consumed.calories!,
     protein: consumed.protein!,
@@ -123,9 +169,11 @@ async function resolveCore(row: TacoRow, surface: string): Promise<CoreValues> {
   };
 }
 
-async function measureEquivalentPair(row: TacoRow, label: string) {
-  const grams = await resolveCore(row, "30 g de " + label);
-  const kilograms = await resolveCore(row, "0,03 kg de " + label);
+async function measureEquivalentPair(
+  row: TacoRow, label: string, scenario: RoundingQuantityScenario,
+) {
+  const grams = await resolveCore(row, scenario.grams + " g de " + label, scenario.grams);
+  const kilograms = await resolveCore(row, scenario.kilograms + " kg de " + label, scenario.grams);
   return Object.fromEntries(
     CORE_FIELDS.map(field => [field, Math.abs(grams[field] - kilograms[field])]),
   ) as CoreValues;
@@ -190,30 +238,38 @@ function mergeFailureClasses(metrics: readonly RoundingCandidateMetric[]): Recor
 
 describe("#1306 C3 empirical evidence campaign", () => {
   it("selects rounding candidates only from calibration and validates them on reserved profiles", async () => {
-    const calibrationProfiles = [
-      [requireTacoRow("Mortadela"), "mortadela"],
-      [requireTacoRow("Amendoim, grão, cru"), "amendoim cru"],
-    ] as const;
-    const holdoutProfiles = [
-      [requireTacoRow("Iogurte, natural"), "iogurte natural"],
-      [requireTacoRow("Pêra, Williams, crua"), "pêra Williams"],
-    ] as const;
-
+    const calibrationProfiles = ROUNDING_COHORT.calibration.map(([name, label]) =>
+      [requireTacoRow(name), label] as const);
     const calibration: RoundingSample[] = [];
     for (const [row, label] of calibrationProfiles) {
-      calibration.push({ profile: row.slug, deltas: await measureEquivalentPair(row, label) });
+      for (const scenario of ROUNDING_QUANTITY_SCENARIOS) {
+        calibration.push({
+          profile: row.slug + "@" + scenario.grams + "g",
+          deltas: await measureEquivalentPair(row, label, scenario),
+        });
+      }
     }
     const calibrationMax = maxByField(calibration.map(sample => sample.deltas));
     const selected = Object.fromEntries(
       CORE_FIELDS.map(field => [field, selectCandidate(field, calibrationMax[field])]),
     ) as CoreValues;
 
-    // The reserved set is opened only after the candidate map is frozen.
-    expect(selected).toEqual(MEASURED_ITEM30_CANDIDATE);
+    // Resolve holdout rows and inspect their nutrition only after locking.
     Object.freeze(selected);
+    const holdoutProfiles = ROUNDING_COHORT.holdout.map(([name, label]) =>
+      [requireTacoRow(name), label] as const);
+    const calibrationFoodSlugs = calibrationProfiles.map(([row]) => row.slug);
+    const holdoutFoodSlugs = holdoutProfiles.map(([row]) => row.slug);
+    expect(new Set([...calibrationFoodSlugs, ...holdoutFoodSlugs]).size)
+      .toBe(calibrationFoodSlugs.length + holdoutFoodSlugs.length);
     const holdout: RoundingSample[] = [];
     for (const [row, label] of holdoutProfiles) {
-      holdout.push({ profile: row.slug, deltas: await measureEquivalentPair(row, label) });
+      for (const scenario of ROUNDING_QUANTITY_SCENARIOS) {
+        holdout.push({
+          profile: row.slug + "@" + scenario.grams + "g",
+          deltas: await measureEquivalentPair(row, label, scenario),
+        });
+      }
     }
     const holdoutMax = maxByField(holdout.map(sample => sample.deltas));
     for (const field of CORE_FIELDS) {
@@ -242,6 +298,10 @@ describe("#1306 C3 empirical evidence campaign", () => {
       source: { kind: "TACO_4E", reference: TACO_PRIMARY_SOURCE },
       splitPolicy: "candidate-selected-from-calibration-before-holdout",
       baselinePolicy: "open-fail-closed-zero-divergence",
+      cohortRevision: "c3-rounding-expanded-v2",
+      quantityGrams: ROUNDING_QUANTITY_SCENARIOS.map(scenario => scenario.grams),
+      calibrationFoodProfiles: calibrationFoodSlugs,
+      holdoutFoodProfiles: holdoutFoodSlugs,
       candidates: { caloriesKcal: ENERGY_CANDIDATES, macroGrams: MACRO_CANDIDATES },
       calibrationProfiles: calibration.map(sample => sample.profile),
       holdoutProfiles: holdout.map(sample => sample.profile),
@@ -253,6 +313,10 @@ describe("#1306 C3 empirical evidence campaign", () => {
       holdoutSelectedMetrics,
       failuresByClass,
     }));
+  });
+
+  it("rejects TACO source rows with absent core nutrition instead of treating zeros as truth", () => {
+    expect(() => requireTacoRow("Leite, de vaca, integral")).toThrow(/absent core nutrition/);
   });
 
   it("reports discriminating failure classes and comparison deltas for rounding candidates", () => {
