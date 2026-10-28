@@ -92,6 +92,17 @@ Marcador ausente, duplicado, métrica contraditória ou holdout incompatível
 impede que o CI completo passe. A coleta não reexecuta testes nem aprova
 thresholds produtivos. Retenção do artefato: 30 dias.
 
+A remediação **A-005** (`audit-rejection:027b0bf6-a235-40cb-8f20-bd29d50d9d32`)
+reforça a verificação antes da escrita: `passed`/`failed` devem concordar com
+`maxDelta` e a tolerância de cada candidato; as classes de falha de candidatos
+somam os casos que falharam; e `calls`, totais de corpus, três splits,
+contagens, taxas e classes do baseline devem ser coerentes. Classes de falha
+do corpus podem se sobrepor no mesmo caso e, portanto, **não** são somadas
+como partição exclusiva. A regressão em `scripts/run-vitest-shards.test.mjs`
+rejeita métricas contraditórias sem gerar manifesto, mantém controles positivos
+e inclui ataques irmãos além dos quatro cenários originais da auditoria.
+O gate valida evidências, **não** aprova automaticamente nenhum threshold.
+
 ### Item 30 — candidato medido, ainda não aprovado
 
 Os quatro campos numéricos centrais do contrato V2 (`calories`, `protein`, `carbs`, `fat`) apresentaram **delta máximo 0** entre as superfícies fisicamente equivalentes `30 g` e `0,03 kg` nos perfis de calibração. Pelo critério pré-registrado, o menor candidato selecionado foi:

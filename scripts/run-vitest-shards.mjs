@@ -168,6 +168,54 @@ export const C3_EVIDENCE_MARKERS = [
   "C3_ITEM30_ROUNDING_CAMPAIGN", "C3_OPEN_EVIDENCE_READINESS",
   "C3_REAL_RESOLVER_FIXTURE_BASELINE",
 ];
+const C3_SPLITS = ["acquisition", "calibration", "holdout"];
+const c3Count = value => Number.isSafeInteger(value) && value >= 0;
+
+function c3FailureClassesValid(classes, expectedTotal) {
+  if (!classes || typeof classes !== "object" || Array.isArray(classes)) return false;
+  const counts = Object.values(classes);
+  return counts.every(c3Count) &&
+    (expectedTotal === undefined || counts.reduce((sum, count) => sum + count, 0) === expectedTotal);
+}
+
+function c3BaselineConsistent(ready, baseline) {
+  if (!c3Count(ready?.corpusCases) || ready.corpusCases === 0 ||
+      !ready.splits || typeof ready.splits !== "object" || Array.isArray(ready.splits) ||
+      Object.keys(ready.splits).sort().join(",") !== [...C3_SPLITS].sort().join(",") ||
+      !C3_SPLITS.every(split => c3Count(ready.splits[split])) ||
+      C3_SPLITS.reduce((sum, split) => sum + ready.splits[split], 0) !== ready.corpusCases ||
+      baseline?.calls !== ready.corpusCases || !Array.isArray(baseline.bySplit) ||
+      baseline.bySplit.length !== C3_SPLITS.length ||
+      !c3FailureClassesValid(baseline.failureClasses)) return false;
+
+  let failedCases = 0;
+  const seen = new Set();
+  for (const row of baseline.bySplit) {
+    if (!row || !C3_SPLITS.includes(row.split) || seen.has(row.split)) return false;
+    seen.add(row.split);
+    if (!c3Count(row.cases) || row.cases !== ready.splits[row.split] ||
+        !c3Count(row.resolvableLabeled) || row.resolvableLabeled > row.cases ||
+        !c3Count(row.matchedCases) || !c3Count(row.failedCases) ||
+        row.matchedCases + row.failedCases !== row.cases ||
+        !c3Count(row.abstentions) || row.abstentions > row.cases ||
+        (row.resolvableLabeled === 0 ? row.matchRate !== null :
+          !Number.isFinite(row.matchRate) || row.matchRate < 0 || row.matchRate > 1)) return false;
+    if (row.resolvableLabeled > 0) {
+      // Resolvable hits are a subset of all matched cases, not their synonym.
+      const hits = row.matchRate * row.resolvableLabeled;
+      const lower = Math.max(0, row.matchedCases - (row.cases - row.resolvableLabeled));
+      const upper = Math.min(row.matchedCases, row.resolvableLabeled);
+      if (Math.abs(hits - Math.round(hits)) > 1e-9 || hits < lower - 1e-9 || hits > upper + 1e-9) return false;
+    }
+    failedCases += row.failedCases;
+  }
+  // A single case can fail multiple checks: failure-class counts can exceed
+  // failed cases, but must cover each failed case at least once.
+  const classifiedFailures = Object.values(baseline.failureClasses).reduce((sum, count) => sum + count, 0);
+  return seen.size === C3_SPLITS.length &&
+    (failedCases === 0 ? classifiedFailures === 0 : classifiedFailures >= failedCases);
+}
+
 export function extractC3Evidence(log) {
   const reports = {};
   for (const rawLine of log.split(/\r?\n/)) {
@@ -205,12 +253,14 @@ export function extractC3Evidence(log) {
         !grid.every((value, i) => Number.isFinite(value) && value >= 0 && (!i || value > grid[i - 1])) ||
         !rows.every((row, i) => row.candidate === grid[i] &&
           row.cases === rounding.calibrationProfiles.length && row.cases > 0 &&
-          Number.isInteger(row.passed) && Number.isInteger(row.failed) &&
+          c3Count(row.passed) && c3Count(row.failed) &&
           row.passed + row.failed === row.cases &&
           Number.isFinite(row.maxDelta) && row.maxDelta >= 0 &&
           row.maxDelta === rounding.calibrationMaxDelta?.[field] &&
-          row.failuresByClass && typeof row.failuresByClass === "object" &&
-          Object.values(row.failuresByClass).reduce((a, b) => a + b, 0) === row.failed) ||
+          // A measured delta above the candidate cannot yield zero failures;
+          // conversely all pairs must pass if the maximum is within tolerance.
+          (row.failed === 0) === (row.maxDelta <= row.candidate) &&
+          c3FailureClassesValid(row.failuresByClass, row.failed)) ||
         selected !== grid.find(value => value >= rounding.calibrationMaxDelta?.[field]) ||
         comparison?.baselinePolicy !== rounding.baselinePolicy ||
         JSON.stringify(comparison.baseline) !== JSON.stringify(rows[0]) ||
@@ -219,6 +269,7 @@ export function extractC3Evidence(log) {
         comparison.failedDelta !== comparison.selected.failed - comparison.baseline.failed ||
         !holdout || holdout.candidate !== selected || holdout.cases !== rounding.holdoutProfiles.length ||
         holdout.failed !== 0 || holdout.passed !== holdout.cases ||
+        !c3FailureClassesValid(holdout.failuresByClass, 0) ||
         holdout.maxDelta !== rounding.holdoutMaxDelta?.[field] || holdout.maxDelta > selected) {
       throw new Error("C3: incomplete or inconsistent candidate/holdout metrics: " + field);
     }
@@ -227,10 +278,9 @@ export function extractC3Evidence(log) {
       !["2", "7", "8", "17", "19", "22"].every(item =>
         Array.isArray(ready.blockers?.[item]) && ready.blockers[item].length) ||
       baseline.resolver?.id !== "food-intelligence-v2-domain-resolver" ||
-      baseline.gate === "passed" || !baseline.failureClasses ||
-      !baseline.bySplit?.some(row => row.split === "calibration") ||
-      !baseline.bySplit?.some(row => row.split === "holdout")) {
-    throw new Error("C3: incomplete readiness or falsely approved resolver baseline");
+      !["blocked", "failed", "sample_missing"].includes(baseline.gate) ||
+      !c3BaselineConsistent(ready, baseline)) {
+    throw new Error("C3: incomplete or contradictory resolver baseline/readiness metrics");
   }
   return reports;
 }

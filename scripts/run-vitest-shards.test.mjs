@@ -139,7 +139,7 @@ test("real child process ignores TERM, escalates to KILL and is reaped", { timeo
 });
 // #1306 / A-004: successful shards must leave reviewable C3 evidence, not
 // only the PASS counters previously visible in successful GitHub jobs.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { C3_EVIDENCE_MARKERS, extractC3Evidence, publishC3Evidence } from "./run-vitest-shards.mjs";
@@ -160,9 +160,14 @@ function c3Fixtures() {
       baseline: metric(0), selected: metric(0), passedDelta: 0, failedDelta: 0 })),
     holdoutSelectedMetrics: per(() => metric(0)), failuresByClass: {},
   };
-  const ready = { blockers: Object.fromEntries(["2", "7", "8", "17", "19", "22"].map(item => [item, ["ground_truth_absent"]])) };
-  const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" }, gate: "failed",
-    failureClasses: { mismatch: 1 }, bySplit: [{ split: "acquisition" }, { split: "calibration" }, { split: "holdout" }] };
+  const splits = { acquisition: 1, calibration: 2, holdout: 1 };
+  const ready = { corpusCases: 4, splits,
+    blockers: Object.fromEntries(["2", "7", "8", "17", "19", "22"].map(item => [item, ["ground_truth_absent"]])) };
+  const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" }, gate: "failed", calls: 4,
+    failureClasses: { mismatch: 4 }, bySplit: Object.entries(splits).map(([split, cases]) => ({
+      split, cases, resolvableLabeled: cases, matchedCases: 0,
+      failedCases: cases, abstentions: 0, matchRate: 0,
+    })) };
   return { [C3_EVIDENCE_MARKERS[0]]: rounding, [C3_EVIDENCE_MARKERS[1]]: ready,
     [C3_EVIDENCE_MARKERS[2]]: baseline };
 }
@@ -206,12 +211,12 @@ test("A-004 negative: forged counts, holdout leakage and artificial approval fai
   assert.throws(() => extractC3Evidence(c3Log(overlap)), /holdout/);
   const fake = c3Fixtures();
   fake.C3_REAL_RESOLVER_FIXTURE_BASELINE.gate = "passed";
-  assert.throws(() => extractC3Evidence(c3Log(fake)), /falsely approved/);
+  assert.throws(() => extractC3Evidence(c3Log(fake)), /contradictory/);
   const wrongSchema = c3Fixtures();
   wrongSchema.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit = [
     { segment: "calibration" }, { segment: "holdout" }
   ];
-  assert.throws(() => extractC3Evidence(c3Log(wrongSchema)), /incomplete readiness/);
+  assert.throws(() => extractC3Evidence(c3Log(wrongSchema)), /contradictory/);
 });
 
 test("A-004 regression: refuses stale SHA and preserves Vitest ANSI stdout", () => {
@@ -231,4 +236,106 @@ test("A-004 regression: workflow uploads C3 artifact on success, never just fail
   assert.match(portion, /if-no-files-found: error/);
   assert.doesNotMatch(portion, /if: failure\(\)/);
   assert.match(workflow.slice(full, upload), /C3_EVIDENCE_OUTPUT_DIR: \/tmp\/food-v2-c3-calibration/);
+});
+
+// A-005 (audit-rejection:027b0bf6-a235-40cb-8f20-bd29d50d9d32):
+// validate measurements before generating a cryptographically valid artifact.
+function assertC3MutationBlocked(mutate) {
+  const reports = c3Fixtures();
+  mutate(reports);
+  const log = c3Log(reports);
+  assert.throws(() => extractC3Evidence(log), /C3: (incomplete|contradictory)/);
+  const dir = mkdtempSync(join(tmpdir(), "c3-fail-closed-"));
+  try {
+    assert.throws(() => publishC3Evidence(log, dir, c3Identity), /C3: (incomplete|contradictory)/);
+    assert.equal(existsSync(join(dir, "calibration-evidence.json")), false);
+    assert.equal(existsSync(join(dir, "manifest.json")), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+const a005Mutations = [
+  ["zero-tolerance reports success above observed delta", reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    rounding.calibrationMaxDelta.calories = 0.005;
+    for (const row of rounding.calibrationCandidateMetrics.calories) row.maxDelta = 0.005;
+    rounding.selectedTolerance.calories = 0.01;
+    rounding.comparisonToBaseline.calories.baseline = structuredClone(rounding.calibrationCandidateMetrics.calories[0]);
+    rounding.comparisonToBaseline.calories.selected = structuredClone(rounding.calibrationCandidateMetrics.calories[1]);
+    rounding.holdoutSelectedMetrics.calories.candidate = 0.01;
+  }],
+  ["positive failure count with delta within candidate", reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    Object.assign(rounding.calibrationCandidateMetrics.protein[1], {
+      passed: 1, failed: 1, failuresByClass: { rounding_delta: 1 },
+    });
+  }],
+  ["invalid candidate failure class counts", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationCandidateMetrics.fat[2].failuresByClass = { rounding_delta: -1 };
+  }],
+  ["holdout claims failure class after reporting zero failures", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.holdoutSelectedMetrics.carbs.failuresByClass = { rounding_delta: 1 };
+  }],
+  ["zero resolver calls with failed corpus cases", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.calls = 0;
+  }],
+  ["failed corpus cases with empty failure classes", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.failureClasses = {};
+  }],
+  ["readiness corpus total contradicts measured splits", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.corpusCases = 1;
+  }],
+  ["readiness split counts contradict measured cases", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.splits.calibration = 3;
+  }],
+  ["duplicate split hides holdout cases", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[2].split = "calibration";
+  }],
+  ["baseline cases do not reconcile with passed and failed", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[0].failedCases = 0;
+  }],
+  ["baseline negative failure class count", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.failureClasses.mismatch = -1;
+  }],
+  ["baseline invalid match-rate denominator", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[1].matchRate = 1.5;
+  }],
+  ["claimed resolvable match exceeds total matched cases", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[1].matchRate = 0.5;
+  }],
+  ["failure classes undercount failed cases", reports => {
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.failureClasses.mismatch = 1;
+  }],
+];
+
+for (const [label, mutate] of a005Mutations) {
+  test("A-005: inconsistent calibration and baseline evidence fails closed: " + label, () => {
+    assertC3MutationBlocked(mutate);
+  });
+}
+
+test("A-005: legitimate nonzero delta and multi-label baseline classes still publish", () => {
+  const reports = c3Fixtures();
+  const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+  rounding.calibrationMaxDelta.calories = 0.005;
+  for (const row of rounding.calibrationCandidateMetrics.calories) {
+    row.maxDelta = 0.005;
+    if (row.candidate < 0.005) Object.assign(row, {
+      passed: 1, failed: 1, failuresByClass: { rounding_delta: 1 },
+    });
+  }
+  rounding.selectedTolerance.calories = 0.01;
+  rounding.comparisonToBaseline.calories.baseline = structuredClone(rounding.calibrationCandidateMetrics.calories[0]);
+  rounding.comparisonToBaseline.calories.selected = structuredClone(rounding.calibrationCandidateMetrics.calories[1]);
+  rounding.comparisonToBaseline.calories.passedDelta = 1;
+  rounding.comparisonToBaseline.calories.failedDelta = -1;
+  rounding.holdoutSelectedMetrics.calories.candidate = 0.01;
+  // Multiple failures can belong to one case; do not sum baseline classes as if disjoint.
+  reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.failureClasses.other = 8;
+  const dir = mkdtempSync(join(tmpdir(), "c3-valid-nonzero-"));
+  try {
+    const sha = publishC3Evidence(c3Log(reports), dir, c3Identity);
+    const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
+    assert.equal(sha, manifest.reportSha256);
+    assert.equal(extractC3Evidence(c3Log(reports)).C3_ITEM30_ROUNDING_CAMPAIGN.selectedTolerance.calories, 0.01);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
