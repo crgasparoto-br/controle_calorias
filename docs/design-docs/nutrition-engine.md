@@ -29,7 +29,7 @@ A #1306 acrescenta um **comparador experimental e não produtivo** em `server/mo
 
 A avaliação experimental transporta o veredito original do gate do Golden Food Corpus e rederiva totais, classes de falha e segmentos a partir dos casos rotulados por partição. Alteração de contadores, classe, universo de casos ou fonte de gate é rejeitada; na etapa reservada, qualquer gate `blocked`, `failed` ou `sample_missing` impede até mesmo o estado `awaiting_independent_approval` e preserva as causas. O gate global não participa do ranking nem do hash do lock de calibração, porque pode refletir respostas do holdout que não podem influenciar a escolha do candidato. Esses controles corrigem a aceitação de evidências contraditórias identificada na auditoria da PR #1332, mas **não representam uma campanha C3 medida ou uma homologação dos valores `OPEN`**.
 
-
+A campanha empírica pré-registrada da #1306 está em `server/modules/foodIntelligenceV2/corpus/calibration.empirical.test.ts`. Ela mede o arredondamento no resolvedor real com perfis TACO separados entre calibração e holdout e, para os demais itens, produz um inventário executável das evidências independentes ausentes. Nenhum resultado desse teste promove automaticamente um threshold: a promoção exige medição no SHA pré-registrado, responsável nominal, atualização da ADR e nova execução exact-SHA.
 
 ## Diretrizes
 
