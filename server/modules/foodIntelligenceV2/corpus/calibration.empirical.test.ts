@@ -8,6 +8,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { getTacoCatalog } from "../../../tacoLookup";
+import { normalizeFoodName } from "../../../../scripts/import-foods/normalize_food_name";
 import { comprehendFoodLanguage } from "../linguisticComprehension";
 import { resolveFoodObservations } from "../resolver";
 import type { FoodKnowledgeStore, GovernedFoodMatch } from "../knowledgeRead";
@@ -39,32 +40,32 @@ const ROUNDING_QUANTITY_SCENARIOS = [
 type RoundingQuantityScenario = (typeof ROUNDING_QUANTITY_SCENARIOS)[number];
 const ROUNDING_COHORT = {
   calibration: [
-    ["Mortadela", "mortadela"],
-    ["Amendoim, grão, cru", "amendoim cru"],
-    ["Arroz, integral, cozido", "arroz integral cozido"],
-    ["Queijo, minas, frescal", "queijo minas frescal"],
-    ["Banana, nanica, crua", "banana nanica crua"],
-    ["Batata, doce, cozida", "batata doce cozida"],
-    ["Pão, trigo, forma, integral", "pão integral"],
-    ["Tomate, com semente, cru", "tomate cru"],
-    ["Laranja, baía, suco", "suco de laranja"],
-    ["Chocolate, ao leite", "chocolate ao leite"],
-    ["Macarrão, instantâneo", "macarrão instantâneo"],
-    ["Ovo, de galinha, inteiro, cozido/10minutos", "ovo cozido"],
+    "Mortadela",
+    "Amendoim, grão, cru",
+    "Arroz, integral, cozido",
+    "Queijo, minas, frescal",
+    "Banana, nanica, crua",
+    "Batata, doce, cozida",
+    "Pão, trigo, forma, integral",
+    "Tomate, com semente, cru",
+    "Laranja, baía, suco",
+    "Chocolate, ao leite",
+    "Macarrão, instantâneo",
+    "Ovo, de galinha, inteiro, cozido/10minutos",
   ],
   holdout: [
-    ["Iogurte, natural", "iogurte natural"],
-    ["Pêra, Williams, crua", "pêra Williams"],
-    ["Feijão, carioca, cozido", "feijão carioca cozido"],
-    ["Abacate, cru", "abacate cru"],
-    ["Aveia, flocos, crua", "aveia crua"],
-    ["Biscoito, doce, maisena", "biscoito maisena"],
-    ["Leite, de cabra", "leite de cabra"],
-    ["Mamão, Papaia, cru", "mamão papaia cru"],
-    ["Alface, americana, crua", "alface americana"],
-    ["Frango, asa, com pele, crua", "asa de frango crua"],
-    ["Carne, bovina, acém, moído, cozido", "acém moído cozido"],
-    ["Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)", "margarina sem sal"],
+    "Iogurte, natural",
+    "Pêra, Williams, crua",
+    "Feijão, carioca, cozido",
+    "Abacate, cru",
+    "Aveia, flocos, crua",
+    "Biscoito, doce, maisena",
+    "Leite, de cabra",
+    "Mamão, Papaia, cru",
+    "Alface, americana, crua",
+    "Frango, asa, com pele, crua",
+    "Carne, bovina, acém, moído, cozido",
+    "Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)",
   ],
 } as const;
 type CoreField = (typeof CORE_FIELDS)[number];
@@ -148,12 +149,18 @@ async function resolveCore(row: TacoRow, surface: string, expectedGrams: number)
     },
     campaignStore(row),
   );
+  expect(observations).toHaveLength(1);
+  // The fixture is a governed exact variant, not an unapproved short alias.
+  expect(normalizeFoodName(observations[0].identityHints.foodName ?? ""))
+    .toBe(normalizeFoodName(row.name));
   expect(decisions).toHaveLength(1);
   expect(decisions[0].quantity.grams).not.toBeNull();
   expect(decisions[0].quantity.grams!).toBeCloseTo(expectedGrams, 10);
   const consumed = decisions[0].nutrition.consumed;
-  expect(consumed).not.toBeNull();
-  if (!consumed) throw new Error("C3 nutrition sample missing");
+  expect(consumed, "C3 " + row.slug + " / " + surface +
+    " returned " + decisions[0].status + ": " + decisions[0].reasonCodes.join(","))
+    .not.toBeNull();
+  if (!consumed) throw new Error("C3 nutrition sample missing for " + row.slug);
   const source: CoreValues = {
     calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
   };
@@ -238,10 +245,10 @@ function mergeFailureClasses(metrics: readonly RoundingCandidateMetric[]): Recor
 
 describe("#1306 C3 empirical evidence campaign", () => {
   it("selects rounding candidates only from calibration and validates them on reserved profiles", async () => {
-    const calibrationProfiles = ROUNDING_COHORT.calibration.map(([name, label]) =>
-      [requireTacoRow(name), label] as const);
+    const calibrationProfiles = ROUNDING_COHORT.calibration.map(name => requireTacoRow(name));
     const calibration: RoundingSample[] = [];
-    for (const [row, label] of calibrationProfiles) {
+    for (const row of calibrationProfiles) {
+      const label = normalizeFoodName(row.name);
       for (const scenario of ROUNDING_QUANTITY_SCENARIOS) {
         calibration.push({
           profile: row.slug + "@" + scenario.grams + "g",
@@ -256,14 +263,14 @@ describe("#1306 C3 empirical evidence campaign", () => {
 
     // Resolve holdout rows and inspect their nutrition only after locking.
     Object.freeze(selected);
-    const holdoutProfiles = ROUNDING_COHORT.holdout.map(([name, label]) =>
-      [requireTacoRow(name), label] as const);
-    const calibrationFoodSlugs = calibrationProfiles.map(([row]) => row.slug);
-    const holdoutFoodSlugs = holdoutProfiles.map(([row]) => row.slug);
+    const holdoutProfiles = ROUNDING_COHORT.holdout.map(name => requireTacoRow(name));
+    const calibrationFoodSlugs = calibrationProfiles.map(row => row.slug);
+    const holdoutFoodSlugs = holdoutProfiles.map(row => row.slug);
     expect(new Set([...calibrationFoodSlugs, ...holdoutFoodSlugs]).size)
       .toBe(calibrationFoodSlugs.length + holdoutFoodSlugs.length);
     const holdout: RoundingSample[] = [];
-    for (const [row, label] of holdoutProfiles) {
+    for (const row of holdoutProfiles) {
+      const label = normalizeFoodName(row.name);
       for (const scenario of ROUNDING_QUANTITY_SCENARIOS) {
         holdout.push({
           profile: row.slug + "@" + scenario.grams + "g",
@@ -313,6 +320,31 @@ describe("#1306 C3 empirical evidence campaign", () => {
       holdoutSelectedMetrics,
       failuresByClass,
     }));
+  });
+
+  it("A-006: preserves the fail-closed material variant guard for abbreviated surfaces", async () => {
+    for (const [name, surface] of [
+      ["Pão, trigo, forma, integral", "30 g de pão integral"],
+      ["Ovo, de galinha, inteiro, cozido/10minutos", "30 g de ovo cozido"],
+      ["Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)", "30 g de margarina sem sal"],
+    ] as const) {
+      const row = requireTacoRow(name);
+      const observations = await comprehendFoodLanguage(
+        { rawText: surface, sourceRef: "c3:abbreviated-negative", modality: "text",
+          ownerUserId: 1306, lexiconRevision: "c3-rounding-preregistered-v1" },
+        { async load() { return []; } },
+      );
+      const decisions = await resolveFoodObservations(observations,
+        { traceId: "c3:abbreviated:" + row.slug, userId: 1306,
+          knowledgeRevision: "taco-4e-repository-snapshot",
+          policyVersion: "c3-rounding-preregistered-v1", resolverVersion: "c2-1305" },
+        campaignStore(row),
+      );
+      expect(decisions).toHaveLength(1);
+      expect(decisions[0].nutrition.consumed).toBeNull();
+      expect(decisions[0].nutrition.verified).toBe(false);
+      expect(decisions[0].reasonCodes).toContain("brand_variant_unresolved");
+    }
   });
 
   it("rejects TACO source rows with absent core nutrition instead of treating zeros as truth", () => {

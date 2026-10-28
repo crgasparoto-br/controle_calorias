@@ -173,19 +173,53 @@ const c3Count = value => Number.isSafeInteger(value) && value >= 0;
 
 // Exact cohort contract is preregistered in #1306 before any v2 CI run.
 const C3_ROUNDING_QUANTITIES_G = [30, 125, 750];
+// Fixed by the #1306 preregistration (issue comment 6478971288).
+// The validation contract is independent of producer-reported cohort IDs.
+export const C3_ROUNDING_PREREGISTERED_PROFILES = Object.freeze({
+  calibration: Object.freeze([
+    "taco-mortadela",
+    "taco-amendoim-grao-cru",
+    "taco-arroz-integral-cozido",
+    "taco-queijo-minas-frescal",
+    "taco-banana-nanica-crua",
+    "taco-batata-doce-cozida",
+    "taco-pao-trigo-forma-integral",
+    "taco-tomate-com-semente-cru",
+    "taco-laranja-baia-suco",
+    "taco-chocolate-ao-leite",
+    "taco-macarrao-instantaneo",
+    "taco-ovo-de-galinha-inteiro-cozido10minutos",
+  ]),
+  holdout: Object.freeze([
+    "taco-iogurte-natural",
+    "taco-pera-williams-crua",
+    "taco-feijao-carioca-cozido",
+    "taco-abacate-cru",
+    "taco-aveia-flocos-crua",
+    "taco-biscoito-doce-maisena",
+    "taco-leite-de-cabra",
+    "taco-mamao-papaia-cru",
+    "taco-alface-americana-crua",
+    "taco-frango-asa-com-pele-crua",
+    "taco-carne-bovina-acem-moido-cozido",
+    "taco-margarina-com-oleo-hidrogenado-sem-sal-80-de-lipideos",
+  ]),
+});
 const C3_ROUNDING_PROFILES_PER_SPLIT = 12;
 function c3RoundingCohortValid(rounding) {
   if (rounding?.cohortRevision !== "c3-rounding-expanded-v2" ||
       JSON.stringify(rounding.quantityGrams) !== JSON.stringify(C3_ROUNDING_QUANTITIES_G)) return false;
   const names = [];
-  for (const [foodsKey, casesKey] of [
-    ["calibrationFoodProfiles", "calibrationProfiles"],
-    ["holdoutFoodProfiles", "holdoutProfiles"],
+  for (const [split, foodsKey, casesKey] of [
+    ["calibration", "calibrationFoodProfiles", "calibrationProfiles"],
+    ["holdout", "holdoutFoodProfiles", "holdoutProfiles"],
   ]) {
     const foods = rounding[foodsKey], cases = rounding[casesKey];
+    const preregistered = C3_ROUNDING_PREREGISTERED_PROFILES[split];
     if (!Array.isArray(foods) || foods.length !== C3_ROUNDING_PROFILES_PER_SPLIT ||
         !foods.every(food => typeof food === "string" && /^taco-[a-z0-9-]+$/.test(food)) ||
-        new Set(foods).size !== foods.length || !Array.isArray(cases)) return false;
+        new Set(foods).size !== foods.length ||
+        !preregistered.every(food => foods.includes(food)) || !Array.isArray(cases)) return false;
     names.push(...foods);
     const expected = new Set(foods.flatMap(food =>
       C3_ROUNDING_QUANTITIES_G.map(grams => food + "@" + grams + "g")));

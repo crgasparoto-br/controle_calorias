@@ -63,8 +63,10 @@ da primeira execução: [pré-registro #6478971288](https://github.com/crgasparo
   cubra os pares da calibração; holdout não participa da escolha.
   A CI publica `cohortRevision=c3-rounding-expanded-v2`,
   `calibrationFoodProfiles`, `holdoutFoodProfiles`, `quantityGrams` e
-  as métricas de cada caso/candidato. O extrator bloqueia perfil repetido,
-  quantidade ausente, casos redundantes e contagens inconsistentes.
+  as métricas de cada caso/candidato. O extrator também confronta os 24
+  slugs TACO com o pré-registro imutável, recusando a troca de um perfil por
+  outro existente mesmo que todos os pares e contadores continuem coerentes.
+  Também bloqueia duplicatas, pares ausentes e contagens inconsistentes.
 - **Exclusões:** perfis sem qualquer nutriente central válido (por exemplo
   registros com os quatro campos zero) são inválidos para esta medição.
   Não representam um novo oráculo nutricional nem devem ser tratados como
@@ -86,6 +88,21 @@ canônico (era tratada como `1.000`). A distinção agora preserva
 `0,xxx` como decimal físico; exemplos positivos e negativos estão em
 `linguisticComprehension.test.ts`. O pré-registro dos pares, seus perfis e as
 grades de seleção **não foram alterados** após observar essa falha.
+
+### Correção A-006 — identidade exata na fixture do arredondamento
+
+O run #40760637868 falhou porque a fixture dizia ter uma variante TACO
+`exact_variant` mas enviava ao resolvedor descrições abreviadas como
+`pão integral` em vez de `Pão, trigo, forma, integral`. O núcleo C2
+rejeita corretamente qualificadores sem identidade governada suficiente.
+O ensaio agora constrói as superfícies apenas a partir dos nomes canônicos
+completos das mesmas variantes pré-registradas; o controle negativo garante
+que descrições abreviadas não recebam nutrição verificada artificialmente.
+
+Este protocolo mede equivalência física e arredondamento no **mesmo perfil
+governado**, não certifica reconhecimento de aliases nem altera a política
+de compatibilidade do resolvedor. Perfis, splits, quantidades e tolerâncias
+pré-registrados permanecem inalterados.
 
 ## Pré-registro integral dos parâmetros C3
 
@@ -159,7 +176,7 @@ Os quatro campos numéricos centrais do contrato V2 (`calories`, `protein`, `car
 - carboidratos: **0 g**;
 - gordura: **0 g**.
 
-O holdout reservado, aberto somente depois do lock, também apresentou delta máximo 0 para os quatro campos nos perfis `taco-iogurte-natural` e `taco-pera-williams-crua`. A regressão executável fixa esse resultado em `MEASURED_ITEM30_CANDIDATE` sem alterar `CORPUS_ROUNDING_TOLERANCE`: o valor medido **não é promovido para política aprovada** enquanto faltar aprovação nominal explícita exigida pela ADR §16.2/§25.
+O holdout reservado, aberto somente depois do lock, também apresentou delta máximo 0 para os quatro campos nos perfis `taco-iogurte-natural` e `taco-pera-williams-crua`. A medição histórica v1 é verificável no artefato exact-HEAD do run #40697782286. A campanha ampliada v2 não utiliza mais a constante `MEASURED_ITEM30_CANDIDATE` como oráculo e não altera `CORPUS_ROUNDING_TOLERANCE`: o valor medido **não é promovido para política aprovada** enquanto faltar aprovação nominal explícita exigida pela ADR §16.2/§25.
 
 O relatório empírico agora registra **cada candidato** por nutriente com `cases`, `passed`, `failed`, `maxDelta` e `failuresByClass`; compara o candidato selecionado ao baseline atual `open-fail-closed-zero-divergence`; e publica as métricas do holdout somente para o valor já congelado. Um controle negativo sintético comprova que uma divergência acima do candidato aparece como `rounding_delta_exceeds_candidate:<campo>`, impedindo que uma média esconda falha por classe.
 

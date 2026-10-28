@@ -142,14 +142,13 @@ test("real child process ignores TERM, escalates to KILL and is reaped", { timeo
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { C3_EVIDENCE_MARKERS, extractC3Evidence, publishC3Evidence } from "./run-vitest-shards.mjs";
+import { C3_EVIDENCE_MARKERS, C3_ROUNDING_PREREGISTERED_PROFILES, extractC3Evidence, publishC3Evidence } from "./run-vitest-shards.mjs";
 
 const c3Fields = ["calories", "protein", "carbs", "fat"];
 function c3Fixtures() {
-  const profileGroup = split => Array.from({ length: 12 }, (_, index) => "taco-" + split + "-" + index);
   const caseIds = foods => foods.flatMap(food => [30, 125, 750].map(grams => food + "@" + grams + "g"));
-  const calibrationFoodProfiles = profileGroup("calibration");
-  const holdoutFoodProfiles = profileGroup("holdout");
+  const calibrationFoodProfiles = [...C3_ROUNDING_PREREGISTERED_PROFILES.calibration];
+  const holdoutFoodProfiles = [...C3_ROUNDING_PREREGISTERED_PROFILES.holdout];
   const metric = candidate => ({ candidate, cases: 36, passed: 36, failed: 0, maxDelta: 0, failuresByClass: {} });
   const grid = [0, 0.01, 0.1];
   const per = callback => Object.fromEntries(c3Fields.map(field => [field, callback(field)]));
@@ -334,6 +333,28 @@ for (const [label, mutate] of a005Mutations) {
     assertC3MutationBlocked(mutate);
   });
 }
+
+test("A-007: replacing a calibration profile with another valid TACO food fails closed", () => {
+  assertC3MutationBlocked(reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    const original = rounding.calibrationFoodProfiles[0];
+    const replacement = "taco-abacaxi-cru";
+    rounding.calibrationFoodProfiles[0] = replacement;
+    rounding.calibrationProfiles = rounding.calibrationProfiles.map(id =>
+      id.startsWith(original + "@") ? id.replace(original + "@", replacement + "@") : id);
+  });
+});
+
+test("A-007: replacing a holdout profile with another valid TACO food fails closed", () => {
+  assertC3MutationBlocked(reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    const original = rounding.holdoutFoodProfiles[0];
+    const replacement = "taco-cenoura-crua";
+    rounding.holdoutFoodProfiles[0] = replacement;
+    rounding.holdoutProfiles = rounding.holdoutProfiles.map(id =>
+      id.startsWith(original + "@") ? id.replace(original + "@", replacement + "@") : id);
+  });
+});
 
 test("A-005: legitimate nonzero delta and multi-label baseline classes still publish", () => {
   const reports = c3Fixtures();
