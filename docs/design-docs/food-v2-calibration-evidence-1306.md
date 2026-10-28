@@ -52,3 +52,32 @@ Seleção: menor candidato que cubra todas as diferenças da calibração. Depoi
 | 22 | inventariar rótulos de materialidade e qualidade de perfis por 100 g | pares comparáveis governados e hipótese validada |
 
 A campanha executável registra as contagens e blockers em C3_OPEN_EVIDENCE_READINESS. Manter OPEN por blocker medido é preferível a promover número arbitrário.
+
+
+## Resultado medido — campanha pré-registrada
+
+A campanha pré-registrada foi executada no GitHub Actions **Agent-first gate run 40623122018**, exact HEAD `3e9c48bc7b2ef56a5552264434fda7eb1522f552`, com conclusão `success`. A suíte completa, TypeScript, arquitetura, inventário alimentar, documentação, build, agent check e integridade TiDB passaram no mesmo SHA.
+
+### Item 30 — candidato medido, ainda não aprovado
+
+Os quatro campos numéricos centrais do contrato V2 (`calories`, `protein`, `carbs`, `fat`) apresentaram **delta máximo 0** entre as superfícies fisicamente equivalentes `30 g` e `0,03 kg` nos perfis de calibração. Pelo critério pré-registrado, o menor candidato selecionado foi:
+
+- energia: **0 kcal**;
+- proteína: **0 g**;
+- carboidratos: **0 g**;
+- gordura: **0 g**.
+
+O holdout reservado, aberto somente depois do lock, também apresentou delta máximo 0 para os quatro campos nos perfis `taco-iogurte-natural` e `taco-pera-williams-crua`. A regressão executável fixa esse resultado em `MEASURED_ITEM30_CANDIDATE` sem alterar `CORPUS_ROUNDING_TOLERANCE`: o valor medido **não é promovido para política aprovada** enquanto faltar aprovação nominal explícita exigida pela ADR §16.2/§25.
+
+### Itens mantidos OPEN por evidência objetiva
+
+A mesma execução mantém os demais recortes bloqueados sem escolher números:
+
+- **2:** o Golden Food Corpus não possui rótulos independentes de confiança esperada por fonte × campo;
+- **7:** não existe ground truth governado suficiente de família × âncora × impacto para calibrar os três eixos;
+- **8:** o contrato de busca semântica residual ainda não é consumido pelo resolvedor e o orçamento de chamadas externas da campanha é zero; não existe replay textual × semântico autorizado;
+- **17:** S3 permanece inelegível por default sem predicate calibrada e não houve trial externo autorizado de custo/latência/erro por modalidade;
+- **19:** o corpus não rotula uma política esperada da escada de estimativa por família/âncora;
+- **22:** o corpus não contém rótulos governados independentes de materialidade e pares de variantes suficientes para derivar imaterialidade com segurança.
+
+Esses estados são resultados de prontidão, não aprovação. Nenhum deles autoriza threshold, fuzzy/semântico, S3, estimativa, materialidade ou rollout produtivo.

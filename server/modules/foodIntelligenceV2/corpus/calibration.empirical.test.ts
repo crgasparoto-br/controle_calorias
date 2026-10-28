@@ -20,6 +20,7 @@ const TACO_PRIMARY_SOURCE =
 const ENERGY_CANDIDATES = [0, 1e-12, 1e-9, 1e-6, 0.001, 0.01, 0.1] as const;
 const MACRO_CANDIDATES = [0, 1e-12, 1e-9, 1e-6, 0.0001, 0.001, 0.01, 0.1] as const;
 const CORE_FIELDS = ["calories", "protein", "carbs", "fat"] as const;
+const MEASURED_ITEM30_CANDIDATE = { calories: 0, protein: 0, carbs: 0, fat: 0 } as const;
 type CoreField = (typeof CORE_FIELDS)[number];
 type CoreValues = Record<CoreField, number>;
 
@@ -147,6 +148,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
     ) as CoreValues;
 
     // The reserved set is opened only after the candidate map is frozen.
+    expect(selected).toEqual(MEASURED_ITEM30_CANDIDATE);
     Object.freeze(selected);
     const holdout = [];
     for (const [row, label] of holdoutProfiles) {
