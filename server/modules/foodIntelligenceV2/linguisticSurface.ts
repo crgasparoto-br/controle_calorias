@@ -99,8 +99,10 @@ function parseNumber(value: string): number | null {
     return numerator > 0 && denominator > 1 && denominator <= 8 &&
       numerator <= denominator * 2 ? numerator / denominator : null;
   }
-  // '1.000' is ambiguous between decimal and thousands: do not guess.
-  if (/^\d{1,3}[,.]\d{3}$/.test(folded)) return null;
+  // '1.000' and '1,500' remain ambiguous (decimal vs thousands).
+  // A leading 0 cannot be a thousands group: 0,125 kg is 125 g.
+  // Reject arbitrary padded forms rather than weakening the ambiguity gate.
+  if (/^\d{1,3}[,.]\d{3}$/.test(folded) && !/^0[,.]\d{3}$/.test(folded)) return null;
   if (!/^\d+(?:[,.]\d+)?$/.test(folded)) return null;
   const number = Number(folded.replace(",", "."));
   return Number.isFinite(number) && number > 0 ? number : null;

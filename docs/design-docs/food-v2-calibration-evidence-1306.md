@@ -77,6 +77,16 @@ da primeira execução: [pré-registro #6478971288](https://github.com/crgasparo
   O item 30 **permanece OPEN até aprovação nominal e evidência
   governada**. Nenhuma tolerância é aplicada em produção.
 
+### Correção de gramática constatada no run CI #40758426539
+
+O primeiro run ampliado recusou corretamente completar o ensaio: a quantidade
+`0,125 kg` não era reconhecida pela regra de ambiguidade de milhares no parser
+canônico (era tratada como `1.000`). A distinção agora preserva
+`1.000`/`1,500` como ambíguos, mas aceita somente a fração explícita
+`0,xxx` como decimal físico; exemplos positivos e negativos estão em
+`linguisticComprehension.test.ts`. O pré-registro dos pares, seus perfis e as
+grades de seleção **não foram alterados** após observar essa falha.
+
 ## Pré-registro integral dos parâmetros C3
 
 A fonte executável é `C3_PRE_REGISTERED_PARAMETER_DEFINITIONS` em `calibration.test.support.ts`. Cada um dos 15 parâmetros possui baseline observado (ou `null` quando não existe valor V2 aprovado), candidatos concretos, critério de seleção anterior ao resultado e bloqueadores de evidência. Os intervalos abaixo são inclusivos; são **grades experimentais**, não valores aprovados.
