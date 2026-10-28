@@ -225,7 +225,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
     const zeroCoreProfiles = taco.filter(row =>
       [row.calories, row.protein, row.carbs, row.fat].every(value => value === 0),
     ).length;
-    const itemsCovered = new Set(CALIBRATION_PARAMETERS.map(item => item.adrItem));
+    const itemsCovered = new Set(Object.values(CALIBRATION_PARAMETERS).map(item => item.item));
     expect([...itemsCovered].sort((a, b) => a - b)).toEqual([2, 7, 8, 17, 19, 22, 30]);
     expect(confidenceLabels).toBe(0);
     expect(familyAnchorLabels).toBe(0);
