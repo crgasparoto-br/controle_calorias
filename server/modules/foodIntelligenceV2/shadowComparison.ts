@@ -329,8 +329,15 @@ export function buildFoodShadowEvent(input: {
 }
 
 export type FoodShadowBaselineSegment = {
-  modality: FoodShadowModality; scenarioClass: FoodShadowClass;
+  modality: FoodShadowModality; entrypoint: FoodShadowEntrypoint; scenarioClass: FoodShadowClass;
   runs: number; compared: number; failed: number; partial: number;
+  /** Resolution distributions are not verified accuracy rates. */
+  v1Outcomes: Record<FoodShadowOutcome, number>;
+  v2Outcomes: Record<FoodShadowOutcome, number>;
+  /** Observed latencies. Nearest-rank percentiles, never approved SLOs. */
+  v1LatencyP50Ms: number | null;
+  v1LatencyP95Ms: number | null;
+  shadowCompletionP95Ms: number | null;
   pairedItems: number;
   /** Observed gaps, including partial runs; not verified matching errors. */
   unpairedItems: number; v1UnpairedItems: number; v2UnpairedItems: number;
@@ -344,14 +351,29 @@ export type FoodShadowBaselineSegment = {
   verifiedAccuracy: null;
 };
 
+const emptyOutcomeCounts = (): Record<FoodShadowOutcome, number> => ({
+  resolved: 0, partially_resolved: 0, ambiguous: 0, unknown: 0,
+  clarification: 0, failed: 0, not_compared: 0,
+});
+
+/** Nearest-rank percentile; no threshold is implied by the statistic. */
+function observedPercentile(values: readonly number[], fraction: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return metric(sorted[Math.max(0, Math.ceil(fraction * sorted.length) - 1)]);
+}
+
 /** Replays safely from previously sanitised records, never from personal input. */
 export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
   const segments = new Map<string, FoodShadowBaselineSegment>();
+  const samples = new Map<string, { v1: number[]; shadow: number[] }>();
   for (const event of events) {
-    const key = event.modality + ":" + event.scenarioClass;
+    const key = [event.modality, event.entrypoint, event.scenarioClass].join(":");
     const row = segments.get(key) ?? {
-      modality: event.modality, scenarioClass: event.scenarioClass,
+      modality: event.modality, entrypoint: event.entrypoint, scenarioClass: event.scenarioClass,
       runs: 0, compared: 0, failed: 0, partial: 0, pairedItems: 0,
+      v1Outcomes: emptyOutcomeCounts(), v2Outcomes: emptyOutcomeCounts(),
+      v1LatencyP50Ms: null, v1LatencyP95Ms: null, shadowCompletionP95Ms: null,
       unpairedItems: 0, v1UnpairedItems: 0, v2UnpairedItems: 0,
       identityDifferences: 0, variantDifferences: 0, quantityDifferences: 0,
       nutritionDifferences: 0, sourceDifferences: 0, clarificationDifferences: 0,
@@ -360,6 +382,12 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       totalMs: 0, external: null, verifiedAccuracy: null,
     } satisfies FoodShadowBaselineSegment;
     row.runs++;
+    row.v1Outcomes[event.v1Outcome]++;
+    row.v2Outcomes[event.v2Outcome]++;
+    const sample = samples.get(key) ?? { v1: [], shadow: [] };
+    sample.v1.push(metric(event.timings.v1Ms));
+    sample.shadow.push(metric(event.timings.totalMs));
+    samples.set(key, sample);
     if (event.run === "compared") row.compared++;
     if (event.run === "partial") row.partial++;
     if (event.run === "failed") row.failed++;
@@ -401,12 +429,19 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     }
     segments.set(key, row);
   }
+  for (const [key, row] of segments) {
+    const sample = samples.get(key)!;
+    row.v1LatencyP50Ms = observedPercentile(sample.v1, 0.5);
+    row.v1LatencyP95Ms = observedPercentile(sample.v1, 0.95);
+    row.shadowCompletionP95Ms = observedPercentile(sample.shadow, 0.95);
+  }
   return {
     schemaVersion: 1 as const, totalRuns: events.length,
     /** No corpus oracle has been supplied by this telemetry, even if V1 and V2 agree. */
     verifiedAccuracy: null,
     rolloutEligible: false as const,
     segments: [...segments.values()].sort((a, b) =>
-      a.modality.localeCompare(b.modality) || a.scenarioClass.localeCompare(b.scenarioClass)),
+      a.modality.localeCompare(b.modality) || a.entrypoint.localeCompare(b.entrypoint) ||
+      a.scenarioClass.localeCompare(b.scenarioClass)),
   };
 }

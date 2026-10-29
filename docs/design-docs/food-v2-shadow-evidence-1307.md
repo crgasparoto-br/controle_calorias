@@ -115,6 +115,34 @@ materialidade e valores nutricionais embutidos. Casos positivos e negativos de
 arquitetura preservam essa distinção sem exceções por arquivo nem alteração
 do livro de dívida.
 
+## Diagnóstico de baseline offline (preparação A-004)
+
+- O agregador `buildFoodShadowBaseline` separa observações **também por entrypoint**
+  (web/WhatsApp/registro/edição/replay), além de classe e modalidade. Expõe a
+  distribuição tipada de resultados V1/V2 e os percentis observados p50/p95
+  de `v1Ms` e p95 do tempo até completar a observação, pelo método de ordem
+  mais próxima (*nearest rank*). São números diagnósticos, **não SLOs aprovados**;
+  nenhuma janela, coorte representativa, limite de custo ou tolerância é inferida.
+- `server/modules/foodIntelligenceV2/shadowBaselineReplay.ts` valida em profundidade
+  eventos pré-sanitizados, rejeitando campos inesperados (inclusive texto/PII),
+  números incoerentes e correlações duplicadas. Não persiste eventos nem alimenta
+  o resolvedor. O comando manual, sem rede ou sink, é:
+
+  ```bash
+  pnpm exec tsx scripts/food-v2-shadow-baseline-replay.ts /caminho/privado/observacoes-sanitizadas.json
+  ```
+
+  A entrada é um JSON de forma
+  `{ "schemaVersion": 1, "kind": "food-v2-sanitized-shadow-events", "events": [/* FoodShadowEvent */] }`,
+  com até 10.000 eventos e 8 MiB. O comando emite somente agregado e `status=diagnostic-only`,
+  `gateAApproved=false`, `sampleProvenanceVerified=false`, `verifiedAccuracy=null` e
+  `rolloutEligible=false`. Ele **nunca** certifica autenticidade da fonte ou Gate A,
+  mesmo que o arquivo se declare aprovado. Arquivos privados não podem ser
+  commitados ou enviados a artifacts de CI sem autorização LGPD específica.
+- Este procedimento não valida cobertura de consumo real, rotulagem por oráculo
+  independente, distribuição populacional, qualidade da amostra, tempo de retenção
+  ou Gate 19 completo. Os bloqueios anteriores continuam integrais.
+
 ## Baseline, bloqueios e ativação
 
 **Não existe baseline V1×V2 de tráfego real nesta issue até aprovação.**

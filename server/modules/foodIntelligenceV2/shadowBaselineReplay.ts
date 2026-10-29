@@ -1,0 +1,101 @@
+/**
+ * #1307 / A-004: bounded, read-only replay of previously sanitised C4 telemetry.
+ * This is a diagnostic, not an approval verifier or a production event sink.
+ */
+import { z } from "zod";
+import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
+import { buildFoodShadowBaseline, type FoodShadowEvent } from "./shadowComparison";
+
+const nonnegative = z.number().finite().nonnegative();
+const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const optionalDelta = nonnegative.nullable();
+const states = z.enum([
+  "resolved", "partially_resolved", "ambiguous", "unknown", "clarification", "failed", "not_compared",
+]);
+const contextStatus = z.enum([
+  "available", "absent", "expired", "unavailable", "not_applicable", "not_instrumented",
+]);
+const capability = z.object({
+  capability: z.enum(AI_CAPABILITIES),
+  calls: count, retries: count, totalLatencyMs: nonnegative,
+  estimatedCostUsd: optionalDelta, costMeasuredCalls: count,
+}).strict().refine(v => v.calls > 0 && v.retries <= v.calls && v.costMeasuredCalls <= v.calls &&
+  (v.costMeasuredCalls === v.calls) === (v.estimatedCostUsd !== null));
+
+/** Reject unexpected keys recursively, including text, media, IDs and provider payloads. */
+const shadowEvent = z.object({
+  schemaVersion: z.literal(1),
+  traceId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
+  modality: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+  entrypoint: z.enum(["web", "whatsapp", "meal_add", "meal_edit", "label_continuation", "replay"]),
+  scenarioClass: z.enum(["generic", "commercial", "quantity", "label", "ambiguous", "unknown", "mixed"]),
+  run: z.enum(["compared", "partial", "failed"]),
+  failure: z.enum([
+    "none", "gate_unavailable", "evidence_unavailable", "language_unavailable",
+    "resolver_unavailable", "telemetry_unavailable",
+  ]),
+  v1Outcome: states, v2Outcome: states,
+  v1ItemCount: count, v2ItemCount: count,
+  v2Stages: z.object({ s1: count, s2: count, s3: count }).strict(),
+  context: z.object({
+    previousMessage: contextStatus, preferences: contextStatus, recentHistory: contextStatus,
+  }).strict(),
+  differences: z.object({
+    comparablePairs: count, unpairedItems: count, v1UnpairedItems: count, v2UnpairedItems: count,
+    identity: count, variant: count, quantity: count, nutrition: count, source: count,
+    clarification: z.boolean().nullable(),
+    macros: z.object({
+      calories: optionalDelta, protein: optionalDelta, carbs: optionalDelta, fat: optionalDelta,
+    }).strict(),
+    confidence: optionalDelta,
+  }).strict(),
+  flagged: z.object({
+    possibleSilentFallback: count, v2MissingNutritionProvenance: count,
+    explicitFailure: count, sourceConflicts: count,
+  }).strict(),
+  timings: z.object({
+    v1Ms: nonnegative, languageMs: nonnegative, resolverMs: nonnegative, totalMs: nonnegative,
+  }).strict(),
+  capabilityUsage: z.array(capability).max(AI_CAPABILITIES.length).nullable(),
+  verifiedCorrect: z.null(),
+}).strict().superRefine((event, ctx) => {
+  if (event.differences.unpairedItems !==
+    event.differences.v1UnpairedItems + event.differences.v2UnpairedItems ||
+    event.differences.comparablePairs > Math.min(event.v1ItemCount, event.v2ItemCount) ||
+    (event.run === "failed") === (event.failure === "none")) {
+    ctx.addIssue({ code: "custom", message: "inconsistent-shadow-event" });
+  }
+  if (event.capabilityUsage && new Set(event.capabilityUsage.map(v => v.capability)).size !==
+    event.capabilityUsage.length) {
+    ctx.addIssue({ code: "custom", message: "duplicate-shadow-capability" });
+  }
+});
+
+const replayEnvelope = z.object({
+  schemaVersion: z.literal(1),
+  kind: z.literal("food-v2-sanitized-shadow-events"),
+  events: z.array(shadowEvent).min(1).max(10000),
+}).strict();
+
+/**
+ * Never accepts a claimed approval or an accuracy label. No trace IDs or
+ * individual events leave this function. The caller must independently prove
+ * capture provenance, Gate A, sampling window, oracle and privacy approval.
+ */
+export function replaySanitizedFoodShadowEvents(raw: unknown) {
+  const checked = replayEnvelope.safeParse(raw);
+  if (!checked.success) throw new TypeError("invalid-sanitized-shadow-events");
+  const ids = new Set<string>();
+  for (const event of checked.data.events) {
+    if (ids.has(event.traceId)) throw new TypeError("duplicate-shadow-trace-id");
+    ids.add(event.traceId);
+  }
+  const baseline = buildFoodShadowBaseline(checked.data.events as FoodShadowEvent[]);
+  return {
+    schemaVersion: 1 as const,
+    status: "diagnostic-only" as const,
+    gateAApproved: false as const,
+    sampleProvenanceVerified: false as const,
+    baseline,
+  };
+}
