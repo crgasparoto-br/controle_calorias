@@ -38,7 +38,7 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
       getDb: async () => ({ select }) as never,
       onWarning: warnings,
     });
-    const result = await repo.findConfirmedByUserId(9, { includeMedia: false });
+    const result = await repo.findConfirmedByUserId(9, { includeMedia: false, shadowReadOnly: true });
     expect(warnings).not.toHaveBeenCalled();
     expect(result).toHaveLength(1);
     expect(result?.[0].items).toMatchObject([{
@@ -47,6 +47,10 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
       classification: { processingLevel: "processed", fiberGrams: 0.7 },
       canonicalName: "Original",
     }]);
+    // The pre-cutover V1 reader is byte-shape compatible: no new fields.
+    const productive = await repo.findConfirmedByUserId(9, { includeMedia: false });
+    expect(productive?.[0].items[0].classification).toBeUndefined();
+    expect(productive?.[0].items[0].historicalRef).toBeUndefined();
     // The test has no catalog provider or current catalog state whatsoever.
     expect(select).toHaveBeenCalled();
   });
@@ -82,7 +86,7 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
       }) as never,
       onWarning: vi.fn(),
     });
-    const result = await repo.findConfirmedByUserId(2, { includeMedia: false });
+    const result = await repo.findConfirmedByUserId(2, { includeMedia: false, shadowReadOnly: true });
     expect(result?.[0].items[0].classification).toBeNull();
     expect(result?.[0].items[0].calories).toBe(200);
   });

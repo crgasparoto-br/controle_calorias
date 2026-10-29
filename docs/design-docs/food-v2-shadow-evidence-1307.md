@@ -38,11 +38,13 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 
 ## Leitores históricos do shadow (Gate 19)
 
-1. `server/repositories/mealsRepository.ts` lê os macros e a classificação
-   dos dados persistidos, se houver snapshot válido; `historicalRef` vem
-   apenas do ID salvo, jamais do catálogo atual.
-2. `server/householdMeasureMealUpdate.ts` preserva IDs explícitos e não
-   remapeia por nomes entre itens.
+1. `server/repositories/mealsRepository.ts` usa `shadowReadOnly=true` para
+   ler os macros e a classificação salvos quando houver snapshot válido;
+   `historicalRef` vem apenas do ID persistido, jamais do catálogo atual.
+   O leitor público V1 continua com o formato anterior.
+2. `server/householdMeasureMealUpdate.ts` expõe
+   `projectHistoricalHouseholdItemsForShadow` sem consulta nem remapeamento
+   por nome. O escritor/atualizador produtivo V1 permanece inalterado.
 3. `server/modules/insights/service.ts` expõe
    `buildHistoricalFoodQualityForShadow`, sem `searchFoods/getFoodsByIds`.
 4. `server/modules/insights/foodQuality.ts` só usa classificação salva;

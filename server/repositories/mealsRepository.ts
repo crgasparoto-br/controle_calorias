@@ -36,6 +36,8 @@ export type MealLoadRange = {
   startAt?: Date;
   endAt?: Date;
   includeMedia?: boolean;
+  /** Only the isolated shadow historical projection opts into new metadata. */
+  shadowReadOnly?: boolean;
 };
 
 export type MealsRepository = {
@@ -447,11 +449,13 @@ export function createDrizzleMealsRepository(deps: {
           const list = itemsByMealId.get(item.mealId) ?? [];
           list.push({
             foodCatalogId: item.foodCatalogId ?? null,
-            // The read projection never invokes resolveMealItemFoodCatalogId.
-            historicalRef: item.foodId
-              ? "food:" + item.foodId
-              : item.foodCatalogId ? "catalog:" + item.foodCatalogId : null,
-            classification: readPersistedMealClassification(item.foodSnapshotJson),
+            // Preserve V1's public record shape until a separate cutover.
+            ...(options.shadowReadOnly ? {
+              historicalRef: item.foodId
+                ? "food:" + item.foodId
+                : item.foodCatalogId ? "catalog:" + item.foodCatalogId : null,
+              classification: readPersistedMealClassification(item.foodSnapshotJson),
+            } : {}),
             foodName: item.foodName,
             canonicalName: item.canonicalName,
             portionText: item.portionText,

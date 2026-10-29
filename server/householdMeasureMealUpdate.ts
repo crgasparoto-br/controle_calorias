@@ -22,15 +22,35 @@ export class HouseholdMeasureLearningUpdateError extends Error {
   }
 }
 
-/** Snapshot-safe update keys: never reassign another item's ID by a matching name. */
-export function preserveResolvedCatalogIds(items: MealDraftItem[]) {
+function preserveResolvedCatalogIds(items: MealDraftItem[]) {
   const ids = new Map<string, number>();
   for (const item of items) {
     const id = Number(item.foodCatalogId);
     if (!Number.isFinite(id) || id <= 0) continue;
     ids.set(foodCatalogDirectKey(id), id);
+    if (item.canonicalName) ids.set(item.canonicalName, id);
+    if (item.foodName) ids.set(item.foodName, id);
   }
   return ids;
+}
+
+/**
+ * C4 shadow-only historical projection. Never maps by names, queries a
+ * catalog, rewrites a confirmed item, or recalculates macros. This is separate
+ * from the unchanged V1 household-measure update behavior below.
+ */
+export function projectHistoricalHouseholdItemsForShadow(items: readonly MealDraftItem[]) {
+  return items.map(item => Object.freeze({
+    historicalRef: item.historicalRef ??
+      (item.foodCatalogId ? "catalog:" + item.foodCatalogId : null),
+    foodCatalogId: item.foodCatalogId ?? null,
+    estimatedGrams: item.estimatedGrams,
+    calories: item.calories,
+    protein: item.protein,
+    carbs: item.carbs,
+    fat: item.fat,
+    classification: item.classification ? Object.freeze({ ...item.classification }) : null,
+  }));
 }
 
 export async function updateMealAndHouseholdMeasureLearning(input: {

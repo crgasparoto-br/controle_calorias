@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foodCatalogDirectKey } from "./foodCatalogKeys";
-import { preserveResolvedCatalogIds } from "./householdMeasureMealUpdate";
+import { projectHistoricalHouseholdItemsForShadow } from "./householdMeasureMealUpdate";
 import type { MealDraftItem } from "./nutritionEngineTypes";
 
 function item(foodCatalogId: number | null, name: string): MealDraftItem {
@@ -12,19 +11,24 @@ function item(foodCatalogId: number | null, name: string): MealDraftItem {
   };
 }
 
-describe("#1307 — update must not remap historical catalog identities by name", () => {
-  it("keeps only explicit persisted IDs even when two items share the same name", () => {
-    const ids = preserveResolvedCatalogIds([
-      item(10, "Leite"), item(null, "Leite"), item(20, "Leite integral"),
+describe("#1307 — read-only household shadow projection", () => {
+  it("uses saved IDs and does not map identical names into another item", () => {
+    const values = projectHistoricalHouseholdItemsForShadow([
+      item(10, "Leite"), item(null, "Leite"), item(20, "Leite"),
     ]);
-    expect(ids.get(foodCatalogDirectKey(10))).toBe(10);
-    expect(ids.get(foodCatalogDirectKey(20))).toBe(20);
-    expect(ids.has("Leite")).toBe(false);
-    expect(ids.has("Leite integral")).toBe(false);
-    expect(ids.size).toBe(2);
+    expect(values.map(i => i.historicalRef)).toEqual(["catalog:10", null, "catalog:20"]);
+    expect(values.map(i => i.calories)).toEqual([20, 20, 20]);
+    expect(values.map(i => i.foodCatalogId)).toEqual([10, null, 20]);
   });
 
-  it("never fabricates a catalog ID for an item without persisted identity", () => {
-    expect(preserveResolvedCatalogIds([item(null, "Pão"), item(null, "Pão")]).size).toBe(0);
+  it("does not mutate the confirmed V1 item while creating historical views", () => {
+    const original = item(10, "Arroz");
+    const view = projectHistoricalHouseholdItemsForShadow([original]);
+    expect(Object.isFrozen(view[0])).toBe(true);
+    expect(view[0].calories).toBe(20);
+    original.calories = 99;
+    original.foodCatalogId = 77;
+    expect(view[0].calories).toBe(20);
+    expect(view[0].historicalRef).toBe("catalog:10");
   });
 });
