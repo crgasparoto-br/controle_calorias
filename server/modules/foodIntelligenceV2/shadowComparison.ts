@@ -289,8 +289,10 @@ export function buildFoodShadowEvent(input: {
   differences.confidence = confidenceN ? metric(confidenceTotal / confidenceN) : null;
   // A V1 clarification exception still has an observable response-level outcome,
   // but no item snapshot. Compare clarification without inventing item pairs.
+  // Typed outcome projection, not a lexical decision about food attributes.
+  const v1FailureClarifies = { clarification: true, failed: null } as const;
   const v1Clarifies = input.v1?.semanticContract.needsClarification ??
-    (input.v1Failure === "clarification" ? true : null);
+    (input.v1Failure ? v1FailureClarifies[input.v1Failure] : null);
   if (v1Clarifies !== null && input.v2 !== null) {
     differences.clarification = v1Clarifies !== v2.some(item => item.nextAction === "clarify");
   }
