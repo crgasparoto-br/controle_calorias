@@ -3,6 +3,8 @@ import { mealItems, meals } from "../../drizzle/schema";
 import { createDrizzleMealsRepository } from "./mealsRepository";
 import { calculateHistoricalQualityIndicators } from "../modules/insights/foodQuality";
 import { calculateFoodQualitySummary } from "../../shared/reportsGoalAnalytics";
+import { buildFoodShadowEvent } from "../modules/foodIntelligenceV2/shadowComparison";
+import { buildV1HistoricalSnapshotFixture, buildFoodResolutionDecisionFixture } from "../modules/foodIntelligenceV2/fixtures";
 
 describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
   it("returns saved macros, identity and classification without a live catalog lookup", async () => {
@@ -128,6 +130,25 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
     expect(shadowItems.map(item => item.historicalRef))
       .toEqual(["variant:101", "variant:102", "food:10"]);
     expect(shadowItems.map(item => item.calories)).toEqual([80, 120, 60]);
+
+    // A-010: a real repository projection containing food:10 must not be
+    // matched by label to a distinct known V2 family, even with equal macros.
+    const mismatchedFamily = buildFoodShadowEvent({
+      traceId: "b4e590ab-35bd-44cd-932a-e895e51ec7a2",
+      modality: "text", entrypoint: "replay", scenarioClass: "commercial",
+      v1: { ...buildV1HistoricalSnapshotFixture(), items: [shadowItems[2]] },
+      v1Failure: null,
+      v2: [buildFoodResolutionDecisionFixture({
+        identity: { canonicalName: "Leite", foodEntityId: 11, variantId: null },
+        nutrition: { consumed: { calories: 60, protein: 7, carbs: 9, fat: 4 } },
+      })],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    expect(mismatchedFamily.differences).toMatchObject({
+      comparablePairs: 0, v1UnpairedItems: 1, v2UnpairedItems: 1,
+      identity: 1, macros: { calories: null },
+    });
 
     // Exercise the actual historical reader and aggregation, not just a fabricated
     // historicalRef provided directly by a test fixture.

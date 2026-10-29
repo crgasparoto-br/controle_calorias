@@ -464,6 +464,123 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     });
   });
 
+  it("A-010 honors persisted family IDs even when display labels and macros agree", () => {
+    const saved = (reference: string | null, calories: number, name = "Leite") => ({
+      ...baseV1().items[0], historicalRef: reference, foodName: name, canonicalName: name,
+      brand: null, productVariant: null, quantity: 1, unit: "un", estimatedGrams: 100,
+      calories, protein: 0, carbs: 0, fat: 0,
+    });
+    const resolved = (family: number | null, variant: number | null, calories: number, name = "Leite") =>
+      buildFoodResolutionDecisionFixture({
+        identity: { canonicalName: name, foodEntityId: family, variantId: variant,
+          variant: variant === null ? null : "caixa" },
+        quantity: { value: 1, unit: "un", grams: 100 },
+        nutrition: { consumed: { calories, protein: 0, carbs: 0, fat: 0 } },
+      });
+    const compare = (v1Items: ReturnType<typeof saved>[], v2Items: ReturnType<typeof resolved>[]) =>
+      buildFoodShadowEvent({
+        traceId, modality: "text", entrypoint: "replay", scenarioClass: "commercial",
+        v1: { ...baseV1(), items: v1Items }, v1Failure: null,
+        v2: v2Items, observations: [], failure: "none",
+        timings: { v1Ms: 1, languageMs: 2, resolverMs: 3, totalMs: 6 },
+      });
+
+    // Both names and nutrition agree, but the two known family IDs do not.
+    const changedFamily = compare([saved("food:10", 100)], [resolved(11, 101, 100)]);
+    expect(changedFamily.differences).toMatchObject({
+      comparablePairs: 0, unpairedItems: 2, identity: 1,
+      v1UnpairedItems: 1, v2UnpairedItems: 1, macros: { calories: null },
+    });
+    expect(changedFamily.differences.variantIdUnverifiable).toBe(0);
+    expect(buildFoodShadowBaseline([changedFamily]).segments[0]).toMatchObject({
+      pairedItems: 0, identityDifferences: 1, macroAbsDelta: { calories: null },
+    });
+
+    // A missing V2 family cannot silently override a known saved family.
+    const missingFamily = compare([saved("food:10", 100)], [resolved(null, null, 100)]);
+    expect(missingFamily.differences).toMatchObject({
+      comparablePairs: 0, unpairedItems: 2, macros: { calories: null },
+    });
+
+    // Same family despite a renamed label is comparable; rename is reported.
+    const renamed = compare([saved("food:10", 100)], [resolved(10, 102, 100, "Leite renomeado")]);
+    expect(renamed.differences).toMatchObject({
+      comparablePairs: 1, unpairedItems: 0, identity: 1,
+      variantIdUnverifiable: 1, macros: { calories: 0 },
+    });
+
+    // Family-only snapshots reordered across distinct names are aligned by
+    // their saved labels before declaring a false rename.
+    const sameFamilyReordered = compare([
+      saved("food:10", 100, "Leite A"), saved("food:10", 100, "Leite B"),
+    ], [
+      resolved(10, null, 100, "Leite B"), resolved(10, null, 100, "Leite A"),
+    ]);
+    expect(sameFamilyReordered.differences).toMatchObject({
+      comparablePairs: 2, identity: 0, nutrition: 0, macros: { calories: 0 },
+    });
+
+    // A legacy catalog ID is not a family/variant crosswalk.
+    const legacy = compare([saved("catalog:45", 100)], [resolved(11, 101, 100)]);
+    expect(legacy.differences).toMatchObject({
+      comparablePairs: 1, variantIdUnverifiable: 1, macros: { calories: 0 },
+    });
+
+    // A known variant has higher priority than a family-only snapshot.
+    const prioritized = compare([
+      saved("food:10", 200), saved("variant:101", 100),
+    ], [
+      resolved(10, 101, 100), resolved(10, 102, 200),
+    ]);
+    expect(prioritized.differences).toMatchObject({
+      comparablePairs: 2, unpairedItems: 0, nutrition: 0, macros: { calories: 0 },
+    });
+    expect(JSON.stringify([changedFamily, missingFamily, renamed, sameFamilyReordered, legacy, prioritized]))
+      .not.toContain("food:10");
+  });
+
+  it("RISK-001 optimizes all same-name duplicates instead of greedy local minima", () => {
+    const saved = (calories: number, historicalRef: string | null = null) => ({
+      ...baseV1().items[0], foodName: "Ovo", canonicalName: "Ovo", historicalRef,
+      brand: null, productVariant: null, quantity: 1, unit: "un", estimatedGrams: 100,
+      calories, protein: 0, carbs: 0, fat: 0,
+    });
+    const resolved = (calories: number, family: number | null = null) =>
+      buildFoodResolutionDecisionFixture({
+        identity: { canonicalName: "Ovo", foodEntityId: family, variantId: null },
+        quantity: { value: 1, unit: "un", grams: 100 },
+        nutrition: { consumed: { calories, protein: 0, carbs: 0, fat: 0 } },
+      });
+    const compare = (items: ReturnType<typeof saved>[], decisions: ReturnType<typeof resolved>[]) =>
+      buildFoodShadowEvent({
+        traceId, modality: "text", entrypoint: "replay", scenarioClass: "mixed",
+        v1: { ...baseV1(), items }, v1Failure: null,
+        v2: decisions, observations: [], failure: "none",
+        timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+      });
+
+    // Greedy chooses 50=>50 (0), 40=>30 (10), 10=>60 (50):
+    // total delta 60. The minimum-cost complete assignment has delta 40.
+    const v1 = [saved(10), saved(40), saved(50)];
+    const v2 = [resolved(30), resolved(50), resolved(60)];
+    for (const event of [
+      compare(v1, v2),
+      compare([...v1].reverse(), [...v2].reverse()),
+      compare([v1[1], v1[2], v1[0]], [v2[2], v2[0], v2[1]]),
+      // The strong family-ID tier must not revert to greedy matching either.
+      compare(v1.map(item => ({ ...item, historicalRef: "food:10" })),
+        v2.map(item => ({ ...item, identity: { ...item.identity, foodEntityId: 10 } })),
+    ]) {
+      expect(event.differences).toMatchObject({
+        comparablePairs: 3, unpairedItems: 0, macros: { calories: 40 },
+      });
+      expect(event.verifiedCorrect).toBeNull();
+      expect(buildFoodShadowBaseline([event]).segments[0]).toMatchObject({
+        runs: 1, pairedItems: 3, macroAbsDelta: { calories: 40 },
+      });
+    }
+  });
+
   it("retains micro-dollar costs instead of rounding billable attempts to zero", () => {
     expect(summarizeFoodShadowCapabilityUsage([
       { capability: "MEAL_TEXT", callRole: "primary",

@@ -8,7 +8,7 @@ import type { AiCapabilityAttemptMetric } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult, MealDraftItem } from "../../nutritionEngineTypes";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
 import { z } from "zod";
-import { abs, costMetric, exactDifference, metric, pairFoodShadowItems, persistedVariantId } from "./shadowPairing";
+import { abs, costMetric, exactDifference, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId } from "./shadowPairing";
 
 export type FoodShadowModality = "text" | "audio_transcript" | "image" | "multimodal";
 export type FoodShadowClass = "generic" | "commercial" | "quantity" | "label" | "ambiguous" | "unknown" | "mixed";
@@ -210,12 +210,18 @@ export function buildFoodShadowEvent(input: {
   for (const { left, right } of matchedPairs) {
     const leftId = persistedVariantId(left);
     const rightId = right.identity.variantId;
+    const leftFamilyId = persistedFamilyId(left);
+    const rightFamilyId = right.identity.foodEntityId;
     if (leftId === null || rightId === null) differences.variantIdUnverifiable++;
     if (leftId !== null && rightId !== null && leftId !== rightId) {
       throw new Error("unpaired-known-variant-identity");
     }
-    // Stable identity can expose a changed label without changing the variant.
-    if (leftId !== null && rightId !== null &&
+    if (leftFamilyId !== null && leftFamilyId !== rightFamilyId) {
+      throw new Error("unpaired-known-family-identity");
+    }
+    // A renamed label remains visible even with a stable variant or family ID.
+    if (((leftId !== null && rightId !== null) ||
+         (leftFamilyId !== null && rightFamilyId !== null)) &&
         exactDifference(left.canonicalName || left.foodName, right.identity.canonicalName)) {
       differences.identity++;
     }

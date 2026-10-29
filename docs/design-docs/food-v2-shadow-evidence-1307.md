@@ -57,6 +57,18 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   normalizado, sem contaminar deltas. Quando falta ID comparável, o
   pareamento legado por texto continua diagnóstico, com
   `variantIdUnverifiable` explícito e agregado, nunca prova de acurácia.
+- A-010 (remediação técnica): referências persistidas `food:<id>` são confrontadas
+  diretamente com o `foodEntityId` do V2, sem confundir família com
+  `variantId` ou `catalog:` legado. Famílias conhecidas diferentes ou
+  família V2 ausente permanecem sem par e não produzem deltas nutricionais
+  entre alimentos incompatíveis. A mesma família continua comparável mesmo
+  quando o rótulo muda; essa alteração de nome é observável. Variantes
+  persistidas têm prioridade sobre o fallback por família. Em cada estágio,
+  duplicatas são resolvidas por pareamento de cardinalidade máxima e custo
+  agregado mínimo, não pela primeira correspondência local. Os controles
+  adversariais abrangem nomes iguais de famílias diferentes, nomes alterados
+  da mesma família, referência de catálogo não comparável, projeção com fixture do
+  leitor persistido e armadilha de pareamento guloso com reordenações.
 - Divergência **não** é erro comprovado: sem ground truth externo,
   `verifiedAccuracy` permanece `null`, mesmo se V1 e V2 concordarem.
   Deltas nutricionais são sinais, não critérios de tolerância C3 autorizados.

@@ -13,21 +13,28 @@ const normalize = (s: string | null | undefined) =>
 export const exactDifference = (a: string | null | undefined, b: string | null | undefined) =>
   normalize(a) !== normalize(b);
 
-/** Only a persisted V2 variant reference shares identity with identity.variantId. */
-export function persistedVariantId(item: MealDraftItem): number | null {
+/** Immutable historical namespaces must never be collapsed by display names. */
+function savedRefId(item: MealDraftItem, prefix: string): number | null {
   const reference = item.historicalRef;
-  if (!reference?.startsWith("variant:")) return null;
-  const text = reference.slice("variant:".length);
+  if (!reference?.startsWith(prefix)) return null;
+  const text = reference.slice(prefix.length);
   const id = Number(text);
   return Number.isSafeInteger(id) && id > 0 && String(id) === text ? id : null;
 }
 
+/** Only a persisted V2 variant reference shares identity with identity.variantId. */
+export function persistedVariantId(item: MealDraftItem): number | null {
+  return savedRefId(item, "variant:");
+}
+
+/** Persisted foods.id and V2 foodEntityId belong to the same family namespace. */
+export function persistedFamilyId(item: MealDraftItem): number | null {
+  return savedRefId(item, "food:");
+}
+
 /**
- * Align saved variant IDs before legacy text labels, never by array position.
- * Do not match two distinct known variant IDs just because their labels agree:
- * these remain unpaired and cannot contribute unrelated nutrition deltas.
- * Repetitions select the closest saved quantity and nutrition within each pass.
- * No free-form identity or food name is emitted to telemetry.
+ * A lower-cost candidate is only a preference among *compatible* identities.
+ * In particular, a family mismatch may not be hidden by identical labels.
  */
 function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): number {
   const nutrition = right.nutrition.consumed;
@@ -36,7 +43,8 @@ function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): num
     (abs(left.protein, nutrition.protein) ?? 0) +
     (abs(left.carbs, nutrition.carbs) ?? 0) +
     (abs(left.fat, nutrition.fat) ?? 0) : 0;
-  return (exactDifference(left.brand, right.identity.brand) ? 1000000 : 0) +
+  return (exactDifference(left.canonicalName || left.foodName, right.identity.canonicalName) ? 1000000 : 0) +
+    (exactDifference(left.brand, right.identity.brand) ? 1000000 : 0) +
     (exactDifference(left.productVariant, right.identity.variant) ? 1000000 : 0) +
     (exactDifference(left.unit, right.quantity.unit) ? 100000 : 0) +
     (right.quantity.value === null ? 1000 : (abs(left.quantity, right.quantity.value) ?? 1000)) * 1000 +
@@ -44,65 +52,159 @@ function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): num
     macroDelta;
 }
 
+type Candidate = { i: number; j: number; cost: number };
+type FlowEdge = {
+  to: number;
+  reverse: number;
+  capacity: number;
+  cost: number;
+  pair?: { i: number; j: number };
+};
+
+/**
+ * Minimum-cost maximum-cardinality matching, with deterministic index ties.
+ * Greedily selecting the cheapest first pair can leave expensive wrong
+ * duplicates behind. Residual edges allow an earlier pair to be reassigned.
+ * Each pass is bounded by the number of V1/V2 items in this meal.
+ */
+function optimalPairs(candidates: readonly Candidate[]): Array<{ i: number; j: number }> {
+  if (!candidates.length) return [];
+  const leftKeys = [...new Set(candidates.map(candidate => candidate.i))].sort((a, b) => a - b);
+  const rightKeys = [...new Set(candidates.map(candidate => candidate.j))].sort((a, b) => a - b);
+  const leftPositions = new Map(leftKeys.map((key, index) => [key, index]));
+  const rightPositions = new Map(rightKeys.map((key, index) => [key, index]));
+  const firstLeft = 1;
+  const firstRight = firstLeft + leftKeys.length;
+  const sink = firstRight + rightKeys.length;
+  const source = 0;
+  const graph: FlowEdge[][] = Array.from({ length: sink + 1 }, () => []);
+  const pairedEdges: FlowEdge[] = [];
+  const connect = (from: number, to: number, cost: number, pair?: FlowEdge["pair"]) => {
+    const forward: FlowEdge = { to, reverse: graph[to].length, capacity: 1, cost, pair };
+    const backward: FlowEdge = { to: from, reverse: graph[from].length, capacity: 0, cost: -cost };
+    graph[from].push(forward);
+    graph[to].push(backward);
+    if (pair) pairedEdges.push(forward);
+  };
+
+  for (let i = 0; i < leftKeys.length; i++) connect(source, firstLeft + i, 0);
+  for (let j = 0; j < rightKeys.length; j++) connect(firstRight + j, sink, 0);
+  for (const candidate of [...candidates].sort((a, b) => a.i - b.i || a.j - b.j)) {
+    // The telemetry cost has millesimal precision; keep integral edge costs
+    // and bound pathological inputs without turning them into a food decision.
+    const cost = Number.isFinite(candidate.cost)
+      ? Math.max(0, Math.min(1_000_000_000_000, Math.round(candidate.cost * 1000)))
+      : 1_000_000_000_000;
+    connect(firstLeft + leftPositions.get(candidate.i)!,
+      firstRight + rightPositions.get(candidate.j)!, cost,
+      { i: candidate.i, j: candidate.j });
+  }
+
+  const potential = Array<number>(graph.length).fill(0);
+  while (true) {
+    const dist = Array<number>(graph.length).fill(Infinity);
+    const previous = Array<number>(graph.length).fill(-1);
+    const previousEdge = Array<number>(graph.length).fill(-1);
+    const visited = Array<boolean>(graph.length).fill(false);
+    dist[source] = 0;
+
+    for (let step = 0; step < graph.length; step++) {
+      let from = -1;
+      for (let node = 0; node < graph.length; node++) {
+        if (!visited[node] && Number.isFinite(dist[node]) &&
+            (from < 0 || dist[node] < dist[from])) from = node;
+      }
+      if (from < 0) break;
+      visited[from] = true;
+      for (let edgeIndex = 0; edgeIndex < graph[from].length; edgeIndex++) {
+        const edge = graph[from][edgeIndex];
+        if (!edge.capacity || visited[edge.to]) continue;
+        const candidateDistance = dist[from] + edge.cost + potential[from] - potential[edge.to];
+        if (candidateDistance < dist[edge.to]) {
+          dist[edge.to] = candidateDistance;
+          previous[edge.to] = from;
+          previousEdge[edge.to] = edgeIndex;
+        }
+      }
+    }
+    if (previous[sink] < 0) break;
+    for (let node = 0; node < graph.length; node++) {
+      if (Number.isFinite(dist[node])) potential[node] += dist[node];
+    }
+    for (let node = sink; node !== source; node = previous[node]) {
+      const from = previous[node];
+      const edge = graph[from][previousEdge[node]];
+      edge.capacity = 0;
+      graph[node][edge.reverse].capacity = 1;
+    }
+  }
+  return pairedEdges.filter(edge => edge.capacity === 0).map(edge => edge.pair!);
+}
+
+/**
+ * Stable variant IDs take precedence over stable family IDs; legacy catalog
+ * references are not a V2 namespace and remain label-only diagnostics.
+ * No known family mismatch can become a nutrition pair on label similarity.
+ * Within each precedence tier, optimize *all* duplicates jointly.
+ */
 export function pairFoodShadowItems(
   left: readonly MealDraftItem[], right: readonly FoodResolutionDecision[],
 ): { pairs: Array<{ left: MealDraftItem; right: FoodResolutionDecision }>; unpairedVariantChanges: number } {
   const usedLeft = new Set<number>();
   const usedRight = new Set<number>();
   const pairs: Array<{ left: MealDraftItem; right: FoodResolutionDecision }> = [];
-  const leftIds = left.map(persistedVariantId);
-  // Stable IDs take precedence even when a display label or nutrition changes.
-  const stableCandidates: Array<{ i: number; j: number; cost: number }> = [];
-  for (let i = 0; i < left.length; i++) {
-    if (leftIds[i] === null) continue;
-    for (let j = 0; j < right.length; j++) {
-      if (leftIds[i] === right[j].identity.variantId) {
-        stableCandidates.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
-      }
-    }
-  }
-  stableCandidates.sort((a, b) => a.cost - b.cost || a.i - b.i || a.j - b.j);
-  for (const { i, j } of stableCandidates) {
-    if (usedLeft.has(i) || usedRight.has(j)) continue;
-    usedLeft.add(i);
-    usedRight.add(j);
-    pairs.push({ left: left[i], right: right[j] });
-  }
-  for (const exactVariant of [true, false]) {
-    const candidates: Array<{ i: number; j: number; cost: number }> = [];
+  const leftVariantIds = left.map(persistedVariantId);
+  const leftFamilyIds = left.map(persistedFamilyId);
+  const leftNames = left.map(item => normalize(item.canonicalName || item.foodName));
+  const rightNames = right.map(item => normalize(item.identity.canonicalName));
+
+  const matchTier = (compatible: (i: number, j: number) => boolean) => {
+    const candidates: Candidate[] = [];
     for (let i = 0; i < left.length; i++) {
       if (usedLeft.has(i)) continue;
-      const name = normalize(left[i].canonicalName || left[i].foodName);
-      if (!name) continue;
       for (let j = 0; j < right.length; j++) {
-        if (usedRight.has(j) || name !== normalize(right[j].identity.canonicalName)) continue;
-        // A different persisted V2 ID is not an interchangeable same-name item.
-        if (leftIds[i] !== null && right[j].identity.variantId !== null) continue;
-        if (exactVariant && (exactDifference(left[i].brand, right[j].identity.brand) ||
-          exactDifference(left[i].productVariant, right[j].identity.variant))) continue;
+        if (usedRight.has(j) || !compatible(i, j)) continue;
         candidates.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
       }
     }
-    candidates.sort((a, b) => a.cost - b.cost || a.i - b.i || a.j - b.j);
-    for (const { i, j } of candidates) {
-      if (usedLeft.has(i) || usedRight.has(j)) continue;
+    for (const { i, j } of optimalPairs(candidates)) {
       usedLeft.add(i);
       usedRight.add(j);
       pairs.push({ left: left[i], right: right[j] });
     }
+  };
+
+  matchTier((i, j) => leftVariantIds[i] !== null &&
+    leftVariantIds[i] === right[j].identity.variantId);
+  matchTier((i, j) => leftFamilyIds[i] !== null &&
+    leftFamilyIds[i] === right[j].identity.foodEntityId);
+
+  for (const exactVariant of [true, false]) {
+    matchTier((i, j) => {
+      // A saved family ID may only pair with that same known V2 family, never
+      // fall back to a name when the target family is missing or differs.
+      if (leftFamilyIds[i] !== null) return false;
+      if (!leftNames[i] || leftNames[i] !== rightNames[j]) return false;
+      // Two distinct known variants are not interchangeable, even if their
+      // names, quantities and nutrition happen to be identical.
+      if (leftVariantIds[i] !== null && right[j].identity.variantId !== null) return false;
+      if (exactVariant && (exactDifference(left[i].brand, right[j].identity.brand) ||
+        exactDifference(left[i].productVariant, right[j].identity.variant))) return false;
+      return true;
+    });
   }
-  // Unmatched, same-name items with two known IDs represent variant drift;
-  // they must not be compared as nutritionally equivalent pairs.
+
+  // Known variant changes remain visible without comparing unrelated macros.
   const knownLeftByName = new Map<string, number>();
   for (let i = 0; i < left.length; i++) {
-    if (usedLeft.has(i) || leftIds[i] === null) continue;
-    const name = normalize(left[i].canonicalName || left[i].foodName);
+    if (usedLeft.has(i) || leftVariantIds[i] === null) continue;
+    const name = leftNames[i];
     if (name) knownLeftByName.set(name, (knownLeftByName.get(name) ?? 0) + 1);
   }
   let unpairedVariantChanges = 0;
   for (let j = 0; j < right.length; j++) {
     if (usedRight.has(j) || right[j].identity.variantId === null) continue;
-    const name = normalize(right[j].identity.canonicalName);
+    const name = rightNames[j];
     const remaining = knownLeftByName.get(name) ?? 0;
     if (!remaining) continue;
     unpairedVariantChanges++;
