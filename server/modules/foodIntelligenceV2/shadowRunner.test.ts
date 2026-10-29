@@ -569,7 +569,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       compare([v1[1], v1[2], v1[0]], [v2[2], v2[0], v2[1]]),
       // The strong family-ID tier must not revert to greedy matching either.
       compare(v1.map(item => ({ ...item, historicalRef: "food:10" })),
-        v2.map(item => ({ ...item, identity: { ...item.identity, foodEntityId: 10 } })),
+        v2.map(item => ({ ...item, identity: { ...item.identity, foodEntityId: 10 } }))),
     ]) {
       expect(event.differences).toMatchObject({
         comparablePairs: 3, unpairedItems: 0, macros: { calories: 40 },
