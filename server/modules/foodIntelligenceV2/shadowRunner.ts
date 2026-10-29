@@ -43,6 +43,8 @@ export type FoodShadowDependencies = {
   readCapabilityEvents?: () => readonly AiInferenceEvent[];
   /** The sink accepts *only* a fixed, sanitised event, not a decision or input. */
   emit?: (event: FoodShadowEvent) => void | Promise<void>;
+  /** Optional request-lifetime hook, e.g. waitUntil; never awaited by V1. */
+  trackShadowTask?: (task: Promise<void>) => void;
   context?: Partial<{
     previousMessage: FoodShadowContextStatus;
     preferences: FoodShadowContextStatus;
@@ -112,47 +114,25 @@ function elapsed(start: number) {
   return Math.max(0, Date.now() - start);
 }
 
-/**
- * Public result is exactly the V1 value (or the very same thrown error).
- * Failure of the V2 path, gate verifier or telemetry sink is observational only.
- * If the Gate A approval is not verifiable, no V2 code path is touched.
- *
- * Image-only evidence requires an authorised upstream OCR/vision observation
- * adapter. Without one it is explicitly "not_compared", never guessed.
- */
-export async function runMealWithFoodV2Shadow(
-  input: MealProcessingInput,
+/** Shadow observation is best effort and must never delay the production V1 response. */
+async function observeFoodV2Shadow(
+  evidence: LanguageEvidence,
   deps: FoodShadowDependencies,
-): Promise<CanonicalMealProcessingResult> {
-  // Capture the original surface before V1 can normalize or mutate the input.
-  // A changed V1 draft is never evidence for a separate V2 observation.
-  const evidence = selectOriginalEvidence(input);
-  const v1Start = Date.now();
-  let v1: CanonicalMealProcessingResult | null = null;
-  let v1Failed = false;
-  let v1Error: unknown;
-  try {
-    v1 = await deps.runV1(input);
-  } catch (error) {
-    v1Failed = true;
-    v1Error = error;
-  }
-  const v1Ms = elapsed(v1Start);
-  const replayV1 = () => {
-    if (v1Failed) throw v1Error;
-    return v1 as CanonicalMealProcessingResult;
-  };
-  if (!(deps.enabled ?? isFoodV2ShadowEnabled()) || !deps.verifyGateA) return replayV1();
+  v1: CanonicalMealProcessingResult | null,
+  v1Failed: boolean,
+  v1Error: unknown,
+  v1Ms: number,
+  v1Start: number,
+): Promise<void> {
   let approval: GateAApproval | null;
   try { approval = await deps.verifyGateA(); }
-  catch { return replayV1(); }
-  if (!validGateA(approval)) return replayV1();
+  catch { return; }
+  if (!validGateA(approval)) return;
 
   // Never use user identifiers or user content as telemetry correlation values.
   const traceId = deps.traceId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deps.traceId)
     ? deps.traceId : randomUUID();
   const now = deps.now ?? new Date();
-  const runnerStart = Date.now();
   let languageMs = 0;
   let resolverMs = 0;
   let observations: FoodObservation[] = [];
@@ -208,6 +188,46 @@ export async function runMealWithFoodV2Shadow(
     // The shadow observer is not allowed to turn a successful V1 meal into
     // an error or to replace an existing V1 clarification with a new one.
   }
-  void runnerStart;
+}
+
+/**
+ * Public result is exactly the V1 value (or the very same thrown error).
+ * Shadow verification, resolution and telemetry run in a detached task. A request
+ * lifetime hook may keep this task alive, but is not allowed to delay V1.
+ * If the Gate A approval is not verifiable, no V2 code path is touched.
+ *
+ * Image-only evidence requires an authorised upstream OCR/vision observation
+ * adapter. Without one it is explicitly "not_compared", never guessed.
+ */
+export async function runMealWithFoodV2Shadow(
+  input: MealProcessingInput,
+  deps: FoodShadowDependencies,
+): Promise<CanonicalMealProcessingResult> {
+  // Capture the original surface before V1 can normalize or mutate the input.
+  // A changed V1 draft is never evidence for a separate V2 observation.
+  const evidence = selectOriginalEvidence(input);
+  const v1Start = Date.now();
+  let v1: CanonicalMealProcessingResult | null = null;
+  let v1Failed = false;
+  let v1Error: unknown;
+  try {
+    v1 = await deps.runV1(input);
+  } catch (error) {
+    v1Failed = true;
+    v1Error = error;
+  }
+  const v1Ms = elapsed(v1Start);
+  const replayV1 = () => {
+    if (v1Failed) throw v1Error;
+    return v1 as CanonicalMealProcessingResult;
+  };
+  if (!(deps.enabled ?? isFoodV2ShadowEnabled()) || !deps.verifyGateA) return replayV1();
+  // Neither the gate verifier nor the V2 resolution/telemetry is on the V1 response path.
+  // Defer even the first synchronous observer instruction to the next microtask.
+  const shadowTask = Promise.resolve()
+    .then(() => observeFoodV2Shadow(evidence, deps, v1, v1Failed, v1Error, v1Ms, v1Start))
+    .catch(() => undefined);
+  try { deps.trackShadowTask?.(shadowTask); }
+  catch { /* A failing request-lifetime hook must not affect V1. */ }
   return replayV1();
 }

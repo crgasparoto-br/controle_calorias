@@ -90,6 +90,58 @@ const v2Origin = (item: FoodResolutionDecision) => {
     : origin === "ai_estimate" ? "ai_estimate" : origin === "provisional_estimate" ? "provisional_estimate" : null;
 };
 
+/**
+ * Align by normalized food identity, never by array position. Match stable
+ * brand/variant first; then compare remaining same-name variants to report
+ * a real variant difference. Repetitions select the closest saved quantity
+ * and nutrition, avoiding false macro drift after reordering.
+ * No free-form identity or food name is emitted to telemetry.
+ */
+function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): number {
+  const nutrition = right.nutrition.consumed;
+  const macroDelta = nutrition ?
+    (abs(left.calories, nutrition.calories) ?? 0) +
+    (abs(left.protein, nutrition.protein) ?? 0) +
+    (abs(left.carbs, nutrition.carbs) ?? 0) +
+    (abs(left.fat, nutrition.fat) ?? 0) : 0;
+  return (exactDifference(left.brand, right.identity.brand) ? 1000000 : 0) +
+    (exactDifference(left.productVariant, right.identity.variant) ? 1000000 : 0) +
+    (exactDifference(left.unit, right.quantity.unit) ? 100000 : 0) +
+    (abs(left.quantity, right.quantity.value) ?? 1000) * 1000 +
+    (right.quantity.grams === null ? 0 : (abs(left.estimatedGrams, right.quantity.grams) ?? 1000) * 10) +
+    macroDelta;
+}
+
+function pairFoodShadowItems(
+  left: readonly MealDraftItem[], right: readonly FoodResolutionDecision[],
+): Array<{ left: MealDraftItem; right: FoodResolutionDecision }> {
+  const usedLeft = new Set<number>();
+  const usedRight = new Set<number>();
+  const pairs: Array<{ left: MealDraftItem; right: FoodResolutionDecision }> = [];
+  for (const exactVariant of [true, false]) {
+    const candidates: Array<{ i: number; j: number; cost: number }> = [];
+    for (let i = 0; i < left.length; i++) {
+      if (usedLeft.has(i)) continue;
+      const name = normalize(left[i].canonicalName || left[i].foodName);
+      if (!name) continue;
+      for (let j = 0; j < right.length; j++) {
+        if (usedRight.has(j) || name !== normalize(right[j].identity.canonicalName)) continue;
+        if (exactVariant && (exactDifference(left[i].brand, right[j].identity.brand) ||
+          exactDifference(left[i].productVariant, right[j].identity.variant))) continue;
+        candidates.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
+      }
+    }
+    candidates.sort((a, b) => a.cost - b.cost || a.i - b.i || a.j - b.j);
+    for (const { i, j } of candidates) {
+      if (usedLeft.has(i) || usedRight.has(j)) continue;
+      usedLeft.add(i);
+      usedRight.add(j);
+      pairs.push({ left: left[i], right: right[j] });
+    }
+  }
+  return pairs;
+}
+
 function summarizeV1(result: CanonicalMealProcessingResult | null, failed: "clarification" | "failed" | null): FoodShadowOutcome {
   if (failed) return failed;
   if (!result) return "not_compared";
@@ -161,12 +213,17 @@ export function buildFoodShadowEvent(input: {
       !classes.includes(input.scenarioClass)) throw new TypeError("invalid-shadow-segmentation");
   const v1 = input.v1?.items ?? [];
   const v2 = input.v2 ?? [];
-  const comparablePairs = input.v1 && input.v2 ? Math.min(v1.length, v2.length) : 0;
+  const matchedPairs = input.v1 && input.v2 ? pairFoodShadowItems(v1, v2) : [];
+  const comparablePairs = matchedPairs.length;
+  const leftUnpaired = input.v1 && input.v2 ? v1.length - comparablePairs : 0;
+  const rightUnpaired = input.v1 && input.v2 ? v2.length - comparablePairs : 0;
   const macroKeys = ["calories", "protein", "carbs", "fat"] as const;
   const macros: FoodShadowEvent["differences"]["macros"] = { calories: null, protein: null, carbs: null, fat: null };
   const differences = {
-    comparablePairs, unpairedItems: input.v1 && input.v2 ? Math.abs(v1.length - v2.length) : 0,
-    identity: 0, variant: 0, quantity: 0, nutrition: 0, source: 0,
+    comparablePairs, unpairedItems: leftUnpaired + rightUnpaired,
+    // Remaining unmatched items on both sides indicate a possible identity change,
+    // not a verified error or a license to compare unrelated macro values.
+    identity: Math.min(leftUnpaired, rightUnpaired), variant: 0, quantity: 0, nutrition: 0, source: 0,
     clarification: null as boolean | null, macros, confidence: null as number | null,
   };
   let possibleSilentFallback = 0;
@@ -187,9 +244,7 @@ export function buildFoodShadowEvent(input: {
 
   let confidenceTotal = 0;
   let confidenceN = 0;
-  for (let i = 0; i < comparablePairs; i++) {
-    const left = v1[i], right = v2[i];
-    if (exactDifference(left.canonicalName, right.identity.canonicalName)) differences.identity++;
+  for (const { left, right } of matchedPairs) {
     if (exactDifference(left.brand, right.identity.brand) ||
         exactDifference(left.productVariant, right.identity.variant)) differences.variant++;
     if (left.quantity !== right.quantity.value ||

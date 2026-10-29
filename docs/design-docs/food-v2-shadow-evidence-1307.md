@@ -11,7 +11,11 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 ## Contrato executável C4
 
 - `shadowRunner.ts`: executa **uma vez** a função V1 recebida e devolve o
-  mesmo resultado ou relança o mesmo erro, mesmo que V2/telemetria falhem.
+  mesmo resultado ou relança o mesmo erro **sem aguardar Gate A, V2 ou sink**.
+  A observação acontece em tarefa desacoplada; `trackShadowTask` opcional
+  permite ao runtime manter a tarefa viva (por exemplo, `waitUntil`) sem
+  torná-la parte da latência produtiva. Não há integração produtiva desse
+  hook nesta fase, que permanece fail-closed pelo Gate A.
 - Executar V2 exige a flag `FOOD_V2_SHADOW_ENABLED=true` **e** um callback
   `verifyGateA` que consulta evidência real de aprovação; ausência, exceção ou
   retorno inválido desliga shadow. **Nenhum callback produtivo de aprovação
@@ -24,7 +28,10 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   externo, estimativa e promoção de conhecimento ficam desativados.
   O store V2 oferece somente `readLocal`/`readPendingEvidence` e recusa
   `stagePendingEvidence`.
-- `shadowComparison.ts` registra exclusivamente contagens e diferenças
+- `shadowComparison.ts` pareia por identidade normalizada e variante antes
+  de comparar quantidades/macros, preservando duplicatas e separando itens
+  sem correspondência. Mudança de ordem não cria falsa divergência, e item
+  sem par não contamina deltas nutricionais. Registra contagens e diferenças
   estruturadas (identidade, variante, quantidade, fonte, macros, clarificação),
   etapas S1/S2/S3, tempo total/estágios e suspeita de fallback silencioso.
   Nunca registra texto, nome, mídia, URL, barcode, telefone, ID de titular,
@@ -67,6 +74,9 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
 - Escrita de conhecimento: bloqueio de `stagePendingEvidence`.
 - Sanitização: sentinelas PII, texto, URL e detalhes de provider não escapam.
 - Replay por classe/modalidade: agrupar contagens sem afirmar acurácia.
+- A-001/A-002/A-003 (auditoria da PR #1334): matcher Vitest compatível,
+  V1 independente de Gate A/read/emit pendentes e testes metamórficos de
+  permutação, duplicatas, inserção, mudança de identidade e macros reais.
 - Leitor histórico: catalogação alterada, ID ausente, variante aposentada,
   classificação inválida e duas variantes homônimas não alteram macros
   ou classificação registrada.
