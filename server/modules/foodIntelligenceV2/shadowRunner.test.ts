@@ -121,6 +121,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     await f.waitForShadow();
     expect(f.emit).toHaveBeenCalledOnce();
     expect(f.emit.mock.calls[0][0].v1Outcome).toBe("clarification");
+    expect(f.emit.mock.calls[0][0].run).toBe("partial");
     expect(JSON.stringify(f.emit.mock.calls[0][0])).not.toContain("private message");
   });
 
@@ -186,6 +187,44 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     expect(json).not.toContain("privado.example");
     expect(event.capabilityUsage).toMatchObject([{ capability: "MEAL_TEXT", calls: 1, retries: 1 }]);
     expect(event.verifiedCorrect).toBeNull();
+  });
+
+  it("A-007 reports V1 clarification exceptions without fabricated complete comparisons", () => {
+    const original = {
+      traceId, modality: "text" as const, entrypoint: "replay" as const,
+      scenarioClass: "ambiguous" as const,
+      v1: null, v1Failure: "clarification" as const,
+      v2: [buildFoodResolutionDecisionFixture()], observations: [],
+      failure: "none" as const,
+      timings: { v1Ms: 2, languageMs: 3, resolverMs: 4, totalMs: 9 },
+    };
+    const v1Clarifies = buildFoodShadowEvent(original);
+    expect(v1Clarifies).toMatchObject({
+      run: "partial", v1Outcome: "clarification", v2Outcome: "resolved",
+      v1ItemCount: 0, differences: { comparablePairs: 0, clarification: true },
+    });
+    const baseline = buildFoodShadowBaseline([v1Clarifies]);
+    expect(baseline.segments[0]).toMatchObject({
+      runs: 1, partial: 1, compared: 0, pairedItems: 0,
+      clarificationDifferences: 1, macroAbsDelta: { calories: null },
+    });
+    expect(baseline.verifiedAccuracy).toBeNull();
+    const bothClarify = buildFoodShadowEvent({ ...original, v2: [
+      buildFoodResolutionDecisionFixture({ status: "ambiguous", nextAction: "clarify" }),
+    ] });
+    expect(bothClarify.run).toBe("partial");
+    expect(bothClarify.differences.clarification).toBe(false);
+    const genericFailure = buildFoodShadowEvent({ ...original, v1Failure: "failed" });
+    expect(genericFailure.run).toBe("partial");
+    expect(genericFailure.differences.clarification).toBeNull();
+    const missingV2 = buildFoodShadowEvent({ ...original, v2: null });
+    expect(missingV2.run).toBe("partial");
+    expect(missingV2.differences.clarification).toBeNull();
+    const fullyComparable = buildFoodShadowEvent({
+      ...original, v1: baseV1(), v1Failure: null,
+    });
+    expect(fullyComparable.run).toBe("compared");
+    expect(fullyComparable.differences.clarification).toBe(false);
   });
 
   it("replays classes and modalities without turning agreement into verified correctness", () => {

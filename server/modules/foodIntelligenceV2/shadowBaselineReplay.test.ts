@@ -85,6 +85,41 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     }] }))).toThrow("invalid-sanitized-shadow-events");
   });
 
+  it("A-008 rejects omitted item gaps in complete and two-sided partial comparisons", () => {
+    const valid = event();
+    // A self-consistent sum of zero gaps still hides two items on each side.
+    const undercounted = { ...valid, v1ItemCount: 2, v2ItemCount: 2,
+      differences: { ...valid.differences, comparablePairs: 0,
+        v1UnpairedItems: 0, v2UnpairedItems: 0, unpairedItems: 0 } };
+    for (const run of ["compared", "partial"] as const) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({ ...undercounted, run })))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    // A sum that exceeds the total for either side must also be rejected.
+    const overcounted = { ...valid, differences: { ...valid.differences,
+      v1UnpairedItems: valid.v1ItemCount, unpairedItems: valid.v1ItemCount } };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(overcounted)))
+      .toThrow("invalid-sanitized-shadow-events");
+
+    // A V1 clarification exception has no item list. It must stay partial,
+    // report the outcome divergence, and never invent unpaired V1/V2 items.
+    const exception = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
+      v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
+      observations: [], failure: "none",
+      timings: { v1Ms: 2, languageMs: 3, resolverMs: 4, totalMs: 9 },
+    });
+    expect(exception.run).toBe("partial");
+    const report = replaySanitizedFoodShadowEvents(envelope(exception));
+    expect(report.baseline.segments[0]).toMatchObject({
+      runs: 1, compared: 0, partial: 1, pairedItems: 0,
+      clarificationDifferences: 1, unpairedItems: 0,
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...exception, run: "compared",
+    }))).toThrow("invalid-sanitized-shadow-events");
+  });
+
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {
     expect(() => replaySanitizedFoodShadowEvents(envelope())).toThrow("invalid-sanitized-shadow-events");
     expect(() => replaySanitizedFoodShadowEvents({ schemaVersion: 1, kind: "food-v2-sanitized-shadow-events",

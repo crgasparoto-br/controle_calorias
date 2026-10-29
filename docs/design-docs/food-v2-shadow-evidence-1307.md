@@ -31,7 +31,9 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 - `shadowComparison.ts` pareia por identidade normalizada e variante antes
   de comparar quantidades/macros, preservando duplicatas e separando itens
   sem correspondência. Mudança de ordem não cria falsa divergência, e item
-  sem par não contamina deltas nutricionais. O baseline consolida itens
+  sem par não contamina deltas nutricionais. Exceção V1 de clarificação
+  produz observação parcial com divergência de clarificação mensurável,
+  sem inventar pares ou considerar o evento comparação completa. O baseline consolida itens
   sem par com contadores separados V1/V2 por classe/modalidade, inclusive
   em observações parciais, sem alterar o denominador dos pares completos.
   Registra contagens e diferenças
@@ -125,7 +127,10 @@ do livro de dívida.
   nenhuma janela, coorte representativa, limite de custo ou tolerância é inferida.
 - `server/modules/foodIntelligenceV2/shadowBaselineReplay.ts` valida em profundidade
   eventos pré-sanitizados, rejeitando campos inesperados (inclusive texto/PII),
-  números incoerentes e correlações duplicadas. Não persiste eventos nem alimenta
+  números incoerentes, correlações duplicadas, somas de itens sem par e
+  contadores incompatíveis com os totais V1/V2 em comparações completas
+  e parciais com listas observadas dos dois lados. Eventos sem snapshot de
+  um dos lados permanecem parciais e não inventam itens ausentes. Não persiste eventos nem alimenta
   o resolvedor. O comando manual, sem rede ou sink, é:
 
   ```bash
@@ -144,6 +149,10 @@ do livro de dívida.
   ou Gate 19 completo. Os bloqueios anteriores continuam integrais.
 
 ## Baseline, bloqueios e ativação
+
+A decisão de produto de 29/10/2026 separou os testes reais pós-deploy técnico
+na issue #1335. Até então, o escopo desta entrega é a preparação verificável
+por CI/testes sintéticos, com V2 desativada, sem liberar Gate A ou shadow real.
 
 **Não existe baseline V1×V2 de tráfego real nesta issue até aprovação.**
 `buildFoodShadowBaseline` agrega somente eventos sanitizados. Fixtures de

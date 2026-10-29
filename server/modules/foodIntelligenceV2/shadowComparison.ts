@@ -287,9 +287,12 @@ export function buildFoodShadowEvent(input: {
     }
   }
   differences.confidence = confidenceN ? metric(confidenceTotal / confidenceN) : null;
-  if (input.v1 && input.v2) {
-    differences.clarification =
-      input.v1.semanticContract.needsClarification !== v2.some(item => item.nextAction === "clarify");
+  // A V1 clarification exception still has an observable response-level outcome,
+  // but no item snapshot. Compare clarification without inventing item pairs.
+  const v1Clarifies = input.v1?.semanticContract.needsClarification ??
+    (input.v1Failure === "clarification" ? true : null);
+  if (v1Clarifies !== null && input.v2 !== null) {
+    differences.clarification = v1Clarifies !== v2.some(item => item.nextAction === "clarify");
   }
   const stages = { s1: 0, s2: 0, s3: 0 };
   for (const item of input.observations) {
@@ -307,7 +310,8 @@ export function buildFoodShadowEvent(input: {
   return {
     schemaVersion: 1, traceId: input.traceId,
     modality: input.modality, entrypoint: input.entrypoint, scenarioClass: input.scenarioClass,
-    run: input.failure !== "none" ? "failed" : input.partialEvidence ? "partial" : "compared",
+    run: input.failure !== "none" ? "failed" :
+      input.partialEvidence || !input.v1 || !input.v2 ? "partial" : "compared",
     failure: input.failure,
     v1Outcome: summarizeV1(input.v1, input.v1Failure),
     v2Outcome: summarizeV2(input.v2),
@@ -404,12 +408,14 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       row.quantityDifferences += event.differences.quantity;
       row.nutritionDifferences += event.differences.nutrition;
       row.sourceDifferences += event.differences.source;
-      if (event.differences.clarification) row.clarificationDifferences++;
       for (const field of ["calories", "protein", "carbs", "fat"] as const) {
         const delta = event.differences.macros[field];
         if (delta !== null) row.macroAbsDelta[field] = metric((row.macroAbsDelta[field] ?? 0) + delta);
       }
     }
+    // Outcome-level clarification is comparable even when V1 threw a
+    // clarification exception and item-level comparison is partial.
+    if (event.differences.clarification === true) row.clarificationDifferences++;
     row.potentialSilentFallbacks += event.flagged.possibleSilentFallback;
     row.missingNutritionProvenance += event.flagged.v2MissingNutritionProvenance;
     row.explicitFailures += event.flagged.explicitFailure;

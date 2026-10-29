@@ -59,9 +59,19 @@ const shadowEvent = z.object({
   capabilityUsage: z.array(capability).max(AI_CAPABILITIES.length).nullable(),
   verifiedCorrect: z.null(),
 }).strict().superRefine((event, ctx) => {
-  if (event.differences.unpairedItems !==
-    event.differences.v1UnpairedItems + event.differences.v2UnpairedItems ||
-    event.differences.comparablePairs > Math.min(event.v1ItemCount, event.v2ItemCount) ||
+  const { comparablePairs, v1UnpairedItems, v2UnpairedItems, unpairedItems } = event.differences;
+  // A complete comparison must account for every item on each side.
+  // Partial events with two observed non-empty item lists obey the same rule.
+  // When V1 threw or V2 was unavailable, absent items cannot be inferred.
+  const bothListsObserved = event.run === "compared" ||
+    (event.run === "partial" && event.v1ItemCount > 0 && event.v2ItemCount > 0);
+  if (unpairedItems !== v1UnpairedItems + v2UnpairedItems ||
+    comparablePairs + v1UnpairedItems > event.v1ItemCount ||
+    comparablePairs + v2UnpairedItems > event.v2ItemCount ||
+    (bothListsObserved && (
+      comparablePairs + v1UnpairedItems !== event.v1ItemCount ||
+      comparablePairs + v2UnpairedItems !== event.v2ItemCount
+    )) ||
     (event.run === "failed") === (event.failure === "none")) {
     ctx.addIssue({ code: "custom", message: "inconsistent-shadow-event" });
   }
