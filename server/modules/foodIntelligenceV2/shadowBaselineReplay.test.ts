@@ -203,6 +203,105 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       .toThrow("invalid-sanitized-shadow-events");
   });
 
+  it("A-011 rejects discrepancies exceeding comparable pairs or unmatched replacements", () => {
+    const onePair = event();
+    expect(onePair).toMatchObject({ v1ItemCount: 1, v2ItemCount: 1,
+      differences: { comparablePairs: 1, v1UnpairedItems: 0, v2UnpairedItems: 0 } });
+    // A positive match remains admissible for both complete and partial observations.
+    for (const run of ["compared", "partial"] as const) {
+      const observed = { ...onePair, run };
+      expect(() => replaySanitizedFoodShadowEvents(envelope(observed))).not.toThrow();
+      // Any of these bogus values would survive a validator that only reconciles
+      // comparablePairs + unpaired against the item counts (the earlier A-008 gate).
+      for (const field of ["identity", "variant", "variantIdUnverifiable",
+        "quantity", "nutrition", "source"] as const) {
+        expect(() => replaySanitizedFoodShadowEvents(envelope({
+          ...observed, differences: { ...observed.differences, [field]: 2 },
+        }))).toThrow("invalid-sanitized-shadow-events");
+      }
+    }
+
+    const v1 = buildV1HistoricalSnapshotFixture();
+    const unmatched = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "mixed",
+      v1, v1Failure: null,
+      v2: [buildFoodResolutionDecisionFixture({ identity: { canonicalName: "Arroz" } })],
+      observations: [], failure: "none",
+      timings: { v1Ms: 2, languageMs: 1, resolverMs: 1, totalMs: 4 },
+    });
+    expect(unmatched).toMatchObject({ differences: { comparablePairs: 0,
+      v1UnpairedItems: 1, v2UnpairedItems: 1, identity: 1 } });
+    // An unmatched replacement may produce one identity and/or variant signal,
+    // but never two signals of the same kind from a single unmatched pair.
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...unmatched, differences: { ...unmatched.differences, variant: 1 },
+    }))).not.toThrow();
+    for (const field of ["identity", "variant"] as const) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({
+        ...unmatched, differences: { ...unmatched.differences, [field]: 2 },
+      }))).toThrow("invalid-sanitized-shadow-events");
+    }
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...unmatched, differences: { ...unmatched.differences,
+        macros: { ...unmatched.differences.macros, calories: 0 } },
+    }))).toThrow("invalid-sanitized-shadow-events");
+  });
+
+  it("A-011 bounds each suspected fallback/conflict by its observed side", () => {
+    const valid = event();
+    expect(valid.v1ItemCount).toBe(1);
+    expect(valid.v2ItemCount).toBe(1);
+    expect(() => replaySanitizedFoodShadowEvents(envelope(valid))).not.toThrow();
+    // Positive boundary: one item can contribute one flag in each independent
+    // category, even if the run is partial (not promoted to verified accuracy).
+    const atBoundary = { ...valid, run: "partial" as const, flagged: {
+      possibleSilentFallback: 1, v2MissingNutritionProvenance: 1,
+      explicitFailure: 1, sourceConflicts: 1,
+    } };
+    const bounded = replaySanitizedFoodShadowEvents(envelope(atBoundary));
+    expect(bounded.baseline.segments[0]).toMatchObject({
+      runs: 1, partial: 1, pairedItems: 0,
+      potentialSilentFallbacks: 1, missingNutritionProvenance: 1, explicitFailures: 1,
+    });
+    expect(bounded.baseline.verifiedAccuracy).toBeNull();
+    for (const field of ["possibleSilentFallback", "v2MissingNutritionProvenance",
+      "explicitFailure", "sourceConflicts"] as const) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({
+        ...atBoundary, flagged: { ...atBoundary.flagged, [field]: 2 },
+      }))).toThrow("invalid-sanitized-shadow-events");
+    }
+
+    const missingV1 = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
+      v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(missingV1))).not.toThrow();
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...missingV1, flagged: { ...missingV1.flagged, possibleSilentFallback: 1 },
+    }))).toThrow("invalid-sanitized-shadow-events");
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...missingV1, differences: { ...missingV1.differences, clarification: true },
+    }))).not.toThrow();
+
+    const missingV2 = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "generic",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null, v2: null,
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 0, totalMs: 2 },
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(missingV2))).not.toThrow();
+    for (const field of ["v2MissingNutritionProvenance", "explicitFailure", "sourceConflicts"] as const) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({
+        ...missingV2, flagged: { ...missingV2.flagged, [field]: 1 },
+      }))).toThrow("invalid-sanitized-shadow-events");
+    }
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...missingV2, differences: { ...missingV2.differences, clarification: true },
+    }))).toThrow("invalid-sanitized-shadow-events");
+  });
+
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {
     expect(() => replaySanitizedFoodShadowEvents(envelope())).toThrow("invalid-sanitized-shadow-events");
     expect(() => replaySanitizedFoodShadowEvents({ schemaVersion: 1, kind: "food-v2-sanitized-shadow-events",

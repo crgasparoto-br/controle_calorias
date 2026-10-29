@@ -163,7 +163,13 @@ do livro de dívida.
   números incoerentes, correlações duplicadas, somas de itens sem par e
   contadores incompatíveis com os totais V1/V2 em comparações completas
   e parciais com listas observadas dos dois lados. Eventos sem snapshot de
-  um dos lados permanecem parciais e não inventam itens ausentes. Não persiste eventos nem alimenta
+  um dos lados permanecem parciais e não inventam itens ausentes. A-011 também
+  recusa contagens de identidade/variante acima dos pares e substituições sem par,
+  divergências de quantidade/nutrição/fonte acima dos pares, suspeitas de fallback
+  acima dos itens V1 e sinais de falha/conflito V2 acima dos itens V2. Sem pares,
+  os deltas de macros devem permanecer `null`. Controles adversariais exercitam
+  comparações completas/parciais, snapshots ausentes e limites exatos, rejeitando
+  incoerência em vez de truncar contadores. Não persiste eventos nem alimenta
   o resolvedor. O comando manual, sem rede ou sink, é:
 
   ```bash

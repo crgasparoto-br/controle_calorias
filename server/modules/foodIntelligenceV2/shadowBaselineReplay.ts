@@ -76,7 +76,25 @@ const shadowEvent = z.object({
   // distinguish those cases (including V1 clarification thrown as an error).
   const bothListsObserved = event.v1ItemsObserved && event.v2ItemsObserved;
   const v1RequiredPresence = v1OutcomeSnapshot[event.v1Outcome];
+  // Each matched item can contribute at most one discrepancy per dimension.
+  // Identity/variant can additionally signal one change per unmatched pair;
+  // individual flags are bounded by their observed V1 or V2 population.
+  const pairOrReplacementLimit = comparablePairs + Math.min(v1UnpairedItems, v2UnpairedItems);
+  const invalidDifferences = event.differences.identity > pairOrReplacementLimit ||
+    event.differences.variant > pairOrReplacementLimit ||
+    event.differences.variantIdUnverifiable > comparablePairs ||
+    event.differences.quantity > comparablePairs ||
+    event.differences.nutrition > comparablePairs ||
+    event.differences.source > comparablePairs ||
+    (comparablePairs === 0 && Object.values(event.differences.macros).some(value => value !== null));
+  const invalidFlags = event.flagged.possibleSilentFallback > event.v1ItemCount ||
+    event.flagged.v2MissingNutritionProvenance > event.v2ItemCount ||
+    event.flagged.explicitFailure > event.v2ItemCount ||
+    event.flagged.sourceConflicts > event.v2ItemCount;
+  const invalidClarification = event.differences.clarification !== null &&
+    (!event.v2ItemsObserved || (!event.v1ItemsObserved && event.v1Outcome !== "clarification"));
   if (unpairedItems !== v1UnpairedItems + v2UnpairedItems ||
+    invalidDifferences || invalidFlags || invalidClarification ||
     comparablePairs + v1UnpairedItems > event.v1ItemCount ||
     comparablePairs + v2UnpairedItems > event.v2ItemCount ||
     (!event.v1ItemsObserved && event.v1ItemCount !== 0) ||
@@ -89,7 +107,6 @@ const shadowEvent = z.object({
       comparablePairs + v1UnpairedItems !== event.v1ItemCount ||
       comparablePairs + v2UnpairedItems !== event.v2ItemCount
     )) ||
-    event.differences.variantIdUnverifiable > comparablePairs ||
     (event.run === "failed") === (event.failure === "none")) {
     ctx.addIssue({ code: "custom", message: "inconsistent-shadow-event" });
   }
