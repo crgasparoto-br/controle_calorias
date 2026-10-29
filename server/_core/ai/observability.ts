@@ -406,6 +406,8 @@ export async function emitAiInferenceEvents(
   const capture = aiRequestCapture.getStore();
   if (capture?.active) {
     for (const event of events) {
+      // Configuration failures with attemptIndex=0 made no provider call.
+      if (!Number.isInteger(event.attemptIndex) || event.attemptIndex < 1) continue;
       if (capture.attempts.length >= MAX_CAPTURED_ATTEMPTS_PER_REQUEST) {
         capture.overflowed = true;
         break;

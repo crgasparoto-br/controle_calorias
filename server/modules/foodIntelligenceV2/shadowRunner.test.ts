@@ -364,6 +364,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       callRole: "primary" | "retry", latencyMs: number,
       estimatedCostUsd: number | null) => ({
         capability, callRole, latencyMs, estimatedCostUsd,
+        attemptIndex: callRole === "retry" ? 2 : 1,
         correlation: { raw: "private-user@do-not-export.example" },
         executionId: "private-user-id",
       } as AiInferenceEvent);
@@ -371,6 +372,8 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       await emitAiInferenceEvents([
         attempt("MEAL_TEXT", "primary", 5, 0.01),
         attempt("MEAL_TEXT", "retry", 7, 0.02),
+        // Rejected before the provider boundary: not an actual external call.
+        { ...attempt("MEAL_TEXT", "primary", 0, null), attemptIndex: 0 },
       ], null);
       await Promise.resolve();
       return baseV1();
@@ -406,7 +409,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     const f = fixture();
     const v1Error = new Error("sensitive v1 failure");
     const attempt = { capability: "MEAL_TEXT", callRole: "primary",
-      latencyMs: 1, estimatedCostUsd: 0.001 } as AiInferenceEvent;
+      attemptIndex: 1, latencyMs: 1, estimatedCostUsd: 0.001 } as AiInferenceEvent;
     let overflowResult: readonly unknown[] | null = [];
     await withAiInferenceAttemptCapture(
       async () => { await emitAiInferenceEvents(Array.from({ length: 257 }, () => attempt), null); },

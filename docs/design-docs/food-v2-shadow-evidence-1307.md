@@ -48,7 +48,8 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   shadow é solicitado, sem depender de sink global. Apenas capacidade,
   papel da tentativa, duração e custo são mantidos temporariamente; nenhum
   `correlation`, texto, ID ou payload entra nessa captura. Requisições
-  concorrentes são isoladas. Sem instrumentação ou se ultrapassar o limite
+  concorrentes são isoladas e eventos `attemptIndex=0` não são contados
+  como chamadas externas. Sem instrumentação ou se ultrapassar o limite
   seguro da captura, o campo é `null`, nunca zero presumido. Isso prepara
   instrumentação de chamadas V1, **não** comprova custos reais de todos os
   adapters, retenção LGPD, baseline produtivo ou a aprovação do Gate A.
