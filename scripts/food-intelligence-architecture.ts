@@ -3459,6 +3459,9 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
     if (operand.text === "basisUnit") return ["g", "ml", "serving"].includes(literal);
     if (operand.text === "key") return ["calories", "protein", "carbs", "fat", "fiber", "sugar", "sodiumMg"].includes(literal);
     if (operand.text === "field") return ["identity", "variant", "quantity", "nutrition"].includes(literal);
+    // Shadow status locals have the same typed meaning as their source fields.
+    if (operand.text === "stage" || operand.text === "failure")
+      return isStructuralContractValue(operand.text, literal);
   }
   if (!ts.isPropertyAccessExpression(operand)) return false;
   return isStructuralContractValue(operand.name.text, literal);
