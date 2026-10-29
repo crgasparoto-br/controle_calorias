@@ -3,13 +3,13 @@
  * request, Gate A approval, CI upload or activation is performed here.
  */
 import { readFile, stat } from "node:fs/promises";
-import { replaySanitizedFoodShadowEvents } from "./shadowBaselineReplay";
+import { replaySanitizedFoodShadowEvents } from "../server/modules/foodIntelligenceV2/shadowBaselineReplay";
 
 const MAX_INPUT_BYTES = 8 * 1024 * 1024;
 
 async function main() {
   if (process.argv.length !== 3 || !process.argv[2] || process.argv[2].startsWith("-")) {
-    throw new Error("usage: pnpm exec tsx server/modules/foodIntelligenceV2/shadowBaselineReplay.cli.ts <sanitized-events.json>");
+    throw new Error("usage: pnpm exec tsx tools/food-v2-shadow-baseline-replay.ts <sanitized-events.json>");
   }
   const path = process.argv[2];
   const metadata = await stat(path);

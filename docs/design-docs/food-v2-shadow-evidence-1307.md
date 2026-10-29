@@ -129,7 +129,7 @@ do livro de dívida.
   o resolvedor. O comando manual, sem rede ou sink, é:
 
   ```bash
-  pnpm exec tsx server/modules/foodIntelligenceV2/shadowBaselineReplay.cli.ts /caminho/privado/observacoes-sanitizadas.json
+  pnpm exec tsx tools/food-v2-shadow-baseline-replay.ts /caminho/privado/observacoes-sanitizadas.json
   ```
 
   A entrada é um JSON de forma
