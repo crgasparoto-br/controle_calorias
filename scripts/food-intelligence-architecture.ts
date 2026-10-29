@@ -3451,8 +3451,8 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
   }
   // Bare `mode` is the reconciliation CLI control, never a food attribute.
   if (ts.isCallExpression(operand) && literal === "true" &&
-      /(?:^|\\b)process\\.env\\.[A-Z][A-Z0-9_]*_ENABLED\\b/.test(operand.getText()) &&
-      /\\.(?:toLowerCase|trim)\\s*\\(/.test(operand.getText())) return true;
+      /(?:^|\b)process\.env\.[A-Z][A-Z0-9_]*_ENABLED\b/.test(operand.getText()) &&
+      /\.(?:toLowerCase|trim)\s*\(/.test(operand.getText())) return true;
   if (ts.isIdentifier(operand)) {
     if (operand.text === "mode") return literal === "preview" || literal === "stage";
     // Structurally typed basis/nutrient keys cannot be food-name rules.
