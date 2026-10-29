@@ -186,4 +186,23 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       estimatedCostUsd: null, costMeasuredCalls: 0,
     }]);
   });
+
+  it("rejects dynamic PII in segmentation tags instead of leaking it to analytics", () => {
+    const request = {
+      traceId, modality: "text" as const, entrypoint: "web" as const,
+      scenarioClass: "person@example.com" as never,
+      v1: baseV1(), v1Failure: null, v2: [], observations: [],
+      failure: "none" as const,
+      timings: { v1Ms: 1, languageMs: 0, resolverMs: 0, totalMs: 1 },
+    };
+    expect(() => buildFoodShadowEvent(request)).toThrow("invalid-shadow-segmentation");
+  });
+
+  it("retains micro-dollar costs instead of rounding billable attempts to zero", () => {
+    expect(summarizeFoodShadowCapabilityUsage([
+      { capability: "MEAL_TEXT", callRole: "primary",
+        latencyMs: 7, estimatedCostUsd: 0.00001234 } as AiInferenceEvent,
+    ])?.[0].estimatedCostUsd).toBe(0.00001234);
+  });
+
 });

@@ -67,6 +67,8 @@ export type FoodShadowEvent = {
 };
 
 const metric = (n: number): number => Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : 0;
+/** Cost precision must not round small billable calls down to zero. */
+const costMetric = (n: number): number => Number.isFinite(n) && n >= 0 ? Math.round(n * 100000000) / 100000000 : 0;
 const abs = (a: number, b: number): number | null =>
   Number.isFinite(a) && Number.isFinite(b) && a >= 0 && b >= 0
     ? metric(Math.abs(a - b)) : null;
@@ -129,7 +131,7 @@ export function summarizeFoodShadowCapabilityUsage(
   }
   return [...summaries.values()].sort((a, b) => a.capability.localeCompare(b.capability)).map(item => ({
     ...item, totalLatencyMs: metric(item.totalLatencyMs),
-    estimatedCostUsd: item.costMeasuredCalls === item.calls ? metric(item.estimatedCostUsd ?? 0) : null,
+    estimatedCostUsd: item.costMeasuredCalls === item.calls ? costMetric(item.estimatedCostUsd ?? 0) : null,
   }));
 }
 
@@ -152,6 +154,11 @@ export function buildFoodShadowEvent(input: {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.traceId)) {
     throw new TypeError("invalid-shadow-trace-id");
   }
+  const modalities: readonly FoodShadowModality[] = ["text", "audio_transcript", "image", "multimodal"];
+  const entrypoints: readonly FoodShadowEntrypoint[] = ["web", "whatsapp", "meal_add", "meal_edit", "label_continuation", "replay"];
+  const classes: readonly FoodShadowClass[] = ["generic", "commercial", "quantity", "label", "ambiguous", "unknown", "mixed"];
+  if (!modalities.includes(input.modality) || !entrypoints.includes(input.entrypoint) ||
+      !classes.includes(input.scenarioClass)) throw new TypeError("invalid-shadow-segmentation");
   const v1 = input.v1?.items ?? [];
   const v2 = input.v2 ?? [];
   const comparablePairs = input.v1 && input.v2 ? Math.min(v1.length, v2.length) : 0;
@@ -310,7 +317,7 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
         existing.totalLatencyMs = metric(existing.totalLatencyMs + usage.totalLatencyMs);
         existing.costMeasuredCalls += usage.costMeasuredCalls;
         existing.estimatedCostUsd = existing.estimatedCostUsd === null || usage.estimatedCostUsd === null
-          ? null : metric(existing.estimatedCostUsd + usage.estimatedCostUsd);
+          ? null : costMetric(existing.estimatedCostUsd + usage.estimatedCostUsd);
       }
     }
     segments.set(key, row);
