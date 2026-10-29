@@ -173,7 +173,7 @@ function buildUnclassifiedFoodQualityItem(
   return {
     calories,
     foodCatalogId: item.foodCatalogId ?? null,
-    historicalRef: item.historicalRef ?? null,
+    ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
     foodName: item.foodName,
     canonicalName: item.canonicalName,
     portionText: item.portionText,
@@ -232,7 +232,7 @@ export function calculateQualityIndicators(
           if (saved.processingLevel === "ultra_processed") acc.ultraProcessedServings += servings;
           acc.foodQualityItems.push({
             calories: itemCalories, foodCatalogId: item.foodCatalogId ?? null,
-            historicalRef: item.historicalRef ?? null,
+            ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
             foodName: item.foodName, canonicalName: item.canonicalName,
             portionText: item.portionText, processingLevel: saved.processingLevel,
             isClassified: true, isFruit: saved.isFruit, isVegetable: saved.isVegetable,
@@ -266,7 +266,7 @@ export function calculateQualityIndicators(
         acc.foodQualityItems.push({
           calories: itemCalories,
           foodCatalogId: item.foodCatalogId ?? null,
-          historicalRef: item.historicalRef ?? null,
+          ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
           foodName: item.foodName,
           canonicalName: item.canonicalName,
           portionText: item.portionText,

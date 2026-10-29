@@ -13,6 +13,12 @@ const persisted = () => ({
 });
 
 describe("#1307 / Gate 19 — historical shadow readers", () => {
+  it("preserves the existing V1 quality record shape when shadow-only fields are absent", () => {
+    const base = { ...persisted(), historicalRef: undefined };
+    const live = calculateQualityIndicators([{ mealLabel: "Lanche", items: [base] }], 0);
+    expect(Object.prototype.hasOwnProperty.call(live.foodQualityItems[0], "historicalRef")).toBe(false);
+  });
+
   it("keeps the confirmed nutrition and category after the current catalog is changed", () => {
     const meal = [{ mealLabel: "Café da manhã", items: [persisted()] }];
     const before = calculateHistoricalQualityIndicators(meal, 0);
