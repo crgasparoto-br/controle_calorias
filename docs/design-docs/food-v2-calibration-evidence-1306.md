@@ -124,7 +124,7 @@ partindo de `develop@5e64e7615945f013c19f9c0efc154e2d59ea8de1` e da PR #1333.
 - O relatório `C3_OPEN_EVIDENCE_READINESS.representativity` inventaria as
   modalidades sintéticas presentes no Golden Food Corpus, vinculando versão
   `golden-2026-10-06.2` às contagens exatas (65 texto, 3 transcrição,
-  5 imagem e 2 multimodal), o número de casos com marca esperada, a fonte nutricional da campanha e os limites reais
+  5 imagem e 2 multimodal) e a **13 casos com marca esperada**; também fixa a fonte nutricional da campanha e os limites reais
   de cobertura. O extrator recusa ausência/troca de modalidade, falsa
   promoção produtiva, declaração de marca testada, contagens adulteradas,
   uso do diagnóstico para selecionar candidato e divergência acima do lock.

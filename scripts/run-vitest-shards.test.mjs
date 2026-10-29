@@ -178,7 +178,7 @@ function c3Fixtures() {
     representativity: {
       source: "golden-food-corpus-synthetic", corpusVersion: "golden-2026-10-06.2",
       byModality: { text: 65, audio_transcript: 3, image: 5, multimodal: 2 },
-      labeledBrandedCases: 1, roundingBrandedProfiles: 0,
+      labeledBrandedCases: 13, roundingBrandedProfiles: 0,
       roundingNutritionSource: "TACO_4E",
       productionDecision: "blocked-no-independent-representative-evidence",
       untestedDimensions: ["real_asr", "real_vision_ocr", "branded_nutrition",
@@ -397,6 +397,12 @@ for (const [label, mutate] of [
     reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[1].failedCases += 1;
     reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[2].cases -= 1;
     reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[2].failedCases -= 1;
+  }],
+  ["underreported labeled branded cases", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.labeledBrandedCases = 12;
+  }],
+  ["overreported labeled branded cases", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.labeledBrandedCases = 14;
   }],
   ["fabricated branded coverage", reports => {
     reports.C3_OPEN_EVIDENCE_READINESS.representativity.roundingBrandedProfiles = 1;

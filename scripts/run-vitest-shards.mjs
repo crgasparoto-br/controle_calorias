@@ -238,6 +238,7 @@ function c3RepresentativityValid(ready, rounding) {
   // reported counts. Changes require a deliberate corpus version revision.
   const expected = { text: 65, audio_transcript: 3, image: 5, multimodal: 2 };
   const expectedSplits = { acquisition: 3, calibration: 65, holdout: 7 };
+  const expectedLabeledBrandedCases = 13;
   const modalityKeys = Object.keys(expected);
   if (!scope || scope.source !== "golden-food-corpus-synthetic" ||
       !Object.entries(expectedSplits).every(([split, count]) => ready.splits?.[split] === count) ||
@@ -246,8 +247,8 @@ function c3RepresentativityValid(ready, rounding) {
       Object.keys(scope.byModality).sort().join(",") !== [...modalityKeys].sort().join(",") ||
       !modalityKeys.every(key => scope.byModality[key] === expected[key]) ||
       Object.values(scope.byModality).reduce((sum, count) => sum + count, 0) !== ready.corpusCases ||
-      !c3Count(scope.labeledBrandedCases) || scope.labeledBrandedCases === 0 ||
-      scope.labeledBrandedCases > ready.corpusCases || scope.roundingBrandedProfiles !== 0 ||
+      scope.labeledBrandedCases !== expectedLabeledBrandedCases ||
+      scope.roundingBrandedProfiles !== 0 ||
       scope.roundingNutritionSource !== "TACO_4E" ||
       scope.productionDecision !== "blocked-no-independent-representative-evidence" ||
       JSON.stringify(scope.untestedDimensions) !== JSON.stringify([
