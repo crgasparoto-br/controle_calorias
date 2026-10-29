@@ -1070,6 +1070,17 @@ function referencesLiteralRegex(target: ts.Expression, node: ts.Node): boolean {
   return resolveLiteralRegexPattern(target, node) !== null;
 }
 
+/** Strict input-format patterns cannot decide what a food is. Any change to
+ * these exact patterns or introduction of lexical alternatives stays gated. */
+function isStructuralInputRegex(target: ts.Expression, node: ts.Node): boolean {
+  const literal = resolveLiteralRegexPattern(target, node);
+  return literal !== null && [
+    String.raw`/[\\u0300-\\u036f]/g`, String.raw`/\\s+/g`,
+    String.raw`/^[0-9a-f]{40}$/i`,
+    String.raw`/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i`,
+  ].includes(literal);
+}
+
 /**
  * Unwrap only transparent, bounded string normalizations when tracing an
  * identity in a literal comparison or switch. Never trust arbitrary method
@@ -2090,6 +2101,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         isFoodDomainSource(source.fileName))) {
     const regexSource = /^(?:test|exec)$/.test(node.expression.name.text)
       ? node.expression.expression : node.arguments[0];
+    if (isStructuralInputRegex(regexSource, node)) return null;
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source) +
       " " + node.expression.expression.getText(source);
     const sourceDecision = isFoodDomainSource(source.fileName) &&
@@ -2129,6 +2141,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     if (ts.isPropertyAccessExpression(fieldReceiver) &&
         fieldReceiver.name.text === "field" &&
         ["identity.", "variant.", "quantity.", "nutrition.", "classification."].includes(literal)) return null;
+    // Governed reason-code IDs are structural states, never lexical food aliases.
+    if (ts.isPropertyAccessExpression(fieldReceiver) &&
+        fieldReceiver.name.text === "reasonCodes" &&
+        CANONICAL_STRUCTURAL_FOOD_REASON_CODES.has(literal)) return null;
     const receiver = node.expression.expression.getText(source);
     const owner = enclosingDeclaration(node);
     const context = source.fileName + " " + owner + " " + receiver;
@@ -3434,6 +3450,9 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
     return ["undefined", "object", "boolean", "number", "string", "function", "symbol", "bigint"].includes(literal);
   }
   // Bare `mode` is the reconciliation CLI control, never a food attribute.
+  if (ts.isCallExpression(operand) && literal === "true" &&
+      /(?:^|\\b)process\\.env\\.[A-Z][A-Z0-9_]*_ENABLED\\b/.test(operand.getText()) &&
+      /\\.(?:toLowerCase|trim)\\s*\\(/.test(operand.getText())) return true;
   if (ts.isIdentifier(operand)) {
     if (operand.text === "mode") return literal === "preview" || literal === "stage";
     // Structurally typed basis/nutrient keys cannot be food-name rules.
@@ -3454,6 +3473,14 @@ function isStructuralContractValue(field: string, literal: string): boolean {
       "resolved", "partially_resolved", "ambiguous", "unknown", "explicit", "defaulted",
       "unsupported"],
     nextAction: ["propose", "clarify", "reject", "retry"],
+    // Instrumentation-only typed enums, not food identity/materiality rules.
+    run: ["compared", "partial", "failed"],
+    failure: ["none", "gate_unavailable", "evidence_unavailable", "language_unavailable",
+      "resolver_unavailable", "telemetry_unavailable"],
+    callRole: ["primary", "retry", "fallback", "escalation"],
+    stage: ["S1", "S2", "S3"],
+    processingLevel: ["unknown", "natural_or_minimally_processed",
+      "processed_culinary_ingredient", "processed", "ultra_processed"],
     origin: ["text", "transcription", "ocr", "vision", "memory", "catalog", "web_research",
       "nutrition_label", "barcode", "provisional_estimate", "ai_estimate", "heuristic", "unavailable"],
     governanceStatus: ["provisional", "pending_review", "verified", "rejected", "revoked"],

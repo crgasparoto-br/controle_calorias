@@ -165,7 +165,7 @@ function getUnclassifiedReason(item: MealFoodQualityItem, hasLookup: boolean): F
   return "missing_catalog_id";
 }
 
-function buildUnclassifiedFoodQualityItem(
+function buildUnknownQualityItem(
   item: MealFoodQualityItem,
   calories: number,
   reason: FoodQualityUnclassifiedReason,
@@ -222,7 +222,7 @@ export function calculateQualityIndicators(
           // current catalog has a plausible name or a different category.
           const saved = item.classification;
           if (!saved || saved.processingLevel === "unknown") {
-            acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, "unknown"));
+            acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, "unknown"));
             continue;
           }
           const servings = Number.isFinite(item.servings) && item.servings > 0 ? item.servings : 0;
@@ -242,18 +242,18 @@ export function calculateQualityIndicators(
         }
 
         if (!foodLookup) {
-          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, "unknown"));
+          acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, "unknown"));
           continue;
         }
 
         const food = resolveFoodLookupEntry(foodLookup, item);
         if (!food) {
-          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, getUnclassifiedReason(item, true)));
+          acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, getUnclassifiedReason(item, true)));
           continue;
         }
 
         if (!food.isClassified) {
-          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, "unknown"));
+          acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, "unknown"));
           continue;
         }
 

@@ -7,6 +7,7 @@ import { AI_CAPABILITIES, type AiCapabilityId } from "../../_core/ai/capabilitie
 import type { AiInferenceEvent } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult, MealDraftItem } from "../../nutritionEngineTypes";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
+import { z } from "zod";
 
 export type FoodShadowModality = "text" | "audio_transcript" | "image" | "multimodal";
 export type FoodShadowClass = "generic" | "commercial" | "quantity" | "label" | "ambiguous" | "unknown" | "mixed";
@@ -65,6 +66,18 @@ export type FoodShadowEvent = {
   /** Verified accuracy needs independent labels from a separate corpus review. */
   verifiedCorrect: null;
 };
+
+/** Typed telemetry dimensions; validators reject untrusted free-form labels. */
+const segmentation = z.object({
+  modality: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+  entrypoint: z.enum(["web", "whatsapp", "meal_add", "meal_edit", "label_continuation", "replay"]),
+  scenarioClass: z.enum(["generic", "commercial", "quantity", "label", "ambiguous", "unknown", "mixed"]),
+});
+
+function emptyMacroDifferences(): FoodShadowEvent["differences"]["macros"] {
+  // These are *missing deltas*, never hardcoded nutrition values.
+  return { calories: null, protein: null, carbs: null, fat: null };
+}
 
 const metric = (n: number): number => Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : 0;
 /** Cost precision must not round small billable calls down to zero. */
@@ -206,19 +219,17 @@ export function buildFoodShadowEvent(input: {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.traceId)) {
     throw new TypeError("invalid-shadow-trace-id");
   }
-  const modalities: readonly FoodShadowModality[] = ["text", "audio_transcript", "image", "multimodal"];
-  const entrypoints: readonly FoodShadowEntrypoint[] = ["web", "whatsapp", "meal_add", "meal_edit", "label_continuation", "replay"];
-  const classes: readonly FoodShadowClass[] = ["generic", "commercial", "quantity", "label", "ambiguous", "unknown", "mixed"];
-  if (!modalities.includes(input.modality) || !entrypoints.includes(input.entrypoint) ||
-      !classes.includes(input.scenarioClass)) throw new TypeError("invalid-shadow-segmentation");
+  if (!segmentation.safeParse({
+    modality: input.modality, entrypoint: input.entrypoint, scenarioClass: input.scenarioClass,
+  }).success) throw new TypeError("invalid-shadow-segmentation");
   const v1 = input.v1?.items ?? [];
   const v2 = input.v2 ?? [];
   const matchedPairs = input.v1 && input.v2 ? pairFoodShadowItems(v1, v2) : [];
   const comparablePairs = matchedPairs.length;
   const leftUnpaired = input.v1 && input.v2 ? v1.length - comparablePairs : 0;
   const rightUnpaired = input.v1 && input.v2 ? v2.length - comparablePairs : 0;
-  const macroKeys = ["calories", "protein", "carbs", "fat"] as const;
-  const macros: FoodShadowEvent["differences"]["macros"] = { calories: null, protein: null, carbs: null, fat: null };
+  const macros = emptyMacroDifferences();
+  const macroKeys = Object.keys(macros) as Array<keyof typeof macros>;
   const differences = {
     comparablePairs, unpairedItems: leftUnpaired + rightUnpaired,
     // Remaining unmatched items on both sides indicate a possible identity change,
@@ -231,13 +242,13 @@ export function buildFoodShadowEvent(input: {
     // Missing provenance on numeric nutrition is suspicious, not a verified failure.
     if (hasNutrition(item) && !v1Origin(item)) possibleSilentFallback++;
   }
-  let v2MissingNutritionProvenance = 0;
+  let missingProvenanceCount = 0;
   let explicitFailure = 0;
   let sourceConflicts = 0;
   for (const item of v2) {
     if (item.nutrition.consumed !== null && (
       !item.nutrition.evidenceIds.length || (!item.nutrition.verified && !item.nutrition.provisional)
-    )) v2MissingNutritionProvenance++;
+    )) missingProvenanceCount++;
     if (item.nextAction === "reject" || item.status === "unknown") explicitFailure++;
     if (item.reasonCodes.includes("source_conflict")) sourceConflicts++;
   }
@@ -257,7 +268,7 @@ export function buildFoodShadowEvent(input: {
     } else {
       let any = false;
       for (const key of macroKeys) {
-        const delta = abs(left[key === "calories" ? "calories" : key], nutrition[key]);
+        const delta = abs(left[key], nutrition[key]);
         if (delta === null) continue;
         macros[key] = metric((macros[key] ?? 0) + delta);
         if (delta > 0) any = true;
@@ -303,7 +314,7 @@ export function buildFoodShadowEvent(input: {
       recentHistory: safeContext(context.recentHistory),
     },
     differences,
-    flagged: { possibleSilentFallback, v2MissingNutritionProvenance, explicitFailure, sourceConflicts },
+    flagged: { possibleSilentFallback, v2MissingNutritionProvenance: missingProvenanceCount, explicitFailure, sourceConflicts },
     timings: {
       v1Ms: metric(input.timings.v1Ms), languageMs: metric(input.timings.languageMs),
       resolverMs: metric(input.timings.resolverMs), totalMs: metric(input.timings.totalMs),

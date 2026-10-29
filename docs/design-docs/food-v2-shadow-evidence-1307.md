@@ -86,6 +86,16 @@ Testes: `server/modules/foodIntelligenceV2/shadowRunner.test.ts`,
 `server/modules/insights/foodQuality.shadow.test.ts`,
 `server/repositories/mealsRepository.shadow.test.ts`.
 
+## Portões de arquitetura e telemetria
+
+A camada shadow trata estados tipados, contagens inicialmente desconhecidas,
+validação de UUID e normalização Unicode como **metadados**, não como novo
+léxico ou regra de decisão alimentar. O gate 2 continua bloqueando resolvedores
+concorrentes; os gates 17/18 continuam recusando listas de alimentos, aliases,
+materialidade e valores nutricionais embutidos. Casos positivos e negativos de
+arquitetura preservam essa distinção sem exceções por arquivo nem alteração
+do livro de dívida.
+
 ## Baseline, bloqueios e ativação
 
 **Não existe baseline V1×V2 de tráfego real nesta issue até aprovação.**

@@ -130,7 +130,7 @@ function readMealItemResolution(value: string | null | undefined) {
  * Read an existing persisted classification only. A current catalog ID, name
  * or nutrition reference cannot synthesize historical classification (Gate 19).
  */
-function readPersistedMealClassification(value: string | null | undefined): MealDraftItem["classification"] {
+function parseSavedQuality(value: string | null | undefined): MealDraftItem["classification"] {
   if (!value) return null;
   try {
     const row = JSON.parse(value) as { classification?: Record<string, unknown> | null };
@@ -418,12 +418,11 @@ async function insertConfirmedMealInTransaction(tx: any, input: {
   return mealId;
 }
 
-export function createDrizzleMealsRepository(deps: {
-  getDb: DbProvider;
-  onWarning: PersistenceWarningHandler;
-}): MealsRepository {
-  return {
-    async findConfirmedByUserId(userId, options = {}) {
+/** One snapshot-only database reader; the public repository method is a facade. */
+async function loadSavedMeals(
+  deps: { getDb: DbProvider; onWarning: PersistenceWarningHandler },
+  userId: number, options: MealLoadRange = {},
+): ReturnType<MealsRepository["findConfirmedByUserId"]> {
       const db = await deps.getDb();
       if (!db) return null;
 
@@ -454,7 +453,7 @@ export function createDrizzleMealsRepository(deps: {
               historicalRef: item.foodId
                 ? "food:" + item.foodId
                 : item.foodCatalogId ? "catalog:" + item.foodCatalogId : null,
-              classification: readPersistedMealClassification(item.foodSnapshotJson),
+              classification: parseSavedQuality(item.foodSnapshotJson),
             } : {}),
             foodName: item.foodName,
             canonicalName: item.canonicalName,
@@ -511,6 +510,15 @@ export function createDrizzleMealsRepository(deps: {
         deps.onWarning("Meal read skipped", error);
         return null;
       }
+}
+
+export function createDrizzleMealsRepository(deps: {
+  getDb: DbProvider;
+  onWarning: PersistenceWarningHandler;
+}): MealsRepository {
+  return {
+    findConfirmedByUserId(userId, options = {}) {
+      return loadSavedMeals(deps, userId, options);
     },
 
     async persistMeal({ meal, items, media, resolvedCatalogIds }) {

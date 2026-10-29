@@ -96,7 +96,7 @@ function selectOriginalEvidence(input: MealProcessingInput): LanguageEvidence {
   };
 }
 
-function classifyV1Error(error: unknown): "clarification" | "failed" {
+function mapV1ErrorToOutcome(error: unknown): "clarification" | "failed" {
   const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
   return code === "food_identity_clarification_required" ||
     code === "food_component_quantity_required" ||
@@ -179,7 +179,7 @@ async function observeFoodV2Shadow(
     const event = buildFoodShadowEvent({
       traceId, modality: evidence.modality, entrypoint: deps.entrypoint,
       scenarioClass: deps.scenarioClass, v1,
-      v1Failure: v1Failed ? classifyV1Error(v1Error) : null,
+      v1Failure: v1Failed ? mapV1ErrorToOutcome(v1Error) : null,
       v2: decisions, observations, partialEvidence: evidence.partial,
       failure, context: deps.context,
       timings: { v1Ms, languageMs, resolverMs, totalMs: elapsed(v1Start) },
