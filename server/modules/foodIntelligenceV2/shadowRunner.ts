@@ -4,7 +4,7 @@
  * emits user messages, calls external providers, or stages knowledge.
  */
 import { randomUUID } from "node:crypto";
-import type { AiInferenceEvent } from "../../_core/ai/observability";
+import { withAiInferenceAttemptCapture, type AiCapabilityAttemptMetric } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult, MealProcessingInput } from "../../nutritionEngineTypes";
 import { comprehendFoodLanguage, type LinguisticLexiconStore } from "./linguisticComprehension";
 import { resolveFoodObservations, type FoodResolverContext } from "./resolver";
@@ -40,7 +40,7 @@ export type FoodShadowDependencies = {
   /** Independent operational approval source; absent/invalid/throwing => no shadow. */
   verifyGateA?: () => Promise<GateAApproval | null>;
   /** Request-scoped AI observations, never a global cross-user event list. */
-  readCapabilityEvents?: () => readonly AiInferenceEvent[];
+  readCapabilityEvents?: () => readonly AiCapabilityAttemptMetric[] | null;
   /** The sink accepts *only* a fixed, sanitised event, not a decision or input. */
   emit?: (event: FoodShadowEvent) => void | Promise<void>;
   /** Optional request-lifetime hook, e.g. waitUntil; never awaited by V1. */
@@ -209,11 +209,18 @@ export async function runMealWithFoodV2Shadow(
   // A changed V1 draft is never evidence for a separate V2 observation.
   const evidence = selectOriginalEvidence(input);
   const v1Start = Date.now();
+  const shadowRequested = (deps.enabled ?? isFoodV2ShadowEnabled()) && Boolean(deps.verifyGateA);
   let v1: CanonicalMealProcessingResult | null = null;
   let v1Failed = false;
   let v1Error: unknown;
+  let capturedAttempts: readonly AiCapabilityAttemptMetric[] | null = null;
   try {
-    v1 = await deps.runV1(input);
+    v1 = shadowRequested
+      ? await withAiInferenceAttemptCapture(
+        () => deps.runV1(input),
+        attempts => { capturedAttempts = attempts; },
+      )
+      : await deps.runV1(input);
   } catch (error) {
     v1Failed = true;
     v1Error = error;
@@ -223,11 +230,15 @@ export async function runMealWithFoodV2Shadow(
     if (v1Failed) throw v1Error;
     return v1 as CanonicalMealProcessingResult;
   };
-  if (!(deps.enabled ?? isFoodV2ShadowEnabled()) || !deps.verifyGateA) return replayV1();
+  if (!shadowRequested) return replayV1();
+  // The scoped capture contains only capability/role/latency/cost, never full AI events.
+  // An explicit request-scoped adapter can also provide observations from other emitters.
+  const observerDeps: FoodShadowDependencies = deps.readCapabilityEvents
+    ? deps : { ...deps, readCapabilityEvents: () => capturedAttempts };
   // Neither the gate verifier nor the V2 resolution/telemetry is on the V1 response path.
   // Defer even the first synchronous observer instruction to the next microtask.
   const shadowTask = Promise.resolve()
-    .then(() => observeFoodV2Shadow(evidence, deps, v1, v1Failed, v1Error, v1Ms, v1Start))
+    .then(() => observeFoodV2Shadow(evidence, observerDeps, v1, v1Failed, v1Error, v1Ms, v1Start))
     .catch(() => undefined);
   try { deps.trackShadowTask?.(shadowTask); }
   catch { /* A failing request-lifetime hook must not affect V1. */ }

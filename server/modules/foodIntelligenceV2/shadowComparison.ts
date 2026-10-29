@@ -4,7 +4,7 @@
  * Deliberately never serialize raw text, media, food names or owner identity.
  */
 import { AI_CAPABILITIES, type AiCapabilityId } from "../../_core/ai/capabilities";
-import type { AiInferenceEvent } from "../../_core/ai/observability";
+import type { AiCapabilityAttemptMetric } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult, MealDraftItem } from "../../nutritionEngineTypes";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
 import { z } from "zod";
@@ -175,7 +175,7 @@ function summarizeV2(decisions: readonly FoodResolutionDecision[] | null): FoodS
 }
 
 export function summarizeFoodShadowCapabilityUsage(
-  observations: readonly AiInferenceEvent[] | null,
+  observations: readonly AiCapabilityAttemptMetric[] | null,
 ): FoodShadowCapabilityUsage[] | null {
   if (observations === null) return null;
   const summaries = new Map<AiCapabilityId, FoodShadowCapabilityUsage>();
@@ -217,7 +217,7 @@ export function buildFoodShadowEvent(input: {
   partialEvidence?: boolean;
   context?: Partial<FoodShadowEvent["context"]>;
   timings: FoodShadowEvent["timings"];
-  capabilityEvents?: readonly AiInferenceEvent[] | null;
+  capabilityEvents?: readonly AiCapabilityAttemptMetric[] | null;
 }): FoodShadowEvent {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.traceId)) {
     throw new TypeError("invalid-shadow-trace-id");

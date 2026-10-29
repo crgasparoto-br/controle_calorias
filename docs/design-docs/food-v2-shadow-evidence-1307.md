@@ -43,8 +43,15 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   `verifiedAccuracy` permanece `null`, mesmo se V1 e V2 concordarem.
   Deltas nutricionais são sinais, não critérios de tolerância C3 autorizados.
 - `capabilityUsage` recebe observações de IA **do mesmo request**, por
-  capacidade: chamadas, retries, latência, custo. Se ausente, o campo é
-  `null` em vez de afirmar zero uso ou custo.
+  capacidade: chamadas, retries, latência e custo. O V1 instrumentado por
+  `emitAiInferenceEvents` é capturado por escopo assíncrono somente quando o
+  shadow é solicitado, sem depender de sink global. Apenas capacidade,
+  papel da tentativa, duração e custo são mantidos temporariamente; nenhum
+  `correlation`, texto, ID ou payload entra nessa captura. Requisições
+  concorrentes são isoladas. Sem instrumentação ou se ultrapassar o limite
+  seguro da captura, o campo é `null`, nunca zero presumido. Isso prepara
+  instrumentação de chamadas V1, **não** comprova custos reais de todos os
+  adapters, retenção LGPD, baseline produtivo ou a aprovação do Gate A.
 
 ## Leitores históricos do shadow (Gate 19)
 

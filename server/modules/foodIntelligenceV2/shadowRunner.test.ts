@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AiInferenceEvent } from "../../_core/ai/observability";
+import { emitAiInferenceEvents, withAiInferenceAttemptCapture, type AiInferenceEvent } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult } from "../../nutritionEngineTypes";
 import { buildV1HistoricalSnapshotFixture, buildFoodObservationFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
 import type { FoodKnowledgeRequest, FoodKnowledgeStore } from "./knowledgeRead";
@@ -355,6 +355,74 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       { capability: "MEAL_TEXT", callRole: "primary",
         latencyMs: 7, estimatedCostUsd: 0.00001234 } as AiInferenceEvent,
     ])?.[0].estimatedCostUsd).toBe(0.00001234);
+  });
+
+  it("captures V1 attempt counts, retries, latency and cost per request without a sink or PII", async () => {
+    const a = fixture();
+    const b = fixture();
+    const attempt = (capability: "MEAL_TEXT" | "NUTRITION_SEARCH",
+      callRole: "primary" | "retry", latencyMs: number,
+      estimatedCostUsd: number | null) => ({
+        capability, callRole, latencyMs, estimatedCostUsd,
+        correlation: { raw: "private-user@do-not-export.example" },
+        executionId: "private-user-id",
+      } as AiInferenceEvent);
+    a.runV1.mockImplementationOnce(async () => {
+      await emitAiInferenceEvents([
+        attempt("MEAL_TEXT", "primary", 5, 0.01),
+        attempt("MEAL_TEXT", "retry", 7, 0.02),
+      ], null);
+      await Promise.resolve();
+      return baseV1();
+    });
+    b.runV1.mockImplementationOnce(async () => {
+      await Promise.resolve();
+      await emitAiInferenceEvents([
+        attempt("NUTRITION_SEARCH", "primary", 11, null),
+      ], null);
+      return baseV1();
+    });
+    await Promise.all([
+      runMealWithFoodV2Shadow({ text: "arroz" }, a.deps),
+      runMealWithFoodV2Shadow({ text: "feijao" }, b.deps),
+    ]);
+    await Promise.all([a.waitForShadow(), b.waitForShadow()]);
+    const first = a.emit.mock.calls[0][0];
+    const second = b.emit.mock.calls[0][0];
+    expect(first.capabilityUsage).toEqual([{
+      capability: "MEAL_TEXT", calls: 2, retries: 1,
+      totalLatencyMs: 12, estimatedCostUsd: 0.03, costMeasuredCalls: 2,
+    }]);
+    expect(second.capabilityUsage).toEqual([{
+      capability: "NUTRITION_SEARCH", calls: 1, retries: 0,
+      totalLatencyMs: 11, estimatedCostUsd: null, costMeasuredCalls: 0,
+    }]);
+    expect(JSON.stringify([first, second])).not.toContain("private-user");
+    expect(a.runV1).toHaveBeenCalledTimes(1);
+    expect(b.runV1).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed on an overflowing attempt capture and preserves the V1 error", async () => {
+    const f = fixture();
+    const v1Error = new Error("sensitive v1 failure");
+    const attempt = { capability: "MEAL_TEXT", callRole: "primary",
+      latencyMs: 1, estimatedCostUsd: 0.001 } as AiInferenceEvent;
+    let overflowResult: readonly unknown[] | null = [];
+    await withAiInferenceAttemptCapture(
+      async () => { await emitAiInferenceEvents(Array.from({ length: 257 }, () => attempt), null); },
+      attempts => { overflowResult = attempts; },
+    );
+    expect(overflowResult).toBeNull();
+    f.runV1.mockImplementationOnce(async () => {
+      await emitAiInferenceEvents([attempt], null);
+      throw v1Error;
+    });
+    await expect(runMealWithFoodV2Shadow({ text: "arroz" }, f.deps)).rejects.toBe(v1Error);
+    await f.waitForShadow();
+    const event = f.emit.mock.calls[0][0];
+    expect(event.v1Outcome).toBe("failed");
+    expect(event.capabilityUsage?.[0]).toMatchObject({ calls: 1, estimatedCostUsd: 0.001 });
+    expect(JSON.stringify(event)).not.toContain("sensitive v1 failure");
   });
 
 });
