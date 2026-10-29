@@ -89,6 +89,27 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(a.quantityHints.value).toBe(b.quantityHints.value);
   });
 
+  it("#1306 C3: reconhece decimal fracionário de kg sem liberar milhares ambíguos", async () => {
+    for (const [surface, value, unit] of [
+      ["125 g de mortadela", 125, "g"],
+      ["0,125 kg de mortadela", 0.125, "kg"],
+      ["0.125 kg de mortadela", 0.125, "kg"],
+      ["0,750 kg de mortadela", 0.75, "kg"],
+      ["0,001 kg de mortadela", 0.001, "kg"],
+    ] as const) {
+      const [observed] = await analyze(surface, []);
+      expect(observed.quantityHints).toMatchObject({ value, unit });
+      expect(observed.identityHints.foodName).toBe("mortadela");
+    }
+    for (const surface of [
+      "1.000 g de mortadela", "1,000 g de mortadela",
+      "1,500 kg de mortadela", "0,000 kg de mortadela",
+    ]) {
+      const [ambiguous] = await analyze(surface, []);
+      expect(ambiguous.quantityHints.value).toBeNull();
+    }
+  });
+
   it("não transforma ml em g nem adivinha porção vaga ou número ambíguo", async () => {
     const [ml] = await analyze("250 ml de leite");
     const [vague] = await analyze("um punhado de amendoim");

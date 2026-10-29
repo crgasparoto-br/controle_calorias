@@ -142,29 +142,52 @@ test("real child process ignores TERM, escalates to KILL and is reaped", { timeo
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { C3_EVIDENCE_MARKERS, extractC3Evidence, publishC3Evidence } from "./run-vitest-shards.mjs";
+import { C3_EVIDENCE_MARKERS, C3_ROUNDING_PREREGISTERED_PROFILES, extractC3Evidence, publishC3Evidence } from "./run-vitest-shards.mjs";
 
 const c3Fields = ["calories", "protein", "carbs", "fat"];
 function c3Fixtures() {
-  const metric = candidate => ({ candidate, cases: 2, passed: 2, failed: 0, maxDelta: 0, failuresByClass: {} });
+  const caseIds = foods => foods.flatMap(food => [30, 125, 750].map(grams => food + "@" + grams + "g"));
+  const calibrationFoodProfiles = [...C3_ROUNDING_PREREGISTERED_PROFILES.calibration];
+  const holdoutFoodProfiles = [...C3_ROUNDING_PREREGISTERED_PROFILES.holdout];
+  const metric = candidate => ({ candidate, cases: 36, passed: 36, failed: 0, maxDelta: 0, failuresByClass: {} });
   const grid = [0, 0.01, 0.1];
   const per = callback => Object.fromEntries(c3Fields.map(field => [field, callback(field)]));
   const rounding = {
     splitPolicy: "candidate-selected-from-calibration-before-holdout",
     baselinePolicy: "open-fail-closed-zero-divergence",
-    calibrationProfiles: ["mortadela", "amendoim"], holdoutProfiles: ["iogurte", "pera"],
+    cohortRevision: "c3-rounding-expanded-v2",
+    quantityGrams: [30, 125, 750], calibrationFoodProfiles, holdoutFoodProfiles,
+    calibrationProfiles: caseIds(calibrationFoodProfiles),
+    holdoutProfiles: caseIds(holdoutFoodProfiles),
     candidates: { caloriesKcal: grid, macroGrams: grid },
     calibrationMaxDelta: per(() => 0), holdoutMaxDelta: per(() => 0), selectedTolerance: per(() => 0),
     calibrationCandidateMetrics: per(() => grid.map(metric)),
     comparisonToBaseline: per(() => ({ baselinePolicy: "open-fail-closed-zero-divergence",
       baseline: metric(0), selected: metric(0), passedDelta: 0, failedDelta: 0 })),
     holdoutSelectedMetrics: per(() => metric(0)), failuresByClass: {},
+    exploratoryModalityDiagnostics: ["audio_transcript", "image"].map(modality => ({
+      modality, inputKind: modality === "image" ? "synthetic_caption" : "synthetic_transcript",
+      candidateSelection: "excluded", bySplit: {
+        calibration: { cases: 36, maxDelta: per(() => 0) },
+        holdout: { cases: 36, maxDelta: per(() => 0) },
+      },
+    })),
   };
-  const splits = { acquisition: 1, calibration: 2, holdout: 1 };
-  const ready = { corpusCases: 4, splits,
+  const splits = { acquisition: 3, calibration: 65, holdout: 7 };
+  const ready = { corpusCases: 75, splits,
+    representativity: {
+      source: "golden-food-corpus-synthetic", corpusVersion: "golden-2026-10-06.2",
+      byModality: { text: 65, audio_transcript: 3, image: 5, multimodal: 2 },
+      labeledBrandedCases: 13, roundingBrandedProfiles: 0,
+      roundingNutritionSource: "TACO_4E",
+      productionDecision: "blocked-no-independent-representative-evidence",
+      untestedDimensions: ["real_asr", "real_vision_ocr", "branded_nutrition",
+        "population_sampling", "independent_nominal_approval"],
+    },
     blockers: Object.fromEntries(["2", "7", "8", "17", "19", "22"].map(item => [item, ["ground_truth_absent"]])) };
-  const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" }, gate: "failed", calls: 4,
-    failureClasses: { mismatch: 4 }, bySplit: Object.entries(splits).map(([split, cases]) => ({
+  const baseline = { resolver: { id: "food-intelligence-v2-domain-resolver" },
+    corpusVersion: "golden-2026-10-06.2", gate: "failed", calls: 75,
+    failureClasses: { mismatch: 75 }, bySplit: Object.entries(splits).map(([split, cases]) => ({
       split, cases, resolvableLabeled: cases, matchedCases: 0,
       failedCases: cases, abstentions: 0, matchRate: 0,
     })) };
@@ -207,7 +230,7 @@ test("A-004 negative: forged counts, holdout leakage and artificial approval fai
   count.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationCandidateMetrics.calories[1].passed = 99;
   assert.throws(() => extractC3Evidence(c3Log(count)), /inconsistent/);
   const overlap = c3Fixtures();
-  overlap.C3_ITEM30_ROUNDING_CAMPAIGN.holdoutProfiles[0] = "mortadela";
+  overlap.C3_ITEM30_ROUNDING_CAMPAIGN.holdoutProfiles[0] = overlap.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationProfiles[0];
   assert.throws(() => extractC3Evidence(c3Log(overlap)), /holdout/);
   const fake = c3Fixtures();
   fake.C3_REAL_RESOLVER_FIXTURE_BASELINE.gate = "passed";
@@ -244,10 +267,10 @@ function assertC3MutationBlocked(mutate) {
   const reports = c3Fixtures();
   mutate(reports);
   const log = c3Log(reports);
-  assert.throws(() => extractC3Evidence(log), /C3: (incomplete|contradictory)/);
+  assert.throws(() => extractC3Evidence(log), /C3: (incomplete|contradictory|invalid independent)/);
   const dir = mkdtempSync(join(tmpdir(), "c3-fail-closed-"));
   try {
-    assert.throws(() => publishC3Evidence(log, dir, c3Identity), /C3: (incomplete|contradictory)/);
+    assert.throws(() => publishC3Evidence(log, dir, c3Identity), /C3: (incomplete|contradictory|invalid independent)/);
     assert.equal(existsSync(join(dir, "calibration-evidence.json")), false);
     assert.equal(existsSync(join(dir, "manifest.json")), false);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -305,10 +328,99 @@ const a005Mutations = [
   ["failure classes undercount failed cases", reports => {
     reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.failureClasses.mismatch = 1;
   }],
+  ["food profile leaks across calibration and holdout via another quantity", reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    const leakedFood = rounding.calibrationFoodProfiles[0];
+    const oldFood = rounding.holdoutFoodProfiles[0];
+    rounding.holdoutFoodProfiles[0] = leakedFood;
+    rounding.holdoutProfiles = rounding.holdoutProfiles.map(caseId =>
+      caseId.startsWith(oldFood + "@") ? caseId.replace(oldFood + "@", leakedFood + "@") : caseId);
+  }],
+  ["one measured quantity pair silently disappears", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.calibrationProfiles.pop();
+  }],
+  ["a food profile is duplicated under another candidate label", reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    rounding.calibrationFoodProfiles[1] = rounding.calibrationFoodProfiles[0];
+  }],
 ];
 
 for (const [label, mutate] of a005Mutations) {
   test("A-005: inconsistent calibration and baseline evidence fails closed: " + label, () => {
+    assertC3MutationBlocked(mutate);
+  });
+}
+
+test("A-007: replacing a calibration profile with another valid TACO food fails closed", () => {
+  assertC3MutationBlocked(reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    const original = rounding.calibrationFoodProfiles[0];
+    const replacement = "taco-abacaxi-cru";
+    rounding.calibrationFoodProfiles[0] = replacement;
+    rounding.calibrationProfiles = rounding.calibrationProfiles.map(id =>
+      id.startsWith(original + "@") ? id.replace(original + "@", replacement + "@") : id);
+  });
+});
+
+test("A-007: replacing a holdout profile with another valid TACO food fails closed", () => {
+  assertC3MutationBlocked(reports => {
+    const rounding = reports.C3_ITEM30_ROUNDING_CAMPAIGN;
+    const original = rounding.holdoutFoodProfiles[0];
+    const replacement = "taco-cenoura-crua";
+    rounding.holdoutFoodProfiles[0] = replacement;
+    rounding.holdoutProfiles = rounding.holdoutProfiles.map(id =>
+      id.startsWith(original + "@") ? id.replace(original + "@", replacement + "@") : id);
+  });
+});
+
+for (const [label, mutate] of [
+  ["false claim of production eligibility", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.productionDecision = "approved";
+  }],
+  ["unreported image cases from synthetic corpus", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.image = 0;
+  }],
+  ["wrong reported modality total", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.text += 1;
+  }],
+  ["same total but forged modality distribution", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.text += 1;
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.byModality.image -= 1;
+  }],
+  ["invented corpus version", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.corpusVersion = "golden-new";
+  }],
+  ["same total but forged corpus split", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.splits.calibration += 1;
+    reports.C3_OPEN_EVIDENCE_READINESS.splits.holdout -= 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[1].cases += 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[1].failedCases += 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[2].cases -= 1;
+    reports.C3_REAL_RESOLVER_FIXTURE_BASELINE.bySplit[2].failedCases -= 1;
+  }],
+  ["underreported labeled branded cases", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.labeledBrandedCases = 12;
+  }],
+  ["overreported labeled branded cases", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.labeledBrandedCases = 14;
+  }],
+  ["fabricated branded coverage", reports => {
+    reports.C3_OPEN_EVIDENCE_READINESS.representativity.roundingBrandedProfiles = 1;
+  }],
+  ["one diagnostic modality missing", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics.pop();
+  }],
+  ["diagnostic counts were inflated", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics[0].bySplit.holdout.cases += 1;
+  }],
+  ["supplementary modality silently used for candidate selection", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics[1].candidateSelection = "included";
+  }],
+  ["audio diagnostic hides macro divergence", reports => {
+    reports.C3_ITEM30_ROUNDING_CAMPAIGN.exploratoryModalityDiagnostics[0].bySplit.calibration.maxDelta.protein = 0.2;
+  }],
+]) {
+  test("RISK-001: misrepresented coverage fails closed: " + label, () => {
     assertC3MutationBlocked(mutate);
   });
 }
@@ -320,7 +432,7 @@ test("A-005: legitimate nonzero delta and multi-label baseline classes still pub
   for (const row of rounding.calibrationCandidateMetrics.calories) {
     row.maxDelta = 0.005;
     if (row.candidate < 0.005) Object.assign(row, {
-      passed: 1, failed: 1, failuresByClass: { rounding_delta: 1 },
+      passed: 35, failed: 1, failuresByClass: { rounding_delta: 1 },
     });
   }
   rounding.selectedTolerance.calories = 0.01;

@@ -171,6 +171,110 @@ export const C3_EVIDENCE_MARKERS = [
 const C3_SPLITS = ["acquisition", "calibration", "holdout"];
 const c3Count = value => Number.isSafeInteger(value) && value >= 0;
 
+// Exact cohort contract is preregistered in #1306 before any v2 CI run.
+const C3_ROUNDING_QUANTITIES_G = [30, 125, 750];
+// Fixed by the #1306 preregistration (issue comment 6478971288).
+// The validation contract is independent of producer-reported cohort IDs.
+export const C3_ROUNDING_PREREGISTERED_PROFILES = Object.freeze({
+  calibration: Object.freeze([
+    "taco-mortadela",
+    "taco-amendoim-grao-cru",
+    "taco-arroz-integral-cozido",
+    "taco-queijo-minas-frescal",
+    "taco-banana-nanica-crua",
+    "taco-batata-doce-cozida",
+    "taco-pao-trigo-forma-integral",
+    "taco-tomate-com-semente-cru",
+    "taco-laranja-baia-suco",
+    "taco-chocolate-ao-leite",
+    "taco-macarrao-instantaneo",
+    "taco-ovo-de-galinha-inteiro-cozido10minutos",
+  ]),
+  holdout: Object.freeze([
+    "taco-iogurte-natural",
+    "taco-pera-williams-crua",
+    "taco-feijao-carioca-cozido",
+    "taco-abacate-cru",
+    "taco-aveia-flocos-crua",
+    "taco-biscoito-doce-maisena",
+    "taco-leite-de-cabra",
+    "taco-mamao-papaia-cru",
+    "taco-alface-americana-crua",
+    "taco-frango-asa-com-pele-crua",
+    "taco-carne-bovina-acem-moido-cozido",
+    "taco-margarina-com-oleo-hidrogenado-sem-sal-80-de-lipideos",
+  ]),
+});
+const C3_ROUNDING_PROFILES_PER_SPLIT = 12;
+function c3RoundingCohortValid(rounding) {
+  if (rounding?.cohortRevision !== "c3-rounding-expanded-v2" ||
+      JSON.stringify(rounding.quantityGrams) !== JSON.stringify(C3_ROUNDING_QUANTITIES_G)) return false;
+  const names = [];
+  for (const [split, foodsKey, casesKey] of [
+    ["calibration", "calibrationFoodProfiles", "calibrationProfiles"],
+    ["holdout", "holdoutFoodProfiles", "holdoutProfiles"],
+  ]) {
+    const foods = rounding[foodsKey], cases = rounding[casesKey];
+    const preregistered = C3_ROUNDING_PREREGISTERED_PROFILES[split];
+    if (!Array.isArray(foods) || foods.length !== C3_ROUNDING_PROFILES_PER_SPLIT ||
+        !foods.every(food => typeof food === "string" && /^taco-[a-z0-9-]+$/.test(food)) ||
+        new Set(foods).size !== foods.length ||
+        !preregistered.every(food => foods.includes(food)) || !Array.isArray(cases)) return false;
+    names.push(...foods);
+    const expected = new Set(foods.flatMap(food =>
+      C3_ROUNDING_QUANTITIES_G.map(grams => food + "@" + grams + "g")));
+    if (cases.length !== expected.size || new Set(cases).size !== expected.size ||
+        !cases.every(value => expected.has(value))) return false;
+  }
+  // Comparing case IDs alone would miss the same TACO food on different
+  // quantities in calibration and holdout.
+  return new Set(names).size === names.length;
+}
+// The synthetic adapters exercise text supplied as transcript/caption; they
+// are NOT evidence of ASR/OCR quality or independent production labels.
+function c3RepresentativityValid(ready, rounding) {
+  const scope = ready?.representativity;
+  // The exact distribution is a frozen reference, independent of the test's
+  // reported counts. Changes require a deliberate corpus version revision.
+  const expected = { text: 65, audio_transcript: 3, image: 5, multimodal: 2 };
+  const expectedSplits = { acquisition: 3, calibration: 65, holdout: 7 };
+  const expectedLabeledBrandedCases = 13;
+  const modalityKeys = Object.keys(expected);
+  if (!scope || scope.source !== "golden-food-corpus-synthetic" ||
+      !Object.entries(expectedSplits).every(([split, count]) => ready.splits?.[split] === count) ||
+      scope.corpusVersion !== "golden-2026-10-06.2" || ready.corpusCases !== 75 ||
+      !scope.byModality || typeof scope.byModality !== "object" ||
+      Object.keys(scope.byModality).sort().join(",") !== [...modalityKeys].sort().join(",") ||
+      !modalityKeys.every(key => scope.byModality[key] === expected[key]) ||
+      Object.values(scope.byModality).reduce((sum, count) => sum + count, 0) !== ready.corpusCases ||
+      scope.labeledBrandedCases !== expectedLabeledBrandedCases ||
+      scope.roundingBrandedProfiles !== 0 ||
+      scope.roundingNutritionSource !== "TACO_4E" ||
+      scope.productionDecision !== "blocked-no-independent-representative-evidence" ||
+      JSON.stringify(scope.untestedDimensions) !== JSON.stringify([
+        "real_asr", "real_vision_ocr", "branded_nutrition",
+        "population_sampling", "independent_nominal_approval",
+      ])) return false;
+  const diagnostics = rounding.exploratoryModalityDiagnostics;
+  if (!Array.isArray(diagnostics) || diagnostics.length !== 2 ||
+      diagnostics[0]?.modality !== "audio_transcript" ||
+      diagnostics[1]?.modality !== "image") return false;
+  for (const row of diagnostics) {
+    if (row.candidateSelection !== "excluded" || row.inputKind !==
+        (row.modality === "image" ? "synthetic_caption" : "synthetic_transcript") ||
+        !row.bySplit || Object.keys(row.bySplit).sort().join(",") !== "calibration,holdout") return false;
+    for (const split of ["calibration", "holdout"]) {
+      const part = row.bySplit[split];
+      if (!part || part.cases !== rounding[split + "Profiles"].length ||
+          !part.maxDelta || Object.keys(part.maxDelta).sort().join(",") !== "calories,carbs,fat,protein" ||
+          !["calories", "protein", "carbs", "fat"].every(field =>
+            Number.isFinite(part.maxDelta[field]) && part.maxDelta[field] >= 0 &&
+            part.maxDelta[field] <= rounding.selectedTolerance[field])) return false;
+    }
+  }
+  return true;
+}
+
 function c3FailureClassesValid(classes, expectedTotal) {
   if (!classes || typeof classes !== "object" || Array.isArray(classes)) return false;
   const counts = Object.values(classes);
@@ -239,7 +343,8 @@ export function extractC3Evidence(log) {
       !Array.isArray(rounding.calibrationProfiles) || !rounding.calibrationProfiles.length ||
       !Array.isArray(rounding.holdoutProfiles) || !rounding.holdoutProfiles.length ||
       new Set([...rounding.calibrationProfiles, ...rounding.holdoutProfiles]).size !==
-        rounding.calibrationProfiles.length + rounding.holdoutProfiles.length) {
+        rounding.calibrationProfiles.length + rounding.holdoutProfiles.length ||
+       !c3RoundingCohortValid(rounding)) {
     throw new Error("C3: invalid independent calibration/holdout or baseline");
   }
   for (const field of ["calories", "protein", "carbs", "fat"]) {
@@ -279,7 +384,9 @@ export function extractC3Evidence(log) {
         Array.isArray(ready.blockers?.[item]) && ready.blockers[item].length) ||
       baseline.resolver?.id !== "food-intelligence-v2-domain-resolver" ||
       !["blocked", "failed", "sample_missing"].includes(baseline.gate) ||
-      !c3BaselineConsistent(ready, baseline)) {
+      !c3BaselineConsistent(ready, baseline) ||
+      baseline.corpusVersion !== ready.representativity?.corpusVersion ||
+      !c3RepresentativityValid(ready, rounding)) {
     throw new Error("C3: incomplete or contradictory resolver baseline/readiness metrics");
   }
   return reports;

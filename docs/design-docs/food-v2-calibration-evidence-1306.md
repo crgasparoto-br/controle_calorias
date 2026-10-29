@@ -20,7 +20,7 @@ Estado deste arquivo: **pré-registro preservado + resultados posteriores**. As 
 
 A fonte primária TACO é pública e produzida pelo NEPA/UNICAMP. O snapshot do repositório não recebe, por isso, autorização automática para promoção global: licenciamento, governança e validade continuam sendo controles próprios.
 
-## Campanha item 30 — arredondamento
+## Campanha inicial v1, item 30 — arredondamento
 
 Fronteira: valores canônicos internos antes de formatação de UI.
 
@@ -39,6 +39,108 @@ Candidatos:
 - proteína/carboidratos/gordura, em g: 0; 1e-12; 1e-9; 1e-6; 0.0001; 0.001; 0.01; 0.1.
 
 Seleção: menor candidato que cubra todas as diferenças da calibração. Depois do lock, o mesmo valor precisa cobrir todo o holdout. Resultado de teste não significa aprovação nominal.
+
+## Ampliação da campanha de arredondamento v2 (pré-registro 28/10/2026)
+
+Esta extensão trata **RISK-001**, sem substituir o pré-registro, as medições ou o
+holdout histórico v1 (2 perfis + 2 perfis, 30 g ↔ 0,03 kg).
+A seleção da nova coorte e das quantidades foi depositada na issue **antes**
+da primeira execução: [pré-registro #6478971288](https://github.com/crgasparoto-br/controle_calorias/issues/1306#issuecomment-6478971288).
+
+- **Calibração v2:** 12 perfis TACO independentes da escolha do resolver;
+  inclui Mortadela e Amendoim, além de arroz, queijo, banana, batata,
+  pão, tomate, suco de laranja, chocolate, macarrão e ovo.
+- **Holdout v2:** 12 perfis TACO reservados; inclui Iogurte e Pêra, além
+  de feijão, abacate, aveia, biscoito, leite de cabra, mamão, alface,
+  frango, carne bovina e margarina. Nenhum perfil TACO pode aparecer nos
+  dois conjuntos, mesmo em outra quantidade.
+- **Equivalências por perfil:** 30 g ↔ 0,03 kg, 125 g ↔ 0,125 kg e
+  750 g ↔ 0,75 kg: **36 pares de calibração + 36 pares de holdout**.
+  Cada comparação afirma também a quantidade e os quatro nutrientes
+  calculados sobre o perfil TACO de 100 g, rejeitando falsos resultados
+  iguais derivados de quantidade ou base nutricional errada.
+- **Critério:** mesma grade original de candidatos, menor candidato que
+  cubra os pares da calibração; holdout não participa da escolha.
+  A CI publica `cohortRevision=c3-rounding-expanded-v2`,
+  `calibrationFoodProfiles`, `holdoutFoodProfiles`, `quantityGrams` e
+  as métricas de cada caso/candidato. O extrator também confronta os 24
+  slugs TACO com o pré-registro imutável, recusando a troca de um perfil por
+  outro existente mesmo que todos os pares e contadores continuem coerentes.
+  Também bloqueia duplicatas, pares ausentes e contagens inconsistentes.
+- **Exclusões:** perfis sem qualquer nutriente central válido (por exemplo
+  registros com os quatro campos zero) são inválidos para esta medição.
+  Não representam um novo oráculo nutricional nem devem ser tratados como
+  valor calórico zero real.
+- **Limite:** ampliação de **equivalência numérica texto/quantidade**
+  em fonte controlada; não comprova equivalência multimodal, segurança
+  de decisão por fonte, materialidade, acurácia ≥95% ou amostragem
+  populacional. Os itens ADR 2/7/8/17/19/22 continuam dependentes de
+  rótulos independentes e/ou ensaios externos autorizados.
+  O item 30 **permanece OPEN até aprovação nominal e evidência
+  governada**. Nenhuma tolerância é aplicada em produção.
+
+### Correção de gramática constatada no run CI #40758426539
+
+O primeiro run ampliado recusou corretamente completar o ensaio: a quantidade
+`0,125 kg` não era reconhecida pela regra de ambiguidade de milhares no parser
+canônico (era tratada como `1.000`). A distinção agora preserva
+`1.000`/`1,500` como ambíguos, mas aceita somente a fração explícita
+`0,xxx` como decimal físico; exemplos positivos e negativos estão em
+`linguisticComprehension.test.ts`. O pré-registro dos pares, seus perfis e as
+grades de seleção **não foram alterados** após observar essa falha.
+
+### Correção A-006 — identidade exata na fixture do arredondamento
+
+O run #40760637868 falhou porque a fixture dizia ter uma variante TACO
+`exact_variant` mas enviava ao resolvedor descrições abreviadas como
+`pão integral` em vez de `Pão, trigo, forma, integral`. O núcleo C2
+rejeita corretamente qualificadores sem identidade governada suficiente.
+O ensaio agora constrói as superfícies apenas a partir dos nomes canônicos
+completos das mesmas variantes pré-registradas; o controle negativo garante
+que descrições abreviadas não recebam nutrição verificada artificialmente.
+
+Este protocolo mede equivalência física e arredondamento no **mesmo perfil
+governado**, não certifica reconhecimento de aliases nem altera a política
+de compatibilidade do resolvedor. Perfis, splits, quantidades e tolerâncias
+pré-registrados permanecem inalterados.
+
+## Diagnóstico complementar RISK-001 — representatividade e fronteira de evidência
+
+Pré-registrado antes da primeira alteração material da presente rodada em
+[issuecomment #6482193953](https://github.com/crgasparoto-br/controle_calorias/issues/1306#issuecomment-6482193953),
+partindo de `develop@5e64e7615945f013c19f9c0efc154e2d59ea8de1` e da PR #1333.
+**Não altera os 24 perfis, as três quantidades, os candidatos, o lock ou o holdout v2.**
+
+- Após selecionar candidatos pela calibração textual e verificar o holdout textual,
+  executar diagnóstico **não decisório** com o mesmo resolvedor C2: para cada
+  um dos 12+12 perfis e cada quantidade de 30/125/750 g, comparar as duas
+  superfícies físicas equivalentes como `audio_transcript` (transcrição
+  **sintética**) e como `image` com `imageRegionRole=caption` (legenda **sintética**).
+  Por modalidade: 36 pares de calibração + 36 de holdout, **144 pares extras**
+  entre as duas modalidades e 288 resoluções; o resultado é segmentado por
+  `modality`, `split`, `cases` e `maxDelta` dos quatro nutrientes. A fonte
+  TACO e a identidade da variante continuam fixas e os macros são conferidos
+  contra o perfil por 100 g, não só entre duas respostas iguais.
+- O relatório `C3_OPEN_EVIDENCE_READINESS.representativity` inventaria as
+  modalidades sintéticas presentes no Golden Food Corpus, vinculando versão
+  `golden-2026-10-06.2` às contagens exatas (65 texto, 3 transcrição,
+  5 imagem e 2 multimodal) e a **13 casos com marca esperada**; também fixa a fonte nutricional da campanha e os limites reais
+  de cobertura. O extrator recusa ausência/troca de modalidade, falsa
+  promoção produtiva, declaração de marca testada, contagens adulteradas,
+  uso do diagnóstico para selecionar candidato e divergência acima do lock.
+- **Não confundir modalidades de *texto fornecido* com reconhecimento de
+  áudio ou imagem reais.** O diagnóstico não executa ASR, OCR, visão,
+  interpretação de fotos, comparação de marcas/variantes comerciais nem
+  amostragem populacional. Golden Food Corpus possui rótulos normativos
+  sintéticos; não fornece aprovação independente dos thresholds C3. Por
+  isso o relatório declara sempre
+  `productionDecision=blocked-no-independent-representative-evidence`.
+- Liberar valor numérico em produção continua exigindo amostra governada
+  com diversidade externa comprovada, evidência por fonte/campo/modalidade,
+  comparativo com baseline, qualidade/custo/latência quando aplicáveis,
+  revalidação de holdout no SHA exato, responsável nominal e aprovação
+  versionada na ADR §16.2/§25. Sem esses requisitos, itens 2/7/8/17/19/22/30
+  e a issue #1306 permanecem `OPEN`. Não alterar rollout nem metas de §1.1.
 
 ## Pré-registro integral dos parâmetros C3
 
@@ -103,7 +205,7 @@ rejeita métricas contraditórias sem gerar manifesto, mantém controles positiv
 e inclui ataques irmãos além dos quatro cenários originais da auditoria.
 O gate valida evidências, **não** aprova automaticamente nenhum threshold.
 
-### Item 30 — candidato medido, ainda não aprovado
+### Item 30 — resultado da campanha inicial v1, ainda não aprovado
 
 Os quatro campos numéricos centrais do contrato V2 (`calories`, `protein`, `carbs`, `fat`) apresentaram **delta máximo 0** entre as superfícies fisicamente equivalentes `30 g` e `0,03 kg` nos perfis de calibração. Pelo critério pré-registrado, o menor candidato selecionado foi:
 
@@ -112,7 +214,7 @@ Os quatro campos numéricos centrais do contrato V2 (`calories`, `protein`, `car
 - carboidratos: **0 g**;
 - gordura: **0 g**.
 
-O holdout reservado, aberto somente depois do lock, também apresentou delta máximo 0 para os quatro campos nos perfis `taco-iogurte-natural` e `taco-pera-williams-crua`. A regressão executável fixa esse resultado em `MEASURED_ITEM30_CANDIDATE` sem alterar `CORPUS_ROUNDING_TOLERANCE`: o valor medido **não é promovido para política aprovada** enquanto faltar aprovação nominal explícita exigida pela ADR §16.2/§25.
+O holdout reservado, aberto somente depois do lock, também apresentou delta máximo 0 para os quatro campos nos perfis `taco-iogurte-natural` e `taco-pera-williams-crua`. A medição histórica v1 é verificável no artefato exact-HEAD do run #40697782286. A campanha ampliada v2 não utiliza mais a constante `MEASURED_ITEM30_CANDIDATE` como oráculo e não altera `CORPUS_ROUNDING_TOLERANCE`: o valor medido **não é promovido para política aprovada** enquanto faltar aprovação nominal explícita exigida pela ADR §16.2/§25.
 
 O relatório empírico agora registra **cada candidato** por nutriente com `cases`, `passed`, `failed`, `maxDelta` e `failuresByClass`; compara o candidato selecionado ao baseline atual `open-fail-closed-zero-divergence`; e publica as métricas do holdout somente para o valor já congelado. Um controle negativo sintético comprova que uma divergência acima do candidato aparece como `rounding_delta_exceeds_candidate:<campo>`, impedindo que uma média esconda falha por classe.
 
