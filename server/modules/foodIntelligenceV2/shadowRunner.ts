@@ -77,10 +77,10 @@ type LanguageEvidence = {
 };
 
 function selectOriginalEvidence(input: MealProcessingInput): LanguageEvidence {
-  const text = input.text?.trim() || null;
-  const transcript = input.transcript?.trim() || null;
-  const hasImage = !!input.imageUrl;
-  const hasAudio = !!input.audioUrl;
+  const text = typeof input.text === "string" ? input.text.trim() || null : null;
+  const transcript = typeof input.transcript === "string" ? input.transcript.trim() || null : null;
+  const hasImage = typeof input.imageUrl === "string" && input.imageUrl.length > 0;
+  const hasAudio = typeof input.audioUrl === "string" && input.audioUrl.length > 0;
   const multimodal = Boolean((hasImage || hasAudio) && (text || transcript) || text && transcript);
   // Never feed a V1 semanticContract, V1 model output or synthetic text
   // reconstructed from an image back into the V2 linguistic layer.

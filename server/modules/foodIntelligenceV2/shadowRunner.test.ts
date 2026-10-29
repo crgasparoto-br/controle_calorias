@@ -35,6 +35,17 @@ function fixture() {
 }
 
 describe("#1307 read-only V1/V2 shadow execution", () => {
+  it("lets V1 own validation of malformed data without a premature shadow exception", async () => {
+    const f = fixture();
+    f.deps.enabled = false;
+    const invalid = { text: { unexpected: "value" } } as unknown as Parameters<typeof f.runV1>[0];
+    const expected = baseV1();
+    f.runV1.mockResolvedValueOnce(expected);
+    await expect(runMealWithFoodV2Shadow(invalid, f.deps)).resolves.toBe(expected);
+    expect(f.runV1).toHaveBeenCalledExactlyOnceWith(invalid);
+    expect(f.load).not.toHaveBeenCalled();
+  });
+
   it("never touches V2, gate, providers or sink while the flag is off", async () => {
     const f = fixture();
     f.deps.enabled = false;
