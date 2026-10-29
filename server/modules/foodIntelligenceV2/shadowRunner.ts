@@ -124,6 +124,9 @@ export async function runMealWithFoodV2Shadow(
   input: MealProcessingInput,
   deps: FoodShadowDependencies,
 ): Promise<CanonicalMealProcessingResult> {
+  // Capture the original surface before V1 can normalize or mutate the input.
+  // A changed V1 draft is never evidence for a separate V2 observation.
+  const evidence = selectOriginalEvidence(input);
   const v1Start = Date.now();
   let v1: CanonicalMealProcessingResult | null = null;
   let v1Failed = false;
@@ -145,7 +148,6 @@ export async function runMealWithFoodV2Shadow(
   catch { return replayV1(); }
   if (!validGateA(approval)) return replayV1();
 
-  const evidence = selectOriginalEvidence(input);
   // Never use user identifiers or user content as telemetry correlation values.
   const traceId = deps.traceId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deps.traceId)
     ? deps.traceId : randomUUID();

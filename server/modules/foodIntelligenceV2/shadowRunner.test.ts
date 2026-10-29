@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AiInferenceEvent } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult } from "../../nutritionEngineTypes";
 import { buildV1HistoricalSnapshotFixture, buildFoodObservationFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
-import type { FoodKnowledgeStore } from "./knowledgeRead";
+import type { FoodKnowledgeRequest, FoodKnowledgeStore } from "./knowledgeRead";
 import type { LinguisticLexiconStore } from "./linguisticComprehension";
 import { buildFoodShadowBaseline, buildFoodShadowEvent, summarizeFoodShadowCapabilityUsage, type FoodShadowEvent } from "./shadowComparison";
 import { readOnlyFoodKnowledge, runMealWithFoodV2Shadow } from "./shadowRunner";
@@ -11,7 +11,7 @@ const traceId = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
 const baseV1 = () => buildV1HistoricalSnapshotFixture() as CanonicalMealProcessingResult;
 
 function fixture() {
-  const readLocal = vi.fn(async () => ({ kind: "miss", reason: "not_found" } as const));
+  const readLocal = vi.fn(async (_request: FoodKnowledgeRequest) => ({ kind: "miss", reason: "not_found" } as const));
   const readPendingEvidence = vi.fn(async () => null);
   const stagePendingEvidence = vi.fn(async () => true);
   const knowledge: FoodKnowledgeStore = { readLocal, readPendingEvidence, stagePendingEvidence };
@@ -69,11 +69,15 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     const f = fixture();
     const input = { text: "100 g de arroz" };
     const original = baseV1();
-    f.runV1.mockResolvedValueOnce(original);
+    f.runV1.mockImplementationOnce(async request => {
+      request.text = "100 g de banana";
+      return original;
+    });
     const result = await runMealWithFoodV2Shadow(input, f.deps);
     expect(result).toBe(original);
     expect(f.load).toHaveBeenCalledOnce();
     expect(f.readLocal).toHaveBeenCalled();
+    expect(f.readLocal.mock.calls[0][0].normalizedName).toBe("arroz");
     expect(f.stagePendingEvidence).not.toHaveBeenCalled();
     expect(f.emit).toHaveBeenCalledOnce();
     const event = f.emit.mock.calls[0][0];
