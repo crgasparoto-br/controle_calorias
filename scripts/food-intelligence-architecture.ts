@@ -1075,7 +1075,7 @@ function referencesLiteralRegex(target: ts.Expression, node: ts.Node): boolean {
 function isStructuralInputRegex(target: ts.Expression, node: ts.Node): boolean {
   const literal = resolveLiteralRegexPattern(target, node);
   return literal !== null && [
-    String.raw`/[\\u0300-\\u036f]/g`, String.raw`/\\s+/g`,
+    String.raw`/[\u0300-\u036f]/g`, String.raw`/\s+/g`,
     String.raw`/^[0-9a-f]{40}$/i`,
     String.raw`/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i`,
   ].includes(literal);
