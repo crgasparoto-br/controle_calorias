@@ -124,8 +124,10 @@ async function observeFoodV2Shadow(
   v1Ms: number,
   v1Start: number,
 ): Promise<void> {
+  const verifyGateA = deps.verifyGateA;
+  if (!verifyGateA) return;
   let approval: GateAApproval | null;
-  try { approval = await deps.verifyGateA(); }
+  try { approval = await verifyGateA(); }
   catch { return; }
   if (!validGateA(approval)) return;
 

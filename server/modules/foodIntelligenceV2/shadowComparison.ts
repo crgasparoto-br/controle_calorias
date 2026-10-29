@@ -107,7 +107,7 @@ function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): num
   return (exactDifference(left.brand, right.identity.brand) ? 1000000 : 0) +
     (exactDifference(left.productVariant, right.identity.variant) ? 1000000 : 0) +
     (exactDifference(left.unit, right.quantity.unit) ? 100000 : 0) +
-    (abs(left.quantity, right.quantity.value) ?? 1000) * 1000 +
+    (right.quantity.value === null ? 1000 : (abs(left.quantity, right.quantity.value) ?? 1000)) * 1000 +
     (right.quantity.grams === null ? 0 : (abs(left.estimatedGrams, right.quantity.grams) ?? 1000) * 10) +
     macroDelta;
 }
