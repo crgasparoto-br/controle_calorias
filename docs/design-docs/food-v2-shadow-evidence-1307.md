@@ -76,7 +76,8 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
 - Replay por classe/modalidade: agrupar contagens sem afirmar acurácia.
 - A-001/A-002/A-003 (auditoria da PR #1334): matcher Vitest compatível,
   V1 independente de Gate A/read/emit pendentes e testes metamórficos de
-  permutação, duplicatas, inserção, mudança de identidade e macros reais.
+  permutação, duplicatas, inserção, remoção, troca real de variante,
+  mudança de identidade e macros reais.
 - Leitor histórico: catalogação alterada, ID ausente, variante aposentada,
   classificação inválida e duas variantes homônimas não alteram macros
   ou classificação registrada.

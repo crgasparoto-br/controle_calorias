@@ -311,13 +311,20 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       right("Café", 5), right("Feijão", 200)]);
     expect(insertion.differences).toMatchObject({ comparablePairs: 2, unpairedItems: 1,
       identity: 0, nutrition: 0, macros: { calories: 0 } });
+    const removal = event([arroz, feijao], [right("Feijão", 200)]);
+    expect(removal.differences).toMatchObject({ comparablePairs: 1, unpairedItems: 1,
+      identity: 0, nutrition: 0, macros: { calories: 0 } });
+    const variantChange = event([left("Leite", 100, 100, "integral")],
+      [right("Leite", 100, 100, "desnatado")]);
+    expect(variantChange.differences).toMatchObject({ comparablePairs: 1,
+      unpairedItems: 0, variant: 1, nutrition: 0, macros: { calories: 0 } });
     const rename = event([arroz], [right("Feijão", 200)]);
     expect(rename.differences).toMatchObject({ comparablePairs: 0, unpairedItems: 2,
       identity: 1, nutrition: 0, macros: { calories: null } });
     const realChange = event([arroz], [right("Arroz", 105)]);
     expect(realChange.differences).toMatchObject({ comparablePairs: 1, unpairedItems: 0,
       nutrition: 1, macros: { calories: 5 } });
-    expect(buildFoodShadowBaseline([reversed, variants, insertion]).verifiedAccuracy).toBeNull();
+    expect(buildFoodShadowBaseline([reversed, variants, insertion, removal, variantChange]).verifiedAccuracy).toBeNull();
   });
 
   it("retains micro-dollar costs instead of rounding billable attempts to zero", () => {
