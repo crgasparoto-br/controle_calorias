@@ -310,9 +310,11 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     const insertion = event([arroz, feijao], [right("Arroz", 100),
       right("Café", 5), right("Feijão", 200)]);
     expect(insertion.differences).toMatchObject({ comparablePairs: 2, unpairedItems: 1,
+      v1UnpairedItems: 0, v2UnpairedItems: 1,
       identity: 0, nutrition: 0, macros: { calories: 0 } });
     const removal = event([arroz, feijao], [right("Feijão", 200)]);
     expect(removal.differences).toMatchObject({ comparablePairs: 1, unpairedItems: 1,
+      v1UnpairedItems: 1, v2UnpairedItems: 0,
       identity: 0, nutrition: 0, macros: { calories: 0 } });
     const variantChange = event([left("Leite", 100, 100, "integral")],
       [right("Leite", 100, 100, "desnatado")]);
@@ -320,11 +322,32 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       unpairedItems: 0, variant: 1, nutrition: 0, macros: { calories: 0 } });
     const rename = event([arroz], [right("Feijão", 200)]);
     expect(rename.differences).toMatchObject({ comparablePairs: 0, unpairedItems: 2,
+      v1UnpairedItems: 1, v2UnpairedItems: 1,
       identity: 1, nutrition: 0, macros: { calories: null } });
     const realChange = event([arroz], [right("Arroz", 105)]);
     expect(realChange.differences).toMatchObject({ comparablePairs: 1, unpairedItems: 0,
       nutrition: 1, macros: { calories: 5 } });
-    expect(buildFoodShadowBaseline([reversed, variants, insertion, removal, variantChange]).verifiedAccuracy).toBeNull();
+    // A-005: the baseline must not erase one-sided insertions or removals.
+    // Reordering never creates a gap; genuine nutritional drift stays separate.
+    const baseline = buildFoodShadowBaseline([reversed, insertion, removal, rename, realChange]);
+    expect(baseline.verifiedAccuracy).toBeNull();
+    expect(baseline.rolloutEligible).toBe(false);
+    expect(baseline.segments).toHaveLength(1);
+    expect(baseline.segments[0]).toMatchObject({
+      modality: "text", scenarioClass: "mixed", runs: 5, compared: 5,
+      pairedItems: 6, unpairedItems: 4, v1UnpairedItems: 2, v2UnpairedItems: 2,
+      identityDifferences: 1, nutritionDifferences: 1, macroAbsDelta: { calories: 5 },
+    });
+    // Missing evidence from a partial multimodal run must remain observable,
+    // but cannot be counted as a complete comparable pair or verified accuracy.
+    const partial = buildFoodShadowBaseline([{
+      ...insertion, modality: "multimodal" as const, run: "partial" as const,
+    }]);
+    expect(partial.segments[0]).toMatchObject({
+      runs: 1, compared: 0, partial: 1, pairedItems: 0,
+      unpairedItems: 1, v1UnpairedItems: 0, v2UnpairedItems: 1,
+      nutritionDifferences: 0, macroAbsDelta: { calories: null },
+    });
   });
 
   it("retains micro-dollar costs instead of rounding billable attempts to zero", () => {

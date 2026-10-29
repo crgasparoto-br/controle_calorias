@@ -31,7 +31,10 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 - `shadowComparison.ts` pareia por identidade normalizada e variante antes
   de comparar quantidades/macros, preservando duplicatas e separando itens
   sem correspondência. Mudança de ordem não cria falsa divergência, e item
-  sem par não contamina deltas nutricionais. Registra contagens e diferenças
+  sem par não contamina deltas nutricionais. O baseline consolida itens
+  sem par com contadores separados V1/V2 por classe/modalidade, inclusive
+  em observações parciais, sem alterar o denominador dos pares completos.
+  Registra contagens e diferenças
   estruturadas (identidade, variante, quantidade, fonte, macros, clarificação),
   etapas S1/S2/S3, tempo total/estágios e suspeita de fallback silencioso.
   Nunca registra texto, nome, mídia, URL, barcode, telefone, ID de titular,
@@ -47,8 +50,10 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 
 1. `server/repositories/mealsRepository.ts` usa `shadowReadOnly=true` para
    ler os macros e a classificação salvos quando houver snapshot válido;
-   `historicalRef` vem apenas do ID persistido, jamais do catálogo atual.
-   O leitor público V1 continua com o formato anterior.
+   `historicalRef` prioriza `foodVariantId` persistido, com fallback para
+   `foodId` e depois `foodCatalogId` legados. Não consulta catálogo atual
+   nem inventa variante quando não há ID salvo. O leitor público V1
+   continua com o formato anterior.
 2. `server/householdMeasureMealUpdate.ts` expõe
    `projectHistoricalHouseholdItemsForShadow` sem consulta nem remapeamento
    por nome. O escritor/atualizador produtivo V1 permanece inalterado.
@@ -78,6 +83,12 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
   V1 independente de Gate A/read/emit pendentes e testes metamórficos de
   permutação, duplicatas, inserção, remoção, troca real de variante,
   mudança de identidade e macros reais.
+- A-005: baseline preserva contagem e direção de itens sem par em inserção,
+  remoção e identidade trocada; permutação não gera falso desvio; evento
+  parcial permanece visível sem contaminar pares/macros completos.
+- A-006: leitor do banco utiliza `foodVariantId` persistido para separar
+  variantes homônimas da mesma família e catálogo, propagando a referência
+  até agregação de qualidade; fallback legado e formato V1 intactos.
 - Leitor histórico: catalogação alterada, ID ausente, variante aposentada,
   classificação inválida e duas variantes homônimas não alteram macros
   ou classificação registrada.

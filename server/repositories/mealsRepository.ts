@@ -450,9 +450,12 @@ async function loadSavedMeals(
             foodCatalogId: item.foodCatalogId ?? null,
             // Preserve V1's public record shape until a separate cutover.
             ...(options.shadowReadOnly ? {
-              historicalRef: item.foodId
-                ? "food:" + item.foodId
-                : item.foodCatalogId ? "catalog:" + item.foodCatalogId : null,
+              // A-006: a persisted V2 variant outranks its family and legacy
+              // catalog identifier; never re-infer a missing variant by name.
+              historicalRef: item.foodVariantId != null
+                ? "variant:" + item.foodVariantId
+                : item.foodId != null ? "food:" + item.foodId
+                : item.foodCatalogId != null ? "catalog:" + item.foodCatalogId : null,
               classification: parseSavedQuality(item.foodSnapshotJson),
             } : {}),
             foodName: item.foodName,

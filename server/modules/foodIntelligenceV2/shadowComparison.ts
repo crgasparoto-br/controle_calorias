@@ -42,7 +42,10 @@ export type FoodShadowEvent = {
   context: { previousMessage: FoodShadowContextStatus; preferences: FoodShadowContextStatus; recentHistory: FoodShadowContextStatus };
   differences: {
     comparablePairs: number;
+    /** Sanitised missing-item counts, preserving which resolver omitted an item. */
     unpairedItems: number;
+    v1UnpairedItems: number;
+    v2UnpairedItems: number;
     identity: number;
     variant: number;
     quantity: number;
@@ -232,6 +235,7 @@ export function buildFoodShadowEvent(input: {
   const macroKeys = Object.keys(macros) as Array<keyof typeof macros>;
   const differences = {
     comparablePairs, unpairedItems: leftUnpaired + rightUnpaired,
+    v1UnpairedItems: leftUnpaired, v2UnpairedItems: rightUnpaired,
     // Remaining unmatched items on both sides indicate a possible identity change,
     // not a verified error or a license to compare unrelated macro values.
     identity: Math.min(leftUnpaired, rightUnpaired), variant: 0, quantity: 0, nutrition: 0, source: 0,
@@ -327,7 +331,10 @@ export function buildFoodShadowEvent(input: {
 export type FoodShadowBaselineSegment = {
   modality: FoodShadowModality; scenarioClass: FoodShadowClass;
   runs: number; compared: number; failed: number; partial: number;
-  pairedItems: number; identityDifferences: number; variantDifferences: number;
+  pairedItems: number;
+  /** Observed gaps, including partial runs; not verified matching errors. */
+  unpairedItems: number; v1UnpairedItems: number; v2UnpairedItems: number;
+  identityDifferences: number; variantDifferences: number;
   quantityDifferences: number; nutritionDifferences: number; sourceDifferences: number;
   clarificationDifferences: number; potentialSilentFallbacks: number;
   missingNutritionProvenance: number; explicitFailures: number;
@@ -345,6 +352,7 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     const row = segments.get(key) ?? {
       modality: event.modality, scenarioClass: event.scenarioClass,
       runs: 0, compared: 0, failed: 0, partial: 0, pairedItems: 0,
+      unpairedItems: 0, v1UnpairedItems: 0, v2UnpairedItems: 0,
       identityDifferences: 0, variantDifferences: 0, quantityDifferences: 0,
       nutritionDifferences: 0, sourceDifferences: 0, clarificationDifferences: 0,
       potentialSilentFallbacks: 0, missingNutritionProvenance: 0, explicitFailures: 0,
@@ -355,7 +363,12 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     if (event.run === "compared") row.compared++;
     if (event.run === "partial") row.partial++;
     if (event.run === "failed") row.failed++;
-    // Partial/unpaired events are visible, but never in the comparison denominator.
+    // Report missing items even for partial observations; they never increase
+    // the eligible-pair denominator or imply a verified accuracy failure.
+    row.unpairedItems += event.differences.unpairedItems;
+    row.v1UnpairedItems += event.differences.v1UnpairedItems;
+    row.v2UnpairedItems += event.differences.v2UnpairedItems;
+    // Only complete comparisons contribute to paired/macro denominators.
     if (event.run === "compared") {
       row.pairedItems += event.differences.comparablePairs;
       row.identityDifferences += event.differences.identity;
