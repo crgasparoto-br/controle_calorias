@@ -28,7 +28,6 @@ export type MealFoodQualityItem = {
     processingLevel: FoodProcessingLevel;
     isFruit: boolean;
     isVegetable: boolean;
-    isUltraProcessed: boolean;
     fiberGrams: number;
   } | null;
   foodName: string;
@@ -230,14 +229,14 @@ export function calculateQualityIndicators(
           if (Number.isFinite(saved.fiberGrams) && saved.fiberGrams >= 0) acc.fiberGrams += saved.fiberGrams;
           if (saved.isFruit) acc.fruitServings += servings;
           if (saved.isVegetable) acc.vegetableServings += servings;
-          if (saved.isUltraProcessed) acc.ultraProcessedServings += servings;
+          if (saved.processingLevel === "ultra_processed") acc.ultraProcessedServings += servings;
           acc.foodQualityItems.push({
             calories: itemCalories, foodCatalogId: item.foodCatalogId ?? null,
             historicalRef: item.historicalRef ?? null,
             foodName: item.foodName, canonicalName: item.canonicalName,
             portionText: item.portionText, processingLevel: saved.processingLevel,
             isClassified: true, isFruit: saved.isFruit, isVegetable: saved.isVegetable,
-            isUltraProcessed: saved.isUltraProcessed,
+            isUltraProcessed: saved.processingLevel === "ultra_processed",
           });
           continue;
         }

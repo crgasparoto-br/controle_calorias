@@ -137,13 +137,12 @@ function readPersistedMealClassification(value: string | null | undefined): Meal
     if (!["natural_or_minimally_processed", "processed_culinary_ingredient",
           "processed", "ultra_processed"].includes(String(c.processingLevel))) return null;
     if (typeof c.isFruit !== "boolean" || typeof c.isVegetable !== "boolean" ||
-        typeof c.isUltraProcessed !== "boolean" ||
         typeof c.fiberGrams !== "number" || !Number.isFinite(c.fiberGrams) ||
         c.fiberGrams < 0) return null;
     return {
       processingLevel: c.processingLevel as NonNullable<MealDraftItem["classification"]>["processingLevel"],
       isFruit: c.isFruit, isVegetable: c.isVegetable,
-      isUltraProcessed: c.isUltraProcessed, fiberGrams: c.fiberGrams,
+      fiberGrams: c.fiberGrams,
     };
   } catch { return null; }
 }

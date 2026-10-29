@@ -185,7 +185,7 @@ export function buildFoodShadowEvent(input: {
     if (exactDifference(left.canonicalName, right.identity.canonicalName)) differences.identity++;
     if (exactDifference(left.brand, right.identity.brand) ||
         exactDifference(left.productVariant, right.identity.variant)) differences.variant++;
-    if (left.quantity !== right.quantity ||
+    if (left.quantity !== right.quantity.value ||
         exactDifference(left.unit, right.quantity.unit) ||
         (right.quantity.grams !== null && abs(left.estimatedGrams, right.quantity.grams) !== 0))
       differences.quantity++;
