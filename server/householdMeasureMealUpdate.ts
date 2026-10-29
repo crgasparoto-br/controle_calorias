@@ -22,14 +22,13 @@ export class HouseholdMeasureLearningUpdateError extends Error {
   }
 }
 
-function preserveResolvedCatalogIds(items: MealDraftItem[]) {
+/** Snapshot-safe update keys: never reassign another item's ID by a matching name. */
+export function preserveResolvedCatalogIds(items: MealDraftItem[]) {
   const ids = new Map<string, number>();
   for (const item of items) {
     const id = Number(item.foodCatalogId);
     if (!Number.isFinite(id) || id <= 0) continue;
     ids.set(foodCatalogDirectKey(id), id);
-    if (item.canonicalName) ids.set(item.canonicalName, id);
-    if (item.foodName) ids.set(item.foodName, id);
   }
   return ids;
 }

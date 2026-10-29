@@ -124,6 +124,30 @@ function readMealItemResolution(value: string | null | undefined) {
   }
 }
 
+/**
+ * Read an existing persisted classification only. A current catalog ID, name
+ * or nutrition reference cannot synthesize historical classification (Gate 19).
+ */
+function readPersistedMealClassification(value: string | null | undefined): MealDraftItem["classification"] {
+  if (!value) return null;
+  try {
+    const row = JSON.parse(value) as { classification?: Record<string, unknown> | null };
+    const c = row?.classification;
+    if (!c || typeof c !== "object" || Array.isArray(c)) return null;
+    if (!["natural_or_minimally_processed", "processed_culinary_ingredient",
+          "processed", "ultra_processed"].includes(String(c.processingLevel))) return null;
+    if (typeof c.isFruit !== "boolean" || typeof c.isVegetable !== "boolean" ||
+        typeof c.isUltraProcessed !== "boolean" ||
+        typeof c.fiberGrams !== "number" || !Number.isFinite(c.fiberGrams) ||
+        c.fiberGrams < 0) return null;
+    return {
+      processingLevel: c.processingLevel as NonNullable<MealDraftItem["classification"]>["processingLevel"],
+      isFruit: c.isFruit, isVegetable: c.isVegetable,
+      isUltraProcessed: c.isUltraProcessed, fiberGrams: c.fiberGrams,
+    };
+  } catch { return null; }
+}
+
 function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>) {
   return items.map(item => ({
     ...(() => {
@@ -424,6 +448,11 @@ export function createDrizzleMealsRepository(deps: {
           const list = itemsByMealId.get(item.mealId) ?? [];
           list.push({
             foodCatalogId: item.foodCatalogId ?? null,
+            // The read projection never invokes resolveMealItemFoodCatalogId.
+            historicalRef: item.foodId
+              ? "food:" + item.foodId
+              : item.foodCatalogId ? "catalog:" + item.foodCatalogId : null,
+            classification: readPersistedMealClassification(item.foodSnapshotJson),
             foodName: item.foodName,
             canonicalName: item.canonicalName,
             portionText: item.portionText,
