@@ -28,8 +28,9 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   externo, estimativa e promoção de conhecimento ficam desativados.
   O store V2 oferece somente `readLocal`/`readPendingEvidence` e recusa
   `stagePendingEvidence`.
-- `shadowComparison.ts` pareia por identidade normalizada e variante antes
-  de comparar quantidades/macros, preservando duplicatas e separando itens
+- `shadowComparison.ts` utiliza o pareador puro `shadowPairing.ts` para alinhar
+  identidade normalizada e variante antes de comparar quantidades/macros,
+  preservando duplicatas e separando itens
   sem correspondência. Mudança de ordem não cria falsa divergência, e item
   sem par não contamina deltas nutricionais. Exceção V1 de clarificação
   produz observação parcial com divergência de clarificação mensurável,
@@ -138,7 +139,8 @@ do livro de dívida.
 
 ## Diagnóstico de baseline offline (preparação A-004)
 
-- O agregador `buildFoodShadowBaseline` separa observações **também por entrypoint**
+- O agregador `buildFoodShadowBaseline` (`shadowBaseline.ts`, reexportado
+  pelo contrato `shadowComparison.ts`) separa observações **também por entrypoint**
   (web/WhatsApp/registro/edição/replay), além de classe e modalidade. Expõe a
   distribuição tipada de resultados V1/V2 e os percentis observados p50/p95
   de `v1Ms` e p95 do tempo até completar a observação, pelo método de ordem
