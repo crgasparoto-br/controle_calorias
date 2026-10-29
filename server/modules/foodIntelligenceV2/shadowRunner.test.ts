@@ -389,6 +389,81 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     });
   });
 
+  it("A-009 prefers persisted variant IDs over equal labels and misleading nutrition", () => {
+    const historical = (id: number | null, calories: number) => ({
+      ...baseV1().items[0], foodName: "Leite", canonicalName: "Leite",
+      brand: "Marca", productVariant: "caixa", historicalRef: id === null ? "catalog:45" : `variant:${id}`,
+      quantity: 100, unit: "g", estimatedGrams: 100,
+      calories, protein: 0, carbs: 0, fat: 0,
+    });
+    const resolved = (id: number | null, calories: number, name = "Leite") =>
+      buildFoodResolutionDecisionFixture({
+        identity: { canonicalName: name, brand: "Marca", variant: "caixa",
+          foodEntityId: 42, variantId: id },
+        quantity: { value: 100, unit: "g", grams: 100 },
+        nutrition: { consumed: { calories, protein: 0, carbs: 0, fat: 0 } },
+      });
+    const compare = (v1Items: ReturnType<typeof historical>[], v2Items: ReturnType<typeof resolved>[]) =>
+      buildFoodShadowEvent({
+        traceId, modality: "text", entrypoint: "replay", scenarioClass: "commercial",
+        v1: { ...baseV1(), items: v1Items }, v1Failure: null,
+        v2: v2Items, observations: [], failure: "none",
+        timings: { v1Ms: 1, languageMs: 2, resolverMs: 3, totalMs: 6 },
+      });
+
+    const same = compare([historical(101, 100)], [resolved(101, 100)]);
+    expect(same.differences).toMatchObject({
+      comparablePairs: 1, unpairedItems: 0, identity: 0, variant: 0,
+      variantIdUnverifiable: 0, macros: { calories: 0 },
+    });
+
+    // Different immutable IDs invalidate the nutrition pair despite identical labels.
+    const changed = compare([historical(101, 100)], [resolved(102, 100)]);
+    expect(changed.differences).toMatchObject({
+      comparablePairs: 0, unpairedItems: 2, identity: 1, variant: 1,
+      v1UnpairedItems: 1, v2UnpairedItems: 1,
+      variantIdUnverifiable: 0, macros: { calories: null },
+    });
+    const changedReport = buildFoodShadowBaseline([changed]);
+    expect(changedReport.segments[0]).toMatchObject({
+      variantDifferences: 1, unpairedItems: 2, pairedItems: 0,
+      variantIdUnverifiable: 0, macroAbsDelta: { calories: null },
+    });
+
+    // A text/macro-only matcher would incorrectly pair the two by calories.
+    const switchedNutrition = compare(
+      [historical(101, 100), historical(102, 200)],
+      [resolved(102, 100), resolved(101, 200)],
+    );
+    expect(switchedNutrition.differences).toMatchObject({
+      comparablePairs: 2, unpairedItems: 0, variant: 0, variantIdUnverifiable: 0,
+      nutrition: 2, macros: { calories: 200 },
+    });
+    const reordered = compare(
+      [historical(101, 100), historical(102, 200)],
+      [resolved(102, 200), resolved(101, 100)],
+    );
+    expect(reordered.differences).toMatchObject({
+      comparablePairs: 2, unpairedItems: 0, variant: 0, variantIdUnverifiable: 0,
+      nutrition: 0, macros: { calories: 0 },
+    });
+
+    // Legacy catalog ID is not in the V2 variant namespace; no inferred crosswalk.
+    const legacy = compare([historical(null, 100)], [resolved(101, 100)]);
+    expect(legacy.differences).toMatchObject({
+      comparablePairs: 1, variant: 0, variantIdUnverifiable: 1,
+    });
+    expect(buildFoodShadowBaseline([legacy]).segments[0].variantIdUnverifiable).toBe(1);
+    expect(JSON.stringify([same, changed, legacy])).not.toContain("variant:101");
+    expect(JSON.stringify([same, changed, legacy])).not.toContain("catalog:45");
+
+    // An immutable ID still matches after its human-readable name changes.
+    const renamed = compare([historical(101, 100)], [resolved(101, 100, "Leite renomeado")]);
+    expect(renamed.differences).toMatchObject({
+      comparablePairs: 1, unpairedItems: 0, identity: 1, variant: 0,
+    });
+  });
+
   it("retains micro-dollar costs instead of rounding billable attempts to zero", () => {
     expect(summarizeFoodShadowCapabilityUsage([
       { capability: "MEAL_TEXT", callRole: "primary",

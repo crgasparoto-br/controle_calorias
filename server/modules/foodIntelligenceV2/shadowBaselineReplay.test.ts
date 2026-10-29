@@ -120,6 +120,89 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     }))).toThrow("invalid-sanitized-shadow-events");
   });
 
+  it("A-008 reconciles both observed lists even when either partial result is empty", () => {
+    const originalV1 = buildV1HistoricalSnapshotFixture();
+    const twoV1 = { ...originalV1, items: [
+      originalV1.items[0], { ...originalV1.items[0], foodName: "Arroz", canonicalName: "Arroz" },
+    ] };
+    const firstV2 = buildFoodResolutionDecisionFixture();
+    const twoV2 = [firstV2, buildFoodResolutionDecisionFixture({
+      identity: { canonicalName: "Arroz" },
+    })];
+    const request = {
+      traceId: baseTrace, modality: "text" as const, entrypoint: "replay" as const,
+      scenarioClass: "mixed" as const, observations: [], failure: "none" as const,
+      v1Failure: null, partialEvidence: true,
+      timings: { v1Ms: 2, languageMs: 1, resolverMs: 1, totalMs: 4 },
+    };
+    const observed = [
+      buildFoodShadowEvent({ ...request, v1: twoV1, v2: [] }),
+      buildFoodShadowEvent({ ...request, v1: { ...originalV1, items: [] }, v2: twoV2 }),
+    ];
+    for (const [index, valid] of observed.entries()) {
+      expect(valid).toMatchObject({
+        run: "partial", v1ItemsObserved: true, v2ItemsObserved: true,
+        differences: { comparablePairs: 0, unpairedItems: 2 },
+      });
+      expect(valid.differences.v1UnpairedItems).toBe(index === 0 ? 2 : 0);
+      expect(valid.differences.v2UnpairedItems).toBe(index === 0 ? 0 : 2);
+      const report = replaySanitizedFoodShadowEvents(envelope(valid));
+      expect(report.baseline.segments[0]).toMatchObject({
+        partial: 1, pairedItems: 0, unpairedItems: 2,
+      });
+      // Sum-of-gaps remains internally consistent but hides two real items.
+      const hidden = { ...valid, differences: { ...valid.differences,
+        v1UnpairedItems: 0, v2UnpairedItems: 0, unpairedItems: 0 } };
+      expect(() => replaySanitizedFoodShadowEvents(envelope(hidden)))
+        .toThrow("invalid-sanitized-shadow-events");
+      // A missing or forged observation marker may not override known totals.
+      expect(() => replaySanitizedFoodShadowEvents(envelope({ ...valid,
+        [index === 0 ? "v1ItemsObserved" : "v2ItemsObserved"]: false,
+      }))).toThrow("invalid-sanitized-shadow-events");
+    }
+  });
+
+  it("A-008 does not manufacture gaps for a genuinely missing V1 or V2 snapshot", () => {
+    const request = {
+      traceId: baseTrace, modality: "text" as const, entrypoint: "replay" as const,
+      scenarioClass: "generic" as const, observations: [], failure: "none" as const,
+      timings: { v1Ms: 2, languageMs: 1, resolverMs: 1, totalMs: 4 },
+    };
+    const v1Absent = buildFoodShadowEvent({ ...request,
+      v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
+    });
+    const v2Absent = buildFoodShadowEvent({ ...request,
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null, v2: null,
+    });
+    for (const valid of [v1Absent, v2Absent]) {
+      expect(valid.run).toBe("partial");
+      expect(valid.differences).toMatchObject({
+        comparablePairs: 0, v1UnpairedItems: 0, v2UnpairedItems: 0,
+      });
+      expect(replaySanitizedFoodShadowEvents(envelope(valid)).baseline.segments[0].unpairedItems)
+        .toBe(0);
+      expect(() => replaySanitizedFoodShadowEvents(envelope({ ...valid,
+        run: "compared",
+      }))).toThrow("invalid-sanitized-shadow-events");
+    }
+    expect(v1Absent).toMatchObject({
+      v1ItemsObserved: false, v2ItemsObserved: true, v1Outcome: "clarification",
+    });
+    expect(v2Absent).toMatchObject({
+      v1ItemsObserved: true, v2ItemsObserved: false, v2Outcome: "not_compared",
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...v1Absent, v1ItemsObserved: true,
+    }))).toThrow("invalid-sanitized-shadow-events");
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...v2Absent, v2ItemsObserved: true,
+    }))).toThrow("invalid-sanitized-shadow-events");
+    const { v1ItemsObserved: unused, ...oldFormat } = v2Absent;
+    expect(unused).toBe(true);
+    expect(() => replaySanitizedFoodShadowEvents(envelope(oldFormat as FoodShadowEvent)))
+      .toThrow("invalid-sanitized-shadow-events");
+  });
+
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {
     expect(() => replaySanitizedFoodShadowEvents(envelope())).toThrow("invalid-sanitized-shadow-events");
     expect(() => replaySanitizedFoodShadowEvents({ schemaVersion: 1, kind: "food-v2-sanitized-shadow-events",

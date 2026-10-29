@@ -41,6 +41,21 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   etapas S1/S2/S3, tempo total/estágios e suspeita de fallback silencioso.
   Nunca registra texto, nome, mídia, URL, barcode, telefone, ID de titular,
   payload de provider ou erro textual. Correlação: UUID interno.
+- A-008 (reauditoria): `v1ItemsObserved`/`v2ItemsObserved` distinguem um
+  snapshot presente mas vazio de uma falha sem snapshot. O replay reconcilia
+  `pares + itens sem par` com os dois totais **sempre que ambos foram observados**,
+  inclusive quando uma das listas tem zero itens e o evento é parcial.
+  Exceção V1 e V2 ausente não fabricam divergências. Eventos antigos que não
+  contêm os marcadores obrigatórios são rejeitados, não classificados como
+  população válida; não há coleta produtiva anterior a migrar.
+- A-009 (reauditoria): `historicalRef=variant:<id>` do snapshot e
+  `identity.variantId` do V2 são comparáveis apenas no namespace de variante.
+  O pareamento prioriza IDs iguais mesmo com reordenação ou alteração de
+  rótulo/macros. IDs diferentes não formam um par nutricional: permanecem
+  sem correspondência e geram sinal de divergência de variante por nome
+  normalizado, sem contaminar deltas. Quando falta ID comparável, o
+  pareamento legado por texto continua diagnóstico, com
+  `variantIdUnverifiable` explícito e agregado, nunca prova de acurácia.
 - Divergência **não** é erro comprovado: sem ground truth externo,
   `verifiedAccuracy` permanece `null`, mesmo se V1 e V2 concordarem.
   Deltas nutricionais são sinais, não critérios de tolerância C3 autorizados.
@@ -99,6 +114,10 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
 - A-006: leitor do banco utiliza `foodVariantId` persistido para separar
   variantes homônimas da mesma família e catálogo, propagando a referência
   até agregação de qualidade; fallback legado e formato V1 intactos.
+- A-008/A-009 (reauditoria de 29/10): testes negativos simétricos para
+  V1 com itens/V2 vazio e V1 vazio/V2 com itens, snapshot ausente versus
+  vazio, IDs iguais, IDs trocados homônimos, nutrição reordenada e legado
+  sem crosswalk. Os contadores não armazenam IDs, nomes ou fontes pessoais.
 - Leitor histórico: catalogação alterada, ID ausente, variante aposentada,
   classificação inválida e duas variantes homônimas não alteram macros
   ou classificação registrada.

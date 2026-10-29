@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
-import { buildFoodShadowBaseline, type FoodShadowEvent } from "./shadowComparison";
+import { buildFoodShadowBaseline, type FoodShadowEvent, type FoodShadowOutcome } from "./shadowComparison";
 
 const nonnegative = z.number().finite().nonnegative();
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -15,6 +15,16 @@ const states = z.enum([
 const contextStatus = z.enum([
   "available", "absent", "expired", "unavailable", "not_applicable", "not_instrumented",
 ]);
+// Outcome metadata describes snapshot presence, never a new food decision.
+// Clarification can be either a returned V1 snapshot or a thrown V1 error.
+const v1OutcomeSnapshot: Record<FoodShadowOutcome, boolean | null> = {
+  resolved: true, partially_resolved: true, ambiguous: true, unknown: true,
+  clarification: null, failed: false, not_compared: false,
+};
+const v2OutcomeSnapshot: Record<FoodShadowOutcome, boolean> = {
+  resolved: true, partially_resolved: true, ambiguous: true, unknown: true,
+  clarification: true, failed: false, not_compared: false,
+};
 const capability = z.object({
   capability: z.enum(AI_CAPABILITIES),
   calls: count, retries: count, totalLatencyMs: nonnegative,
@@ -35,6 +45,7 @@ const shadowEvent = z.object({
     "resolver_unavailable", "telemetry_unavailable",
   ]),
   v1Outcome: states, v2Outcome: states,
+  v1ItemsObserved: z.boolean(), v2ItemsObserved: z.boolean(),
   v1ItemCount: count, v2ItemCount: count,
   v2Stages: z.object({ s1: count, s2: count, s3: count }).strict(),
   context: z.object({
@@ -42,7 +53,8 @@ const shadowEvent = z.object({
   }).strict(),
   differences: z.object({
     comparablePairs: count, unpairedItems: count, v1UnpairedItems: count, v2UnpairedItems: count,
-    identity: count, variant: count, quantity: count, nutrition: count, source: count,
+    identity: count, variant: count, variantIdUnverifiable: count,
+    quantity: count, nutrition: count, source: count,
     clarification: z.boolean().nullable(),
     macros: z.object({
       calories: optionalDelta, protein: optionalDelta, carbs: optionalDelta, fat: optionalDelta,
@@ -60,18 +72,24 @@ const shadowEvent = z.object({
   verifiedCorrect: z.null(),
 }).strict().superRefine((event, ctx) => {
   const { comparablePairs, v1UnpairedItems, v2UnpairedItems, unpairedItems } = event.differences;
-  // A complete comparison must account for every item on each side.
-  // Partial events with two observed non-empty item lists obey the same rule.
-  // When V1 threw or V2 was unavailable, absent items cannot be inferred.
-  const bothListsObserved = event.run === "compared" ||
-    (event.run === "partial" && event.v1ItemCount > 0 && event.v2ItemCount > 0);
+  // Empty observed results differ from absent snapshots; counts alone cannot
+  // distinguish those cases (including V1 clarification thrown as an error).
+  const bothListsObserved = event.v1ItemsObserved && event.v2ItemsObserved;
+  const v1RequiredPresence = v1OutcomeSnapshot[event.v1Outcome];
   if (unpairedItems !== v1UnpairedItems + v2UnpairedItems ||
     comparablePairs + v1UnpairedItems > event.v1ItemCount ||
     comparablePairs + v2UnpairedItems > event.v2ItemCount ||
+    (!event.v1ItemsObserved && event.v1ItemCount !== 0) ||
+    (!event.v2ItemsObserved && event.v2ItemCount !== 0) ||
+    (!bothListsObserved && (comparablePairs !== 0 || unpairedItems !== 0)) ||
+    (event.run === "compared" && !bothListsObserved) ||
+    (v1RequiredPresence !== null && v1RequiredPresence !== event.v1ItemsObserved) ||
+    (v2OutcomeSnapshot[event.v2Outcome] !== event.v2ItemsObserved) ||
     (bothListsObserved && (
       comparablePairs + v1UnpairedItems !== event.v1ItemCount ||
       comparablePairs + v2UnpairedItems !== event.v2ItemCount
     )) ||
+    event.differences.variantIdUnverifiable > comparablePairs ||
     (event.run === "failed") === (event.failure === "none")) {
     ctx.addIssue({ code: "custom", message: "inconsistent-shadow-event" });
   }

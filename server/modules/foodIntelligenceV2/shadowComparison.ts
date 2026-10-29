@@ -36,6 +36,9 @@ export type FoodShadowEvent = {
   failure: FoodShadowFailure;
   v1Outcome: FoodShadowOutcome;
   v2Outcome: FoodShadowOutcome;
+  /** A present but empty list is observable; a failed/missing snapshot is not. */
+  v1ItemsObserved: boolean;
+  v2ItemsObserved: boolean;
   v1ItemCount: number;
   v2ItemCount: number;
   v2Stages: { s1: number; s2: number; s3: number };
@@ -48,6 +51,8 @@ export type FoodShadowEvent = {
     v2UnpairedItems: number;
     identity: number;
     variant: number;
+    /** Paired by legacy labels without a comparable persisted variant ID. */
+    variantIdUnverifiable: number;
     quantity: number;
     nutrition: number;
     source: number;
@@ -106,11 +111,20 @@ const v2Origin = (item: FoodResolutionDecision) => {
     : origin === "ai_estimate" ? "ai_estimate" : origin === "provisional_estimate" ? "provisional_estimate" : null;
 };
 
+/** Only a persisted V2 variant reference shares identity with identity.variantId. */
+function persistedVariantId(item: MealDraftItem): number | null {
+  const reference = item.historicalRef;
+  if (!reference?.startsWith("variant:")) return null;
+  const text = reference.slice("variant:".length);
+  const id = Number(text);
+  return Number.isSafeInteger(id) && id > 0 && String(id) === text ? id : null;
+}
+
 /**
- * Align by normalized food identity, never by array position. Match stable
- * brand/variant first; then compare remaining same-name variants to report
- * a real variant difference. Repetitions select the closest saved quantity
- * and nutrition, avoiding false macro drift after reordering.
+ * Align saved variant IDs before legacy text labels, never by array position.
+ * Do not match two distinct known variant IDs just because their labels agree:
+ * these remain unpaired and cannot contribute unrelated nutrition deltas.
+ * Repetitions select the closest saved quantity and nutrition within each pass.
  * No free-form identity or food name is emitted to telemetry.
  */
 function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): number {
@@ -130,10 +144,28 @@ function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): num
 
 function pairFoodShadowItems(
   left: readonly MealDraftItem[], right: readonly FoodResolutionDecision[],
-): Array<{ left: MealDraftItem; right: FoodResolutionDecision }> {
+): { pairs: Array<{ left: MealDraftItem; right: FoodResolutionDecision }>; unpairedVariantChanges: number } {
   const usedLeft = new Set<number>();
   const usedRight = new Set<number>();
   const pairs: Array<{ left: MealDraftItem; right: FoodResolutionDecision }> = [];
+  const leftIds = left.map(persistedVariantId);
+  // Stable IDs take precedence even when a display label or nutrition changes.
+  const stableCandidates: Array<{ i: number; j: number; cost: number }> = [];
+  for (let i = 0; i < left.length; i++) {
+    if (leftIds[i] === null) continue;
+    for (let j = 0; j < right.length; j++) {
+      if (leftIds[i] === right[j].identity.variantId) {
+        stableCandidates.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
+      }
+    }
+  }
+  stableCandidates.sort((a, b) => a.cost - b.cost || a.i - b.i || a.j - b.j);
+  for (const { i, j } of stableCandidates) {
+    if (usedLeft.has(i) || usedRight.has(j)) continue;
+    usedLeft.add(i);
+    usedRight.add(j);
+    pairs.push({ left: left[i], right: right[j] });
+  }
   for (const exactVariant of [true, false]) {
     const candidates: Array<{ i: number; j: number; cost: number }> = [];
     for (let i = 0; i < left.length; i++) {
@@ -142,6 +174,8 @@ function pairFoodShadowItems(
       if (!name) continue;
       for (let j = 0; j < right.length; j++) {
         if (usedRight.has(j) || name !== normalize(right[j].identity.canonicalName)) continue;
+        // A different persisted V2 ID is not an interchangeable same-name item.
+        if (leftIds[i] !== null && right[j].identity.variantId !== null) continue;
         if (exactVariant && (exactDifference(left[i].brand, right[j].identity.brand) ||
           exactDifference(left[i].productVariant, right[j].identity.variant))) continue;
         candidates.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
@@ -155,7 +189,24 @@ function pairFoodShadowItems(
       pairs.push({ left: left[i], right: right[j] });
     }
   }
-  return pairs;
+  // Unmatched, same-name items with two known IDs represent variant drift;
+  // they must not be compared as nutritionally equivalent pairs.
+  const knownLeftByName = new Map<string, number>();
+  for (let i = 0; i < left.length; i++) {
+    if (usedLeft.has(i) || leftIds[i] === null) continue;
+    const name = normalize(left[i].canonicalName || left[i].foodName);
+    if (name) knownLeftByName.set(name, (knownLeftByName.get(name) ?? 0) + 1);
+  }
+  let unpairedVariantChanges = 0;
+  for (let j = 0; j < right.length; j++) {
+    if (usedRight.has(j) || right[j].identity.variantId === null) continue;
+    const name = normalize(right[j].identity.canonicalName);
+    const remaining = knownLeftByName.get(name) ?? 0;
+    if (!remaining) continue;
+    unpairedVariantChanges++;
+    knownLeftByName.set(name, remaining - 1);
+  }
+  return { pairs, unpairedVariantChanges };
 }
 
 function summarizeV1(result: CanonicalMealProcessingResult | null, failed: "clarification" | "failed" | null): FoodShadowOutcome {
@@ -227,7 +278,9 @@ export function buildFoodShadowEvent(input: {
   }).success) throw new TypeError("invalid-shadow-segmentation");
   const v1 = input.v1?.items ?? [];
   const v2 = input.v2 ?? [];
-  const matchedPairs = input.v1 && input.v2 ? pairFoodShadowItems(v1, v2) : [];
+  const pairing = input.v1 && input.v2 ? pairFoodShadowItems(v1, v2) :
+    { pairs: [], unpairedVariantChanges: 0 };
+  const matchedPairs = pairing.pairs;
   const comparablePairs = matchedPairs.length;
   const leftUnpaired = input.v1 && input.v2 ? v1.length - comparablePairs : 0;
   const rightUnpaired = input.v1 && input.v2 ? v2.length - comparablePairs : 0;
@@ -238,7 +291,9 @@ export function buildFoodShadowEvent(input: {
     v1UnpairedItems: leftUnpaired, v2UnpairedItems: rightUnpaired,
     // Remaining unmatched items on both sides indicate a possible identity change,
     // not a verified error or a license to compare unrelated macro values.
-    identity: Math.min(leftUnpaired, rightUnpaired), variant: 0, quantity: 0, nutrition: 0, source: 0,
+    identity: Math.min(leftUnpaired, rightUnpaired),
+    variant: pairing.unpairedVariantChanges, variantIdUnverifiable: 0,
+    quantity: 0, nutrition: 0, source: 0,
     clarification: null as boolean | null, macros, confidence: null as number | null,
   };
   let possibleSilentFallback = 0;
@@ -260,6 +315,17 @@ export function buildFoodShadowEvent(input: {
   let confidenceTotal = 0;
   let confidenceN = 0;
   for (const { left, right } of matchedPairs) {
+    const leftId = persistedVariantId(left);
+    const rightId = right.identity.variantId;
+    if (leftId === null || rightId === null) differences.variantIdUnverifiable++;
+    if (leftId !== null && rightId !== null && leftId !== rightId) {
+      throw new Error("unpaired-known-variant-identity");
+    }
+    // Stable identity can expose a changed label without changing the variant.
+    if (leftId !== null && rightId !== null &&
+        exactDifference(left.canonicalName || left.foodName, right.identity.canonicalName)) {
+      differences.identity++;
+    }
     if (exactDifference(left.brand, right.identity.brand) ||
         exactDifference(left.productVariant, right.identity.variant)) differences.variant++;
     if (left.quantity !== right.quantity.value ||
@@ -317,6 +383,7 @@ export function buildFoodShadowEvent(input: {
     failure: input.failure,
     v1Outcome: summarizeV1(input.v1, input.v1Failure),
     v2Outcome: summarizeV2(input.v2),
+    v1ItemsObserved: input.v1 !== null, v2ItemsObserved: input.v2 !== null,
     v1ItemCount: v1.length, v2ItemCount: v2.length, v2Stages: stages,
     context: {
       previousMessage: safeContext(context.previousMessage),
@@ -347,7 +414,7 @@ export type FoodShadowBaselineSegment = {
   pairedItems: number;
   /** Observed gaps, including partial runs; not verified matching errors. */
   unpairedItems: number; v1UnpairedItems: number; v2UnpairedItems: number;
-  identityDifferences: number; variantDifferences: number;
+  identityDifferences: number; variantDifferences: number; variantIdUnverifiable: number;
   quantityDifferences: number; nutritionDifferences: number; sourceDifferences: number;
   clarificationDifferences: number; potentialSilentFallbacks: number;
   missingNutritionProvenance: number; explicitFailures: number;
@@ -381,7 +448,7 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       v1Outcomes: emptyOutcomeCounts(), v2Outcomes: emptyOutcomeCounts(),
       v1LatencyP50Ms: null, v1LatencyP95Ms: null, shadowCompletionP95Ms: null,
       unpairedItems: 0, v1UnpairedItems: 0, v2UnpairedItems: 0,
-      identityDifferences: 0, variantDifferences: 0, quantityDifferences: 0,
+      identityDifferences: 0, variantDifferences: 0, variantIdUnverifiable: 0, quantityDifferences: 0,
       nutritionDifferences: 0, sourceDifferences: 0, clarificationDifferences: 0,
       potentialSilentFallbacks: 0, missingNutritionProvenance: 0, explicitFailures: 0,
       macroAbsDelta: { calories: null, protein: null, carbs: null, fat: null },
@@ -407,6 +474,7 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       row.pairedItems += event.differences.comparablePairs;
       row.identityDifferences += event.differences.identity;
       row.variantDifferences += event.differences.variant;
+      row.variantIdUnverifiable += event.differences.variantIdUnverifiable;
       row.quantityDifferences += event.differences.quantity;
       row.nutritionDifferences += event.differences.nutrition;
       row.sourceDifferences += event.differences.source;
