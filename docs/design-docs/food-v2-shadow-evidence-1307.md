@@ -156,7 +156,14 @@ do livro de dívida.
   (web/WhatsApp/registro/edição/replay), além de classe e modalidade. Expõe a
   distribuição tipada de resultados V1/V2 e os percentis observados p50/p95
   de `v1Ms` e p95 do tempo até completar a observação, pelo método de ordem
-  mais próxima (*nearest rank*). A-013 preserva também as contagens observadas
+  mais próxima (*nearest rank*). A-015 exige medição monotônica das etapas
+  sequenciais (V1, linguagem e resolvedor) e rejeita no produtor e no replay
+  eventos cujo `totalMs` seja inferior à soma observada, tolerando apenas
+  0,002 ms de arredondamento independente na precisão de 0,001 ms. Valores
+  não finitos, negativos ou superiores ao limite matemático de acumulação
+  segura (10.000 eventos por replay, três casas decimais) são rejeitados,
+  sem se tornarem latências zero ou percentis artificiais. Este limite
+  preserva integridade numérica, **não** representa orçamento/SLO aprovado. A-013 preserva também as contagens observadas
   de S1/S2/S3, conflitos entre fontes e p50/p95 de linguagem e resolvedor,
   sempre acompanhados dos denominadores de amostras instrumentadas. Quando
   uma etapa não foi medida, seus percentis ficam `null` (não são zero inferido);

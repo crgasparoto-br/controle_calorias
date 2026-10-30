@@ -4,6 +4,7 @@
  * emits user messages, calls external providers, or stages knowledge.
  */
 import { randomUUID } from "node:crypto";
+import { performance } from "node:perf_hooks";
 import { withAiInferenceAttemptCapture, type AiCapabilityAttemptMetric } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult, MealProcessingInput } from "../../nutritionEngineTypes";
 import { comprehendFoodLanguage, type LinguisticLexiconStore } from "./linguisticComprehension";
@@ -111,7 +112,7 @@ function validGateA(value: GateAApproval | null | undefined): value is GateAAppr
 }
 
 function elapsed(start: number) {
-  return Math.max(0, Date.now() - start);
+  return Math.max(0, performance.now() - start);
 }
 
 /** Shadow observation is best effort and must never delay the production V1 response. */
@@ -145,7 +146,7 @@ async function observeFoodV2Shadow(
     failure = "evidence_unavailable";
   } else {
     try {
-      const begin = Date.now();
+      const begin = performance.now();
       observations = await comprehendFoodLanguage({
         rawText: evidence.text,
         modality: evidence.linguisticModality,
@@ -161,7 +162,7 @@ async function observeFoodV2Shadow(
       failure = "language_unavailable";
     }
     if (failure === "none") {
-      const begin = Date.now();
+      const begin = performance.now();
       try {
         const context: Omit<FoodResolverContext, "previousDecision"> = {
           traceId, userId: deps.userId, knowledgeRevision: deps.knowledgeRevision,
@@ -208,7 +209,7 @@ export async function runMealWithFoodV2Shadow(
   // Capture the original surface before V1 can normalize or mutate the input.
   // A changed V1 draft is never evidence for a separate V2 observation.
   const evidence = selectOriginalEvidence(input);
-  const v1Start = Date.now();
+  const v1Start = performance.now();
   const shadowRequested = (deps.enabled ?? isFoodV2ShadowEnabled()) && Boolean(deps.verifyGateA);
   let v1: CanonicalMealProcessingResult | null = null;
   let v1Failed = false;

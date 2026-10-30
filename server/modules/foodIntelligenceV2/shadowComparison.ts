@@ -26,6 +26,14 @@ export type FoodShadowCapabilityUsage = {
   costMeasuredCalls: number;
 };
 
+/** Safe for 10,000 replay events and millisecond measurements rounded to 0.001 ms.
+ * This arithmetic integrity bound is not an operational latency SLO.
+ */
+export const MAX_SHADOW_TIMING_MS = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * 1_000));
+// Four independently rounded values (three stages and one total) can differ
+// by up to 0.002 ms without any real overlap or missing elapsed time.
+const TIMING_ROUNDING_TOLERANCE_MS = 0.002;
+
 export type FoodShadowEvent = {
   schemaVersion: 1;
   /** A server-generated random UUID; it is never derived from user text. */
@@ -75,6 +83,16 @@ export type FoodShadowEvent = {
   /** Verified accuracy needs independent labels from a separate corpus review. */
   verifiedCorrect: null;
 };
+
+/** Timings are sequential in C4: V1 -> language -> resolver -> completion.
+ * Reject impossible samples before they can alter diagnostic percentiles.
+ */
+export function hasConsistentFoodShadowTimings(timings: FoodShadowEvent["timings"]): boolean {
+  const values = [timings.v1Ms, timings.languageMs, timings.resolverMs, timings.totalMs];
+  return values.every(value => Number.isFinite(value) && value >= 0 && value <= MAX_SHADOW_TIMING_MS) &&
+    timings.v1Ms + timings.languageMs + timings.resolverMs <=
+      timings.totalMs + TIMING_ROUNDING_TOLERANCE_MS;
+}
 
 /** Typed telemetry dimensions; validators reject untrusted free-form labels. */
 const segmentation = z.object({
@@ -131,6 +149,12 @@ export function summarizeFoodShadowCapabilityUsage(
       capability: event.capability, calls: 0, retries: 0,
       totalLatencyMs: 0, estimatedCostUsd: 0, costMeasuredCalls: 0,
     };
+    // Invalid capture is unknown, not a fabricated zero-duration provider call.
+    if (!Number.isFinite(event.latencyMs) || event.latencyMs < 0 ||
+        event.latencyMs > MAX_SHADOW_TIMING_MS ||
+        entry.totalLatencyMs + event.latencyMs > MAX_SHADOW_TIMING_MS) {
+      throw new TypeError("invalid-shadow-capability-latency");
+    }
     entry.calls++;
     if (event.callRole === "retry") entry.retries++;
     entry.totalLatencyMs += metric(event.latencyMs);
@@ -169,6 +193,10 @@ export function buildFoodShadowEvent(input: {
   if (!segmentation.safeParse({
     modality: input.modality, entrypoint: input.entrypoint, scenarioClass: input.scenarioClass,
   }).success) throw new TypeError("invalid-shadow-segmentation");
+  // Guard raw durations *before* metric() could round an extreme value to 0.
+  if (!hasConsistentFoodShadowTimings(input.timings)) {
+    throw new TypeError("invalid-shadow-timings");
+  }
   const v1 = input.v1?.items ?? [];
   const v2 = input.v2 ?? [];
   const pairing = input.v1 && input.v2 ? pairFoodShadowItems(v1, v2) :

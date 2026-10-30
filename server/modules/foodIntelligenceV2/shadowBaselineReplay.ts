@@ -4,9 +4,11 @@
  */
 import { z } from "zod";
 import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
-import { buildFoodShadowBaseline, type FoodShadowEvent, type FoodShadowOutcome } from "./shadowComparison";
+import { buildFoodShadowBaseline, hasConsistentFoodShadowTimings,
+  MAX_SHADOW_TIMING_MS, type FoodShadowEvent, type FoodShadowOutcome } from "./shadowComparison";
 
 const nonnegative = z.number().finite().nonnegative();
+const boundedTiming = nonnegative.max(MAX_SHADOW_TIMING_MS);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const optionalDelta = nonnegative.nullable();
 const states = z.enum([
@@ -27,7 +29,7 @@ const v2OutcomeSnapshot: Record<FoodShadowOutcome, boolean> = {
 };
 const capability = z.object({
   capability: z.enum(AI_CAPABILITIES),
-  calls: count, retries: count, totalLatencyMs: nonnegative,
+  calls: count, retries: count, totalLatencyMs: boundedTiming,
   estimatedCostUsd: optionalDelta, costMeasuredCalls: count,
 }).strict().refine(v => v.calls > 0 && v.retries <= v.calls && v.costMeasuredCalls <= v.calls &&
   (v.costMeasuredCalls === v.calls) === (v.estimatedCostUsd !== null));
@@ -66,7 +68,7 @@ const shadowEvent = z.object({
     explicitFailure: count, sourceConflicts: count,
   }).strict(),
   timings: z.object({
-    v1Ms: nonnegative, languageMs: nonnegative, resolverMs: nonnegative, totalMs: nonnegative,
+    v1Ms: boundedTiming, languageMs: boundedTiming, resolverMs: boundedTiming, totalMs: boundedTiming,
   }).strict(),
   capabilityUsage: z.array(capability).max(AI_CAPABILITIES.length).nullable(),
   verifiedCorrect: z.null(),
@@ -131,6 +133,7 @@ const shadowEvent = z.object({
     invalidDifferences || invalidFlags || invalidClarification ||
     invalidOutcomes || invalidFailureState || invalidMacroDifference ||
     invalidExplicitFailures || invalidPreResolutionStages ||
+    !hasConsistentFoodShadowTimings(event.timings) ||
     comparablePairs + v1UnpairedItems > event.v1ItemCount ||
     comparablePairs + v2UnpairedItems > event.v2ItemCount ||
     (!event.v1ItemsObserved && event.v1ItemCount !== 0) ||

@@ -7,7 +7,7 @@ const baseTrace = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
 function event(override: Partial<{
   traceId: string; entrypoint: FoodShadowEvent["entrypoint"];
   modality: FoodShadowEvent["modality"]; scenarioClass: FoodShadowEvent["scenarioClass"];
-  v1Ms: number; totalMs: number;
+  v1Ms: number; languageMs: number; resolverMs: number; totalMs: number;
 }> = {}) {
   return buildFoodShadowEvent({
     traceId: override.traceId ?? baseTrace,
@@ -17,8 +17,8 @@ function event(override: Partial<{
     v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
     v2: [buildFoodResolutionDecisionFixture()], observations: [],
     failure: "none", timings: {
-      v1Ms: override.v1Ms ?? 10, languageMs: 2, resolverMs: 3,
-      totalMs: override.totalMs ?? 20,
+      v1Ms: override.v1Ms ?? 10, languageMs: override.languageMs ?? 2,
+      resolverMs: override.resolverMs ?? 3, totalMs: override.totalMs ?? 20,
     },
   });
 }
@@ -498,11 +498,11 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       capabilityUsage: [] as FoodShadowEvent["capabilityUsage"],
     };
     const second = { ...event({
-      traceId: "0ad100b8-35bd-44cd-932a-e895e51ec7a2", v1Ms: 20, totalMs: 45,
+      traceId: "0ad100b8-35bd-44cd-932a-e895e51ec7a2", v1Ms: 20, totalMs: 60,
     }),
       v2Stages: { s1: 0, s2: 2, s3: 3 },
       flagged: { ...event().flagged, sourceConflicts: 1 },
-      timings: { v1Ms: 20, languageMs: 15, resolverMs: 21, totalMs: 45 },
+      timings: { v1Ms: 20, languageMs: 15, resolverMs: 21, totalMs: 60 },
     };
     const missing = buildFoodShadowEvent({
       traceId: "c7ec7b9c-35bd-44cd-932a-e895e51ec7a2",
@@ -534,6 +534,53 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       capabilityUsageObservedRuns: 0, capabilityUsageUnavailableRuns: 1, external: null,
     });
     expect(report.baseline).toMatchObject({ verifiedAccuracy: null, rolloutEligible: false });
+  });
+
+  it("A-015 rejects impossible sequential timings instead of publishing false percentiles", () => {
+    const valid = event({ v1Ms: 10, languageMs: 5, resolverMs: 7, totalMs: 22 });
+    const accepted = replaySanitizedFoodShadowEvents(envelope(valid));
+    expect(accepted.baseline.segments[0]).toMatchObject({
+      v1LatencyP95Ms: 10, languageLatencyP95Ms: 5,
+      resolverLatencyP95Ms: 7, shadowCompletionP95Ms: 22,
+    });
+    const impossible = [
+      { v1Ms: 1000, languageMs: 200, resolverMs: 400, totalMs: 1 },
+      { v1Ms: 10, languageMs: 500, resolverMs: 10, totalMs: 100 },
+      { v1Ms: 10, languageMs: 10, resolverMs: 500, totalMs: 100 },
+      { v1Ms: 200, languageMs: 100, resolverMs: 250, totalMs: 500 },
+      { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 2.997 },
+    ];
+    for (const timings of impossible) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({ ...valid, timings })))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    // At 0.001ms precision, independent rounding may add 0.002ms skew.
+    const rounded = { ...valid, timings: {
+      v1Ms: 1.001, languageMs: 0.003, resolverMs: 0.003, totalMs: 1.005,
+    } };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(rounded))).not.toThrow();
+    // Unknown/failing V2 stages may be 0; no time is invented.
+    const partial = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "generic",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null, v2: null,
+      observations: [], failure: "evidence_unavailable",
+      timings: { v1Ms: 4, languageMs: 0, resolverMs: 0, totalMs: 4 },
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(partial))).not.toThrow();
+  });
+
+  it("A-015 rejects extreme finite durations in producer, replay and capability telemetry", () => {
+    const valid = event();
+    const huge = { v1Ms: 1e306, languageMs: 0, resolverMs: 0, totalMs: 1e306 };
+    expect(() => replaySanitizedFoodShadowEvents(envelope({ ...valid, timings: huge })))
+      .toThrow("invalid-sanitized-shadow-events");
+    expect(() => event({ ...huge })).toThrow("invalid-shadow-timings");
+    expect(() => event({ v1Ms: Number.POSITIVE_INFINITY })).toThrow("invalid-shadow-timings");
+    expect(() => event({ v1Ms: 1000, totalMs: 1 })).toThrow("invalid-shadow-timings");
+    expect(() => replaySanitizedFoodShadowEvents(envelope({ ...valid,
+      capabilityUsage: [{ capability: "MEAL_TEXT", calls: 1, retries: 0,
+        totalLatencyMs: 1e306, costMeasuredCalls: 0, estimatedCostUsd: null }],
+    }))).toThrow("invalid-sanitized-shadow-events");
   });
 
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {

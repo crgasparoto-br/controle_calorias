@@ -110,6 +110,26 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     expect(event.verifiedCorrect).toBeNull();
   });
 
+  it("A-015 measures sequential shadow latency monotonically when the system clock moves backwards", async () => {
+    const f = fixture();
+    const dateNow = vi.spyOn(Date, "now");
+    let ticks = 0;
+    dateNow.mockImplementation(() => 1_750_000_000_000 - ++ticks * 100_000);
+    try {
+      const v1 = await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, f.deps);
+      await f.waitForShadow();
+      expect(v1).toHaveProperty("items");
+      expect(f.emit).toHaveBeenCalledOnce();
+      const { timings } = f.emit.mock.calls[0][0];
+      expect(timings.totalMs).toBeGreaterThan(0);
+      expect(timings.totalMs + 0.002).toBeGreaterThanOrEqual(
+        timings.v1Ms + timings.languageMs + timings.resolverMs,
+      );
+    } finally {
+      dateNow.mockRestore();
+    }
+  });
+
   it("does not recover a failing V1 with V2 or change the thrown clarification object", async () => {
     const f = fixture();
     const failure = Object.assign(new Error("private message"), { code: "food_identity_clarification_required" });
@@ -586,6 +606,20 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       { capability: "MEAL_TEXT", callRole: "primary",
         latencyMs: 7, estimatedCostUsd: 0.00001234 } as AiInferenceEvent,
     ])?.[0].estimatedCostUsd).toBe(0.00001234);
+  });
+
+  it("A-015 rejects extreme provider timing instead of publishing a fabricated zero", () => {
+    const sample = (latencyMs: number) => ({
+      capability: "MEAL_TEXT" as const, callRole: "primary" as const,
+      latencyMs, estimatedCostUsd: null,
+    });
+    expect(() => summarizeFoodShadowCapabilityUsage([sample(1e306)]))
+      .toThrow("invalid-shadow-capability-latency");
+    expect(() => summarizeFoodShadowCapabilityUsage([sample(-1)]))
+      .toThrow("invalid-shadow-capability-latency");
+    expect(summarizeFoodShadowCapabilityUsage([sample(0)])).toMatchObject([
+      { capability: "MEAL_TEXT", calls: 1, totalLatencyMs: 0 },
+    ]);
   });
 
   it("captures V1 attempt counts, retries, latency and cost per request without a sink or PII", async () => {
