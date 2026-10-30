@@ -144,8 +144,10 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
 - A-020: um snapshot imutável mínimo dos campos V1 consumidos pelo comparador
   é capturado antes do retorno ao chamador. O observador nunca retém o objeto
   V1 completo (texto bruto, mídia, raciocínio e evidências pessoais); alterações
-  posteriores do resultado retornado não alteram a telemetria. Falha na projeção
-  preserva V1 e deixa o lado V1 explicitamente não observado.
+  posteriores do resultado retornado não alteram a telemetria. O código de
+  exceção de clarificação também é congelado antes de relançar o erro V1
+  original. Falha na projeção preserva V1 e deixa o lado V1 explicitamente
+  não observado.
 - A-021: diferenças nutricionais rejeitam operandos não finitos, negativos,
   extremos ou somas por evento além de `floor(MAX_SAFE_INTEGER/(10000*1000))`.
   Replay e agregador direto rejeitam valores incompatíveis e overflow em vez

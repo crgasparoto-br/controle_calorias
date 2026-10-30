@@ -121,8 +121,7 @@ async function observeFoodV2Shadow(
   evidence: LanguageEvidence,
   deps: FoodShadowDependencies,
   v1: FoodShadowV1Snapshot | null,
-  v1Failed: boolean,
-  v1Error: unknown,
+  v1Failure: "clarification" | "failed" | null,
   v1Ms: number,
   v1Start: number,
 ): Promise<void> {
@@ -195,7 +194,7 @@ async function observeFoodV2Shadow(
     const event = buildFoodShadowEvent({
       traceId, modality: evidence.modality, entrypoint: deps.entrypoint,
       scenarioClass: deps.scenarioClass, v1,
-      v1Failure: v1Failed ? mapV1ErrorToOutcome(v1Error) : null,
+      v1Failure,
       v2: decisions, observations, partialEvidence: evidence.partial,
       failure, context: deps.context,
       timings: { v1Ms, languageMs, resolverMs, totalMs: elapsed(v1Start) },
@@ -242,6 +241,12 @@ export async function runMealWithFoodV2Shadow(
     v1Error = error;
   }
   const v1Ms = elapsed(v1Start);
+  // Capture the error outcome before rethrowing the original mutable error object.
+  let frozenV1Failure: "clarification" | "failed" | null = null;
+  if (shadowRequested && v1Failed) {
+    try { frozenV1Failure = mapV1ErrorToOutcome(v1Error); }
+    catch { frozenV1Failure = "failed"; }
+  }
   // Capture only consumed comparison fields before publishing the mutable V1.
   let v1Snapshot: FoodShadowV1Snapshot | null = null;
   if (shadowRequested && !v1Failed && v1) {
@@ -262,7 +267,7 @@ export async function runMealWithFoodV2Shadow(
   // cannot delay successful V1 delivery or the original V1 rejection.
   setImmediate(() => {
     const shadowTask = Promise.resolve()
-      .then(() => observeFoodV2Shadow(evidence, observerDeps, v1Snapshot, v1Failed, v1Error, v1Ms, v1Start))
+      .then(() => observeFoodV2Shadow(evidence, observerDeps, v1Snapshot, frozenV1Failure, v1Ms, v1Start))
       .catch(() => undefined);
     try { deps.trackShadowTask?.(shadowTask); }
     catch { /* A failing task-lifetime hook must not affect V1 or shadow. */ }

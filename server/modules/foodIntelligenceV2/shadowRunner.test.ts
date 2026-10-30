@@ -145,6 +145,26 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     expect(f.runV1).toHaveBeenCalledOnce();
   });
 
+  it("A-020 captures the V1 clarification outcome before the caller mutates its error", async () => {
+    const f = fixture();
+    const original = Object.assign(new Error("private V1 exception"), {
+      code: "food_identity_clarification_required",
+    });
+    f.runV1.mockRejectedValueOnce(original);
+    let received: unknown;
+    try { await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, f.deps); }
+    catch (error) { received = error; }
+    expect(received).toBe(original);
+    original.code = "changed_after_rejection";
+    await f.waitForShadow();
+    expect(f.emit).toHaveBeenCalledOnce();
+    expect(f.emit.mock.calls[0][0]).toMatchObject({
+      run: "partial", v1Outcome: "clarification",
+      v1ItemsObserved: false, verifiedCorrect: null,
+    });
+    expect(JSON.stringify(f.emit.mock.calls[0][0])).not.toContain("private V1 exception");
+  });
+
   it("A-020 preserves V1 even if a projection getter throws", async () => {
     const f = fixture();
     const original = baseV1();
