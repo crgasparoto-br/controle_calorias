@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildV1HistoricalSnapshotFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
+import { buildV1HistoricalSnapshotFixture, buildFoodResolutionDecisionFixture, buildFoodObservationFixture } from "./fixtures";
 import { buildFoodShadowEvent, type FoodShadowEvent } from "./shadowComparison";
 import { replaySanitizedFoodShadowEvents } from "./shadowBaselineReplay";
 
@@ -256,18 +256,31 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     // category, even if the run is partial (not promoted to verified accuracy).
     const atBoundary = { ...valid, run: "partial" as const, flagged: {
       possibleSilentFallback: 1, v2MissingNutritionProvenance: 1,
-      explicitFailure: 1, sourceConflicts: 1,
+      explicitFailure: 0, sourceConflicts: 1,
     } };
     const bounded = replaySanitizedFoodShadowEvents(envelope(atBoundary));
     expect(bounded.baseline.segments[0]).toMatchObject({
       runs: 1, partial: 1, pairedItems: 0,
-      potentialSilentFallbacks: 1, missingNutritionProvenance: 1, explicitFailures: 1,
+      potentialSilentFallbacks: 1, missingNutritionProvenance: 1, explicitFailures: 0,
     });
     expect(bounded.baseline.verifiedAccuracy).toBeNull();
+    // An actual non-food rejection is the positive boundary for explicitFailure;
+    // an otherwise-resolved V2 item cannot be mislabeled as a rejection.
+    const rejected = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "unknown",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
+      v2: [buildFoodResolutionDecisionFixture({ status: "unknown", nextAction: "reject",
+        nutrition: { consumed: null, evidenceIds: [] } })],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    expect(rejected).toMatchObject({ v2Outcome: "unknown", flagged: { explicitFailure: 1 } });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(rejected))).not.toThrow();
     for (const field of ["possibleSilentFallback", "v2MissingNutritionProvenance",
       "explicitFailure", "sourceConflicts"] as const) {
+      const source = field === "explicitFailure" ? rejected : atBoundary;
       expect(() => replaySanitizedFoodShadowEvents(envelope({
-        ...atBoundary, flagged: { ...atBoundary.flagged, [field]: 2 },
+        ...source, flagged: { ...source.flagged, [field]: 2 },
       }))).toThrow("invalid-sanitized-shadow-events");
     }
 
@@ -358,6 +371,116 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       nutrition: 0, macros: { calories: 0, protein: null, carbs: null, fat: null },
     } };
     expect(() => replaySanitizedFoodShadowEvents(envelope(noDrift))).not.toThrow();
+  });
+
+  it("A-014 reconciles explicit rejections with reachable V2 outcome distributions", () => {
+    const resolved = event();
+    const rejected = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "unknown",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
+      v2: [buildFoodResolutionDecisionFixture({ status: "unknown", nextAction: "reject",
+        nutrition: { consumed: null, evidenceIds: [] } })],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    const empty = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "unknown",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
+      v2: [], observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    expect(rejected).toMatchObject({ v2Outcome: "unknown", v2ItemCount: 1,
+      flagged: { explicitFailure: 1 } });
+    expect(empty).toMatchObject({ v2Outcome: "unknown", v2ItemCount: 0,
+      flagged: { explicitFailure: 0 } });
+    for (const valid of [resolved, rejected, empty]) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope(valid))).not.toThrow();
+    }
+    // Reject both fabricated failures in a completed V2 and suppressed
+    // failures in a nonempty unknown V2, including a sibling outcome.
+    for (const forged of [
+      { ...resolved, flagged: { ...resolved.flagged, explicitFailure: 1 } },
+      { ...resolved, v2Outcome: "partially_resolved" as const,
+        flagged: { ...resolved.flagged, explicitFailure: 1 } },
+      { ...resolved, v2Outcome: "ambiguous" as const,
+        flagged: { ...resolved.flagged, explicitFailure: 1 } },
+      { ...rejected, flagged: { ...rejected.flagged, explicitFailure: 0 } },
+    ]) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+  });
+
+  it("A-014 requires the exact clarification difference or null for missing sides", () => {
+    const resolved = event();
+    const v1Exception = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
+      v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    const bothClarify = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
+      v1: null, v1Failure: "clarification",
+      v2: [buildFoodResolutionDecisionFixture({ status: "unknown", nextAction: "clarify",
+        nutrition: { consumed: null, evidenceIds: [] } })],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    const v1Missing = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
+      v1: null, v1Failure: null, v2: [buildFoodResolutionDecisionFixture()],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    const v2Missing = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
+      v2: null, observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 0, totalMs: 3 },
+    });
+    expect(resolved.differences.clarification).toBe(false);
+    expect(v1Exception.differences.clarification).toBe(true);
+    expect(bothClarify.differences.clarification).toBe(false);
+    expect(v1Missing.differences.clarification).toBeNull();
+    expect(v2Missing.differences.clarification).toBeNull();
+    for (const valid of [resolved, v1Exception, bothClarify, v1Missing, v2Missing]) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope(valid))).not.toThrow();
+    }
+    for (const [valid, forgedClarification] of [
+      [resolved, true], [resolved, null], [v1Exception, false],
+      [bothClarify, true], [v1Missing, false], [v2Missing, false],
+    ] as const) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({ ...valid,
+        differences: { ...valid.differences, clarification: forgedClarification },
+      }))).toThrow("invalid-sanitized-shadow-events");
+    }
+  });
+
+  it("A-014 forbids fabricated S1/S2/S3 when the linguistic stage returned no observations", () => {
+    const request = {
+      traceId: baseTrace, modality: "text" as const, entrypoint: "replay" as const,
+      scenarioClass: "generic" as const, v1: buildV1HistoricalSnapshotFixture(),
+      v1Failure: null, v2: null,
+      timings: { v1Ms: 1, languageMs: 0, resolverMs: 0, totalMs: 3 },
+    };
+    for (const failure of ["evidence_unavailable", "language_unavailable"] as const) {
+      const failed = buildFoodShadowEvent({ ...request, observations: [], failure });
+      expect(failed.v2Stages).toEqual({ s1: 0, s2: 0, s3: 0 });
+      expect(() => replaySanitizedFoodShadowEvents(envelope(failed))).not.toThrow();
+      for (const stage of ["s1", "s2", "s3"] as const) {
+        expect(() => replaySanitizedFoodShadowEvents(envelope({ ...failed,
+          v2Stages: { ...failed.v2Stages, [stage]: 9 },
+        }))).toThrow("invalid-sanitized-shadow-events");
+      }
+    }
+    // Resolver failure happens *after* language comprehension. Its observed
+    // normalization path remains legitimate even without a V2 decision list.
+    const afterLanguage = buildFoodShadowEvent({ ...request,
+      failure: "resolver_unavailable", observations: [buildFoodObservationFixture()],
+    });
+    expect(afterLanguage.v2Stages.s1).toBe(1);
+    expect(() => replaySanitizedFoodShadowEvents(envelope(afterLanguage))).not.toThrow();
   });
 
   it("A-013 keeps stage counts, conflicts and stage latencies observable per segment", () => {

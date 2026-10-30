@@ -177,6 +177,13 @@ do livro de dívida.
   impossíveis, V2 resolvida após falha da camada de linguagem/resolvedor,
   sucesso V2 sem itens e deltas positivos de macro sem divergência nutricional
   registrada, preservando falha legítima, comparação parcial e amostra vazia.
+  A-014 reconcilia ainda o outcome V2 com o contador de falha explícita
+  (sem rejeição artificial em lista V2 vazia), a divergência booleana de
+  clarificação conforme ambos outcomes observáveis e as etapas S1/S2/S3
+  com falhas anteriores à obtenção das observações. Os dados de um lado
+  ausente preservam `null`; falha posterior do resolvedor conserva etapas
+  linguísticas já observadas. Controles negativos rejeitam sinais forjados,
+  sem usar contagens agregadas como prova de acurácia real.
   Controles adversariais exercitam comparações completas/parciais, snapshots
   ausentes e limites exatos, rejeitando incoerência em vez de truncar contadores.
   Não persiste eventos nem alimenta

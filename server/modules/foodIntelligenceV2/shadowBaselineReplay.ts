@@ -91,8 +91,29 @@ const shadowEvent = z.object({
     event.flagged.v2MissingNutritionProvenance > event.v2ItemCount ||
     event.flagged.explicitFailure > event.v2ItemCount ||
     event.flagged.sourceConflicts > event.v2ItemCount;
-  const invalidClarification = event.differences.clarification !== null &&
-    (!event.v2ItemsObserved || (!event.v1ItemsObserved && event.v1Outcome !== "clarification"));
+  // A-014: the producer compares the V1 clarification outcome against whether
+  // any V2 decision requested clarification. A known comparison cannot omit
+  // or invert that boolean; a missing side must keep it unknown (null).
+  const clarificationComparable = event.v2ItemsObserved &&
+    (event.v1ItemsObserved || event.v1Outcome === "clarification" || event.v1Outcome === "failed");
+  const expectedClarification = clarificationComparable
+    ? (event.v1Outcome === "clarification") !== (event.v2Outcome === "clarification")
+    : null;
+  const invalidClarification = event.differences.clarification !== expectedClarification;
+  // A-014: `resolved`, `partially_resolved` and `ambiguous` have no rejected
+  // or unknown item in the producer's outcome-priority projection. A nonempty
+  // `unknown` list must contain an explicit rejection/unknown item. An empty
+  // observed list is allowed to be `unknown` with zero explicit failures.
+  const invalidExplicitFailures =
+    (["resolved", "partially_resolved", "ambiguous"].includes(event.v2Outcome) &&
+      event.flagged.explicitFailure !== 0) ||
+    (event.v2Outcome === "unknown" && event.v2ItemCount > 0 &&
+      event.flagged.explicitFailure === 0);
+  // No observations exist when evidence is missing or language comprehension
+  // throws before returning. Resolver failures *can* retain observed stages.
+  const invalidPreResolutionStages =
+    (event.failure === "evidence_unavailable" || event.failure === "language_unavailable") &&
+    (event.v2Stages.s1 !== 0 || event.v2Stages.s2 !== 0 || event.v2Stages.s3 !== 0);
   // Only the V1 adapter can report V1 outcomes. It never emits the V2-only
   // intermediate states. Likewise, an empty V2 decision list means "unknown".
   const invalidOutcomes = ["partially_resolved", "ambiguous", "unknown"].includes(event.v1Outcome) ||
@@ -109,6 +130,7 @@ const shadowEvent = z.object({
   if (unpairedItems !== v1UnpairedItems + v2UnpairedItems ||
     invalidDifferences || invalidFlags || invalidClarification ||
     invalidOutcomes || invalidFailureState || invalidMacroDifference ||
+    invalidExplicitFailures || invalidPreResolutionStages ||
     comparablePairs + v1UnpairedItems > event.v1ItemCount ||
     comparablePairs + v2UnpairedItems > event.v2ItemCount ||
     (!event.v1ItemsObserved && event.v1ItemCount !== 0) ||
