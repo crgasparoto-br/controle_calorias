@@ -57,7 +57,6 @@ const countDifferenceFields = [
 const countFlagFields = [
   "possibleSilentFallback", "v2MissingNutritionProvenance", "explicitFailure", "sourceConflicts",
 ] as const;
-const macroFields = ["calories", "protein", "carbs", "fat"] as const;
 const MAX_SHADOW_REPLAY_TIMING_MS = MAX_SHADOW_REPLAY_EVENTS * MAX_SHADOW_TIMING_MS;
 
 function boundedShadowTiming(value: number, max = MAX_SHADOW_TIMING_MS): number {
@@ -76,7 +75,7 @@ function validateShadowEventNumbers(event: FoodShadowEvent): void {
     boundedShadowCount(event.differences[field]);
   for (const field of countFlagFields)
     boundedShadowCount(event.flagged[field]);
-  for (const field of macroFields) {
+  for (const field of ["calories", "protein", "carbs", "fat"] as const) {
     const delta = event.differences.macros[field];
     if (delta !== null) boundedShadowMacroDelta(delta);
   }
@@ -168,7 +167,7 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       row.quantityDifferences = sumShadowCounts(row.quantityDifferences, event.differences.quantity);
       row.nutritionDifferences = sumShadowCounts(row.nutritionDifferences, event.differences.nutrition);
       row.sourceDifferences = sumShadowCounts(row.sourceDifferences, event.differences.source);
-      for (const field of macroFields) {
+      for (const field of ["calories", "protein", "carbs", "fat"] as const) {
         const delta = event.differences.macros[field];
         if (delta !== null) row.macroAbsDelta[field] = boundedShadowMacroDelta(
           (row.macroAbsDelta[field] ?? 0) + delta, MAX_SHADOW_MACRO_REPLAY_DELTA);
