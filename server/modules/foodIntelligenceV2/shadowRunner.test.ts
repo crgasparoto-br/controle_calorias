@@ -34,7 +34,11 @@ function fixture() {
     scenarioClass: "generic" as const, traceId,
   };
   return { deps, readLocal, readPendingEvidence, stagePendingEvidence, load, emit, runV1,
-    verifyGateA, trackShadowTask, waitForShadow: async () => { await Promise.all(tasks); } };
+    verifyGateA, trackShadowTask, waitForShadow: async () => {
+      // The observer and tracker are intentionally registered after V1 settles.
+      await new Promise<void>(resolve => setImmediate(resolve));
+      await Promise.all(tasks);
+    } };
 }
 
 describe("#1307 read-only V1/V2 shadow execution", () => {
@@ -158,6 +162,40 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     g.emit.mockRejectedValueOnce(new Error("telemetry down"));
     expect(await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, g.deps)).toHaveProperty("items");
     await g.waitForShadow();
+  });
+
+  it("A-017 keeps a valid V1/V2 event when the optional capability reader throws", async () => {
+    const f = fixture();
+    const expected = baseV1();
+    f.runV1.mockResolvedValueOnce(expected);
+    const deps = { ...f.deps, readCapabilityEvents: () => {
+      throw new Error("private capability-reader failure");
+    } };
+    expect(await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, deps)).toBe(expected);
+    await f.waitForShadow();
+    expect(f.emit).toHaveBeenCalledTimes(1);
+    const event = f.emit.mock.calls[0][0];
+    expect(event).toMatchObject({ run: "compared", failure: "none",
+      capabilityUsage: null, verifiedCorrect: null });
+    expect(JSON.stringify(event)).not.toContain("private capability-reader failure");
+    expect(f.runV1).toHaveBeenCalledTimes(1);
+  });
+
+  it("A-017 rejects malformed provider timing without dropping the meal comparison", async () => {
+    const f = fixture();
+    const deps = { ...f.deps, readCapabilityEvents: () => [{
+      capability: "MEAL_TEXT" as const, callRole: "primary" as const,
+      latencyMs: 1e306, estimatedCostUsd: null,
+    }] };
+    const original = baseV1();
+    f.runV1.mockResolvedValueOnce(original);
+    expect(await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, deps)).toBe(original);
+    await f.waitForShadow();
+    expect(f.emit).toHaveBeenCalledTimes(1);
+    expect(f.emit.mock.calls[0][0]).toMatchObject({
+      run: "compared", capabilityUsage: null, verifiedCorrect: null,
+    });
+    expect(f.runV1).toHaveBeenCalledTimes(1);
   });
 
   it("does not fabricate observations from image-only URLs, old V1 decisions or OCR instructions", async () => {
@@ -285,6 +323,57 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     expect(() => buildFoodShadowEvent(request)).toThrow("invalid-shadow-segmentation");
   });
 
+
+  it("A-016 settles V1 before synchronous Gate A and task-tracking callbacks run", async () => {
+    for (const v1Fails of [false, true]) {
+      const f = fixture();
+      const result = baseV1();
+      const originalError = new Error("original V1 error");
+      if (v1Fails) f.runV1.mockRejectedValueOnce(originalError);
+      else f.runV1.mockResolvedValueOnce(result);
+      let v1Settled = false;
+      const prematureCallbacks: string[] = [];
+      const originalGate = f.verifyGateA.getMockImplementation()!;
+      const originalTracker = f.trackShadowTask.getMockImplementation()!;
+      // Callback ordering, rather than a flaky wall-clock budget, detects
+      // even expensive synchronous work before the caller's settlement.
+      f.verifyGateA.mockImplementation(() => {
+        if (!v1Settled) prematureCallbacks.push("gate");
+        return originalGate();
+      });
+      f.trackShadowTask.mockImplementation(task => {
+        if (!v1Settled) prematureCallbacks.push("tracker");
+        originalTracker(task);
+      });
+      if (v1Fails) {
+        await expect(runMealWithFoodV2Shadow({ text: "100 g de arroz" }, f.deps))
+          .rejects.toBe(originalError);
+      } else {
+        await expect(runMealWithFoodV2Shadow({ text: "100 g de arroz" }, f.deps))
+          .resolves.toBe(result);
+      }
+      v1Settled = true;
+      await f.waitForShadow();
+      expect(prematureCallbacks).toEqual([]);
+      expect(f.runV1).toHaveBeenCalledTimes(1);
+      expect(f.verifyGateA).toHaveBeenCalledTimes(1);
+      expect(f.trackShadowTask).toHaveBeenCalledTimes(1);
+      expect(f.emit).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("A-016 preserves the V1 response if the deferred task tracker throws", async () => {
+    const f = fixture();
+    const expected = baseV1();
+    f.runV1.mockResolvedValueOnce(expected);
+    f.trackShadowTask.mockImplementationOnce(() => {
+      throw new Error("private tracker failure");
+    });
+    expect(await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, f.deps)).toBe(expected);
+    await vi.waitFor(() => expect(f.emit).toHaveBeenCalledTimes(1));
+    expect(f.trackShadowTask).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(f.emit.mock.calls[0][0])).not.toContain("private tracker failure");
+  });
 
   it("returns V1 before a pending Gate A, resolver lookup, or telemetry sink", async () => {
     for (const pendingStage of ["gate", "lookup", "sink"] as const) {

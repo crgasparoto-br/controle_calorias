@@ -12,7 +12,7 @@ import { resolveFoodObservations, type FoodResolverContext } from "./resolver";
 import type { FoodKnowledgeStore } from "./knowledgeRead";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
 import {
-  buildFoodShadowEvent, type FoodShadowClass, type FoodShadowContextStatus,
+  buildFoodShadowEvent, summarizeFoodShadowCapabilityUsage, type FoodShadowClass, type FoodShadowContextStatus,
   type FoodShadowEntrypoint, type FoodShadowEvent, type FoodShadowFailure,
   type FoodShadowModality,
 } from "./shadowComparison";
@@ -44,7 +44,7 @@ export type FoodShadowDependencies = {
   readCapabilityEvents?: () => readonly AiCapabilityAttemptMetric[] | null;
   /** The sink accepts *only* a fixed, sanitised event, not a decision or input. */
   emit?: (event: FoodShadowEvent) => void | Promise<void>;
-  /** Optional request-lifetime hook, e.g. waitUntil; never awaited by V1. */
+  /** Optional task-lifetime hook; invoked on a later event-loop turn, after V1 settles. */
   trackShadowTask?: (task: Promise<void>) => void;
   context?: Partial<{
     previousMessage: FoodShadowContextStatus;
@@ -176,6 +176,20 @@ async function observeFoodV2Shadow(
     }
   }
 
+  // The optional provider-attempt adapter must never suppress a completed
+  // V1/V2 comparison. Invalid or unavailable measurement means unknown (null),
+  // not zero calls, and does not weaken the event's own strict validation.
+  let capabilityEvents: readonly AiCapabilityAttemptMetric[] | null = null;
+  try {
+    const captured = deps.readCapabilityEvents?.() ?? null;
+    if (captured !== null) {
+      summarizeFoodShadowCapabilityUsage(captured);
+      capabilityEvents = [...captured];
+    }
+  } catch {
+    // An unavailable or malformed auxiliary capture is not a missing meal.
+  }
+
   try {
     const event = buildFoodShadowEvent({
       traceId, modality: evidence.modality, entrypoint: deps.entrypoint,
@@ -184,7 +198,7 @@ async function observeFoodV2Shadow(
       v2: decisions, observations, partialEvidence: evidence.partial,
       failure, context: deps.context,
       timings: { v1Ms, languageMs, resolverMs, totalMs: elapsed(v1Start) },
-      capabilityEvents: deps.readCapabilityEvents?.() ?? null,
+      capabilityEvents,
     });
     await deps.emit?.(event);
   } catch {
@@ -236,12 +250,15 @@ export async function runMealWithFoodV2Shadow(
   // An explicit request-scoped adapter can also provide observations from other emitters.
   const observerDeps: FoodShadowDependencies = deps.readCapabilityEvents
     ? deps : { ...deps, readCapabilityEvents: () => capturedAttempts };
-  // Neither the gate verifier nor the V2 resolution/telemetry is on the V1 response path.
-  // Defer even the first synchronous observer instruction to the next microtask.
-  const shadowTask = Promise.resolve()
-    .then(() => observeFoodV2Shadow(evidence, observerDeps, v1, v1Failed, v1Error, v1Ms, v1Start))
-    .catch(() => undefined);
-  try { deps.trackShadowTask?.(shadowTask); }
-  catch { /* A failing request-lifetime hook must not affect V1. */ }
+  // A microtask can run before the caller receives this async V1 result.
+  // Use a separate event-loop turn so even synchronous Gate A and task hooks
+  // cannot delay successful V1 delivery or the original V1 rejection.
+  setImmediate(() => {
+    const shadowTask = Promise.resolve()
+      .then(() => observeFoodV2Shadow(evidence, observerDeps, v1, v1Failed, v1Error, v1Ms, v1Start))
+      .catch(() => undefined);
+    try { deps.trackShadowTask?.(shadowTask); }
+    catch { /* A failing task-lifetime hook must not affect V1 or shadow. */ }
+  });
   return replayV1();
 }

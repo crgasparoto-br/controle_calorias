@@ -12,10 +12,12 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 
 - `shadowRunner.ts`: executa **uma vez** a função V1 recebida e devolve o
   mesmo resultado ou relança o mesmo erro **sem aguardar Gate A, V2 ou sink**.
-  A observação acontece em tarefa desacoplada; `trackShadowTask` opcional
-  permite ao runtime manter a tarefa viva (por exemplo, `waitUntil`) sem
-  torná-la parte da latência produtiva. Não há integração produtiva desse
-  hook nesta fase, que permanece fail-closed pelo Gate A.
+  A observação e o hook `trackShadowTask` são agendados por `setImmediate`
+  em outro turno do event loop, após a resposta/erro original da V1 estar
+  disponível ao chamador: até a parte síncrona de Gate A e do hook não bloqueia
+  a resposta. Qualquer integração posterior com `waitUntil`/ciclo de vida do
+  host deve validar a retenção da tarefa após essa defasagem. Não há integração
+  produtiva desse hook nesta fase, que permanece fail-closed pelo Gate A.
 - Executar V2 exige a flag `FOOD_V2_SHADOW_ENABLED=true` **e** um callback
   `verifyGateA` que consulta evidência real de aprovação; ausência, exceção ou
   retorno inválido desliga shadow. **Nenhum callback produtivo de aprovação
@@ -79,8 +81,10 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   papel da tentativa, duração e custo são mantidos temporariamente; nenhum
   `correlation`, texto, ID ou payload entra nessa captura. Requisições
   concorrentes são isoladas e eventos `attemptIndex=0` não são contados
-  como chamadas externas. Sem instrumentação ou se ultrapassar o limite
-  seguro da captura, o campo é `null`, nunca zero presumido. Isso prepara
+  como chamadas externas. Sem instrumentação, em excesso de captura, com
+  leitura auxiliar que lança ou com duração inválida, `capabilityUsage=null`
+  representa medição desconhecida sem perder o evento V1×V2 já disponível;
+  não significa zero chamadas. Isso prepara
   instrumentação de chamadas V1, **não** comprova custos reais de todos os
   adapters, retenção LGPD, baseline produtivo ou a aprovação do Gate A.
 
@@ -121,6 +125,10 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
   V1 independente de Gate A/read/emit pendentes e testes metamórficos de
   permutação, duplicatas, inserção, remoção, troca real de variante,
   mudança de identidade e macros reais.
+- A-016: callback síncrono de Gate A e hook de tracking somente após o
+  assentamento da V1, inclusive se a V1 falhar; hook que lança não interfere.
+- A-017: getter de métricas que lança e provider com duração inválida degradam
+  apenas `capabilityUsage` para `null`, preservando evento sanitizado e V1.
 - A-005: baseline preserva contagem e direção de itens sem par em inserção,
   remoção e identidade trocada; permutação não gera falso desvio; evento
   parcial permanece visível sem contaminar pares/macros completos.
