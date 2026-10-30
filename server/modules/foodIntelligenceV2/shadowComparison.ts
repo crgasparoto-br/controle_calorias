@@ -8,7 +8,8 @@ import type { AiCapabilityAttemptMetric } from "../../_core/ai/observability";
 import type { FoodShadowV1Item, FoodShadowV1Snapshot } from "./shadowV1Snapshot";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
 import { z } from "zod";
-import { abs, boundedShadowMacroDelta, costMetric, exactDifference, MAX_SHADOW_EVENT_COST_USD, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId, shadowMacroDifference } from "./shadowPairing";
+import { abs, boundedShadowMacroDelta, costMetric, exactDifference, hasConsistentFoodShadowTimings, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_TIMING_MS, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId, shadowMacroDifference } from "./shadowPairing";
+export { hasConsistentFoodShadowTimings, MAX_SHADOW_TIMING_MS } from "./shadowPairing";
 
 export type FoodShadowModality = "text" | "audio_transcript" | "image" | "multimodal";
 export type FoodShadowClass = "generic" | "commercial" | "quantity" | "label" | "ambiguous" | "unknown" | "mixed";
@@ -25,14 +26,6 @@ export type FoodShadowCapabilityUsage = {
   estimatedCostUsd: number | null;
   costMeasuredCalls: number;
 };
-
-/** Safe for 10,000 replay events and millisecond measurements rounded to 0.001 ms.
- * This arithmetic integrity bound is not an operational latency SLO.
- */
-export const MAX_SHADOW_TIMING_MS = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * 1_000));
-// Four independently rounded values (three stages and one total) can differ
-// by up to 0.002 ms without any real overlap or missing elapsed time.
-const TIMING_ROUNDING_TOLERANCE_MS = 0.002;
 
 export type FoodShadowEvent = {
   schemaVersion: 1;
@@ -83,16 +76,6 @@ export type FoodShadowEvent = {
   /** Verified accuracy needs independent labels from a separate corpus review. */
   verifiedCorrect: null;
 };
-
-/** Timings are sequential in C4: V1 -> language -> resolver -> completion.
- * Reject impossible samples before they can alter diagnostic percentiles.
- */
-export function hasConsistentFoodShadowTimings(timings: FoodShadowEvent["timings"]): boolean {
-  const values = [timings.v1Ms, timings.languageMs, timings.resolverMs, timings.totalMs];
-  return values.every(value => Number.isFinite(value) && value >= 0 && value <= MAX_SHADOW_TIMING_MS) &&
-    timings.v1Ms + timings.languageMs + timings.resolverMs <=
-      timings.totalMs + TIMING_ROUNDING_TOLERANCE_MS;
-}
 
 /** Typed telemetry dimensions; validators reject untrusted free-form labels. */
 const segmentation = z.object({

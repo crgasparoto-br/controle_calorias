@@ -2,6 +2,20 @@
 import type { FoodShadowV1Item } from "./shadowV1Snapshot";
 import type { FoodResolutionDecision } from "./schemas";
 
+/** Sequential timing integrity shared by producer, replay and direct aggregation. */
+export const MAX_SHADOW_TIMING_MS = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * 1_000));
+// Four independently rounded millisecond measurements permit 0.002 ms drift.
+const TIMING_ROUNDING_TOLERANCE_MS = 0.002;
+
+export function hasConsistentFoodShadowTimings(timings: {
+  v1Ms: number; languageMs: number; resolverMs: number; totalMs: number;
+}): boolean {
+  const values = [timings.v1Ms, timings.languageMs, timings.resolverMs, timings.totalMs];
+  return values.every(value => Number.isFinite(value) && value >= 0 && value <= MAX_SHADOW_TIMING_MS) &&
+    timings.v1Ms + timings.languageMs + timings.resolverMs <=
+      timings.totalMs + TIMING_ROUNDING_TOLERANCE_MS;
+}
+
 /** A replay contains at most 10,000 events; all aggregated counters must stay exact. */
 export const MAX_SHADOW_REPLAY_EVENTS = 10_000;
 export const MAX_SHADOW_EVENT_COUNT = Math.floor(Number.MAX_SAFE_INTEGER / MAX_SHADOW_REPLAY_EVENTS);

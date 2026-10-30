@@ -1,6 +1,7 @@
 /** Read-only aggregate replay of sanitised V1/V2 diagnostics. Never asserts Gate A. */
+import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
 import type { FoodShadowCapabilityUsage, FoodShadowEvent, FoodShadowOutcome, FoodShadowEntrypoint, FoodShadowClass, FoodShadowModality } from "./shadowComparison";
-import { metric, costMetric, boundedShadowMacroDelta, boundedShadowCount, sumShadowCounts, MAX_SHADOW_REPLAY_EVENTS, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_MACRO_REPLAY_DELTA } from "./shadowPairing";
+import { metric, costMetric, boundedShadowMacroDelta, boundedShadowCount, sumShadowCounts, hasConsistentFoodShadowTimings, MAX_SHADOW_TIMING_MS, MAX_SHADOW_REPLAY_EVENTS, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_REPLAY_DELTA } from "./shadowPairing";
 
 export type FoodShadowBaselineSegment = {
   modality: FoodShadowModality; entrypoint: FoodShadowEntrypoint; scenarioClass: FoodShadowClass;
@@ -49,15 +50,73 @@ function observedPercentile(values: readonly number[], fraction: number): number
   return metric(sorted[Math.max(0, Math.ceil(fraction * sorted.length) - 1)]);
 }
 
+const countDifferenceFields = [
+  "comparablePairs", "unpairedItems", "v1UnpairedItems", "v2UnpairedItems",
+  "identity", "variant", "variantIdUnverifiable", "quantity", "nutrition", "source",
+] as const;
+const countFlagFields = [
+  "possibleSilentFallback", "v2MissingNutritionProvenance", "explicitFailure", "sourceConflicts",
+] as const;
+const macroFields = ["calories", "protein", "carbs", "fat"] as const;
+const MAX_SHADOW_REPLAY_TIMING_MS = MAX_SHADOW_REPLAY_EVENTS * MAX_SHADOW_TIMING_MS;
+
+function boundedShadowTiming(value: number, max = MAX_SHADOW_TIMING_MS): number {
+  if (!Number.isFinite(value) || value < 0 || value > max)
+    throw new TypeError("invalid-shadow-timing");
+  return value;
+}
+
+/** Check every numeric field before aggregation, even on partial/failed runs. */
+function validateShadowEventNumbers(event: FoodShadowEvent): void {
+  boundedShadowCount(event.v1ItemCount);
+  boundedShadowCount(event.v2ItemCount);
+  for (const stage of ["s1", "s2", "s3"] as const)
+    boundedShadowCount(event.v2Stages[stage]);
+  for (const field of countDifferenceFields)
+    boundedShadowCount(event.differences[field]);
+  for (const field of countFlagFields)
+    boundedShadowCount(event.flagged[field]);
+  for (const field of macroFields) {
+    const delta = event.differences.macros[field];
+    if (delta !== null) boundedShadowMacroDelta(delta);
+  }
+  const confidence = event.differences.confidence;
+  if (confidence !== null && (!Number.isFinite(confidence) || confidence < 0))
+    throw new TypeError("invalid-shadow-confidence");
+  if (!hasConsistentFoodShadowTimings(event.timings))
+    throw new TypeError("invalid-shadow-timing");
+
+  if (event.capabilityUsage !== null) {
+    const seen = new Set<string>();
+    if (event.capabilityUsage.length > AI_CAPABILITIES.length)
+      throw new TypeError("invalid-shadow-capability");
+    for (const usage of event.capabilityUsage) {
+      if (!AI_CAPABILITIES.includes(usage.capability) || seen.has(usage.capability))
+        throw new TypeError("invalid-shadow-capability");
+      seen.add(usage.capability);
+      const calls = boundedShadowCount(usage.calls);
+      const retries = boundedShadowCount(usage.retries);
+      const measured = boundedShadowCount(usage.costMeasuredCalls);
+      if (calls === 0 || retries > calls || measured > calls)
+        throw new TypeError("invalid-shadow-count");
+      boundedShadowTiming(usage.totalLatencyMs);
+      if ((measured === calls) !== (usage.estimatedCostUsd !== null) ||
+          (usage.estimatedCostUsd !== null &&
+           (!Number.isFinite(usage.estimatedCostUsd) || usage.estimatedCostUsd < 0 ||
+            usage.estimatedCostUsd > MAX_SHADOW_EVENT_COST_USD)))
+        throw new TypeError("invalid-shadow-capability-cost");
+    }
+  }
+}
+
 /** Replays safely from previously sanitised records, never from personal input. */
 export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
   if (events.length > MAX_SHADOW_REPLAY_EVENTS) throw new TypeError("invalid-shadow-count");
   const segments = new Map<string, FoodShadowBaselineSegment>();
   const samples = new Map<string, { v1: number[]; shadow: number[]; language: number[]; resolver: number[] }>();
   for (const event of events) {
-    // The direct aggregator must enforce the same numeric ceiling as replay.
-    boundedShadowCount(event.v1ItemCount);
-    boundedShadowCount(event.v2ItemCount);
+    // Fail closed before the run-state decides which fields enter denominators.
+    validateShadowEventNumbers(event);
     const key = [event.modality, event.entrypoint, event.scenarioClass].join(":");
     const row = segments.get(key) ?? {
       modality: event.modality, entrypoint: event.entrypoint, scenarioClass: event.scenarioClass,
@@ -109,14 +168,10 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       row.quantityDifferences = sumShadowCounts(row.quantityDifferences, event.differences.quantity);
       row.nutritionDifferences = sumShadowCounts(row.nutritionDifferences, event.differences.nutrition);
       row.sourceDifferences = sumShadowCounts(row.sourceDifferences, event.differences.source);
-      for (const field of ["calories", "protein", "carbs", "fat"] as const) {
+      for (const field of macroFields) {
         const delta = event.differences.macros[field];
-        if (delta !== null) {
-          if (!Number.isFinite(delta) || delta < 0 || delta > MAX_SHADOW_MACRO_EVENT_DELTA)
-            throw new TypeError("invalid-shadow-macro-delta");
-          row.macroAbsDelta[field] = boundedShadowMacroDelta(
-            (row.macroAbsDelta[field] ?? 0) + delta, MAX_SHADOW_MACRO_REPLAY_DELTA);
-        }
+        if (delta !== null) row.macroAbsDelta[field] = boundedShadowMacroDelta(
+          (row.macroAbsDelta[field] ?? 0) + delta, MAX_SHADOW_MACRO_REPLAY_DELTA);
       }
     }
     // Outcome-level clarification is comparable even when V1 threw a
@@ -126,30 +181,21 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     row.missingNutritionProvenance = sumShadowCounts(row.missingNutritionProvenance, event.flagged.v2MissingNutritionProvenance);
     row.explicitFailures = sumShadowCounts(row.explicitFailures, event.flagged.explicitFailure);
     row.sourceConflicts = sumShadowCounts(row.sourceConflicts, event.flagged.sourceConflicts);
-    row.totalMs += event.timings.totalMs;
+    row.totalMs = boundedShadowTiming(row.totalMs + event.timings.totalMs, MAX_SHADOW_REPLAY_TIMING_MS);
     if (event.capabilityUsage === null) {
       row.capabilityUsageUnavailableRuns = sumShadowCounts(row.capabilityUsageUnavailableRuns, 1);
     } else {
       row.capabilityUsageObservedRuns = sumShadowCounts(row.capabilityUsageObservedRuns, 1);
       row.external ??= [];
       for (const usage of event.capabilityUsage) {
-        // Guard direct aggregation, including the first sample of a capability.
-        const calls = boundedShadowCount(usage.calls);
-        const retries = boundedShadowCount(usage.retries);
-        const costMeasuredCalls = boundedShadowCount(usage.costMeasuredCalls);
-        if (calls === 0 || retries > calls || costMeasuredCalls > calls)
-          throw new TypeError("invalid-shadow-count");
-        // Guard the direct aggregation API too, not just the strict replay parser.
-        if (usage.estimatedCostUsd !== null &&
-            (!Number.isFinite(usage.estimatedCostUsd) || usage.estimatedCostUsd < 0 ||
-             usage.estimatedCostUsd > MAX_SHADOW_EVENT_COST_USD)) {
-          throw new TypeError("invalid-shadow-capability-cost");
-        }
+        // Already validated before denominators were touched, including first use.
+        const { calls, retries, costMeasuredCalls } = usage;
         const existing = row.external.find(item => item.capability === usage.capability);
         if (!existing) { row.external.push({ ...usage, calls, retries, costMeasuredCalls }); continue; }
         existing.calls = sumShadowCounts(existing.calls, calls);
         existing.retries = sumShadowCounts(existing.retries, retries);
-        existing.totalLatencyMs = metric(existing.totalLatencyMs + usage.totalLatencyMs);
+        existing.totalLatencyMs = metric(boundedShadowTiming(
+          existing.totalLatencyMs + usage.totalLatencyMs, MAX_SHADOW_REPLAY_TIMING_MS));
         existing.costMeasuredCalls = sumShadowCounts(existing.costMeasuredCalls, costMeasuredCalls);
         existing.estimatedCostUsd = existing.estimatedCostUsd === null || usage.estimatedCostUsd === null
           ? null : costMetric(existing.estimatedCostUsd + usage.estimatedCostUsd);

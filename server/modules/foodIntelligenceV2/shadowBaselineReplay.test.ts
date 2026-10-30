@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildV1HistoricalSnapshotFixture, buildFoodResolutionDecisionFixture, buildFoodObservationFixture } from "./fixtures";
 import { buildFoodShadowBaseline, buildFoodShadowEvent, type FoodShadowEvent } from "./shadowComparison";
-import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_EVENT_COUNT, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_REPLAY_COUNT, shadowMacroDifference, sumShadowCounts } from "./shadowPairing";
+import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_EVENT_COUNT, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_REPLAY_COUNT, MAX_SHADOW_TIMING_MS, shadowMacroDifference, sumShadowCounts } from "./shadowPairing";
 import { replaySanitizedFoodShadowEvents } from "./shadowBaselineReplay";
 
 const baseTrace = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
@@ -758,6 +758,94 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
         .toThrow("invalid-sanitized-shadow-events");
       expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-count");
     }
+  });
+
+  it("A-023 validates all count, confidence and macro fields before excluding partial samples", () => {
+    const original = event();
+    const partial = { ...original, run: "partial" as const };
+    const valid = buildFoodShadowBaseline([partial]).segments[0];
+    expect(valid).toMatchObject({ partial: 1, compared: 0, pairedItems: 0,
+      nutritionDifferences: 0, macroAbsDelta: { calories: null } });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(partial))).not.toThrow();
+    for (const field of ["comparablePairs", "identity", "variant", "variantIdUnverifiable",
+      "quantity", "nutrition", "source", "unpairedItems", "v1UnpairedItems", "v2UnpairedItems"] as const) {
+      for (const invalid of [MAX_SHADOW_EVENT_COUNT + 1, -1, 1.25, Infinity]) {
+        const forged = { ...partial, differences: { ...partial.differences, [field]: invalid } };
+        expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-count");
+        expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+          .toThrow("invalid-sanitized-shadow-events");
+      }
+    }
+    for (const field of ["possibleSilentFallback", "v2MissingNutritionProvenance",
+      "explicitFailure", "sourceConflicts"] as const) {
+      const forged = { ...partial, flagged: { ...partial.flagged, [field]: Infinity } };
+      expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-count");
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    for (const field of ["calories", "protein", "carbs", "fat"] as const) {
+      for (const invalid of [-1, Infinity, MAX_SHADOW_MACRO_EVENT_DELTA + 1]) {
+        const forged = { ...partial, differences: { ...partial.differences,
+          macros: { ...partial.differences.macros, [field]: invalid } } };
+        expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-macro-delta");
+        expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+          .toThrow("invalid-sanitized-shadow-events");
+      }
+    }
+    for (const invalid of [-1, NaN, Infinity]) {
+      const forged = { ...partial, differences: { ...partial.differences, confidence: invalid } };
+      expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-confidence");
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    // Do not increase compared denominators when partial data are well formed.
+    expect(buildFoodShadowBaseline([partial, original]).segments[0]).toMatchObject({
+      runs: 2, partial: 1, compared: 1, pairedItems: original.differences.comparablePairs,
+    });
+  });
+
+  it("A-024 rejects impossible timings and cost claims in both aggregation APIs", () => {
+    const original = event();
+    const usage = { capability: "MEAL_TEXT" as const, calls: 1, retries: 0,
+      totalLatencyMs: 5, costMeasuredCalls: 1, estimatedCostUsd: 0.5 };
+    const good = { ...original, capabilityUsage: [usage] };
+    expect(buildFoodShadowBaseline([good]).segments[0].external?.[0]).toMatchObject(usage);
+    expect(() => replaySanitizedFoodShadowEvents(envelope(good))).not.toThrow();
+    for (const field of ["v1Ms", "languageMs", "resolverMs", "totalMs"] as const) {
+      for (const invalid of [NaN, Infinity, -1, MAX_SHADOW_TIMING_MS + 1]) {
+        const forged = { ...original, timings: { ...original.timings, [field]: invalid } };
+        expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-timing");
+        expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+          .toThrow("invalid-sanitized-shadow-events");
+      }
+    }
+    const impossible = { ...original, timings: { ...original.timings, totalMs: 1 } };
+    expect(() => buildFoodShadowBaseline([impossible])).toThrow("invalid-shadow-timing");
+    expect(() => replaySanitizedFoodShadowEvents(envelope(impossible)))
+      .toThrow("invalid-sanitized-shadow-events");
+    for (const altered of [
+      { ...usage, costMeasuredCalls: 1, estimatedCostUsd: null },
+      { ...usage, costMeasuredCalls: 0, estimatedCostUsd: 0.5 },
+      { ...usage, totalLatencyMs: NaN },
+      { ...usage, totalLatencyMs: MAX_SHADOW_TIMING_MS + 1 },
+      { ...usage, estimatedCostUsd: MAX_SHADOW_EVENT_COST_USD + 1 },
+    ]) {
+      const forged = { ...original, capabilityUsage: [altered] };
+      expect(() => buildFoodShadowBaseline([forged])).toThrow();
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    const duplicate = { ...original, capabilityUsage: [usage, usage] };
+    expect(() => buildFoodShadowBaseline([duplicate])).toThrow("invalid-shadow-capability");
+    expect(() => replaySanitizedFoodShadowEvents(envelope(duplicate)))
+      .toThrow("invalid-sanitized-shadow-events");
+    const partialUnmeasured = { ...original, run: "partial" as const, capabilityUsage: [
+      { ...usage, estimatedCostUsd: null, costMeasuredCalls: 0 },
+    ] };
+    expect(buildFoodShadowBaseline([partialUnmeasured]).segments[0].external?.[0]).toMatchObject({
+      calls: 1, costMeasuredCalls: 0, estimatedCostUsd: null,
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(partialUnmeasured))).not.toThrow();
   });
 
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {

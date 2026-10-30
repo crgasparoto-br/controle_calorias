@@ -161,6 +161,19 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
   não finitos e excessivos, além de somas que ultrapassem a precisão inteira
   segura, em vez de publicar contagens arredondadas. O limite é exclusivamente
   de integridade matemática, não representa SLO nem amostragem autorizada.
+- A-023: o agregador direto valida todos os campos numéricos de cada evento,
+  inclusive diferenças/flags, confiança e macros de execuções `partial` ou
+  `failed`, **antes** da seleção de denominadores. Uma execução parcial válida
+  permanece observável, mas não aumenta pares/macros completos. Valores fora
+  do limite falham fechados, sem descarte silencioso.
+- A-024: produtor, replay e agregador direto compartilham os limites de
+  duração e a invariante sequencial V1 + linguagem + resolvedor ≤ total +
+  0,002 ms. Duração inválida não se transforma em zero. Chamadas/retries,
+  custo medido e totalLatencyMs são validados por capacidade, inclusive no
+  primeiro evento, e custos `null` só são aceitos quando nem todas as chamadas
+  foram medidas; duplicatas de capacidade no mesmo evento são rejeitadas.
+  Somatórios de tempo possuem limite de integridade derivado de 10 mil eventos,
+  sem antecipar a aprovação de SLO, baseline real ou Gate A.
 - A-005: baseline preserva contagem e direção de itens sem par em inserção,
   remoção e identidade trocada; permutação não gera falso desvio; evento
   parcial permanece visível sem contaminar pares/macros completos.
