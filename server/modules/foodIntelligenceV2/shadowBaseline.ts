@@ -1,5 +1,6 @@
 /** Read-only aggregate replay of sanitised V1/V2 diagnostics. Never asserts Gate A. */
 import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
+import { assertSanitizedFoodShadowEvent } from "./shadowEventValidation";
 import type { FoodShadowCapabilityUsage, FoodShadowEvent, FoodShadowOutcome, FoodShadowEntrypoint, FoodShadowClass, FoodShadowModality } from "./shadowComparison";
 import { metric, costMetric, boundedShadowMacroDelta, boundedShadowCount, sumShadowCounts, hasConsistentFoodShadowTimings, MAX_SHADOW_TIMING_MS, MAX_SHADOW_REPLAY_EVENTS, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_REPLAY_DELTA } from "./shadowPairing";
 
@@ -112,10 +113,14 @@ function validateShadowEventNumbers(event: FoodShadowEvent): void {
 export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
   if (events.length > MAX_SHADOW_REPLAY_EVENTS) throw new TypeError("invalid-shadow-count");
   const segments = new Map<string, FoodShadowBaselineSegment>();
+  const traceIds = new Set<string>();
   const samples = new Map<string, { v1: number[]; shadow: number[]; language: number[]; resolver: number[] }>();
   for (const event of events) {
     // Fail closed before the run-state decides which fields enter denominators.
     validateShadowEventNumbers(event);
+    assertSanitizedFoodShadowEvent(event);
+    if (traceIds.has(event.traceId)) throw new TypeError("duplicate-shadow-trace-id");
+    traceIds.add(event.traceId);
     const key = [event.modality, event.entrypoint, event.scenarioClass].join(":");
     const row = segments.get(key) ?? {
       modality: event.modality, entrypoint: event.entrypoint, scenarioClass: event.scenarioClass,

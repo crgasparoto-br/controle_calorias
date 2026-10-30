@@ -51,6 +51,53 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     expect(JSON.stringify(report)).not.toContain("0ad100b8");
   });
 
+  it("A-026 enforces the same strict sanitization for direct aggregation and replay", () => {
+    const positive = event();
+    expect(buildFoodShadowBaseline([positive]).segments[0]).toMatchObject({
+      runs: 1, pairedItems: 1, modality: "text", scenarioClass: "generic",
+    });
+    const zero = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "web", scenarioClass: "unknown",
+      v1: { ...buildV1HistoricalSnapshotFixture(), items: [] }, v1Failure: null,
+      v2: [], observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    expect(buildFoodShadowBaseline([zero]).segments[0].pairedItems).toBe(0);
+    const inputs: unknown[] = [
+      { ...zero, differences: { ...zero.differences, comparablePairs: 3 } },
+      { ...positive, scenarioClass: "private.user@example.test" },
+      { ...positive, modality: "private.media@example.test" },
+      { ...positive, entrypoint: "user:1234" },
+      { ...positive, context: { ...positive.context, prompt: "private data" } },
+      { ...positive, flagged: { ...positive.flagged, explicitFailure: 1 } },
+      { ...positive, differences: { ...positive.differences, unpairedItems: 6 } },
+      { ...positive, v2Stages: { s1: 0, s2: 0, s3: 0 } },
+      { ...positive, run: "failed", failure: "none" },
+      { ...positive, failure: "evidence_unavailable", run: "failed" },
+      { ...positive, capabilityUsage: [{ capability: "MEAL_TEXT", calls: 1,
+        retries: 0, totalLatencyMs: 1, estimatedCostUsd: null, costMeasuredCalls: 0 },
+        { capability: "MEAL_TEXT", calls: 1,
+          retries: 0, totalLatencyMs: 1, estimatedCostUsd: null, costMeasuredCalls: 0 }] },
+      { ...positive, traceId: "private.user@example.test" },
+      { ...positive, rawText: "private data" },
+    ];
+    for (const forged of inputs) {
+      expect(() => buildFoodShadowBaseline([forged as FoodShadowEvent])).toThrow();
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged as FoodShadowEvent)))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    const privateLabel = inputs[1];
+    try { buildFoodShadowBaseline([privateLabel as FoodShadowEvent]); }
+    catch (error) { expect(String(error)).not.toContain("private.user@example.test"); }
+    expect(() => buildFoodShadowBaseline([positive, positive])).toThrow("duplicate-shadow-trace-id");
+    // Schema invariants must apply regardless of partial/failed denominators.
+    const partial = { ...positive, run: "partial" as const };
+    expect(buildFoodShadowBaseline([partial]).segments[0]).toMatchObject({ partial: 1, pairedItems: 0 });
+    expect(() => buildFoodShadowBaseline([{ ...partial, differences: {
+      ...partial.differences, comparablePairs: 2,
+    } }])).toThrow();
+  });
+
   it("rejects user content at every nested boundary without leaking its value in errors", () => {
     const secrets = "private-user@personal.example";
     for (const edited of [
@@ -799,7 +846,9 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
         .toThrow("invalid-sanitized-shadow-events");
     }
     // Do not increase compared denominators when partial data are well formed.
-    expect(buildFoodShadowBaseline([partial, original]).segments[0]).toMatchObject({
+    expect(buildFoodShadowBaseline([partial, { ...original,
+      traceId: "0ad100b8-35bd-44cd-932a-e895e51ec7a2",
+    }]).segments[0]).toMatchObject({
       runs: 2, partial: 1, compared: 1, pairedItems: original.differences.comparablePairs,
     });
   });

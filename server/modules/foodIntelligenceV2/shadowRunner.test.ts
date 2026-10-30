@@ -73,6 +73,92 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     expect(f.emit).not.toHaveBeenCalled();
   });
 
+  it("A-025 leaves V1 untouched by optional accessors when shadow is disabled or Gate A is absent", async () => {
+    for (const noShadow of ["flag-off", "no-gate"] as const) {
+      const f = fixture();
+      if (noShadow === "flag-off") f.deps.enabled = false;
+      const deps = noShadow === "no-gate" ? { ...f.deps, verifyGateA: undefined } : f.deps;
+      const result = baseV1();
+      const input = { text: "arroz", get transcript(): string { throw new Error("private optional getter"); } };
+      f.runV1.mockImplementationOnce(async request => {
+        expect(request).toBe(input);
+        expect(request.text).toBe("arroz");
+        return result;
+      });
+      await expect(runMealWithFoodV2Shadow(input, deps)).resolves.toBe(result);
+      expect(f.runV1).toHaveBeenCalledTimes(1);
+      expect(f.verifyGateA).not.toHaveBeenCalled();
+      expect(f.trackShadowTask).not.toHaveBeenCalled();
+      await f.waitForShadow();
+      expect(f.emit).not.toHaveBeenCalled();
+    }
+  });
+
+  it("A-025 prevents optional getter side effects from modifying the V1 request", async () => {
+    for (const enabled of [false, true]) {
+      const f = fixture();
+      f.deps.enabled = enabled;
+      let reads = 0;
+      const input = {
+        text: "arroz",
+        get transcript(): string { reads++; this.text = "banana"; return "banana"; },
+      };
+      f.runV1.mockImplementationOnce(async request => {
+        expect(request.text).toBe("arroz");
+        return baseV1();
+      });
+      await expect(runMealWithFoodV2Shadow(input, f.deps)).resolves.toHaveProperty("items");
+      await f.waitForShadow();
+      expect(reads).toBe(0);
+      expect(input.text).toBe("arroz");
+      expect(f.runV1).toHaveBeenCalledTimes(1);
+      if (enabled) expect(f.emit).toHaveBeenCalledOnce();
+      else expect(f.emit).not.toHaveBeenCalled();
+    }
+  });
+
+  it("A-025 degrades descriptor inspection failures without suppressing V1", async () => {
+    const f = fixture();
+    const target = { text: "arroz" };
+    const input = new Proxy(target, {
+      getOwnPropertyDescriptor() { throw new Error("unreadable shadow evidence"); },
+    });
+    const expected = baseV1();
+    f.runV1.mockResolvedValueOnce(expected);
+    expect(await runMealWithFoodV2Shadow(input, f.deps)).toBe(expected);
+    expect(f.runV1).toHaveBeenCalledWith(input);
+    await f.waitForShadow();
+    expect(f.emit).toHaveBeenCalledOnce();
+    expect(f.emit.mock.calls[0][0]).toMatchObject({
+      failure: "evidence_unavailable", v2Outcome: "not_compared", verifiedCorrect: null,
+    });
+    expect(JSON.stringify(f.emit.mock.calls[0][0])).not.toContain("unreadable shadow evidence");
+  });
+
+  it("RISK-001 ignores test-only enable overrides in production", async () => {
+    const oldEnvironment = process.env.NODE_ENV;
+    const oldFlag = process.env.FOOD_V2_SHADOW_ENABLED;
+    try {
+      process.env.NODE_ENV = "production";
+      process.env.FOOD_V2_SHADOW_ENABLED = "false";
+      const f = fixture();
+      const input = { text: "arroz" };
+      const expected = baseV1();
+      f.runV1.mockResolvedValueOnce(expected);
+      expect(await runMealWithFoodV2Shadow(input, f.deps)).toBe(expected);
+      await f.waitForShadow();
+      expect(f.runV1).toHaveBeenCalledOnce();
+      expect(f.verifyGateA).not.toHaveBeenCalled();
+      expect(f.trackShadowTask).not.toHaveBeenCalled();
+      expect(f.emit).not.toHaveBeenCalled();
+    } finally {
+      if (oldEnvironment === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = oldEnvironment;
+      if (oldFlag === undefined) delete process.env.FOOD_V2_SHADOW_ENABLED;
+      else process.env.FOOD_V2_SHADOW_ENABLED = oldFlag;
+    }
+  });
+
   it("denies unapproved/throwing Gate A and preserves V1 without touching V2", async () => {
     for (const approval of [null, { status: "approved", evidenceReference: "unverified", baseSha: "bad" }]) {
       const f = fixture();
@@ -320,7 +406,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       traceId, modality: "text" as const, entrypoint: "replay" as const,
       scenarioClass: "ambiguous" as const,
       v1: null, v1Failure: "clarification" as const,
-      v2: [buildFoodResolutionDecisionFixture()], observations: [],
+      v2: [buildFoodResolutionDecisionFixture()], observations: [buildFoodObservationFixture()],
       failure: "none" as const,
       timings: { v1Ms: 2, languageMs: 3, resolverMs: 4, totalMs: 9 },
     };
@@ -361,7 +447,11 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       timings: { v1Ms: 5, languageMs: 4, resolverMs: 8, totalMs: 20 }, failure: "none" as const,
     };
     const event = buildFoodShadowEvent(base);
-    const report = buildFoodShadowBaseline([event, { ...event, modality: "image", failure: "evidence_unavailable", run: "failed" }]);
+    const unavailable = buildFoodShadowEvent({ ...base,
+      traceId: "0ad100b8-35bd-44cd-932a-e895e51ec7a2", modality: "image", v2: null,
+      observations: [], failure: "evidence_unavailable",
+      timings: { v1Ms: 5, languageMs: 0, resolverMs: 0, totalMs: 5 } });
+    const report = buildFoodShadowBaseline([event, unavailable]);
     expect(report.totalRuns).toBe(2);
     expect(report.verifiedAccuracy).toBeNull();
     expect(report.rolloutEligible).toBe(false);
@@ -506,7 +596,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       buildFoodShadowEvent({
         traceId, modality: "text", entrypoint: "replay", scenarioClass: "mixed",
         v1: { ...baseV1(), items: v1Items }, v1Failure: null, v2: v2Items,
-        observations: [], failure: "none",
+        observations: v2Items.map(() => buildFoodObservationFixture()), failure: "none",
         timings: { v1Ms: 1, languageMs: 2, resolverMs: 3, totalMs: 6 },
       });
     const arroz = left("Arroz", 100);
@@ -545,7 +635,10 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       nutrition: 1, macros: { calories: 5 } });
     // A-005: the baseline must not erase one-sided insertions or removals.
     // Reordering never creates a gap; genuine nutritional drift stays separate.
-    const baseline = buildFoodShadowBaseline([reversed, insertion, removal, rename, realChange]);
+    const baseline = buildFoodShadowBaseline([reversed, insertion, removal, rename, realChange]
+      .map((entry, index) => ({ ...entry,
+        traceId: `b4e590ab-35bd-44cd-932a-${(index + 1).toString().padStart(12, "0")}`,
+      })));
     expect(baseline.verifiedAccuracy).toBeNull();
     expect(baseline.rolloutEligible).toBe(false);
     expect(baseline.segments).toHaveLength(1);
@@ -584,7 +677,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       buildFoodShadowEvent({
         traceId, modality: "text", entrypoint: "replay", scenarioClass: "commercial",
         v1: { ...baseV1(), items: v1Items }, v1Failure: null,
-        v2: v2Items, observations: [], failure: "none",
+        v2: v2Items, observations: v2Items.map(() => buildFoodObservationFixture()), failure: "none",
         timings: { v1Ms: 1, languageMs: 2, resolverMs: 3, totalMs: 6 },
       });
 
@@ -658,7 +751,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       buildFoodShadowEvent({
         traceId, modality: "text", entrypoint: "replay", scenarioClass: "commercial",
         v1: { ...baseV1(), items: v1Items }, v1Failure: null,
-        v2: v2Items, observations: [], failure: "none",
+        v2: v2Items, observations: v2Items.map(() => buildFoodObservationFixture()), failure: "none",
         timings: { v1Ms: 1, languageMs: 2, resolverMs: 3, totalMs: 6 },
       });
 
@@ -732,7 +825,7 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       buildFoodShadowEvent({
         traceId, modality: "text", entrypoint: "replay", scenarioClass: "mixed",
         v1: { ...baseV1(), items }, v1Failure: null,
-        v2: decisions, observations: [], failure: "none",
+        v2: decisions, observations: decisions.map(() => buildFoodObservationFixture()), failure: "none",
         timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
       });
 

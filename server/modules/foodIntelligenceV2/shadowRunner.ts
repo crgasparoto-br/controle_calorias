@@ -37,7 +37,7 @@ export type FoodShadowDependencies = {
   resolverVersion: string;
   entrypoint: FoodShadowEntrypoint;
   scenarioClass: FoodShadowClass;
-  /** Gated by FOOD_V2_SHADOW_ENABLED unless a test/replay overrides it. */
+  /** Test-only override (NODE_ENV=test); production always requires the flag. */
   enabled?: boolean;
   /** Independent operational approval source; absent/invalid/throwing => no shadow. */
   verifyGateA?: () => Promise<GateAApproval | null>;
@@ -80,22 +80,35 @@ type LanguageEvidence = {
   partial: boolean;
 };
 
+/** Read a JSON-like own data property without invoking arbitrary getters. */
+function ownEvidenceString(input: MealProcessingInput, field: "text" | "transcript" | "imageUrl" | "audioUrl"): string | null {
+  const descriptor = Object.getOwnPropertyDescriptor(input, field);
+  if (!descriptor || !("value" in descriptor) || typeof descriptor.value !== "string") return null;
+  return descriptor.value.trim() || null;
+}
+
 function selectOriginalEvidence(input: MealProcessingInput): LanguageEvidence {
-  const text = typeof input.text === "string" ? input.text.trim() || null : null;
-  const transcript = typeof input.transcript === "string" ? input.transcript.trim() || null : null;
-  const hasImage = typeof input.imageUrl === "string" && input.imageUrl.length > 0;
-  const hasAudio = typeof input.audioUrl === "string" && input.audioUrl.length > 0;
-  const multimodal = Boolean((hasImage || hasAudio) && (text || transcript) || text && transcript);
-  // Never feed a V1 semanticContract, V1 model output or synthetic text
-  // reconstructed from an image back into the V2 linguistic layer.
-  const sourceText = text ?? transcript;
-  return {
-    text: sourceText,
-    modality: hasImage && !sourceText ? "image" : multimodal ? "multimodal" :
-      transcript || hasAudio ? "audio_transcript" : "text",
-    linguisticModality: text ? "text" : transcript ? "audio_transcript" : "image",
-    partial: multimodal || hasImage && !sourceText || hasAudio && !transcript,
-  };
+  try {
+    // Snapshot the original data before V1 may normalize the request. Accessor
+    // properties are not evaluated: they may throw or mutate the V1 input.
+    const text = ownEvidenceString(input, "text");
+    const transcript = ownEvidenceString(input, "transcript");
+    const hasImage = ownEvidenceString(input, "imageUrl") !== null;
+    const hasAudio = ownEvidenceString(input, "audioUrl") !== null;
+    const multimodal = Boolean((hasImage || hasAudio) && (text || transcript) || text && transcript);
+    const sourceText = text ?? transcript;
+    return {
+      text: sourceText,
+      modality: hasImage && !sourceText ? "image" : multimodal ? "multimodal" :
+        transcript || hasAudio ? "audio_transcript" : "text",
+      linguisticModality: text ? "text" : transcript ? "audio_transcript" : "image",
+      partial: multimodal || hasImage && !sourceText || hasAudio && !transcript,
+    };
+  } catch {
+    // Proxy descriptor traps and other untrusted auxiliary input inspection
+    // are not allowed to suppress, replace or delay the V1 result.
+    return { text: null, modality: "text", linguisticModality: "text", partial: true };
+  }
 }
 
 function mapV1ErrorToOutcome(error: unknown): "clarification" | "failed" {
@@ -220,11 +233,15 @@ export async function runMealWithFoodV2Shadow(
   input: MealProcessingInput,
   deps: FoodShadowDependencies,
 ): Promise<CanonicalMealProcessingResult> {
-  // Capture the original surface before V1 can normalize or mutate the input.
-  // A changed V1 draft is never evidence for a separate V2 observation.
+  // When the flag or Gate A callback is absent, do not inspect the request
+  // at all: the wrapper must be indistinguishable from a direct V1 call.
+  const enabled = process.env.NODE_ENV === "test" && deps.enabled !== undefined
+    ? deps.enabled : isFoodV2ShadowEnabled();
+  const shadowRequested = enabled && typeof deps.verifyGateA === "function";
+  if (!shadowRequested) return deps.runV1(input);
+  // Capture the original JSON data without invoking accessors or changing V1.
   const evidence = selectOriginalEvidence(input);
   const v1Start = performance.now();
-  const shadowRequested = (deps.enabled ?? isFoodV2ShadowEnabled()) && Boolean(deps.verifyGateA);
   let v1: CanonicalMealProcessingResult | null = null;
   let v1Failed = false;
   let v1Error: unknown;
@@ -257,7 +274,6 @@ export async function runMealWithFoodV2Shadow(
     if (v1Failed) throw v1Error;
     return v1 as CanonicalMealProcessingResult;
   };
-  if (!shadowRequested) return replayV1();
   // The scoped capture contains only capability/role/latency/cost, never full AI events.
   // An explicit request-scoped adapter can also provide observations from other emitters.
   const observerDeps: FoodShadowDependencies = deps.readCapabilityEvents

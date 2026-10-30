@@ -22,6 +22,17 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   `verifyGateA` que consulta evidência real de aprovação; ausência, exceção ou
   retorno inválido desliga shadow. **Nenhum callback produtivo de aprovação
   está registrado nesta fase**. Variável de ambiente não é auditoria.
+- A-025: com flag OFF ou sem callback Gate A, o wrapper chama diretamente
+  `runV1` sem ler nenhum campo de entrada. Com shadow solicitado, o snapshot
+  anterior a V1 lê somente propriedades de dados próprias (JSON) e não executa
+  getters; falha de inspeção auxiliar degrada a evidência V2, nunca a resposta
+  ou o erro produtivo da V1. O override `enabled` é exclusivo de `NODE_ENV=test`:
+  em execução produtiva, `FOOD_V2_SHADOW_ENABLED` é sempre obrigatório.
+- A-026: agregador direto e replay compartilham o schema estrito
+  `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
+  cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,
+  contagens e custos. O agregador direto também rejeita `traceId` duplicado,
+  sem inserir dimensões livres ou pares impossíveis no baseline.
 - V2 consome apenas observação da entrada original (texto/transcrição).
   Não converte `MealSemanticContract` ou item produzido pelo V1 de volta em
   `FoodObservation`. Imagem isolada e evidência multimodal incompleta são
