@@ -11,6 +11,7 @@ import { comprehendFoodLanguage, type LinguisticLexiconStore } from "./linguisti
 import { resolveFoodObservations, type FoodResolverContext } from "./resolver";
 import type { FoodKnowledgeStore } from "./knowledgeRead";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
+import { snapshotFoodV1ForShadow, type FoodShadowV1Snapshot } from "./shadowV1Snapshot";
 import {
   buildFoodShadowEvent, summarizeFoodShadowCapabilityUsage, type FoodShadowClass, type FoodShadowContextStatus,
   type FoodShadowEntrypoint, type FoodShadowEvent, type FoodShadowFailure,
@@ -119,7 +120,7 @@ function elapsed(start: number) {
 async function observeFoodV2Shadow(
   evidence: LanguageEvidence,
   deps: FoodShadowDependencies,
-  v1: CanonicalMealProcessingResult | null,
+  v1: FoodShadowV1Snapshot | null,
   v1Failed: boolean,
   v1Error: unknown,
   v1Ms: number,
@@ -241,6 +242,12 @@ export async function runMealWithFoodV2Shadow(
     v1Error = error;
   }
   const v1Ms = elapsed(v1Start);
+  // Capture only consumed comparison fields before publishing the mutable V1.
+  let v1Snapshot: FoodShadowV1Snapshot | null = null;
+  if (shadowRequested && !v1Failed && v1) {
+    try { v1Snapshot = snapshotFoodV1ForShadow(v1); }
+    catch { /* Invalid snapshot getters must never alter the V1 response. */ }
+  }
   const replayV1 = () => {
     if (v1Failed) throw v1Error;
     return v1 as CanonicalMealProcessingResult;
@@ -255,7 +262,7 @@ export async function runMealWithFoodV2Shadow(
   // cannot delay successful V1 delivery or the original V1 rejection.
   setImmediate(() => {
     const shadowTask = Promise.resolve()
-      .then(() => observeFoodV2Shadow(evidence, observerDeps, v1, v1Failed, v1Error, v1Ms, v1Start))
+      .then(() => observeFoodV2Shadow(evidence, observerDeps, v1Snapshot, v1Failed, v1Error, v1Ms, v1Start))
       .catch(() => undefined);
     try { deps.trackShadowTask?.(shadowTask); }
     catch { /* A failing task-lifetime hook must not affect V1 or shadow. */ }

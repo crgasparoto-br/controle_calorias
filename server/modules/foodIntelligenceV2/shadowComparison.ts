@@ -5,10 +5,10 @@
  */
 import { AI_CAPABILITIES, type AiCapabilityId } from "../../_core/ai/capabilities";
 import type { AiCapabilityAttemptMetric } from "../../_core/ai/observability";
-import type { CanonicalMealProcessingResult, MealDraftItem } from "../../nutritionEngineTypes";
+import type { FoodShadowV1Item, FoodShadowV1Snapshot } from "./shadowV1Snapshot";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
 import { z } from "zod";
-import { abs, costMetric, exactDifference, MAX_SHADOW_EVENT_COST_USD, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId } from "./shadowPairing";
+import { abs, boundedShadowMacroDelta, costMetric, exactDifference, MAX_SHADOW_EVENT_COST_USD, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId, shadowMacroDifference } from "./shadowPairing";
 
 export type FoodShadowModality = "text" | "audio_transcript" | "image" | "multimodal";
 export type FoodShadowClass = "generic" | "commercial" | "quantity" | "label" | "ambiguous" | "unknown" | "mixed";
@@ -106,9 +106,9 @@ function emptyMacroDifferences(): FoodShadowEvent["differences"]["macros"] {
   return { calories: null, protein: null, carbs: null, fat: null };
 }
 
-const hasNutrition = (item: MealDraftItem) =>
+const hasNutrition = (item: FoodShadowV1Item) =>
   [item.calories, item.protein, item.carbs, item.fat].some(value => Number.isFinite(value) && value > 0);
-const v1Origin = (item: MealDraftItem) => item.resolution?.nutritionOrigin ?? null;
+const v1Origin = (item: FoodShadowV1Item) => item.resolution?.nutritionOrigin ?? null;
 const v2Origin = (item: FoodResolutionDecision) => {
   const nutritionEvidence = item.evidence.filter(event => item.nutrition.evidenceIds.includes(event.evidenceId));
   if (!nutritionEvidence.length) return null;
@@ -120,7 +120,7 @@ const v2Origin = (item: FoodResolutionDecision) => {
     : origin === "ai_estimate" ? "ai_estimate" : origin === "provisional_estimate" ? "provisional_estimate" : null;
 };
 
-function summarizeV1(result: CanonicalMealProcessingResult | null, failed: "clarification" | "failed" | null): FoodShadowOutcome {
+function summarizeV1(result: FoodShadowV1Snapshot | null, failed: "clarification" | "failed" | null): FoodShadowOutcome {
   if (failed) return failed;
   if (!result) return "not_compared";
   return result.semanticContract.needsClarification ? "clarification" : "resolved";
@@ -183,7 +183,7 @@ export function buildFoodShadowEvent(input: {
   modality: FoodShadowModality;
   entrypoint: FoodShadowEntrypoint;
   scenarioClass: FoodShadowClass;
-  v1: CanonicalMealProcessingResult | null;
+  v1: FoodShadowV1Snapshot | null;
   v1Failure: "clarification" | "failed" | null;
   v2: readonly FoodResolutionDecision[] | null;
   observations: readonly FoodObservation[];
@@ -271,9 +271,8 @@ export function buildFoodShadowEvent(input: {
     } else {
       let any = false;
       for (const key of macroKeys) {
-        const delta = abs(left[key], nutrition[key]);
-        if (delta === null) continue;
-        macros[key] = metric((macros[key] ?? 0) + delta);
+        const delta = shadowMacroDifference(left[key], nutrition[key]);
+        macros[key] = boundedShadowMacroDelta((macros[key] ?? 0) + delta);
         if (delta > 0) any = true;
       }
       if (any) differences.nutrition++;

@@ -141,6 +141,17 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
   o replay rejeita registros com custo acima do limite e o agregador direto
   falha fechado. Custos positivos abaixo da precisão de 1e-8 USD permanecem
   positivos, sem fabricar um zero aferido.
+- A-020: um snapshot imutável mínimo dos campos V1 consumidos pelo comparador
+  é capturado antes do retorno ao chamador. O observador nunca retém o objeto
+  V1 completo (texto bruto, mídia, raciocínio e evidências pessoais); alterações
+  posteriores do resultado retornado não alteram a telemetria. Falha na projeção
+  preserva V1 e deixa o lado V1 explicitamente não observado.
+- A-021: diferenças nutricionais rejeitam operandos não finitos, negativos,
+  extremos ou somas por evento além de `floor(MAX_SAFE_INTEGER/(10000*1000))`.
+  Replay e agregador direto rejeitam valores incompatíveis e overflow em vez
+  de convertê-los em zero. Deltas positivos abaixo de 0,001 preservam sinal.
+  Limites matemáticos servem apenas à integridade de até 10 mil eventos, não
+  representam SLO ou tolerância nutricional aprovada.
 - A-005: baseline preserva contagem e direção de itens sem par em inserção,
   remoção e identidade trocada; permutação não gera falso desvio; evento
   parcial permanece visível sem contaminar pares/macros completos.

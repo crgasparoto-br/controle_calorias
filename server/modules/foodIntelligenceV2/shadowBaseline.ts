@@ -1,6 +1,6 @@
 /** Read-only aggregate replay of sanitised V1/V2 diagnostics. Never asserts Gate A. */
 import type { FoodShadowCapabilityUsage, FoodShadowEvent, FoodShadowOutcome, FoodShadowEntrypoint, FoodShadowClass, FoodShadowModality } from "./shadowComparison";
-import { metric, costMetric, MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
+import { metric, costMetric, boundedShadowMacroDelta, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_MACRO_REPLAY_DELTA } from "./shadowPairing";
 
 export type FoodShadowBaselineSegment = {
   modality: FoodShadowModality; entrypoint: FoodShadowEntrypoint; scenarioClass: FoodShadowClass;
@@ -107,7 +107,12 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       row.sourceDifferences += event.differences.source;
       for (const field of ["calories", "protein", "carbs", "fat"] as const) {
         const delta = event.differences.macros[field];
-        if (delta !== null) row.macroAbsDelta[field] = metric((row.macroAbsDelta[field] ?? 0) + delta);
+        if (delta !== null) {
+          if (!Number.isFinite(delta) || delta < 0 || delta > MAX_SHADOW_MACRO_EVENT_DELTA)
+            throw new TypeError("invalid-shadow-macro-delta");
+          row.macroAbsDelta[field] = boundedShadowMacroDelta(
+            (row.macroAbsDelta[field] ?? 0) + delta, MAX_SHADOW_MACRO_REPLAY_DELTA);
+        }
       }
     }
     // Outcome-level clarification is comparable even when V1 threw a

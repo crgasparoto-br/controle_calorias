@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
-import { MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
+import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA } from "./shadowPairing";
 import { buildFoodShadowBaseline, hasConsistentFoodShadowTimings,
   MAX_SHADOW_TIMING_MS, type FoodShadowEvent, type FoodShadowOutcome } from "./shadowComparison";
 
@@ -13,6 +13,7 @@ const boundedTiming = nonnegative.max(MAX_SHADOW_TIMING_MS);
 const boundedCost = nonnegative.max(MAX_SHADOW_EVENT_COST_USD);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const optionalDelta = nonnegative.nullable();
+const boundedMacroDelta = nonnegative.max(MAX_SHADOW_MACRO_EVENT_DELTA).nullable();
 const states = z.enum([
   "resolved", "partially_resolved", "ambiguous", "unknown", "clarification", "failed", "not_compared",
 ]);
@@ -61,7 +62,8 @@ const shadowEvent = z.object({
     quantity: count, nutrition: count, source: count,
     clarification: z.boolean().nullable(),
     macros: z.object({
-      calories: optionalDelta, protein: optionalDelta, carbs: optionalDelta, fat: optionalDelta,
+      calories: boundedMacroDelta, protein: boundedMacroDelta,
+      carbs: boundedMacroDelta, fat: boundedMacroDelta,
     }).strict(),
     confidence: optionalDelta,
   }).strict(),

@@ -1,8 +1,30 @@
 /** Pure, read-only V1/V2 item matching. No raw identity leaves this module. */
-import type { MealDraftItem } from "../../nutritionEngineTypes";
+import type { FoodShadowV1Item } from "./shadowV1Snapshot";
 import type { FoodResolutionDecision } from "./schemas";
 
 export const metric = (n: number): number => Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : 0;
+/** Arithmetic bounds for 10,000 events at 0.001 precision, not nutrition SLOs. */
+export const MAX_SHADOW_MACRO_EVENT_DELTA = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * 1_000));
+export const MAX_SHADOW_MACRO_REPLAY_DELTA = MAX_SHADOW_MACRO_EVENT_DELTA * 10_000;
+
+/** Reject overflow and preserve positive differences below display precision. */
+export function boundedShadowMacroDelta(value: number, max = MAX_SHADOW_MACRO_EVENT_DELTA): number {
+  if (!Number.isFinite(value) || value < 0 || value > max ||
+      !Number.isSafeInteger(Math.round(value * 1_000))) {
+    throw new TypeError("invalid-shadow-macro-delta");
+  }
+  const rounded = Math.round(value * 1_000) / 1_000;
+  return value > 0 && rounded === 0 ? value : rounded;
+}
+
+export function shadowMacroDifference(left: number, right: number): number {
+  if (![left, right].every(value =>
+    Number.isFinite(value) && value >= 0 && value <= MAX_SHADOW_MACRO_EVENT_DELTA)) {
+    throw new TypeError("invalid-shadow-macro-delta");
+  }
+  return boundedShadowMacroDelta(Math.abs(left - right));
+}
+
 /** Numeric integrity ceiling: 10,000 replay events at 1e-8 USD precision. */
 const COST_PRECISION = 100_000_000;
 export const MAX_SHADOW_EVENT_COST_USD = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * COST_PRECISION));
@@ -15,16 +37,19 @@ export function costMetric(n: number): number {
   const rounded = Math.round(n * COST_PRECISION) / COST_PRECISION;
   return n > 0 && rounded === 0 ? n : rounded;
 }
-export const abs = (a: number, b: number): number | null =>
-  Number.isFinite(a) && Number.isFinite(b) && a >= 0 && b >= 0
-    ? metric(Math.abs(a - b)) : null;
+export const abs = (a: number, b: number): number | null => {
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < 0) return null;
+  const delta = Math.abs(a - b);
+  return Number.isFinite(delta) && delta <= MAX_SHADOW_MACRO_REPLAY_DELTA
+    ? boundedShadowMacroDelta(delta, MAX_SHADOW_MACRO_REPLAY_DELTA) : null;
+};
 const normalize = (s: string | null | undefined) =>
   (s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 export const exactDifference = (a: string | null | undefined, b: string | null | undefined) =>
   normalize(a) !== normalize(b);
 
 /** Immutable historical namespaces must never be collapsed by display names. */
-function savedRefId(item: MealDraftItem, prefix: string): number | null {
+function savedRefId(item: FoodShadowV1Item, prefix: string): number | null {
   const reference = item.historicalRef;
   if (!reference?.startsWith(prefix)) return null;
   const text = reference.slice(prefix.length);
@@ -33,12 +58,12 @@ function savedRefId(item: MealDraftItem, prefix: string): number | null {
 }
 
 /** Only a persisted V2 variant reference shares identity with identity.variantId. */
-export function persistedVariantId(item: MealDraftItem): number | null {
+export function persistedVariantId(item: FoodShadowV1Item): number | null {
   return savedRefId(item, "variant:");
 }
 
 /** Persisted foods.id and V2 foodEntityId belong to the same family namespace. */
-export function persistedFamilyId(item: MealDraftItem): number | null {
+export function persistedFamilyId(item: FoodShadowV1Item): number | null {
   return savedRefId(item, "food:");
 }
 
@@ -46,7 +71,7 @@ export function persistedFamilyId(item: MealDraftItem): number | null {
  * A lower-cost candidate is only a preference among *compatible* identities.
  * In particular, a family mismatch may not be hidden by identical labels.
  */
-function shadowPairCost(left: MealDraftItem, right: FoodResolutionDecision): number {
+function shadowPairCost(left: FoodShadowV1Item, right: FoodResolutionDecision): number {
   const nutrition = right.nutrition.consumed;
   const macroDelta = nutrition ?
     (abs(left.calories, nutrition.calories) ?? 0) +
@@ -158,11 +183,11 @@ function optimalPairs(candidates: readonly Candidate[]): Array<{ i: number; j: n
  * Within each precedence tier, optimize *all* duplicates jointly.
  */
 export function pairFoodShadowItems(
-  left: readonly MealDraftItem[], right: readonly FoodResolutionDecision[],
-): { pairs: Array<{ left: MealDraftItem; right: FoodResolutionDecision }>; unpairedVariantChanges: number } {
+  left: readonly FoodShadowV1Item[], right: readonly FoodResolutionDecision[],
+): { pairs: Array<{ left: FoodShadowV1Item; right: FoodResolutionDecision }>; unpairedVariantChanges: number } {
   const usedLeft = new Set<number>();
   const usedRight = new Set<number>();
-  const pairs: Array<{ left: MealDraftItem; right: FoodResolutionDecision }> = [];
+  const pairs: Array<{ left: FoodShadowV1Item; right: FoodResolutionDecision }> = [];
   const leftVariantIds = left.map(persistedVariantId);
   const leftFamilyIds = left.map(persistedFamilyId);
   const leftNames = left.map(item => normalize(item.canonicalName || item.foodName));

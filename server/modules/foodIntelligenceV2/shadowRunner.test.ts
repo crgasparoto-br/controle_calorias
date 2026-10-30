@@ -7,6 +7,7 @@ import type { LinguisticLexiconStore } from "./linguisticComprehension";
 import { buildFoodShadowBaseline, buildFoodShadowEvent, summarizeFoodShadowCapabilityUsage, type FoodShadowEvent } from "./shadowComparison";
 import { readOnlyFoodKnowledge, runMealWithFoodV2Shadow } from "./shadowRunner";
 import { MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
+import { snapshotFoodV1ForShadow } from "./shadowV1Snapshot";
 
 const traceId = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
 const baseV1 = () => buildV1HistoricalSnapshotFixture() as CanonicalMealProcessingResult;
@@ -113,6 +114,52 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     expect(event.v2ItemCount).toBeGreaterThan(0);
     expect(event.capabilityUsage).toBeNull();
     expect(event.verifiedCorrect).toBeNull();
+  });
+
+  it("A-020 captures minimal immutable V1 comparison data before response mutation", async () => {
+    const f = fixture();
+    const original = baseV1();
+    const captured = snapshotFoodV1ForShadow(original);
+    expect(Object.isFrozen(captured)).toBe(true);
+    expect(Object.isFrozen(captured.items)).toBe(true);
+    expect(Object.isFrozen(captured.items[0])).toBe(true);
+    expect(Object.isFrozen(captured.semanticContract)).toBe(true);
+    expect(Object.keys(captured).sort()).toEqual(["items", "semanticContract"]);
+    expect(JSON.stringify(captured)).not.toContain(original.sourceText);
+    f.runV1.mockResolvedValueOnce(original);
+    const returned = await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, f.deps);
+    expect(returned).toBe(original);
+    returned.items[0].calories = 1e306;
+    returned.items[0].foodName = "changed after return";
+    returned.items[0].resolution = { nutritionOrigin: "catalog", nutritionVerified: true };
+    returned.items.push({ ...returned.items[0] });
+    returned.semanticContract.needsClarification = true;
+    await f.waitForShadow();
+    expect(f.emit).toHaveBeenCalledOnce();
+    expect(f.emit.mock.calls[0][0]).toMatchObject({
+      v1Outcome: "resolved", v1ItemCount: 1,
+      flagged: { possibleSilentFallback: 1 }, verifiedCorrect: null,
+    });
+    expect(captured.items[0].calories).toBe(81);
+    expect(captured.semanticContract.needsClarification).toBe(false);
+    expect(f.runV1).toHaveBeenCalledOnce();
+  });
+
+  it("A-020 preserves V1 even if a projection getter throws", async () => {
+    const f = fixture();
+    const original = baseV1();
+    Object.defineProperty(original.items[0], "calories", {
+      get() { throw new Error("private V1 snapshot getter failure"); },
+    });
+    f.runV1.mockResolvedValueOnce(original);
+    expect(await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, f.deps)).toBe(original);
+    await f.waitForShadow();
+    expect(f.emit).toHaveBeenCalledOnce();
+    expect(f.emit.mock.calls[0][0]).toMatchObject({
+      run: "partial", v1Outcome: "not_compared", v1ItemsObserved: false,
+      verifiedCorrect: null,
+    });
+    expect(JSON.stringify(f.emit.mock.calls[0][0])).not.toContain("private V1 snapshot getter failure");
   });
 
   it("A-015 measures sequential shadow latency monotonically when the system clock moves backwards", async () => {

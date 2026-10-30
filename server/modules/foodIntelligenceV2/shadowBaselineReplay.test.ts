@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildV1HistoricalSnapshotFixture, buildFoodResolutionDecisionFixture, buildFoodObservationFixture } from "./fixtures";
 import { buildFoodShadowBaseline, buildFoodShadowEvent, type FoodShadowEvent } from "./shadowComparison";
-import { MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
+import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA, shadowMacroDifference } from "./shadowPairing";
 import { replaySanitizedFoodShadowEvents } from "./shadowBaselineReplay";
 
 const baseTrace = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
@@ -659,6 +659,44 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     }
     expect(() => buildFoodShadowBaseline([withCost(baseTrace, 1e308)]))
       .toThrow("invalid-shadow-capability-cost");
+  });
+
+  it("A-021 prevents overflowed numeric nutrition from looking like a zero delta", () => {
+    const compare = (calories: number, on: "v1" | "v2") => {
+      const v1 = buildV1HistoricalSnapshotFixture();
+      const v2 = buildFoodResolutionDecisionFixture();
+      if (on === "v1") v1.items[0].calories = calories;
+      else v2.nutrition.consumed!.calories = calories;
+      return buildFoodShadowEvent({
+        traceId: baseTrace, modality: "text", entrypoint: "replay",
+        scenarioClass: "generic", v1, v1Failure: null, v2: [v2],
+        observations: [buildFoodObservationFixture()], failure: "none",
+        timings: { v1Ms: 2, languageMs: 3, resolverMs: 4, totalMs: 10 },
+      });
+    };
+    expect(compare(100, "v1").differences).toMatchObject({
+      comparablePairs: 1, nutrition: 1, macros: { calories: 19 },
+    });
+    const limit = compare(MAX_SHADOW_MACRO_EVENT_DELTA, "v1");
+    expect(limit.differences.macros.calories).toBe(MAX_SHADOW_MACRO_EVENT_DELTA - 81);
+    expect(() => replaySanitizedFoodShadowEvents(envelope(limit))).not.toThrow();
+    for (const invalid of [1e306, Number.MAX_VALUE, Infinity, -1, MAX_SHADOW_MACRO_EVENT_DELTA + 1]) {
+      for (const side of ["v1", "v2"] as const) {
+        expect(() => compare(invalid, side)).toThrow("invalid-shadow-macro-delta");
+      }
+    }
+    expect(shadowMacroDifference(0, 1e-12)).toBeGreaterThan(0);
+    expect(shadowMacroDifference(0, 0)).toBe(0);
+    const forged = { ...event(), differences: { ...event().differences,
+      nutrition: 1, macros: { ...event().differences.macros, calories: 1e306 } } };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+      .toThrow("invalid-sanitized-shadow-events");
+    expect(() => buildFoodShadowBaseline([forged]))
+      .toThrow("invalid-shadow-macro-delta");
+    const invalidAggregate = { ...event(), differences: { ...event().differences,
+      nutrition: 1, macros: { ...event().differences.macros, calories: Infinity } } };
+    expect(() => buildFoodShadowBaseline([invalidAggregate]))
+      .toThrow("invalid-shadow-macro-delta");
   });
 
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {
