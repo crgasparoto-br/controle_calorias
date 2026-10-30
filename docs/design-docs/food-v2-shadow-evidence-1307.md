@@ -156,8 +156,14 @@ do livro de dívida.
   (web/WhatsApp/registro/edição/replay), além de classe e modalidade. Expõe a
   distribuição tipada de resultados V1/V2 e os percentis observados p50/p95
   de `v1Ms` e p95 do tempo até completar a observação, pelo método de ordem
-  mais próxima (*nearest rank*). São números diagnósticos, **não SLOs aprovados**;
-  nenhuma janela, coorte representativa, limite de custo ou tolerância é inferida.
+  mais próxima (*nearest rank*). A-013 preserva também as contagens observadas
+  de S1/S2/S3, conflitos entre fontes e p50/p95 de linguagem e resolvedor,
+  sempre acompanhados dos denominadores de amostras instrumentadas. Quando
+  uma etapa não foi medida, seus percentis ficam `null` (não são zero inferido);
+  a cobertura de `capabilityUsage` separa requisições observadas das sem captura
+  (`null`), sem tratar ausência como zero chamadas. São números diagnósticos,
+  **não SLOs aprovados**; nenhuma janela, coorte representativa, limite de custo
+  ou tolerância é inferida.
 - `server/modules/foodIntelligenceV2/shadowBaselineReplay.ts` valida em profundidade
   eventos pré-sanitizados, rejeitando campos inesperados (inclusive texto/PII),
   números incoerentes, correlações duplicadas, somas de itens sem par e
@@ -167,9 +173,13 @@ do livro de dívida.
   recusa contagens de identidade/variante acima dos pares e substituições sem par,
   divergências de quantidade/nutrição/fonte acima dos pares, suspeitas de fallback
   acima dos itens V1 e sinais de falha/conflito V2 acima dos itens V2. Sem pares,
-  os deltas de macros devem permanecer `null`. Controles adversariais exercitam
-  comparações completas/parciais, snapshots ausentes e limites exatos, rejeitando
-  incoerência em vez de truncar contadores. Não persiste eventos nem alimenta
+  os deltas de macros devem permanecer `null`. A-012 recusa estados V1
+  impossíveis, V2 resolvida após falha da camada de linguagem/resolvedor,
+  sucesso V2 sem itens e deltas positivos de macro sem divergência nutricional
+  registrada, preservando falha legítima, comparação parcial e amostra vazia.
+  Controles adversariais exercitam comparações completas/parciais, snapshots
+  ausentes e limites exatos, rejeitando incoerência em vez de truncar contadores.
+  Não persiste eventos nem alimenta
   o resolvedor. O comando manual, sem rede ou sink, é:
 
   ```bash

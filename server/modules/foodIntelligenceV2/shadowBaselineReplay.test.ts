@@ -302,6 +302,110 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     }))).toThrow("invalid-sanitized-shadow-events");
   });
 
+  it("A-012 rejects contradictory failure states and unreachable V1/V2 outcomes", () => {
+    const observed = event();
+    // Producer cannot report a completed V2 resolution when no linguistic
+    // evidence or resolver result exists, even if all item counts add up.
+    for (const failure of ["evidence_unavailable", "language_unavailable", "resolver_unavailable"] as const) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({
+        ...observed, run: "failed", failure,
+      }))).toThrow("invalid-sanitized-shadow-events");
+    }
+    // The V1 adapter emits resolved/clarification/failed/not_compared only.
+    for (const v1Outcome of ["partially_resolved", "ambiguous", "unknown"] as const) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope({ ...observed, v1Outcome })))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    const request = {
+      traceId: baseTrace, modality: "text" as const, entrypoint: "replay" as const,
+      scenarioClass: "ambiguous" as const, observations: [],
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
+      timings: { v1Ms: 2, languageMs: 0, resolverMs: 0, totalMs: 2 },
+    };
+    const failed = buildFoodShadowEvent({ ...request, v2: null, failure: "language_unavailable" });
+    expect(failed.run).toBe("failed");
+    expect(() => replaySanitizedFoodShadowEvents(envelope(failed))).not.toThrow();
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...failed, v2Outcome: "failed",
+    }))).toThrow("invalid-sanitized-shadow-events");
+
+    // Missing V2 snapshots and genuinely empty V2 decision lists differ.
+    const partial = buildFoodShadowEvent({ ...request, failure: "none", v2: null });
+    expect(partial.run).toBe("partial");
+    expect(() => replaySanitizedFoodShadowEvents(envelope(partial))).not.toThrow();
+    const emptyV2 = buildFoodShadowEvent({ ...request, failure: "none", v2: [] });
+    expect(emptyV2).toMatchObject({ v2ItemsObserved: true, v2ItemCount: 0, v2Outcome: "unknown" });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(emptyV2))).not.toThrow();
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...emptyV2, v2Outcome: "resolved",
+    }))).toThrow("invalid-sanitized-shadow-events");
+  });
+
+  it("A-012 rejects forged positive macro deltas without a nutrition discrepancy", () => {
+    const observed = event();
+    // Existing A-011 bounds accept <= 1 nutritional discrepancy for one
+    // comparable pair; the new invariant must additionally bind its macro sum.
+    const coherent = { ...observed, differences: {
+      ...observed.differences, nutrition: 1,
+      macros: { ...observed.differences.macros, calories: 5 },
+    } };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(coherent))).not.toThrow();
+    const forged = { ...coherent, differences: { ...coherent.differences, nutrition: 0 } };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+      .toThrow("invalid-sanitized-shadow-events");
+    // Missing/unmeasurable macros remain null; zero is still a valid delta.
+    const noDrift = { ...coherent, differences: { ...coherent.differences,
+      nutrition: 0, macros: { calories: 0, protein: null, carbs: null, fat: null },
+    } };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(noDrift))).not.toThrow();
+  });
+
+  it("A-013 keeps stage counts, conflicts and stage latencies observable per segment", () => {
+    const first = { ...event({ v1Ms: 10, totalMs: 25 }),
+      v2Stages: { s1: 1, s2: 0, s3: 0 },
+      flagged: { ...event().flagged, sourceConflicts: 1 },
+      timings: { v1Ms: 10, languageMs: 5, resolverMs: 7, totalMs: 25 },
+      capabilityUsage: [] as FoodShadowEvent["capabilityUsage"],
+    };
+    const second = { ...event({
+      traceId: "0ad100b8-35bd-44cd-932a-e895e51ec7a2", v1Ms: 20, totalMs: 45,
+    }),
+      v2Stages: { s1: 0, s2: 2, s3: 3 },
+      flagged: { ...event().flagged, sourceConflicts: 1 },
+      timings: { v1Ms: 20, languageMs: 15, resolverMs: 21, totalMs: 45 },
+    };
+    const missing = buildFoodShadowEvent({
+      traceId: "c7ec7b9c-35bd-44cd-932a-e895e51ec7a2",
+      modality: "text", entrypoint: "web", scenarioClass: "generic",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null, v2: null,
+      observations: [], failure: "evidence_unavailable",
+      timings: { v1Ms: 4, languageMs: 0, resolverMs: 0, totalMs: 4 },
+    });
+    const report = replaySanitizedFoodShadowEvents(envelope(first, second, missing));
+    const segment = report.baseline.segments[0];
+    expect(report.baseline.segments).toHaveLength(1);
+    expect(segment).toMatchObject({
+      runs: 3, compared: 2, failed: 1, v2Stages: { s1: 1, s2: 2, s3: 3 },
+      sourceConflicts: 2,
+      languageLatencySamples: 2, languageLatencyP50Ms: 5, languageLatencyP95Ms: 15,
+      resolverLatencySamples: 2, resolverLatencyP50Ms: 7, resolverLatencyP95Ms: 21,
+      capabilityUsageObservedRuns: 1, capabilityUsageUnavailableRuns: 2,
+      external: [],
+    });
+    // Same input except the stage/conflict signal must no longer yield identical aggregates.
+    const changed = { ...first, v2Stages: { s1: 0, s2: 1, s3: 0 },
+      flagged: { ...first.flagged, sourceConflicts: 0 } };
+    expect(JSON.stringify(replaySanitizedFoodShadowEvents(envelope(first)).baseline))
+      .not.toBe(JSON.stringify(replaySanitizedFoodShadowEvents(envelope(changed)).baseline));
+    const noInstrumentation = replaySanitizedFoodShadowEvents(envelope(missing)).baseline.segments[0];
+    expect(noInstrumentation).toMatchObject({
+      languageLatencySamples: 0, languageLatencyP50Ms: null, languageLatencyP95Ms: null,
+      resolverLatencySamples: 0, resolverLatencyP50Ms: null, resolverLatencyP95Ms: null,
+      capabilityUsageObservedRuns: 0, capabilityUsageUnavailableRuns: 1, external: null,
+    });
+    expect(report.baseline).toMatchObject({ verifiedAccuracy: null, rolloutEligible: false });
+  });
+
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {
     expect(() => replaySanitizedFoodShadowEvents(envelope())).toThrow("invalid-sanitized-shadow-events");
     expect(() => replaySanitizedFoodShadowEvents({ schemaVersion: 1, kind: "food-v2-sanitized-shadow-events",

@@ -12,6 +12,15 @@ export type FoodShadowBaselineSegment = {
   v1LatencyP50Ms: number | null;
   v1LatencyP95Ms: number | null;
   shadowCompletionP95Ms: number | null;
+  /** Stage percentiles include only attempts with completed timing instrumentation. */
+  languageLatencySamples: number;
+  languageLatencyP50Ms: number | null;
+  languageLatencyP95Ms: number | null;
+  resolverLatencySamples: number;
+  resolverLatencyP50Ms: number | null;
+  resolverLatencyP95Ms: number | null;
+  /** Observed linguistic normalization stages, not claimed verified matches. */
+  v2Stages: FoodShadowEvent["v2Stages"];
   pairedItems: number;
   /** Observed gaps, including partial runs; not verified matching errors. */
   unpairedItems: number; v1UnpairedItems: number; v2UnpairedItems: number;
@@ -19,7 +28,10 @@ export type FoodShadowBaselineSegment = {
   quantityDifferences: number; nutritionDifferences: number; sourceDifferences: number;
   clarificationDifferences: number; potentialSilentFallbacks: number;
   missingNutritionProvenance: number; explicitFailures: number;
+  sourceConflicts: number;
   macroAbsDelta: FoodShadowEvent["differences"]["macros"];
+  /** null capabilityUsage means unknown instrumentation, not zero calls. */
+  capabilityUsageObservedRuns: number; capabilityUsageUnavailableRuns: number;
   totalMs: number; external: FoodShadowCapabilityUsage[] | null;
   /** Never derived from V2 resolved rate or V1/V2 agreement. */
   verifiedAccuracy: null;
@@ -40,7 +52,7 @@ function observedPercentile(values: readonly number[], fraction: number): number
 /** Replays safely from previously sanitised records, never from personal input. */
 export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
   const segments = new Map<string, FoodShadowBaselineSegment>();
-  const samples = new Map<string, { v1: number[]; shadow: number[] }>();
+  const samples = new Map<string, { v1: number[]; shadow: number[]; language: number[]; resolver: number[] }>();
   for (const event of events) {
     const key = [event.modality, event.entrypoint, event.scenarioClass].join(":");
     const row = segments.get(key) ?? {
@@ -48,20 +60,34 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       runs: 0, compared: 0, failed: 0, partial: 0, pairedItems: 0,
       v1Outcomes: emptyOutcomeCounts(), v2Outcomes: emptyOutcomeCounts(),
       v1LatencyP50Ms: null, v1LatencyP95Ms: null, shadowCompletionP95Ms: null,
+      languageLatencySamples: 0, languageLatencyP50Ms: null, languageLatencyP95Ms: null,
+      resolverLatencySamples: 0, resolverLatencyP50Ms: null, resolverLatencyP95Ms: null,
+      v2Stages: { s1: 0, s2: 0, s3: 0 },
       unpairedItems: 0, v1UnpairedItems: 0, v2UnpairedItems: 0,
       identityDifferences: 0, variantDifferences: 0, variantIdUnverifiable: 0, quantityDifferences: 0,
       nutritionDifferences: 0, sourceDifferences: 0, clarificationDifferences: 0,
       potentialSilentFallbacks: 0, missingNutritionProvenance: 0, explicitFailures: 0,
+      sourceConflicts: 0,
       macroAbsDelta: { calories: null, protein: null, carbs: null, fat: null },
+      capabilityUsageObservedRuns: 0, capabilityUsageUnavailableRuns: 0,
       totalMs: 0, external: null, verifiedAccuracy: null,
     } satisfies FoodShadowBaselineSegment;
     row.runs++;
     row.v1Outcomes[event.v1Outcome]++;
     row.v2Outcomes[event.v2Outcome]++;
-    const sample = samples.get(key) ?? { v1: [], shadow: [] };
+    const sample = samples.get(key) ?? { v1: [], shadow: [], language: [], resolver: [] };
     sample.v1.push(metric(event.timings.v1Ms));
     sample.shadow.push(metric(event.timings.totalMs));
+    // A failed/missing language stage carries a default zero, not a measured
+    // duration. Resolver failure still measures its attempted duration.
+    if (event.v2ItemsObserved || event.failure === "resolver_unavailable") {
+      sample.language.push(metric(event.timings.languageMs));
+      sample.resolver.push(metric(event.timings.resolverMs));
+    }
     samples.set(key, sample);
+    row.v2Stages.s1 += event.v2Stages.s1;
+    row.v2Stages.s2 += event.v2Stages.s2;
+    row.v2Stages.s3 += event.v2Stages.s3;
     if (event.run === "compared") row.compared++;
     if (event.run === "partial") row.partial++;
     if (event.run === "failed") row.failed++;
@@ -90,8 +116,12 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     row.potentialSilentFallbacks += event.flagged.possibleSilentFallback;
     row.missingNutritionProvenance += event.flagged.v2MissingNutritionProvenance;
     row.explicitFailures += event.flagged.explicitFailure;
+    row.sourceConflicts += event.flagged.sourceConflicts;
     row.totalMs += event.timings.totalMs;
-    if (event.capabilityUsage !== null) {
+    if (event.capabilityUsage === null) {
+      row.capabilityUsageUnavailableRuns++;
+    } else {
+      row.capabilityUsageObservedRuns++;
       row.external ??= [];
       for (const usage of event.capabilityUsage) {
         const existing = row.external.find(item => item.capability === usage.capability);
@@ -111,6 +141,12 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     row.v1LatencyP50Ms = observedPercentile(sample.v1, 0.5);
     row.v1LatencyP95Ms = observedPercentile(sample.v1, 0.95);
     row.shadowCompletionP95Ms = observedPercentile(sample.shadow, 0.95);
+    row.languageLatencySamples = sample.language.length;
+    row.languageLatencyP50Ms = observedPercentile(sample.language, 0.5);
+    row.languageLatencyP95Ms = observedPercentile(sample.language, 0.95);
+    row.resolverLatencySamples = sample.resolver.length;
+    row.resolverLatencyP50Ms = observedPercentile(sample.resolver, 0.5);
+    row.resolverLatencyP95Ms = observedPercentile(sample.resolver, 0.95);
   }
   return {
     schemaVersion: 1 as const, totalRuns: events.length,

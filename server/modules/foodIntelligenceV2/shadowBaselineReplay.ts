@@ -93,8 +93,22 @@ const shadowEvent = z.object({
     event.flagged.sourceConflicts > event.v2ItemCount;
   const invalidClarification = event.differences.clarification !== null &&
     (!event.v2ItemsObserved || (!event.v1ItemsObserved && event.v1Outcome !== "clarification"));
+  // Only the V1 adapter can report V1 outcomes. It never emits the V2-only
+  // intermediate states. Likewise, an empty V2 decision list means "unknown".
+  const invalidOutcomes = ["partially_resolved", "ambiguous", "unknown"].includes(event.v1Outcome) ||
+    event.v2Outcome === "failed" ||
+    (event.v2ItemsObserved && event.v2ItemCount === 0 && event.v2Outcome !== "unknown");
+  // The observer cannot publish V2 decisions after evidence/language/resolver
+  // failure; silently combining a resolved V2 with such a failure corrupts SLOs.
+  const invalidFailureState = event.failure !== "none" &&
+    (event.v2ItemsObserved || event.v2Outcome !== "not_compared");
+  // A real positive macro delta necessarily increments the paired nutrition
+  // difference counter. Zero-sized deltas and missing (null) deltas are valid.
+  const invalidMacroDifference = event.differences.nutrition === 0 &&
+    Object.values(event.differences.macros).some(value => value !== null && value > 0);
   if (unpairedItems !== v1UnpairedItems + v2UnpairedItems ||
     invalidDifferences || invalidFlags || invalidClarification ||
+    invalidOutcomes || invalidFailureState || invalidMacroDifference ||
     comparablePairs + v1UnpairedItems > event.v1ItemCount ||
     comparablePairs + v2UnpairedItems > event.v2ItemCount ||
     (!event.v1ItemsObserved && event.v1ItemCount !== 0) ||
