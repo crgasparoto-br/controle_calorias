@@ -61,6 +61,12 @@ export function isFoodV2ShadowEnabled(): boolean {
   return process.env.FOOD_V2_SHADOW_ENABLED?.trim().toLowerCase() === "true";
 }
 
+/** Keep execution-mode configuration separate from food decision paths. */
+function configuredShadowEnabled(override: boolean | undefined): boolean {
+  return process.env.NODE_ENV === "test" && override !== undefined
+    ? override : isFoodV2ShadowEnabled();
+}
+
 /**
  * The V2 interface is limited to reads. Defensive wrapper protects even a
  * future caller accidentally supplying an external lookup or staging a cache.
@@ -235,9 +241,8 @@ export async function runMealWithFoodV2Shadow(
 ): Promise<CanonicalMealProcessingResult> {
   // When the flag or Gate A callback is absent, do not inspect the request
   // at all: the wrapper must be indistinguishable from a direct V1 call.
-  const enabled = process.env.NODE_ENV === "test" && deps.enabled !== undefined
-    ? deps.enabled : isFoodV2ShadowEnabled();
-  const shadowRequested = enabled && typeof deps.verifyGateA === "function";
+  const shadowRequested = configuredShadowEnabled(deps.enabled) &&
+    typeof deps.verifyGateA === "function";
   if (!shadowRequested) return deps.runV1(input);
   // Capture the original JSON data without invoking accessors or changing V1.
   const evidence = selectOriginalEvidence(input);
