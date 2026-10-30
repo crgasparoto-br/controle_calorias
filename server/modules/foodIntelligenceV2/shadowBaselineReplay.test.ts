@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildV1HistoricalSnapshotFixture, buildFoodResolutionDecisionFixture, buildFoodObservationFixture } from "./fixtures";
 import { buildFoodShadowBaseline, buildFoodShadowEvent, type FoodShadowEvent } from "./shadowComparison";
-import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA, shadowMacroDifference } from "./shadowPairing";
+import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_EVENT_COUNT, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_REPLAY_COUNT, shadowMacroDifference, sumShadowCounts } from "./shadowPairing";
 import { replaySanitizedFoodShadowEvents } from "./shadowBaselineReplay";
 
 const baseTrace = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
@@ -697,6 +697,67 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       nutrition: 1, macros: { ...event().differences.macros, calories: Infinity } } };
     expect(() => buildFoodShadowBaseline([invalidAggregate]))
       .toThrow("invalid-shadow-macro-delta");
+  });
+
+  it("A-022 rejects forged item and stage counters outside the 10,000-event safe-integer envelope", () => {
+    const withCounts = (traceId: string, size: number): FoodShadowEvent => {
+      const original = event({ traceId });
+      return {
+        ...original, v1ItemCount: size, v2ItemCount: size,
+        v2Stages: { s1: size, s2: 0, s3: 0 },
+        differences: { ...original.differences, comparablePairs: size,
+          v1UnpairedItems: 0, v2UnpairedItems: 0, unpairedItems: 0 },
+      };
+    };
+    const a = withCounts(baseTrace, MAX_SHADOW_EVENT_COUNT);
+    const b = withCounts("0ad100b8-35bd-44cd-932a-e895e51ec7a2", MAX_SHADOW_EVENT_COUNT);
+    const c = withCounts("c7ec7b9c-35bd-44cd-932a-e895e51ec7a2", MAX_SHADOW_EVENT_COUNT);
+    const valid = replaySanitizedFoodShadowEvents(envelope(a, b, c)).baseline.segments[0];
+    expect(valid.pairedItems).toBe(MAX_SHADOW_EVENT_COUNT * 3);
+    expect(valid.v2Stages.s1).toBe(MAX_SHADOW_EVENT_COUNT * 3);
+    expect(Number.isSafeInteger(valid.pairedItems)).toBe(true);
+    expect(sumShadowCounts(MAX_SHADOW_REPLAY_COUNT - MAX_SHADOW_EVENT_COUNT,
+      MAX_SHADOW_EVENT_COUNT)).toBe(MAX_SHADOW_REPLAY_COUNT);
+    expect(() => sumShadowCounts(MAX_SHADOW_REPLAY_COUNT, 1)).toThrow("invalid-shadow-count");
+    for (const invalid of [MAX_SHADOW_EVENT_COUNT + 1, Number.MAX_SAFE_INTEGER, -1, 1.5, Infinity]) {
+      const forged = withCounts(baseTrace, invalid);
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+        .toThrow("invalid-sanitized-shadow-events");
+      expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-count");
+    }
+    const oversizedStage = { ...a, v2Stages: { s1: MAX_SHADOW_EVENT_COUNT + 1, s2: 0, s3: 0 } };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(oversizedStage)))
+      .toThrow("invalid-sanitized-shadow-events");
+    expect(() => buildFoodShadowBaseline([oversizedStage])).toThrow("invalid-shadow-count");
+  });
+
+  it("A-022 bounds capability calls, retries and measured-call counts in direct and replay aggregation", () => {
+    const withCalls = (traceId: string, count: number): FoodShadowEvent => ({
+      ...event({ traceId }),
+      capabilityUsage: [{
+        capability: "MEAL_TEXT", calls: count, retries: count,
+        totalLatencyMs: 1, estimatedCostUsd: 0, costMeasuredCalls: count,
+      }],
+    });
+    const a = withCalls(baseTrace, MAX_SHADOW_EVENT_COUNT);
+    const b = withCalls("0ad100b8-35bd-44cd-932a-e895e51ec7a2", MAX_SHADOW_EVENT_COUNT);
+    const usage = replaySanitizedFoodShadowEvents(envelope(a, b)).baseline.segments[0].external?.[0];
+    expect(usage).toMatchObject({ calls: MAX_SHADOW_EVENT_COUNT * 2,
+      retries: MAX_SHADOW_EVENT_COUNT * 2, costMeasuredCalls: MAX_SHADOW_EVENT_COUNT * 2 });
+    expect(Number.isSafeInteger(usage!.calls)).toBe(true);
+    for (const invalid of [MAX_SHADOW_EVENT_COUNT + 1, Number.MAX_SAFE_INTEGER, -1, 1.5, Infinity]) {
+      const forged = withCalls(baseTrace, invalid);
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+        .toThrow("invalid-sanitized-shadow-events");
+      expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-count");
+    }
+    for (const key of ["calls", "retries", "costMeasuredCalls"] as const) {
+      const forged = withCalls(baseTrace, 1);
+      forged.capabilityUsage![0][key] = MAX_SHADOW_EVENT_COUNT + 1;
+      expect(() => replaySanitizedFoodShadowEvents(envelope(forged)))
+        .toThrow("invalid-sanitized-shadow-events");
+      expect(() => buildFoodShadowBaseline([forged])).toThrow("invalid-shadow-count");
+    }
   });
 
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {

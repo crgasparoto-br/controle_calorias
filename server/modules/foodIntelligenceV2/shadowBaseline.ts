@@ -1,6 +1,6 @@
 /** Read-only aggregate replay of sanitised V1/V2 diagnostics. Never asserts Gate A. */
 import type { FoodShadowCapabilityUsage, FoodShadowEvent, FoodShadowOutcome, FoodShadowEntrypoint, FoodShadowClass, FoodShadowModality } from "./shadowComparison";
-import { metric, costMetric, boundedShadowMacroDelta, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_MACRO_REPLAY_DELTA } from "./shadowPairing";
+import { metric, costMetric, boundedShadowMacroDelta, boundedShadowCount, sumShadowCounts, MAX_SHADOW_REPLAY_EVENTS, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_MACRO_REPLAY_DELTA } from "./shadowPairing";
 
 export type FoodShadowBaselineSegment = {
   modality: FoodShadowModality; entrypoint: FoodShadowEntrypoint; scenarioClass: FoodShadowClass;
@@ -51,9 +51,13 @@ function observedPercentile(values: readonly number[], fraction: number): number
 
 /** Replays safely from previously sanitised records, never from personal input. */
 export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
+  if (events.length > MAX_SHADOW_REPLAY_EVENTS) throw new TypeError("invalid-shadow-count");
   const segments = new Map<string, FoodShadowBaselineSegment>();
   const samples = new Map<string, { v1: number[]; shadow: number[]; language: number[]; resolver: number[] }>();
   for (const event of events) {
+    // The direct aggregator must enforce the same numeric ceiling as replay.
+    boundedShadowCount(event.v1ItemCount);
+    boundedShadowCount(event.v2ItemCount);
     const key = [event.modality, event.entrypoint, event.scenarioClass].join(":");
     const row = segments.get(key) ?? {
       modality: event.modality, entrypoint: event.entrypoint, scenarioClass: event.scenarioClass,
@@ -72,9 +76,9 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       capabilityUsageObservedRuns: 0, capabilityUsageUnavailableRuns: 0,
       totalMs: 0, external: null, verifiedAccuracy: null,
     } satisfies FoodShadowBaselineSegment;
-    row.runs++;
-    row.v1Outcomes[event.v1Outcome]++;
-    row.v2Outcomes[event.v2Outcome]++;
+    row.runs = sumShadowCounts(row.runs, 1);
+    row.v1Outcomes[event.v1Outcome] = sumShadowCounts(row.v1Outcomes[event.v1Outcome], 1);
+    row.v2Outcomes[event.v2Outcome] = sumShadowCounts(row.v2Outcomes[event.v2Outcome], 1);
     const sample = samples.get(key) ?? { v1: [], shadow: [], language: [], resolver: [] };
     sample.v1.push(metric(event.timings.v1Ms));
     sample.shadow.push(metric(event.timings.totalMs));
@@ -85,26 +89,26 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       sample.resolver.push(metric(event.timings.resolverMs));
     }
     samples.set(key, sample);
-    row.v2Stages.s1 += event.v2Stages.s1;
-    row.v2Stages.s2 += event.v2Stages.s2;
-    row.v2Stages.s3 += event.v2Stages.s3;
-    if (event.run === "compared") row.compared++;
-    if (event.run === "partial") row.partial++;
-    if (event.run === "failed") row.failed++;
+    row.v2Stages.s1 = sumShadowCounts(row.v2Stages.s1, event.v2Stages.s1);
+    row.v2Stages.s2 = sumShadowCounts(row.v2Stages.s2, event.v2Stages.s2);
+    row.v2Stages.s3 = sumShadowCounts(row.v2Stages.s3, event.v2Stages.s3);
+    if (event.run === "compared") row.compared = sumShadowCounts(row.compared, 1);
+    if (event.run === "partial") row.partial = sumShadowCounts(row.partial, 1);
+    if (event.run === "failed") row.failed = sumShadowCounts(row.failed, 1);
     // Report missing items even for partial observations; they never increase
     // the eligible-pair denominator or imply a verified accuracy failure.
-    row.unpairedItems += event.differences.unpairedItems;
-    row.v1UnpairedItems += event.differences.v1UnpairedItems;
-    row.v2UnpairedItems += event.differences.v2UnpairedItems;
+    row.unpairedItems = sumShadowCounts(row.unpairedItems, event.differences.unpairedItems);
+    row.v1UnpairedItems = sumShadowCounts(row.v1UnpairedItems, event.differences.v1UnpairedItems);
+    row.v2UnpairedItems = sumShadowCounts(row.v2UnpairedItems, event.differences.v2UnpairedItems);
     // Only complete comparisons contribute to paired/macro denominators.
     if (event.run === "compared") {
-      row.pairedItems += event.differences.comparablePairs;
-      row.identityDifferences += event.differences.identity;
-      row.variantDifferences += event.differences.variant;
-      row.variantIdUnverifiable += event.differences.variantIdUnverifiable;
-      row.quantityDifferences += event.differences.quantity;
-      row.nutritionDifferences += event.differences.nutrition;
-      row.sourceDifferences += event.differences.source;
+      row.pairedItems = sumShadowCounts(row.pairedItems, event.differences.comparablePairs);
+      row.identityDifferences = sumShadowCounts(row.identityDifferences, event.differences.identity);
+      row.variantDifferences = sumShadowCounts(row.variantDifferences, event.differences.variant);
+      row.variantIdUnverifiable = sumShadowCounts(row.variantIdUnverifiable, event.differences.variantIdUnverifiable);
+      row.quantityDifferences = sumShadowCounts(row.quantityDifferences, event.differences.quantity);
+      row.nutritionDifferences = sumShadowCounts(row.nutritionDifferences, event.differences.nutrition);
+      row.sourceDifferences = sumShadowCounts(row.sourceDifferences, event.differences.source);
       for (const field of ["calories", "protein", "carbs", "fat"] as const) {
         const delta = event.differences.macros[field];
         if (delta !== null) {
@@ -117,18 +121,24 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     }
     // Outcome-level clarification is comparable even when V1 threw a
     // clarification exception and item-level comparison is partial.
-    if (event.differences.clarification === true) row.clarificationDifferences++;
-    row.potentialSilentFallbacks += event.flagged.possibleSilentFallback;
-    row.missingNutritionProvenance += event.flagged.v2MissingNutritionProvenance;
-    row.explicitFailures += event.flagged.explicitFailure;
-    row.sourceConflicts += event.flagged.sourceConflicts;
+    if (event.differences.clarification === true) row.clarificationDifferences = sumShadowCounts(row.clarificationDifferences, 1);
+    row.potentialSilentFallbacks = sumShadowCounts(row.potentialSilentFallbacks, event.flagged.possibleSilentFallback);
+    row.missingNutritionProvenance = sumShadowCounts(row.missingNutritionProvenance, event.flagged.v2MissingNutritionProvenance);
+    row.explicitFailures = sumShadowCounts(row.explicitFailures, event.flagged.explicitFailure);
+    row.sourceConflicts = sumShadowCounts(row.sourceConflicts, event.flagged.sourceConflicts);
     row.totalMs += event.timings.totalMs;
     if (event.capabilityUsage === null) {
-      row.capabilityUsageUnavailableRuns++;
+      row.capabilityUsageUnavailableRuns = sumShadowCounts(row.capabilityUsageUnavailableRuns, 1);
     } else {
-      row.capabilityUsageObservedRuns++;
+      row.capabilityUsageObservedRuns = sumShadowCounts(row.capabilityUsageObservedRuns, 1);
       row.external ??= [];
       for (const usage of event.capabilityUsage) {
+        // Guard direct aggregation, including the first sample of a capability.
+        const calls = boundedShadowCount(usage.calls);
+        const retries = boundedShadowCount(usage.retries);
+        const costMeasuredCalls = boundedShadowCount(usage.costMeasuredCalls);
+        if (calls === 0 || retries > calls || costMeasuredCalls > calls)
+          throw new TypeError("invalid-shadow-count");
         // Guard the direct aggregation API too, not just the strict replay parser.
         if (usage.estimatedCostUsd !== null &&
             (!Number.isFinite(usage.estimatedCostUsd) || usage.estimatedCostUsd < 0 ||
@@ -136,11 +146,11 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
           throw new TypeError("invalid-shadow-capability-cost");
         }
         const existing = row.external.find(item => item.capability === usage.capability);
-        if (!existing) { row.external.push({ ...usage }); continue; }
-        existing.calls += usage.calls;
-        existing.retries += usage.retries;
+        if (!existing) { row.external.push({ ...usage, calls, retries, costMeasuredCalls }); continue; }
+        existing.calls = sumShadowCounts(existing.calls, calls);
+        existing.retries = sumShadowCounts(existing.retries, retries);
         existing.totalLatencyMs = metric(existing.totalLatencyMs + usage.totalLatencyMs);
-        existing.costMeasuredCalls += usage.costMeasuredCalls;
+        existing.costMeasuredCalls = sumShadowCounts(existing.costMeasuredCalls, costMeasuredCalls);
         existing.estimatedCostUsd = existing.estimatedCostUsd === null || usage.estimatedCostUsd === null
           ? null : costMetric(existing.estimatedCostUsd + usage.estimatedCostUsd);
       }

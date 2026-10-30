@@ -154,6 +154,13 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
   de convertê-los em zero. Deltas positivos abaixo de 0,001 preservam sinal.
   Limites matemáticos servem apenas à integridade de até 10 mil eventos, não
   representam SLO ou tolerância nutricional aprovada.
+- A-022: contadores inteiros de itens, diferenças, estágios S1/S2/S3,
+  sinalizadores e chamadas/retries/custo medido por capacidade são limitados a
+  `floor(Number.MAX_SAFE_INTEGER / 10000)` por evento. Em até 10 mil eventos,
+  o replay e o agregador direto rejeitam valores fracionários, negativos,
+  não finitos e excessivos, além de somas que ultrapassem a precisão inteira
+  segura, em vez de publicar contagens arredondadas. O limite é exclusivamente
+  de integridade matemática, não representa SLO nem amostragem autorizada.
 - A-005: baseline preserva contagem e direção de itens sem par em inserção,
   remoção e identidade trocada; permutação não gera falso desvio; evento
   parcial permanece visível sem contaminar pares/macros completos.

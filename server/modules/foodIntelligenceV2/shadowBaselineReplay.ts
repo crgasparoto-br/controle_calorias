@@ -4,14 +4,14 @@
  */
 import { z } from "zod";
 import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
-import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_MACRO_EVENT_DELTA } from "./shadowPairing";
+import { MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_EVENT_COUNT, MAX_SHADOW_MACRO_EVENT_DELTA, MAX_SHADOW_REPLAY_EVENTS } from "./shadowPairing";
 import { buildFoodShadowBaseline, hasConsistentFoodShadowTimings,
   MAX_SHADOW_TIMING_MS, type FoodShadowEvent, type FoodShadowOutcome } from "./shadowComparison";
 
 const nonnegative = z.number().finite().nonnegative();
 const boundedTiming = nonnegative.max(MAX_SHADOW_TIMING_MS);
 const boundedCost = nonnegative.max(MAX_SHADOW_EVENT_COST_USD);
-const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const count = z.number().int().min(0).max(MAX_SHADOW_EVENT_COUNT);
 const optionalDelta = nonnegative.nullable();
 const boundedMacroDelta = nonnegative.max(MAX_SHADOW_MACRO_EVENT_DELTA).nullable();
 const states = z.enum([
@@ -168,7 +168,7 @@ const shadowEvent = z.object({
 const replayEnvelope = z.object({
   schemaVersion: z.literal(1),
   kind: z.literal("food-v2-sanitized-shadow-events"),
-  events: z.array(shadowEvent).min(1).max(10000),
+  events: z.array(shadowEvent).min(1).max(MAX_SHADOW_REPLAY_EVENTS),
 }).strict();
 
 /**

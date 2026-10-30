@@ -2,10 +2,28 @@
 import type { FoodShadowV1Item } from "./shadowV1Snapshot";
 import type { FoodResolutionDecision } from "./schemas";
 
+/** A replay contains at most 10,000 events; all aggregated counters must stay exact. */
+export const MAX_SHADOW_REPLAY_EVENTS = 10_000;
+export const MAX_SHADOW_EVENT_COUNT = Math.floor(Number.MAX_SAFE_INTEGER / MAX_SHADOW_REPLAY_EVENTS);
+export const MAX_SHADOW_REPLAY_COUNT = MAX_SHADOW_EVENT_COUNT * MAX_SHADOW_REPLAY_EVENTS;
+
+export function boundedShadowCount(value: number, limit = MAX_SHADOW_EVENT_COUNT): number {
+  if (!Number.isSafeInteger(value) || value < 0 || value > limit)
+    throw new TypeError("invalid-shadow-count");
+  return value;
+}
+
+/** Refuse malformed events and accumulated values outside the safe-integer envelope. */
+export function sumShadowCounts(total: number, next: number): number {
+  boundedShadowCount(total, MAX_SHADOW_REPLAY_COUNT);
+  boundedShadowCount(next);
+  return boundedShadowCount(total + next, MAX_SHADOW_REPLAY_COUNT);
+}
+
 export const metric = (n: number): number => Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : 0;
 /** Arithmetic bounds for 10,000 events at 0.001 precision, not nutrition SLOs. */
-export const MAX_SHADOW_MACRO_EVENT_DELTA = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * 1_000));
-export const MAX_SHADOW_MACRO_REPLAY_DELTA = MAX_SHADOW_MACRO_EVENT_DELTA * 10_000;
+export const MAX_SHADOW_MACRO_EVENT_DELTA = Math.floor(Number.MAX_SAFE_INTEGER / (MAX_SHADOW_REPLAY_EVENTS * 1_000));
+export const MAX_SHADOW_MACRO_REPLAY_DELTA = MAX_SHADOW_MACRO_EVENT_DELTA * MAX_SHADOW_REPLAY_EVENTS;
 
 /** Reject overflow and preserve positive differences below display precision. */
 export function boundedShadowMacroDelta(value: number, max = MAX_SHADOW_MACRO_EVENT_DELTA): number {
@@ -27,8 +45,8 @@ export function shadowMacroDifference(left: number, right: number): number {
 
 /** Numeric integrity ceiling: 10,000 replay events at 1e-8 USD precision. */
 const COST_PRECISION = 100_000_000;
-export const MAX_SHADOW_EVENT_COST_USD = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * COST_PRECISION));
-export const MAX_SHADOW_REPLAY_COST_USD = MAX_SHADOW_EVENT_COST_USD * 10_000;
+export const MAX_SHADOW_EVENT_COST_USD = Math.floor(Number.MAX_SAFE_INTEGER / (MAX_SHADOW_REPLAY_EVENTS * COST_PRECISION));
+export const MAX_SHADOW_REPLAY_COST_USD = MAX_SHADOW_EVENT_COST_USD * MAX_SHADOW_REPLAY_EVENTS;
 
 /** Invalid/overflowed costs must never turn into measured zero. */
 export function costMetric(n: number): number {
