@@ -95,7 +95,7 @@ const shadowEvent = z.object({
   // any V2 decision requested clarification. A known comparison cannot omit
   // or invert that boolean; a missing side must keep it unknown (null).
   const clarificationComparable = event.v2ItemsObserved &&
-    (event.v1ItemsObserved || event.v1Outcome === "clarification" || event.v1Outcome === "failed");
+    (event.v1ItemsObserved || event.v1Outcome === "clarification");
   const expectedClarification = clarificationComparable
     ? (event.v1Outcome === "clarification") !== (event.v2Outcome === "clarification")
     : null;

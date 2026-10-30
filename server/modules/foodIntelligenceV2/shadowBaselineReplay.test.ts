@@ -433,6 +433,12 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       observations: [], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
+    const v1Failure = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "unknown",
+      v1: null, v1Failure: "failed", v2: [buildFoodResolutionDecisionFixture()],
+      observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
     const v2Missing = buildFoodShadowEvent({
       traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
       v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
@@ -443,13 +449,14 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     expect(v1Exception.differences.clarification).toBe(true);
     expect(bothClarify.differences.clarification).toBe(false);
     expect(v1Missing.differences.clarification).toBeNull();
+    expect(v1Failure.differences.clarification).toBeNull();
     expect(v2Missing.differences.clarification).toBeNull();
-    for (const valid of [resolved, v1Exception, bothClarify, v1Missing, v2Missing]) {
+    for (const valid of [resolved, v1Exception, bothClarify, v1Missing, v1Failure, v2Missing]) {
       expect(() => replaySanitizedFoodShadowEvents(envelope(valid))).not.toThrow();
     }
     for (const [valid, forgedClarification] of [
       [resolved, true], [resolved, null], [v1Exception, false],
-      [bothClarify, true], [v1Missing, false], [v2Missing, false],
+      [bothClarify, true], [v1Missing, false], [v1Failure, false], [v2Missing, false],
     ] as const) {
       expect(() => replaySanitizedFoodShadowEvents(envelope({ ...valid,
         differences: { ...valid.differences, clarification: forgedClarification },
