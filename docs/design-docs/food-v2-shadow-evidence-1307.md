@@ -129,6 +129,18 @@ produtivos exige Gate A/19 e cutover autorizado, não deve ser ocultada.
   assentamento da V1, inclusive se a V1 falhar; hook que lança não interfere.
 - A-017: getter de métricas que lança e provider com duração inválida degradam
   apenas `capabilityUsage` para `null`, preservando evento sanitizado e V1.
+- A-018: quando decisões V2 estão presentes e o resolvedor concluiu, o replay
+  exige `s1 + s2 + s3 = v2ItemCount`, inclusive se a execução é parcial por
+  ausência do resultado V1. Lista V2 vazia exige zero etapas; falha real do
+  resolvedor pode preservar etapas linguísticas sem inventar decisões.
+- A-019: custos positivos, negativos ou extremos não podem sofrer overflow
+  nem virar zero medido após arredondamento. O máximo de custo por capacidade
+  e evento é `floor(MAX_SAFE_INTEGER / (10000 * 10^8)) = 9007 USD`, valor
+  conservador de integridade para até 10 mil eventos, **não orçamento nem SLO**.
+  A leitura auxiliar com custo inválido degrada somente `capabilityUsage=null`;
+  o replay rejeita registros com custo acima do limite e o agregador direto
+  falha fechado. Custos positivos abaixo da precisão de 1e-8 USD permanecem
+  positivos, sem fabricar um zero aferido.
 - A-005: baseline preserva contagem e direção de itens sem par em inserção,
   remoção e identidade trocada; permutação não gera falso desvio; evento
   parcial permanece visível sem contaminar pares/macros completos.

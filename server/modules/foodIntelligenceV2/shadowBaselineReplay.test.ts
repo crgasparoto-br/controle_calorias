@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildV1HistoricalSnapshotFixture, buildFoodResolutionDecisionFixture, buildFoodObservationFixture } from "./fixtures";
-import { buildFoodShadowEvent, type FoodShadowEvent } from "./shadowComparison";
+import { buildFoodShadowBaseline, buildFoodShadowEvent, type FoodShadowEvent } from "./shadowComparison";
+import { MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
 import { replaySanitizedFoodShadowEvents } from "./shadowBaselineReplay";
 
 const baseTrace = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
@@ -15,7 +16,7 @@ function event(override: Partial<{
     entrypoint: override.entrypoint ?? "web",
     scenarioClass: override.scenarioClass ?? "generic",
     v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
-    v2: [buildFoodResolutionDecisionFixture()], observations: [],
+    v2: [buildFoodResolutionDecisionFixture()], observations: [buildFoodObservationFixture()],
     failure: "none", timings: {
       v1Ms: override.v1Ms ?? 10, languageMs: override.languageMs ?? 2,
       resolverMs: override.resolverMs ?? 3, totalMs: override.totalMs ?? 20,
@@ -106,7 +107,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     const exception = buildFoodShadowEvent({
       traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
       v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 2, languageMs: 3, resolverMs: 4, totalMs: 9 },
     });
     expect(exception.run).toBe("partial");
@@ -137,7 +138,8 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     };
     const observed = [
       buildFoodShadowEvent({ ...request, v1: twoV1, v2: [] }),
-      buildFoodShadowEvent({ ...request, v1: { ...originalV1, items: [] }, v2: twoV2 }),
+      buildFoodShadowEvent({ ...request, v1: { ...originalV1, items: [] }, v2: twoV2,
+        observations: [buildFoodObservationFixture(), buildFoodObservationFixture()] }),
     ];
     for (const [index, valid] of observed.entries()) {
       expect(valid).toMatchObject({
@@ -170,6 +172,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     };
     const v1Absent = buildFoodShadowEvent({ ...request,
       v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
+      observations: [buildFoodObservationFixture()],
     });
     const v2Absent = buildFoodShadowEvent({ ...request,
       v1: buildV1HistoricalSnapshotFixture(), v1Failure: null, v2: null,
@@ -226,7 +229,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "mixed",
       v1, v1Failure: null,
       v2: [buildFoodResolutionDecisionFixture({ identity: { canonicalName: "Arroz" } })],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 2, languageMs: 1, resolverMs: 1, totalMs: 4 },
     });
     expect(unmatched).toMatchObject({ differences: { comparablePairs: 0,
@@ -271,7 +274,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
       v2: [buildFoodResolutionDecisionFixture({ status: "unknown", nextAction: "reject",
         nutrition: { consumed: null, evidenceIds: [] } })],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
     expect(rejected).toMatchObject({ v2Outcome: "unknown", flagged: { explicitFailure: 1 } });
@@ -287,7 +290,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     const missingV1 = buildFoodShadowEvent({
       traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
       v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
     expect(() => replaySanitizedFoodShadowEvents(envelope(missingV1))).not.toThrow();
@@ -380,7 +383,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
       v2: [buildFoodResolutionDecisionFixture({ status: "unknown", nextAction: "reject",
         nutrition: { consumed: null, evidenceIds: [] } })],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
     const empty = buildFoodShadowEvent({
@@ -416,7 +419,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     const v1Exception = buildFoodShadowEvent({
       traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
       v1: null, v1Failure: "clarification", v2: [buildFoodResolutionDecisionFixture()],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
     const bothClarify = buildFoodShadowEvent({
@@ -424,19 +427,19 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       v1: null, v1Failure: "clarification",
       v2: [buildFoodResolutionDecisionFixture({ status: "unknown", nextAction: "clarify",
         nutrition: { consumed: null, evidenceIds: [] } })],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
     const v1Missing = buildFoodShadowEvent({
       traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "ambiguous",
       v1: null, v1Failure: null, v2: [buildFoodResolutionDecisionFixture()],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
     const v1Failure = buildFoodShadowEvent({
       traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "unknown",
       v1: null, v1Failure: "failed", v2: [buildFoodResolutionDecisionFixture()],
-      observations: [], failure: "none",
+      observations: [buildFoodObservationFixture()], failure: "none",
       timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
     });
     const v2Missing = buildFoodShadowEvent({
@@ -500,7 +503,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     const second = { ...event({
       traceId: "0ad100b8-35bd-44cd-932a-e895e51ec7a2", v1Ms: 20, totalMs: 60,
     }),
-      v2Stages: { s1: 0, s2: 2, s3: 3 },
+      v2Stages: { s1: 0, s2: 1, s3: 0 },
       flagged: { ...event().flagged, sourceConflicts: 1 },
       timings: { v1Ms: 20, languageMs: 15, resolverMs: 21, totalMs: 60 },
     };
@@ -515,7 +518,7 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     const segment = report.baseline.segments[0];
     expect(report.baseline.segments).toHaveLength(1);
     expect(segment).toMatchObject({
-      runs: 3, compared: 2, failed: 1, v2Stages: { s1: 1, s2: 2, s3: 3 },
+      runs: 3, compared: 2, failed: 1, v2Stages: { s1: 1, s2: 1, s3: 0 },
       sourceConflicts: 2,
       languageLatencySamples: 2, languageLatencyP50Ms: 5, languageLatencyP95Ms: 15,
       resolverLatencySamples: 2, resolverLatencyP50Ms: 7, resolverLatencyP95Ms: 21,
@@ -534,6 +537,52 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       capabilityUsageObservedRuns: 0, capabilityUsageUnavailableRuns: 1, external: null,
     });
     expect(report.baseline).toMatchObject({ verifiedAccuracy: null, rolloutEligible: false });
+  });
+
+  it("A-018 requires exactly one observed S1/S2/S3 stage per completed V2 decision", () => {
+    const observed = event();
+    expect(observed.v2Stages).toEqual({ s1: 1, s2: 0, s3: 0 });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(observed))).not.toThrow();
+    const partial = { ...observed, run: "partial" as const };
+    expect(() => replaySanitizedFoodShadowEvents(envelope(partial))).not.toThrow();
+
+    const empty = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "unknown",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null,
+      v2: [], observations: [], failure: "none",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(empty))).not.toThrow();
+
+    // Resolver failures keep the linguistic observations even though V2
+    // decisions are unavailable; no false equality is imposed in that case.
+    const resolverFailure = buildFoodShadowEvent({
+      traceId: baseTrace, modality: "text", entrypoint: "replay", scenarioClass: "generic",
+      v1: buildV1HistoricalSnapshotFixture(), v1Failure: null, v2: null,
+      observations: [buildFoodObservationFixture()], failure: "resolver_unavailable",
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    });
+    expect(() => replaySanitizedFoodShadowEvents(envelope(resolverFailure))).not.toThrow();
+
+    const stages = [
+      { s1: 0, s2: 2, s3: 3 }, // Prior A-013 fixture: five stages for one V2 item.
+      { s1: 0, s2: 0, s3: 0 }, // Suppressed stage.
+      { s1: 1, s2: 1, s3: 0 }, // One extra stage.
+    ];
+    for (const sample of [observed, partial]) {
+      for (const v2Stages of stages) {
+        expect(() => replaySanitizedFoodShadowEvents(envelope({ ...sample, v2Stages })))
+          .toThrow("invalid-sanitized-shadow-events");
+      }
+    }
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...empty, v2Stages: { s1: 1, s2: 0, s3: 0 },
+    }))).toThrow("invalid-sanitized-shadow-events");
+    // A different completed normalization path remains valid when the
+    // total still equals the number of resolved observations.
+    expect(() => replaySanitizedFoodShadowEvents(envelope({
+      ...observed, v2Stages: { s1: 0, s2: 0, s3: 1 },
+    }))).not.toThrow();
   });
 
   it("A-015 rejects impossible sequential timings instead of publishing false percentiles", () => {
@@ -581,6 +630,35 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
       capabilityUsage: [{ capability: "MEAL_TEXT", calls: 1, retries: 0,
         totalLatencyMs: 1e306, costMeasuredCalls: 0, estimatedCostUsd: null }],
     }))).toThrow("invalid-sanitized-shadow-events");
+  });
+
+  it("A-019 rejects oversized cost measurements and preserves valid micro-cost aggregates", () => {
+    const withCost = (traceId: string, estimatedCostUsd: number) => ({
+      ...event({ traceId }),
+      capabilityUsage: [{
+        capability: "MEAL_TEXT" as const, calls: 1, retries: 0, totalLatencyMs: 1,
+        costMeasuredCalls: 1, estimatedCostUsd,
+      }],
+    });
+    const secondTrace = "0ad100b8-35bd-44cd-932a-e895e51ec7a2";
+    const boundary = replaySanitizedFoodShadowEvents(envelope(
+      withCost(baseTrace, MAX_SHADOW_EVENT_COST_USD),
+      withCost(secondTrace, MAX_SHADOW_EVENT_COST_USD),
+    )).baseline.segments[0];
+    expect(boundary.external).toMatchObject([{
+      capability: "MEAL_TEXT", calls: 2, costMeasuredCalls: 2,
+      estimatedCostUsd: MAX_SHADOW_EVENT_COST_USD * 2,
+    }]);
+    const verySmall = replaySanitizedFoodShadowEvents(envelope(
+      withCost(baseTrace, 1e-12), withCost(secondTrace, 1e-12),
+    )).baseline.segments[0];
+    expect(verySmall.external?.[0].estimatedCostUsd).toBe(2e-12);
+    for (const invalidCost of [-1, MAX_SHADOW_EVENT_COST_USD + 1, 1e308, Infinity]) {
+      expect(() => replaySanitizedFoodShadowEvents(envelope(withCost(baseTrace, invalidCost))))
+        .toThrow("invalid-sanitized-shadow-events");
+    }
+    expect(() => buildFoodShadowBaseline([withCost(baseTrace, 1e308)]))
+      .toThrow("invalid-shadow-capability-cost");
   });
 
   it("does not accept an empty/oversized or malformed replay as a measured population", () => {

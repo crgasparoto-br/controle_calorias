@@ -4,11 +4,13 @@
  */
 import { z } from "zod";
 import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
+import { MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
 import { buildFoodShadowBaseline, hasConsistentFoodShadowTimings,
   MAX_SHADOW_TIMING_MS, type FoodShadowEvent, type FoodShadowOutcome } from "./shadowComparison";
 
 const nonnegative = z.number().finite().nonnegative();
 const boundedTiming = nonnegative.max(MAX_SHADOW_TIMING_MS);
+const boundedCost = nonnegative.max(MAX_SHADOW_EVENT_COST_USD);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const optionalDelta = nonnegative.nullable();
 const states = z.enum([
@@ -30,7 +32,7 @@ const v2OutcomeSnapshot: Record<FoodShadowOutcome, boolean> = {
 const capability = z.object({
   capability: z.enum(AI_CAPABILITIES),
   calls: count, retries: count, totalLatencyMs: boundedTiming,
-  estimatedCostUsd: optionalDelta, costMeasuredCalls: count,
+  estimatedCostUsd: boundedCost.nullable(), costMeasuredCalls: count,
 }).strict().refine(v => v.calls > 0 && v.retries <= v.calls && v.costMeasuredCalls <= v.calls &&
   (v.costMeasuredCalls === v.calls) === (v.estimatedCostUsd !== null));
 
@@ -116,6 +118,12 @@ const shadowEvent = z.object({
   const invalidPreResolutionStages =
     (event.failure === "evidence_unavailable" || event.failure === "language_unavailable") &&
     (event.v2Stages.s1 !== 0 || event.v2Stages.s2 !== 0 || event.v2Stages.s3 !== 0);
+  // The resolver maps one decision to each completed language observation.
+  // This also applies to partial runs with a V2 snapshot; failed resolver
+  // calls have no decisions and may preserve independently observed stages.
+  const observedStages = event.v2Stages.s1 + event.v2Stages.s2 + event.v2Stages.s3;
+  const invalidCompletedStages = event.failure === "none" && event.v2ItemsObserved &&
+    (!Number.isSafeInteger(observedStages) || observedStages !== event.v2ItemCount);
   // Only the V1 adapter can report V1 outcomes. It never emits the V2-only
   // intermediate states. Likewise, an empty V2 decision list means "unknown".
   const invalidOutcomes = ["partially_resolved", "ambiguous", "unknown"].includes(event.v1Outcome) ||
@@ -132,7 +140,7 @@ const shadowEvent = z.object({
   if (unpairedItems !== v1UnpairedItems + v2UnpairedItems ||
     invalidDifferences || invalidFlags || invalidClarification ||
     invalidOutcomes || invalidFailureState || invalidMacroDifference ||
-    invalidExplicitFailures || invalidPreResolutionStages ||
+    invalidExplicitFailures || invalidPreResolutionStages || invalidCompletedStages ||
     !hasConsistentFoodShadowTimings(event.timings) ||
     comparablePairs + v1UnpairedItems > event.v1ItemCount ||
     comparablePairs + v2UnpairedItems > event.v2ItemCount ||

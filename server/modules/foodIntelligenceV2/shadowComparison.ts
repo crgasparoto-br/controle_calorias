@@ -8,7 +8,7 @@ import type { AiCapabilityAttemptMetric } from "../../_core/ai/observability";
 import type { CanonicalMealProcessingResult, MealDraftItem } from "../../nutritionEngineTypes";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
 import { z } from "zod";
-import { abs, costMetric, exactDifference, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId } from "./shadowPairing";
+import { abs, costMetric, exactDifference, MAX_SHADOW_EVENT_COST_USD, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId } from "./shadowPairing";
 
 export type FoodShadowModality = "text" | "audio_transcript" | "image" | "multimodal";
 export type FoodShadowClass = "generic" | "commercial" | "quantity" | "label" | "ambiguous" | "unknown" | "mixed";
@@ -158,9 +158,15 @@ export function summarizeFoodShadowCapabilityUsage(
     entry.calls++;
     if (event.callRole === "retry") entry.retries++;
     entry.totalLatencyMs += metric(event.latencyMs);
-    if (event.estimatedCostUsd !== null && Number.isFinite(event.estimatedCostUsd) &&
-        event.estimatedCostUsd >= 0) {
-      entry.estimatedCostUsd = (entry.estimatedCostUsd ?? 0) + event.estimatedCostUsd;
+    if (event.estimatedCostUsd !== null) {
+      const nextCost = (entry.estimatedCostUsd ?? 0) + event.estimatedCostUsd;
+      // Reject overflow and costs beyond the replay-safe numeric ceiling;
+      // the observer degrades only capabilityUsage to null, never to zero.
+      if (!Number.isFinite(event.estimatedCostUsd) || event.estimatedCostUsd < 0 ||
+          !Number.isFinite(nextCost) || nextCost > MAX_SHADOW_EVENT_COST_USD) {
+        throw new TypeError("invalid-shadow-capability-cost");
+      }
+      entry.estimatedCostUsd = nextCost;
       entry.costMeasuredCalls++;
     }
     summaries.set(event.capability, entry);

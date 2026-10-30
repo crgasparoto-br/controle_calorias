@@ -3,8 +3,18 @@ import type { MealDraftItem } from "../../nutritionEngineTypes";
 import type { FoodResolutionDecision } from "./schemas";
 
 export const metric = (n: number): number => Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : 0;
-/** Preserve micro-dollar costs in aggregate telemetry. */
-export const costMetric = (n: number): number => Number.isFinite(n) && n >= 0 ? Math.round(n * 100000000) / 100000000 : 0;
+/** Numeric integrity ceiling: 10,000 replay events at 1e-8 USD precision. */
+const COST_PRECISION = 100_000_000;
+export const MAX_SHADOW_EVENT_COST_USD = Math.floor(Number.MAX_SAFE_INTEGER / (10_000 * COST_PRECISION));
+export const MAX_SHADOW_REPLAY_COST_USD = MAX_SHADOW_EVENT_COST_USD * 10_000;
+
+/** Invalid/overflowed costs must never turn into measured zero. */
+export function costMetric(n: number): number {
+  if (!Number.isFinite(n) || n < 0 || n > MAX_SHADOW_REPLAY_COST_USD)
+    throw new TypeError("invalid-shadow-capability-cost");
+  const rounded = Math.round(n * COST_PRECISION) / COST_PRECISION;
+  return n > 0 && rounded === 0 ? n : rounded;
+}
 export const abs = (a: number, b: number): number | null =>
   Number.isFinite(a) && Number.isFinite(b) && a >= 0 && b >= 0
     ? metric(Math.abs(a - b)) : null;

@@ -1,6 +1,6 @@
 /** Read-only aggregate replay of sanitised V1/V2 diagnostics. Never asserts Gate A. */
 import type { FoodShadowCapabilityUsage, FoodShadowEvent, FoodShadowOutcome, FoodShadowEntrypoint, FoodShadowClass, FoodShadowModality } from "./shadowComparison";
-import { metric, costMetric } from "./shadowPairing";
+import { metric, costMetric, MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
 
 export type FoodShadowBaselineSegment = {
   modality: FoodShadowModality; entrypoint: FoodShadowEntrypoint; scenarioClass: FoodShadowClass;
@@ -124,6 +124,12 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       row.capabilityUsageObservedRuns++;
       row.external ??= [];
       for (const usage of event.capabilityUsage) {
+        // Guard the direct aggregation API too, not just the strict replay parser.
+        if (usage.estimatedCostUsd !== null &&
+            (!Number.isFinite(usage.estimatedCostUsd) || usage.estimatedCostUsd < 0 ||
+             usage.estimatedCostUsd > MAX_SHADOW_EVENT_COST_USD)) {
+          throw new TypeError("invalid-shadow-capability-cost");
+        }
         const existing = row.external.find(item => item.capability === usage.capability);
         if (!existing) { row.external.push({ ...usage }); continue; }
         existing.calls += usage.calls;

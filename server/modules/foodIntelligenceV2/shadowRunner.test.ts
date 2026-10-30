@@ -6,6 +6,7 @@ import type { FoodKnowledgeRequest, FoodKnowledgeStore } from "./knowledgeRead";
 import type { LinguisticLexiconStore } from "./linguisticComprehension";
 import { buildFoodShadowBaseline, buildFoodShadowEvent, summarizeFoodShadowCapabilityUsage, type FoodShadowEvent } from "./shadowComparison";
 import { readOnlyFoodKnowledge, runMealWithFoodV2Shadow } from "./shadowRunner";
+import { MAX_SHADOW_EVENT_COST_USD } from "./shadowPairing";
 
 const traceId = "b4e590ab-35bd-44cd-932a-e895e51ec7a2";
 const baseV1 = () => buildV1HistoricalSnapshotFixture() as CanonicalMealProcessingResult;
@@ -709,6 +710,48 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
     expect(summarizeFoodShadowCapabilityUsage([sample(0)])).toMatchObject([
       { capability: "MEAL_TEXT", calls: 1, totalLatencyMs: 0 },
     ]);
+  });
+
+  it("A-019 rejects overflowing or over-budget numeric cost while preserving genuine zero", () => {
+    const events = (costs: number[]) => costs.map(estimatedCostUsd => ({
+      capability: "MEAL_TEXT" as const, callRole: "primary" as const,
+      latencyMs: 1, estimatedCostUsd,
+    }));
+    expect(summarizeFoodShadowCapabilityUsage(events([0]))).toMatchObject([
+      { calls: 1, costMeasuredCalls: 1, estimatedCostUsd: 0 },
+    ]);
+    expect(summarizeFoodShadowCapabilityUsage(events([1e-12]))).toMatchObject([
+      { calls: 1, costMeasuredCalls: 1, estimatedCostUsd: 1e-12 },
+    ]);
+    expect(summarizeFoodShadowCapabilityUsage(events([MAX_SHADOW_EVENT_COST_USD]))).toMatchObject([
+      { calls: 1, costMeasuredCalls: 1, estimatedCostUsd: MAX_SHADOW_EVENT_COST_USD },
+    ]);
+    for (const costs of [
+      [1e308, 1e308], [MAX_SHADOW_EVENT_COST_USD, 0.01],
+      [-1], [Infinity],
+    ]) {
+      expect(() => summarizeFoodShadowCapabilityUsage(events(costs)))
+        .toThrow("invalid-shadow-capability-cost");
+    }
+  });
+
+  it("A-019 degrades only auxiliary cost metrics on overflow and still emits the V1/V2 event", async () => {
+    const f = fixture();
+    const original = baseV1();
+    f.runV1.mockResolvedValueOnce(original);
+    const deps = { ...f.deps, readCapabilityEvents: () => [
+      { capability: "MEAL_TEXT" as const, callRole: "primary" as const,
+        latencyMs: 1, estimatedCostUsd: 1e308 },
+      { capability: "MEAL_TEXT" as const, callRole: "retry" as const,
+        latencyMs: 1, estimatedCostUsd: 1e308 },
+    ] };
+    expect(await runMealWithFoodV2Shadow({ text: "100 g de arroz" }, deps)).toBe(original);
+    await f.waitForShadow();
+    expect(f.runV1).toHaveBeenCalledTimes(1);
+    expect(f.emit).toHaveBeenCalledTimes(1);
+    expect(f.emit.mock.calls[0][0]).toMatchObject({
+      run: "compared", failure: "none", capabilityUsage: null, verifiedCorrect: null,
+    });
   });
 
   it("captures V1 attempt counts, retries, latency and cost per request without a sink or PII", async () => {
