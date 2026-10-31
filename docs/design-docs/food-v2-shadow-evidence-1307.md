@@ -78,6 +78,21 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   Controles positivos e adversariais abrangem edição unitária, movimentação,
   identidade nova e classificação distinta por item. Nenhum Gate A ou
   baseline de dados reais é inferido desta correção técnica.
+- A-033/A-034: uma atualizacao que reordena homonimos e muda simultaneamente
+  as porcoes nunca presume que a posicao e a identidade; sem correspondencia
+  discriminante, IDs V2 e snapshots anteriores nao sao copiados. Quando existe
+  referencia historica explicita coerente ou variante comercial confirmada,
+  o pareamento pode preservar identidade mesmo apos reordenacao e edicao.
+  Novos itens persistem `confirmedCommercialIdentity` tipado no mesmo
+  `foodSnapshotJson`, com apenas marca e variante fornecidas; edicoes da
+  mesma identidade conservam esses valores, classificacao e proveniencia.
+  Snapshots legados podem provar a variante por `resolution.productVariant`;
+  ausencia da variante no historico nao e evidencia de igualdade, logo nao
+  autoriza herdar refs ou classificacao. Nao consulta catalogo atual e nao
+  declara acuracia V2 ou aprova Gate A. Testes positivos/negativos em
+  `server/repositories/mealsRepository.shadow.test.ts` cobrem dupla edicao
+  homonima, reordenacao com refs, persistencia, variante identica, legado
+  comprovado e legado sem prova.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
   cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,

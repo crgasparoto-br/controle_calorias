@@ -435,6 +435,46 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(rows.map(row => row.calories)).toEqual([120, 80]);
   });
 
+  it("A-033 rejects positional V2 inheritance when two homonyms reorder and both portions change", async () => {
+    const first = savedItem(21);
+    const second = savedItem(22, { calories: 120, caloriesKcal: 120,
+      foodSnapshotJson: JSON.stringify({ classification: {
+        ...classification, processingLevel: "ultra_processed", isFruit: false,
+      } }) });
+    const state = fixture([first, second]);
+    await state.update([
+      { ...publicItem(second), portionText: "3 copos", quantity: 3,
+        estimatedGrams: 600, calories: 180 },
+      { ...publicItem(first), portionText: "4 copos", quantity: 4,
+        estimatedGrams: 800, calories: 320 },
+    ]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    const rows = state.items();
+    expect(rows.map(row => row.calories)).toEqual([180, 320]);
+    expect(rows.map(row => row.foodVariantId)).toEqual([undefined, undefined]);
+    expect(rows.map(row => row.nutritionProfileId)).toEqual([undefined, undefined]);
+    expect(rows.map(row => row.foodSnapshotJson)).toEqual([null, null]);
+  });
+
+  it("A-033 retains identity across changed portions and reorder with verified historical refs", async () => {
+    const first = savedItem(21);
+    const second = savedItem(22, { calories: 120, caloriesKcal: 120 });
+    const state = fixture([first, second]);
+    await state.update([
+      { ...publicItem(second), historicalRef: "variant:122",
+        portionText: "3 copos", quantity: 3, estimatedGrams: 600, calories: 180 },
+      { ...publicItem(first), historicalRef: "variant:121",
+        portionText: "4 copos", quantity: 4, estimatedGrams: 800, calories: 320 },
+    ] as never);
+    const rows = state.items();
+    expect(rows.map(row => row.foodVariantId)).toEqual([122, 121]);
+    expect(rows.map(row => row.nutritionProfileId)).toEqual([222, 221]);
+    expect(rows.map(row => row.foodSnapshotJson)).toEqual([
+      second.foodSnapshotJson, first.foodSnapshotJson,
+    ]);
+    expect(rows.map(row => row.calories)).toEqual([180, 320]);
+  });
+
   it("never transfers a prior variant/classification to a different food", async () => {
     const original = savedItem(21);
     const state = fixture([original]);
@@ -473,6 +513,74 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(state.items()[0].foodSnapshotJson).toBeNull();
   });
 
+
+  it("A-034 persists submitted commercial identity and preserves it on an unchanged variant edit", async () => {
+    const inserted = fixture([]);
+    const item = { ...publicItem(savedItem(21)), brand: "Marca A",
+      productVariant: "Integral 1 L" };
+    await inserted.repository.persistMeal({
+      meal: { userId: 9, source: "web", mealLabel: "Lanche", sourceText: "Registro",
+        confidence: 0.9, occurredAt: dated.getTime() },
+      items: [item] as never, media: [],
+      resolvedCatalogIds: new Map([["Leite", 500]]),
+    });
+    const persisted = JSON.parse(inserted.items()[0].foodSnapshotJson!);
+    expect(persisted.confirmedCommercialIdentity).toEqual({
+      brand: "Marca A", productVariant: "Integral 1 L",
+    });
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      ...persisted, classification,
+    }) });
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.repository.updateMealItem({
+      userId: 9, meal: loaded, itemIndex: 0,
+      updatedItem: { ...publicItem(original), brand: "Marca A",
+        productVariant: "Integral 1 L", portionText: "2 copos",
+        quantity: 2, estimatedGrams: 400, calories: 160 } as never,
+      mealLabel: "Lanche", occurredAt: dated.getTime(),
+      resolvedCatalogIds: new Map([["Leite", 999]]),
+    });
+    const saved = state.items()[0];
+    expect(saved).toMatchObject({ foodVariantId: 121, nutritionProfileId: 221,
+      foodPortionId: 321, foodCatalogId: 500, calories: 160 });
+    expect(JSON.parse(saved.foodSnapshotJson!).confirmedCommercialIdentity).toEqual({
+      brand: "Marca A", productVariant: "Integral 1 L",
+    });
+    expect(JSON.parse(saved.foodSnapshotJson!).classification).toEqual(classification);
+  });
+
+  it("A-034 accepts legacy confirmed resolver variant without guessing a missing one", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", resolution: { productVariant: "Integral 1 L",
+        nutritionOrigin: "catalog" }, classification,
+    }) });
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), brand: "Marca A",
+      productVariant: "Integral 1 L", portionText: "2 copos", quantity: 2,
+      estimatedGrams: 400, calories: 160 } as never]);
+    expect(state.items()[0]).toMatchObject({ foodVariantId: 121,
+      nutritionProfileId: 221, calories: 160 });
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!).confirmedCommercialIdentity).toEqual({
+      brand: "Marca A", productVariant: "Integral 1 L",
+    });
+  });
+
+  it("A-034 never assumes a legacy snapshot without variant proves an explicit variant", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", classification,
+    }) });
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), brand: "Marca A",
+      productVariant: "Integral 1 L", portionText: "2 copos", quantity: 2,
+      estimatedGrams: 400, calories: 160 } as never]);
+    expect(state.items()[0].foodVariantId).toBeUndefined();
+    expect(state.items()[0].nutritionProfileId).toBeUndefined();
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!).confirmedCommercialIdentity).toEqual({
+      brand: "Marca A", productVariant: "Integral 1 L",
+    });
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!).classification).toBeUndefined();
+  });
 
   it("A-031 preserves V2 identity and confirmed classification on a one-item portion edit", async () => {
     const original = savedItem(21);

@@ -2,28 +2,14 @@
 import { mealItems } from "../../drizzle/schema";
 import type { MealDraftItem } from "../nutritionEngine";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification } from "../modules/meals/classificationSnapshot";
+import { matchesSavedMealCommercialIdentity, mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
 
 /** A public V1 edit omits shadow-only IDs; omission must not erase persisted identity. */
 export function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item: MealDraftItem) {
   const incoming = item as MealDraftItem & { foodId?: number };
-  // Brand/variant labels are not materialized in the public V1 reader. An
-  // explicit commercial change cannot inherit a saved variant just by name.
-  const brandSpecified = item.brand !== undefined;
-  const variantSpecified = item.productVariant !== undefined;
-  if (brandSpecified || variantSpecified) {
-    let snapshot: Record<string, unknown> | null = null;
-    try {
-      const parsed: unknown = row.foodSnapshotJson ? JSON.parse(row.foodSnapshotJson) : null;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        snapshot = parsed as Record<string, unknown>;
-      }
-    } catch { /* An invalid source cannot prove commercial identity. */ }
-    if (!snapshot ||
-        (brandSpecified && (!Object.prototype.hasOwnProperty.call(snapshot, "brandName") ||
-          snapshot.brandName !== item.brand)) ||
-        (variantSpecified && (!Object.prototype.hasOwnProperty.call(snapshot, "productVariant") ||
-          snapshot.productVariant !== item.productVariant))) return false;
-  }
+  // Saved confirmation (or typed legacy evidence) decides whether an
+  // explicitly submitted commercial identity is still the same item.
+  if (!matchesSavedMealCommercialIdentity(row.foodSnapshotJson, item)) return false;
   const historicalRef = row.foodVariantId != null ? `variant:${row.foodVariantId}`
     : row.foodId != null ? `food:${row.foodId}`
     : row.foodCatalogId != null ? `catalog:${row.foodCatalogId}` : null;
@@ -66,7 +52,9 @@ export function guardHistoricalMealItemUpdate(
     foodVariantId: null, nutritionProfileId: null, foodPortionId: null,
     recipeId: null, portionId: null, itemType: "food",
     fiberG: enriched.fiberG ?? null, sodiumMg: enriched.sodiumMg ?? null,
-    foodSnapshotJson: mergeConfirmedMealClassification(freshSnapshot, item.classification),
+    foodSnapshotJson: mergePreservingMealCommercialIdentity(
+      mergeConfirmedMealClassification(freshSnapshot, item.classification), null, item,
+    ),
   };
 }
 
@@ -77,14 +65,13 @@ export function historyInPlaceEditIndices(
 ): number[] | null {
   if (previous.length !== items.length || !previous.every((row, index) =>
     Number.isSafeInteger(row.id) && row.id > 0 && sameHistoricalMealFood(row, items[index]))) return null;
-  // Equal-length meals can still reorder same-name commercial variants. If
-  // an edited slot exactly matches a different stored row, reconcile by content
-  // instead of attaching the incoming nutrition to the old index's variant.
+  // Reordering plus edits can hide every exact match. A changed slot is
+  // positional only if no other changed saved row could be its origin.
   const unchanged = previous.map((row, index) => isSamePersisted(row, items[index]));
   for (let i = 0; i < items.length; i++) {
     if (unchanged[i]) continue;
     if (previous.some((row, j) => j !== i && sameHistoricalMealFood(row, items[i]) &&
-        isSamePersisted(row, items[i]))) return null;
+        (!unchanged[j] || isSamePersisted(row, items[i])))) return null;
   }
   return items.flatMap((item, index) => {
     const enriched = item as MealDraftItem & { foodSnapshotJson?: string };
@@ -114,8 +101,11 @@ export function preserveHistoricalMealValues<T extends object>(
       createdAt: previous.createdAt,
       ...(incoming.fiberG === undefined ? { fiberG: previous.fiberG } : {}),
       ...(incoming.sodiumMg === undefined ? { sodiumMg: previous.sodiumMg } : {}),
-      foodSnapshotJson: mergePreservingMealClassification(
-        incoming.foodSnapshotJson, previous.foodSnapshotJson, incoming.classification,
+      foodSnapshotJson: mergePreservingMealCommercialIdentity(
+        mergePreservingMealClassification(
+          incoming.foodSnapshotJson, previous.foodSnapshotJson, incoming.classification,
+        ),
+        previous.foodSnapshotJson, incoming,
       ),
     };
   });
@@ -140,6 +130,15 @@ export function retainConfirmedItemRows(
       if (sameHistoricalMealFood(previous[i], items[i]) &&
           isSamePersisted(previous[i], items[i])) assign(i, i);
     }
+  }
+  // An explicit saved reference or confirmed commercial label can identify a
+  // swapped item even if its portion changed; require a single eligible source.
+  for (let i = 0; i < items.length; i++) {
+    if (matches[i] || !(items[i].historicalRef ||
+        items[i].brand !== undefined || items[i].productVariant !== undefined)) continue;
+    const candidates = previous.flatMap((row, index) => !used.has(index) &&
+      sameHistoricalMealFood(row, items[i]) ? [index] : []);
+    if (candidates.length === 1) assign(i, candidates[0]);
   }
   // Reordering with distinct stored values is safe; ambiguous matches do not
   // inherit another item's historical reference.

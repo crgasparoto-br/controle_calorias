@@ -4,6 +4,7 @@ import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
+import { mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
 import { guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
 
 type DbProvider = () => Promise<any | null>;
@@ -151,11 +152,14 @@ function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCat
         fatG: enriched.fatG ?? item.fat,
         fiberG: enriched.fiberG ?? null,
         sodiumMg: enriched.sodiumMg ?? null,
-        foodSnapshotJson: mergeConfirmedMealClassification(
-          enriched.foodSnapshotJson ?? (item.resolution
-            ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
-            : null),
-          item.classification,
+        foodSnapshotJson: mergePreservingMealCommercialIdentity(
+          mergeConfirmedMealClassification(
+            enriched.foodSnapshotJson ?? (item.resolution
+              ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
+              : null),
+            item.classification,
+          ),
+          null, item,
         ),
       };
     })(),
@@ -278,9 +282,13 @@ function buildMealItemUpdate(
     ...(enriched.sodiumMg !== undefined ? { sodiumMg: enriched.sodiumMg } : {}),
     // Preserve the existing nutrition/resolution snapshot on a partial edit;
     // replace only its classification when the item explicitly supplies one.
-    ...(enriched.foodSnapshotJson !== undefined || item.classification !== undefined
-      ? { foodSnapshotJson: mergePreservingMealClassification(
-          enriched.foodSnapshotJson, savedSnapshot, item.classification,
+    ...(enriched.foodSnapshotJson !== undefined || item.classification !== undefined ||
+      item.brand !== undefined || item.productVariant !== undefined
+      ? { foodSnapshotJson: mergePreservingMealCommercialIdentity(
+          mergePreservingMealClassification(
+            enriched.foodSnapshotJson, savedSnapshot, item.classification,
+          ),
+          savedSnapshot, item,
         ) } : {}),
   };
 }
