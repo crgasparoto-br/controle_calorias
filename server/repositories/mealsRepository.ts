@@ -4,7 +4,7 @@ import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
-import { historyInPlaceEditIndices, matchHistoricalMealRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
+import { historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -356,7 +356,7 @@ async function replaceMealItemsInTransaction(
   } else {
     // Only for insertion, removal or identity reorder: reconstruct the list in
     // requested order, carrying metadata solely from a proven matching item.
-    const retained = matchHistoricalMealRows(previous, input.items, samePersistedMealItem);
+    const retained = retainConfirmedItemRows(previous, input.items, samePersistedMealItem);
     const values = preserveHistoricalMealValues(
       buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
       input.items, retained,

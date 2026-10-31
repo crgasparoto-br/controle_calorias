@@ -85,7 +85,7 @@ export function preserveHistoricalMealValues<T extends object>(
 }
 
 /** Match immutable source rows before any destructive fallback; never match by label alone. */
-export function matchHistoricalMealRows(
+export function retainConfirmedItemRows(
   previous: Array<typeof mealItems.$inferSelect>, items: MealDraftItem[],
   isSamePersisted: (row: typeof mealItems.$inferSelect, item: MealDraftItem) => boolean,
 ): Array<typeof mealItems.$inferSelect | null> {
