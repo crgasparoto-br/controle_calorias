@@ -28,6 +28,20 @@ export function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item:
     (!item.historicalRef || item.historicalRef === historicalRef);
 }
 
+/** Determine which same-identity rows actually require a write. */
+export function historyInPlaceEditIndices(
+  previous: Array<typeof mealItems.$inferSelect>, items: MealDraftItem[],
+  isSamePersisted: (row: typeof mealItems.$inferSelect, item: MealDraftItem) => boolean,
+): number[] | null {
+  if (previous.length !== items.length || !previous.every((row, index) =>
+    Number.isSafeInteger(row.id) && row.id > 0 && sameHistoricalMealFood(row, items[index]))) return null;
+  return items.flatMap((item, index) => {
+    const enriched = item as MealDraftItem & { foodSnapshotJson?: string };
+    return isSamePersisted(previous[index], item) && item.classification === undefined &&
+      enriched.foodSnapshotJson === undefined ? [] : [index];
+  });
+}
+
 /** Retain each confirmed row's immutable V2 references and typed snapshot. */
 export function preserveHistoricalMealValues<T extends object>(
   values: T[], items: MealDraftItem[],

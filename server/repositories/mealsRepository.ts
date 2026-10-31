@@ -4,7 +4,7 @@ import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
-import { matchHistoricalMealRows, preserveHistoricalMealValues, sameHistoricalMealFood } from "./mealItemHistoryReconciliation";
+import { historyInPlaceEditIndices, matchHistoricalMealRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -343,17 +343,11 @@ async function replaceMealItemsInTransaction(
     .set({ status: "draft" })
     .where(and(eq(meals.userId, input.meal.userId), eq(meals.id, input.meal.id)));
 
-  const inPlace = previous.length === input.items.length && previous.every((row, index) =>
-    Number.isSafeInteger(row.id) && row.id > 0 && sameHistoricalMealFood(row, input.items[index]));
-  if (inPlace) {
-    // Edit only changed items. A relabel/date-only update cannot recreate rows,
-    // invalidate immutable references, or silently refresh nutrition metadata.
-    for (let index = 0; index < input.items.length; index++) {
+  const editIndices = historyInPlaceEditIndices(previous, input.items, samePersistedMealItem);
+  if (editIndices) {
+    for (const index of editIndices) {
       const item = input.items[index];
       const saved = previous[index];
-      const enriched = item as MealDraftItem & { foodSnapshotJson?: string };
-      if (samePersistedMealItem(saved, item) && item.classification === undefined &&
-          enriched.foodSnapshotJson === undefined) continue;
       await tx.update(mealItems).set({
         ...buildMealItemUpdate(item, input.resolvedCatalogIds, saved.foodSnapshotJson),
         foodCatalogId: saved.foodCatalogId,
