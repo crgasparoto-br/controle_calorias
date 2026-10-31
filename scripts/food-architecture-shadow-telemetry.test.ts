@@ -40,6 +40,22 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
     expect(nonStructural.some(x=>x.ruleId==="18"),JSON.stringify(nonStructural)).toBe(true);
   });
 
+  it("A-028 distinguishes a typed nutrition provenance state from food materiality", () => {
+    const allowed = probe("shadowComparison", `
+      export function buildFoodShadowEvent(item:any) {
+        const provenance = { origin: item.resolution?.nutritionOrigin ?? null };
+        return !provenance.origin || provenance.origin === "unavailable";
+      }`);
+    expect(allowed.filter(item => item.ruleId === "17" || item.ruleId === "18"),
+      JSON.stringify(allowed)).toEqual([]);
+    const blocked = probe("shadowComparison", `
+      export function decideFoodVariant(item:any) {
+        const provenance = { origin: item.resolution?.nutritionOrigin ?? null };
+        return item.productVariant === "integral";
+      }`);
+    expect(blocked.some(item => item.ruleId === "18"), JSON.stringify(blocked)).toBe(true);
+  });
+
   it("schema reason codes pass while arbitrary food labels remain blocked", () => {
     const ok=probe("shadowComparison", `
       export function buildFoodShadowEvent(item:any) {
