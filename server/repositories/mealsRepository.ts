@@ -269,11 +269,11 @@ function buildMealItemUpdate(
   return {
     ...values,
     ...(enriched.foodId !== undefined ? { foodId: enriched.foodId } : {}),
-    ...(enriched.grams !== undefined ? { grams: enriched.grams } : {}),
-    ...(enriched.caloriesKcal !== undefined ? { caloriesKcal: enriched.caloriesKcal } : {}),
-    ...(enriched.proteinG !== undefined ? { proteinG: enriched.proteinG } : {}),
-    ...(enriched.carbG !== undefined ? { carbG: enriched.carbG } : {}),
-    ...(enriched.fatG !== undefined ? { fatG: enriched.fatG } : {}),
+    grams: enriched.grams ?? item.estimatedGrams,
+    caloriesKcal: enriched.caloriesKcal ?? item.calories,
+    proteinG: enriched.proteinG ?? item.protein,
+    carbG: enriched.carbG ?? item.carbs,
+    fatG: enriched.fatG ?? item.fat,
     ...(enriched.fiberG !== undefined ? { fiberG: enriched.fiberG } : {}),
     ...(enriched.sodiumMg !== undefined ? { sodiumMg: enriched.sodiumMg } : {}),
     // Preserve the existing nutrition/resolution snapshot on a partial edit;

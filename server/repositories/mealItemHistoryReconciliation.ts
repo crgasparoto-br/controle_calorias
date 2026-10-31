@@ -8,7 +8,9 @@ export function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item:
   const incoming = item as MealDraftItem & { foodId?: number };
   // Brand/variant labels are not materialized in the public V1 reader. An
   // explicit commercial change cannot inherit a saved variant just by name.
-  if (item.brand || item.productVariant) {
+  const brandSpecified = item.brand !== undefined;
+  const variantSpecified = item.productVariant !== undefined;
+  if (brandSpecified || variantSpecified) {
     let snapshot: Record<string, unknown> | null = null;
     try {
       const parsed: unknown = row.foodSnapshotJson ? JSON.parse(row.foodSnapshotJson) : null;
@@ -16,8 +18,11 @@ export function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item:
         snapshot = parsed as Record<string, unknown>;
       }
     } catch { /* An invalid source cannot prove commercial identity. */ }
-    if (!snapshot || (item.brand && snapshot.brandName !== item.brand) ||
-        (item.productVariant && snapshot.productVariant !== item.productVariant)) return false;
+    if (!snapshot ||
+        (brandSpecified && (!Object.prototype.hasOwnProperty.call(snapshot, "brandName") ||
+          snapshot.brandName !== item.brand)) ||
+        (variantSpecified && (!Object.prototype.hasOwnProperty.call(snapshot, "productVariant") ||
+          snapshot.productVariant !== item.productVariant))) return false;
   }
   const historicalRef = row.foodVariantId != null ? `variant:${row.foodVariantId}`
     : row.foodId != null ? `food:${row.foodId}`

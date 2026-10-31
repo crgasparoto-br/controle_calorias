@@ -58,6 +58,8 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   o item alterado e conservam os IDs de variante/perfil e o snapshot anterior.
   Em insercao, remocao e reordenacao, os itens historicos sao pareados por
   identidade armazenada e conteudo discriminante antes de reconstruir a lista.
+  Alteracoes de porcao sincronizam os campos fisicos de gramatura/macros com
+  os valores confirmados, sem recalculo pelo catalogo.
   Itens realmente novos, de marca/variante alterada ou em pareamento
   ambiguo entre duplicatas nao herdam refs nem classificacao sem prova
   de correspondencia; `classification=null` continua limpando

@@ -387,7 +387,8 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(state.writes.map(write => write.op)).toEqual(["update-item"]);
     const current = state.items();
     expect(current[0]).toMatchObject({ id: 21, foodVariantId: 121, nutritionProfileId: 221,
-      foodSnapshotJson: first.foodSnapshotJson, calories: 160 });
+      foodSnapshotJson: first.foodSnapshotJson, calories: 160, caloriesKcal: 160,
+      grams: 400, proteinG: 7, carbG: 9, fatG: 4 });
     expect(current[1]).toEqual(sibling);
     expect(current[0].foodCatalogId).toBe(500);
   });
@@ -427,6 +428,15 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     const original = savedItem(21);
     const state = fixture([original]);
     await state.update([{ ...publicItem(original), brand: "Marca Nova" } as never]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    expect(state.items()[0].foodVariantId).toBeUndefined();
+    expect(state.items()[0].foodSnapshotJson).toBeNull();
+  });
+
+  it("treats explicitly cleared brand as a commercial identity change", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), brand: null } as never]);
     expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
     expect(state.items()[0].foodVariantId).toBeUndefined();
     expect(state.items()[0].foodSnapshotJson).toBeNull();
