@@ -3,6 +3,8 @@ import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../.
 import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
+import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
+import { guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -36,6 +38,8 @@ export type MealLoadRange = {
   startAt?: Date;
   endAt?: Date;
   includeMedia?: boolean;
+  /** Only the isolated shadow historical projection opts into new metadata. */
+  shadowReadOnly?: boolean;
 };
 
 export type MealsRepository = {
@@ -147,9 +151,12 @@ function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCat
         fatG: enriched.fatG ?? item.fat,
         fiberG: enriched.fiberG ?? null,
         sodiumMg: enriched.sodiumMg ?? null,
-        foodSnapshotJson: enriched.foodSnapshotJson ?? (item.resolution
-          ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
-          : null),
+        foodSnapshotJson: mergeConfirmedMealClassification(
+          enriched.foodSnapshotJson ?? (item.resolution
+            ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
+            : null),
+          item.classification,
+        ),
       };
     })(),
     mealId,
@@ -238,7 +245,11 @@ function assertMealMetadataSnapshot(currentMeal: any, expectedMeal: SavedMealRec
   }
 }
 
-function buildMealItemUpdate(item: MealDraftItem, resolvedCatalogIds: Map<string, number>) {
+function buildMealItemUpdate(
+  item: MealDraftItem,
+  resolvedCatalogIds: Map<string, number>,
+  savedSnapshot: string | null | undefined,
+) {
   const values = { ...buildMealItemValues(0, [item], resolvedCatalogIds)[0] } as Record<string, unknown>;
   const enriched = item as MealDraftItem & {
     foodId?: number;
@@ -258,14 +269,19 @@ function buildMealItemUpdate(item: MealDraftItem, resolvedCatalogIds: Map<string
   return {
     ...values,
     ...(enriched.foodId !== undefined ? { foodId: enriched.foodId } : {}),
-    ...(enriched.grams !== undefined ? { grams: enriched.grams } : {}),
-    ...(enriched.caloriesKcal !== undefined ? { caloriesKcal: enriched.caloriesKcal } : {}),
-    ...(enriched.proteinG !== undefined ? { proteinG: enriched.proteinG } : {}),
-    ...(enriched.carbG !== undefined ? { carbG: enriched.carbG } : {}),
-    ...(enriched.fatG !== undefined ? { fatG: enriched.fatG } : {}),
+    grams: enriched.grams ?? item.estimatedGrams,
+    caloriesKcal: enriched.caloriesKcal ?? item.calories,
+    proteinG: enriched.proteinG ?? item.protein,
+    carbG: enriched.carbG ?? item.carbs,
+    fatG: enriched.fatG ?? item.fat,
     ...(enriched.fiberG !== undefined ? { fiberG: enriched.fiberG } : {}),
     ...(enriched.sodiumMg !== undefined ? { sodiumMg: enriched.sodiumMg } : {}),
-    ...(enriched.foodSnapshotJson !== undefined ? { foodSnapshotJson: enriched.foodSnapshotJson } : {}),
+    // Preserve the existing nutrition/resolution snapshot on a partial edit;
+    // replace only its classification when the item explicitly supplies one.
+    ...(enriched.foodSnapshotJson !== undefined || item.classification !== undefined
+      ? { foodSnapshotJson: mergePreservingMealClassification(
+          enriched.foodSnapshotJson, savedSnapshot, item.classification,
+        ) } : {}),
   };
 }
 
@@ -319,15 +335,33 @@ async function replaceMealItemsInTransaction(
     items: MealDraftItem[];
     resolvedCatalogIds: Map<string, number>;
   },
+  previous: Array<typeof mealItems.$inferSelect>,
 ) {
   await tx
     .update(meals)
     .set({ status: "draft" })
     .where(and(eq(meals.userId, input.meal.userId), eq(meals.id, input.meal.id)));
 
-  await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
-  if (input.items.length) {
-    await tx.insert(mealItems).values(buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds));
+  const editIndices = historyInPlaceEditIndices(previous, input.items, samePersistedMealItem);
+  if (editIndices) {
+    for (const index of editIndices) {
+      const item = input.items[index];
+      const saved = previous[index];
+      await tx.update(mealItems).set({
+        ...buildMealItemUpdate(item, input.resolvedCatalogIds, saved.foodSnapshotJson),
+        foodCatalogId: saved.foodCatalogId,
+      }).where(and(eq(mealItems.mealId, input.meal.id), eq(mealItems.id, saved.id)));
+    }
+  } else {
+    // Only for insertion, removal or identity reorder: reconstruct the list in
+    // requested order, carrying metadata solely from a proven matching item.
+    const retained = retainConfirmedItemRows(previous, input.items, samePersistedMealItem);
+    const values = preserveHistoricalMealValues(
+      buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
+      input.items, retained,
+    );
+    await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
+    if (values.length) await tx.insert(mealItems).values(values);
   }
 
   await tx
@@ -393,12 +427,11 @@ async function insertConfirmedMealInTransaction(tx: any, input: {
   return mealId;
 }
 
-export function createDrizzleMealsRepository(deps: {
-  getDb: DbProvider;
-  onWarning: PersistenceWarningHandler;
-}): MealsRepository {
-  return {
-    async findConfirmedByUserId(userId, options = {}) {
+/** One snapshot-only database reader; the public repository method is a facade. */
+async function loadSavedMeals(
+  deps: { getDb: DbProvider; onWarning: PersistenceWarningHandler },
+  userId: number, options: MealLoadRange = {},
+): ReturnType<MealsRepository["findConfirmedByUserId"]> {
       const db = await deps.getDb();
       if (!db) return null;
 
@@ -424,6 +457,16 @@ export function createDrizzleMealsRepository(deps: {
           const list = itemsByMealId.get(item.mealId) ?? [];
           list.push({
             foodCatalogId: item.foodCatalogId ?? null,
+            // Preserve V1's public record shape until a separate cutover.
+            ...(options.shadowReadOnly ? {
+              // A-006: a persisted V2 variant outranks its family and legacy
+              // catalog identifier; never re-infer a missing variant by name.
+              historicalRef: item.foodVariantId != null
+                ? "variant:" + item.foodVariantId
+                : item.foodId != null ? "food:" + item.foodId
+                : item.foodCatalogId != null ? "catalog:" + item.foodCatalogId : null,
+              classification: readConfirmedMealClassification(item.foodSnapshotJson),
+            } : {}),
             foodName: item.foodName,
             canonicalName: item.canonicalName,
             portionText: item.portionText,
@@ -479,6 +522,15 @@ export function createDrizzleMealsRepository(deps: {
         deps.onWarning("Meal read skipped", error);
         return null;
       }
+}
+
+export function createDrizzleMealsRepository(deps: {
+  getDb: DbProvider;
+  onWarning: PersistenceWarningHandler;
+}): MealsRepository {
+  return {
+    findConfirmedByUserId(userId, options = {}) {
+      return loadSavedMeals(deps, userId, options);
     },
 
     async persistMeal({ meal, items, media, resolvedCatalogIds }) {
@@ -527,9 +579,9 @@ export function createDrizzleMealsRepository(deps: {
       if (!db) return;
 
       await runInTransaction(db, async tx => {
-        const ownsMeal = await assertMealBelongsToUser(tx, meal.userId, meal.id);
-        if (!ownsMeal) return;
-        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
+        const locked = await lockMealAndItems(tx, meal.userId, meal.id);
+        if (!locked) return;
+        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds }, locked.items);
       });
     },
 
@@ -557,7 +609,8 @@ export function createDrizzleMealsRepository(deps: {
         });
         await tx
           .update(mealItems)
-          .set(buildMealItemUpdate(updatedItem, resolvedCatalogIds))
+          .set(guardHistoricalMealItemUpdate(locked.items[itemIndex], updatedItem,
+            buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson)))
           .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, meal.id)));
       });
     },
@@ -596,7 +649,8 @@ export function createDrizzleMealsRepository(deps: {
           .update(mealItems)
           .set({
             mealId: createdMealId,
-            ...buildMealItemUpdate(updatedItem, resolvedCatalogIds),
+            ...guardHistoricalMealItemUpdate(locked.items[itemIndex], updatedItem,
+              buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson)),
           })
           .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, sourceMeal.id)));
 
@@ -628,7 +682,8 @@ export function createDrizzleMealsRepository(deps: {
         const matchingItems = currentItems.filter((row: unknown) => samePersistedMealItem(row, expectedOriginalItem));
         if (matchingItems.length !== 1) return "stale" as const;
 
-        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
+        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds },
+          currentItems.slice().sort((a: any, b: any) => Number(a.id) - Number(b.id)));
         await upsertHouseholdMeasurePreference(tx, { userId: meal.userId, ...learning });
         return "updated" as const;
       });

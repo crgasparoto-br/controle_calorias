@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import type { AiWebSearchResult } from "../aiProvider";
 import type {
@@ -107,6 +108,38 @@ export function setAiObservabilitySink(sink: AiObservabilitySink | null): void {
 
 export function getAiObservabilitySink(): AiObservabilitySink | null {
   return configuredSink;
+}
+
+/**
+ * #1307 — Keep only four aggregate-safe fields inside each request's capture.
+ * Never retain prompts, source texts, provider payloads, correlation or IDs.
+ * A bounded/overflowed or uninstrumented capture reports unknown, not zero.
+ */
+export type AiCapabilityAttemptMetric = Pick<AiInferenceEvent,
+  "capability" | "callRole" | "latencyMs" | "estimatedCostUsd">;
+
+type AiRequestCapture = {
+  attempts: AiCapabilityAttemptMetric[];
+  active: boolean;
+  overflowed: boolean;
+};
+
+const aiRequestCapture = new AsyncLocalStorage<AiRequestCapture>();
+const MAX_CAPTURED_ATTEMPTS_PER_REQUEST = 256;
+
+export async function withAiInferenceAttemptCapture<T>(
+  operation: () => Promise<T>,
+  onComplete: (attempts: readonly AiCapabilityAttemptMetric[] | null) => void,
+): Promise<T> {
+  const scope: AiRequestCapture = { attempts: [], active: true, overflowed: false };
+  return aiRequestCapture.run(scope, async () => {
+    try {
+      return await operation();
+    } finally {
+      scope.active = false;
+      onComplete(scope.overflowed || scope.attempts.length === 0 ? null : [...scope.attempts]);
+    }
+  });
 }
 
 function bounded(value: string, max = 80): string {
@@ -370,6 +403,22 @@ export async function emitAiInferenceEvents(
   events: readonly AiInferenceEvent[],
   sink?: AiObservabilitySink | null,
 ): Promise<void> {
+  const capture = aiRequestCapture.getStore();
+  if (capture?.active) {
+    for (const event of events) {
+      // Configuration failures with attemptIndex=0 made no provider call.
+      if (!Number.isInteger(event.attemptIndex) || event.attemptIndex < 1) continue;
+      if (capture.attempts.length >= MAX_CAPTURED_ATTEMPTS_PER_REQUEST) {
+        capture.overflowed = true;
+        break;
+      }
+      capture.attempts.push({
+        capability: event.capability, callRole: event.callRole,
+        latencyMs: event.latencyMs, estimatedCostUsd: event.estimatedCostUsd,
+      });
+    }
+  }
+  // Request capture is independent of the configured operational sink.
   const resolvedSink = sink === undefined ? configuredSink : sink;
   if (!resolvedSink) return;
   for (const event of events) {

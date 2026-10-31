@@ -1,16 +1,10 @@
-import { sql, type SQL } from "drizzle-orm";
-
-import { getDb } from "../../db";
 import { convertFoodPortionToGrams, getGlobalFoodCatalogItem, recordGlobalFoodUsage } from "../foods/service";
 import type { MealItemInput } from "./schemas";
+import { mergeConfirmedMealClassification } from "./classificationSnapshot";
 import {
   deriveNutritionSourceForMealItem,
   type NutritionSourceSelection,
 } from "./nutritionSourceSelection";
-
-type SqlExecutor = {
-  execute: (query: SQL) => Promise<unknown>;
-};
 
 type ResolvedMealItemGrams = {
   grams: number;
@@ -151,7 +145,7 @@ export async function enrichMealItemsWithNutritionSnapshots(
       fatG: calculated.fatG,
       fiberG: calculated.fiberG,
       sodiumMg: calculated.sodiumMg,
-      foodSnapshotJson: JSON.stringify(snapshot),
+      foodSnapshotJson: mergeConfirmedMealClassification(JSON.stringify(snapshot), item.classification) ?? undefined,
       nutritionSource,
       source: "catalog",
     });
@@ -165,34 +159,5 @@ export async function recordMealItemsCatalogUsage(userId: number, items: MealIte
     if (item.foodId) {
       await recordGlobalFoodUsage(userId, item.foodId);
     }
-  }
-}
-
-export async function persistMealItemNutritionSnapshots(mealId: number, items: MealItemWithNutritionSnapshot[]) {
-  const itemsWithSnapshots = items.filter(item => item.foodId && item.foodSnapshotJson);
-  if (!itemsWithSnapshots.length) return;
-
-  const db = await getDb();
-  if (!db) return;
-
-  const executor = db as unknown as SqlExecutor;
-  for (const item of itemsWithSnapshots) {
-    await executor.execute(sql`
-      UPDATE mealItems
-      SET
-        foodId = ${item.foodId ?? null},
-        grams = ${item.grams ?? item.estimatedGrams},
-        caloriesKcal = ${item.caloriesKcal ?? item.calories},
-        proteinG = ${item.proteinG ?? item.protein},
-        carbG = ${item.carbG ?? item.carbs},
-        fatG = ${item.fatG ?? item.fat},
-        fiberG = ${item.fiberG ?? null},
-        sodiumMg = ${item.sodiumMg ?? null},
-        foodSnapshotJson = ${item.foodSnapshotJson ?? null}
-      WHERE mealId = ${mealId}
-        AND foodName = ${item.foodName}
-        AND canonicalName = ${item.canonicalName}
-        AND portionText = ${item.portionText}
-    `);
   }
 }
