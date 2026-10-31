@@ -535,7 +535,7 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
       resolvedCatalogIds: new Map([["Leite", 500]]),
     });
     expect(state.items()[0]).toMatchObject({
-      foodId: null, foodVariantId: null, nutritionProfileId: null,
+      foodId: null, foodCatalogId: null, foodVariantId: null, nutritionProfileId: null,
       foodPortionId: null, foodSnapshotJson: null,
     });
     const moveState = fixture([original]);
@@ -547,7 +547,7 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     });
     expect(moved?.targetMealId).toBe(8);
     expect(moveState.items()[0]).toMatchObject({
-      id: 21, mealId: 8, foodId: null, foodVariantId: null,
+      id: 21, mealId: 8, foodId: null, foodCatalogId: null, foodVariantId: null,
       nutritionProfileId: null, foodPortionId: null, foodSnapshotJson: null,
     });
   });

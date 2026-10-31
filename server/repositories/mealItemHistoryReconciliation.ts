@@ -53,6 +53,10 @@ export function guardHistoricalMealItemUpdate(
     ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution }) : null);
   return {
     ...updates,
+    // A client may carry the former catalog ID while changing brand or food.
+    // Only an explicitly different, freshly resolved catalog reference is safe.
+    foodCatalogId: item.foodCatalogId != null && item.foodCatalogId !== saved.foodCatalogId
+      ? (updates.foodCatalogId ?? null) : null,
     foodId: enriched.foodId ?? null,
     foodVariantId: null, nutritionProfileId: null, foodPortionId: null,
     recipeId: null, portionId: null, itemType: "food",
