@@ -53,6 +53,24 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
     expect(blocked.some(x=>x.ruleId==="17"),JSON.stringify(blocked)).toBe(true);
   });
 
+  it("A-027 treats runtime pairing edges as telemetry, not static food knowledge", () => {
+    const structural = probe("shadowPairing", `
+      export function pairFoodShadowItems(left:any[], right:any[]) {
+        const diagnosticEdges: Array<{i:number;j:number;cost:number}> = [];
+        for (let i=0; i<left.length; i++) for (let j=0; j<right.length; j++) {
+          diagnosticEdges.push({i, j, cost: left[i].calories - right[j].calories});
+        }
+        return diagnosticEdges;
+      }`);
+    expect(structural.filter(item => item.ruleId === "17"), JSON.stringify(structural)).toEqual([]);
+    const staticKnowledge = probe("shadowPairing", `
+      const FOOD_VARIANT_CATALOG = ["integral", "desnatado"];
+      export function chooseFoodVariant(item:any) {
+        return FOOD_VARIANT_CATALOG.includes(item.productVariant);
+      }`);
+    expect(staticKnowledge.some(item => item.ruleId === "17"), JSON.stringify(staticKnowledge)).toBe(true);
+  });
+
   it("a hardcoded calorie catalog and lexical materiality table are still findings", () => {
     const blocked=probe("unsafeFood", `
       const FOOD_CATALOG_REFERENCE=[{ foodName:"arroz",calories:130,protein:3,carbs:28,fat:0.3 }];

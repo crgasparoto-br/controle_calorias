@@ -283,7 +283,7 @@ export function pairFoodShadowItems(
   // Keep variant-change diagnostics even for unmatched legacy/name-only
   // records, but never promote these diagnostic links into nutrition pairs.
   // Assign changes one-to-one to avoid inflating counts for duplicate meals.
-  const variantChangeCandidates: Candidate[] = [];
+  const diagnosticEdges: Candidate[] = [];
   for (let i = 0; i < left.length; i++) {
     if (usedLeft.has(i)) continue;
     for (let j = 0; j < right.length; j++) {
@@ -296,8 +296,8 @@ export function pairFoodShadowItems(
         right[j].identity.variantId !== null &&
         leftVariantIds[i] !== right[j].identity.variantId;
       if (!differentVariantIds && !conflictingCommercialIdentity(left[i], right[j])) continue;
-      variantChangeCandidates.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
+      diagnosticEdges.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
     }
   }
-  return { pairs, unpairedVariantChanges: optimalPairs(variantChangeCandidates).length };
+  return { pairs, unpairedVariantChanges: optimalPairs(diagnosticEdges).length };
 }
