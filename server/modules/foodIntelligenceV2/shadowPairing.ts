@@ -80,6 +80,18 @@ const normalize = (s: string | null | undefined) =>
 export const exactDifference = (a: string | null | undefined, b: string | null | undefined) =>
   normalize(a) !== normalize(b);
 
+/** Missing labels are unknown; two different *specified* labels are incompatible. */
+function specifiedLabelConflict(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = normalize(a), right = normalize(b);
+  return left !== "" && right !== "" && left !== right;
+}
+
+/** Family or display-name equality never overrides an explicit commercial conflict. */
+function conflictingCommercialIdentity(left: FoodShadowV1Item, right: FoodResolutionDecision): boolean {
+  return specifiedLabelConflict(left.brand, right.identity.brand) ||
+    specifiedLabelConflict(left.productVariant, right.identity.variant);
+}
+
 /** Immutable historical namespaces must never be collapsed by display names. */
 function savedRefId(item: FoodShadowV1Item, prefix: string): number | null {
   const reference = item.historicalRef;
@@ -243,8 +255,12 @@ export function pairFoodShadowItems(
 
   matchTier((i, j) => leftVariantIds[i] !== null &&
     leftVariantIds[i] === right[j].identity.variantId);
+  // A family ID identifies a food family, not its commercial variant. Only a
+  // matching immutable variant ID (the tier above) can override explicit
+  // differences in brand or variant labels.
   matchTier((i, j) => leftFamilyIds[i] !== null &&
-    leftFamilyIds[i] === right[j].identity.foodEntityId);
+    leftFamilyIds[i] === right[j].identity.foodEntityId &&
+    !conflictingCommercialIdentity(left[i], right[j]));
 
   for (const exactVariant of [true, false]) {
     matchTier((i, j) => {
@@ -255,27 +271,33 @@ export function pairFoodShadowItems(
       // Two distinct known variants are not interchangeable, even if their
       // names, quantities and nutrition happen to be identical.
       if (leftVariantIds[i] !== null && right[j].identity.variantId !== null) return false;
+      if (conflictingCommercialIdentity(left[i], right[j])) return false;
+      // Keep complete label agreement ahead of pairs with one unspecified
+      // field. Unknown is not evidence of an explicitly different variant.
       if (exactVariant && (exactDifference(left[i].brand, right[j].identity.brand) ||
         exactDifference(left[i].productVariant, right[j].identity.variant))) return false;
       return true;
     });
   }
 
-  // Known variant changes remain visible without comparing unrelated macros.
-  const knownLeftByName = new Map<string, number>();
+  // Keep variant-change diagnostics even for unmatched legacy/name-only
+  // records, but never promote these diagnostic links into nutrition pairs.
+  // Assign changes one-to-one to avoid inflating counts for duplicate meals.
+  const variantChangeCandidates: Candidate[] = [];
   for (let i = 0; i < left.length; i++) {
-    if (usedLeft.has(i) || leftVariantIds[i] === null) continue;
-    const name = leftNames[i];
-    if (name) knownLeftByName.set(name, (knownLeftByName.get(name) ?? 0) + 1);
+    if (usedLeft.has(i)) continue;
+    for (let j = 0; j < right.length; j++) {
+      if (usedRight.has(j)) continue;
+      const sameFamily = leftFamilyIds[i] !== null &&
+        leftFamilyIds[i] === right[j].identity.foodEntityId;
+      if (leftFamilyIds[i] !== null && !sameFamily) continue;
+      if (!sameFamily && (!leftNames[i] || leftNames[i] !== rightNames[j])) continue;
+      const differentVariantIds = leftVariantIds[i] !== null &&
+        right[j].identity.variantId !== null &&
+        leftVariantIds[i] !== right[j].identity.variantId;
+      if (!differentVariantIds && !conflictingCommercialIdentity(left[i], right[j])) continue;
+      variantChangeCandidates.push({ i, j, cost: shadowPairCost(left[i], right[j]) });
+    }
   }
-  let unpairedVariantChanges = 0;
-  for (let j = 0; j < right.length; j++) {
-    if (usedRight.has(j) || right[j].identity.variantId === null) continue;
-    const name = rightNames[j];
-    const remaining = knownLeftByName.get(name) ?? 0;
-    if (!remaining) continue;
-    unpairedVariantChanges++;
-    knownLeftByName.set(name, remaining - 1);
-  }
-  return { pairs, unpairedVariantChanges };
+  return { pairs, unpairedVariantChanges: optimalPairs(variantChangeCandidates).length };
 }

@@ -624,8 +624,9 @@ describe("#1307 read-only V1/V2 shadow execution", () => {
       identity: 0, nutrition: 0, macros: { calories: 0 } });
     const variantChange = event([left("Leite", 100, 100, "integral")],
       [right("Leite", 100, 100, "desnatado")]);
-    expect(variantChange.differences).toMatchObject({ comparablePairs: 1,
-      unpairedItems: 0, variant: 1, nutrition: 0, macros: { calories: 0 } });
+    // Variant labels that expressly disagree must not form nutrition pairs.
+    expect(variantChange.differences).toMatchObject({ comparablePairs: 0,
+      unpairedItems: 2, variant: 1, nutrition: 0, macros: { calories: null } });
     const rename = event([arroz], [right("Feijão", 200)]);
     expect(rename.differences).toMatchObject({ comparablePairs: 0, unpairedItems: 2,
       v1UnpairedItems: 1, v2UnpairedItems: 1,

@@ -78,7 +78,14 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   quando o rótulo muda; essa alteração de nome é observável. Variantes
   persistidas têm prioridade sobre o fallback por família. Em cada estágio,
   duplicatas são resolvidas por pareamento de cardinalidade máxima e custo
-  agregado mínimo, não pela primeira correspondência local. Os controles
+  agregado mínimo, não pela primeira correspondência local. A-027: equivalência
+  de família ou nome não autoriza comparar macros/quantidade quando marcas ou
+  variantes especificadas entram em conflito; nesses casos, ambos os itens
+  permanecem sem par nutricional e a troca de variante é contabilizada apenas
+  como diagnóstico (um a um, inclusive sem ID histórico de variante). A
+  correspondência por ID imutável de variante igual mantém precedência, mesmo
+  diante de rótulos alterados. Campo ausente é desconhecido, não divergência
+  explícita. Os controles
   adversariais abrangem nomes iguais de famílias diferentes, nomes alterados
   da mesma família, referência de catálogo não comparável, projeção com fixture do
   leitor persistido e armadilha de pareamento guloso com reordenações.
