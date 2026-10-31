@@ -66,6 +66,18 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   ambiguo entre duplicatas nao herdam refs nem classificacao sem prova
   de correspondencia; `classification=null` continua limpando
   apenas o atributo solicitado. Nao consulta nem remapeia catálogos atuais.
+- A-031/A-032: a edição e a movimentação individual passam pela mesma checagem
+  de identidade histórica da atualização completa. Mudança explícita de
+  alimento/marca/variante invalida IDs V2, perfil nutricional, porção,
+  classificação e proveniência antigos, sem herança por posição; porção do
+  mesmo alimento mantém seus vínculos e a classificação confirmada, inclusive
+  quando um snapshot nutricional novo é apresentado. A gravação posterior
+  por combinação de nome/porção foi removida: o repositório já persiste
+  snapshots junto aos itens na transação de inserção/atualização, com escopo
+  físico por linha, impedindo sobrescrita cruzada de alimentos homônimos.
+  Controles positivos e adversariais abrangem edição unitária, movimentação,
+  identidade nova e classificação distinta por item. Nenhum Gate A ou
+  baseline de dados reais é inferido desta correção técnica.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
   cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,

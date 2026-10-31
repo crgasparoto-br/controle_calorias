@@ -1,7 +1,7 @@
 /** A-030: pure historical-item reconciliation; no catalog queries or mutations. */
 import { mealItems } from "../../drizzle/schema";
 import type { MealDraftItem } from "../nutritionEngine";
-import { mergeConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
+import { mergeConfirmedMealClassification, mergePreservingMealClassification } from "../modules/meals/classificationSnapshot";
 
 /** A public V1 edit omits shadow-only IDs; omission must not erase persisted identity. */
 export function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item: MealDraftItem) {
@@ -31,6 +31,34 @@ export function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item:
     row.source === item.source && (row.foodCatalogId ?? null) === (item.foodCatalogId ?? null) &&
     (incoming.foodId === undefined || incoming.foodId === row.foodId) &&
     (!item.historicalRef || item.historicalRef === historicalRef);
+}
+
+/**
+ * For individual edits/moves, never attach old V2 identity or nutrition to a
+ * different food. The source row is locked by the calling transaction.
+ */
+export function guardHistoricalMealItemUpdate(
+  saved: typeof mealItems.$inferSelect,
+  item: MealDraftItem,
+  updates: Record<string, unknown>,
+): Record<string, unknown> {
+  if (sameHistoricalMealFood(saved, item)) {
+    // A live name-to-catalog lookup must not remap this confirmed identity.
+    return { ...updates, foodCatalogId: saved.foodCatalogId };
+  }
+  const enriched = item as MealDraftItem & {
+    foodSnapshotJson?: string; fiberG?: number | null; sodiumMg?: number | null;
+  };
+  const freshSnapshot = enriched.foodSnapshotJson ?? (item.resolution
+    ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution }) : null);
+  return {
+    ...updates,
+    foodId: enriched.foodId ?? null,
+    foodVariantId: null, nutritionProfileId: null, foodPortionId: null,
+    recipeId: null, portionId: null, itemType: "food",
+    fiberG: enriched.fiberG ?? null, sodiumMg: enriched.sodiumMg ?? null,
+    foodSnapshotJson: mergeConfirmedMealClassification(freshSnapshot, item.classification),
+  };
 }
 
 /** Determine which same-identity rows actually require a write. */
@@ -77,8 +105,8 @@ export function preserveHistoricalMealValues<T extends object>(
       createdAt: previous.createdAt,
       ...(incoming.fiberG === undefined ? { fiberG: previous.fiberG } : {}),
       ...(incoming.sodiumMg === undefined ? { sodiumMg: previous.sodiumMg } : {}),
-      foodSnapshotJson: mergeConfirmedMealClassification(
-        incoming.foodSnapshotJson ?? previous.foodSnapshotJson, incoming.classification,
+      foodSnapshotJson: mergePreservingMealClassification(
+        incoming.foodSnapshotJson, previous.foodSnapshotJson, incoming.classification,
       ),
     };
   });

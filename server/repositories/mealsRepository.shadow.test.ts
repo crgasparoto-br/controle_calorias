@@ -343,10 +343,12 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
       delete(table: unknown) { return { async where() {
         if (table === mealItems) { writes.push({ op: "delete-items" }); rows = []; }
       } }; },
-      insert(table: unknown) { return { async values(values: Record<string, unknown>[]) {
+      insert(table: unknown) { return { async values(values: Record<string, unknown> | Record<string, unknown>[]) {
+        if (table === meals) return [{ insertId: 8 }];
         if (table === mealItems) {
-          writes.push({ op: "insert-items", payload: values });
-          rows.push(...values.map(value => ({ ...value, id: generatedId++ }) as ReturnType<typeof savedItem>));
+          const itemValues = values as Record<string, unknown>[];
+          writes.push({ op: "insert-items", payload: itemValues });
+          rows.push(...itemValues.map(value => ({ ...value, id: generatedId++ }) as ReturnType<typeof savedItem>));
         }
       } }; },
       async transaction<T>(fn: (transaction: unknown) => Promise<T>) { return fn(db); },
@@ -469,6 +471,137 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(state.items()[0].foodVariantId).toBeUndefined();
     expect(state.items()[0].nutritionProfileId).toBeUndefined();
     expect(state.items()[0].foodSnapshotJson).toBeNull();
+  });
+
+
+  it("A-031 preserves V2 identity and confirmed classification on a one-item portion edit", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.repository.updateMealItem({
+      userId: 9, meal: loaded, itemIndex: 0,
+      updatedItem: {
+        ...publicItem(original), portionText: "2 copos", quantity: 2, estimatedGrams: 400,
+        calories: 160, foodSnapshotJson: JSON.stringify({ kind: "new_nutrition", caloriesKcal: 160 }),
+      } as never,
+      mealLabel: "Lanche", occurredAt: dated.getTime(),
+      resolvedCatalogIds: new Map([["Leite", 999]]),
+    });
+    const item = state.items()[0];
+    expect(item).toMatchObject({
+      id: 21, foodId: 10, foodCatalogId: 500, foodVariantId: 121, nutritionProfileId: 221,
+      foodPortionId: 321, calories: 160, caloriesKcal: 160, grams: 400,
+    });
+    const snapshot = JSON.parse(item.foodSnapshotJson!);
+    expect(snapshot.kind).toBe("new_nutrition");
+    expect(snapshot.classification).toEqual(classification);
+  });
+
+  it("A-031 clears stale food references, fiber and classification on a one-item food replacement", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.repository.updateMealItem({
+      userId: 9, meal: loaded, itemIndex: 0,
+      updatedItem: {
+        ...publicItem(original), foodName: "Queijo", canonicalName: "Queijo",
+        foodCatalogId: 700, calories: 110, estimatedGrams: 40,
+      } as never,
+      mealLabel: "Lanche", occurredAt: dated.getTime(),
+      resolvedCatalogIds: new Map([["Queijo", 700]]),
+    });
+    expect(state.items()[0]).toMatchObject({
+      id: 21, foodName: "Queijo", foodCatalogId: 700, foodId: null,
+      foodVariantId: null, nutritionProfileId: null, foodPortionId: null,
+      recipeId: null, portionId: null, itemType: "food",
+      foodSnapshotJson: null, fiberG: null, sodiumMg: null,
+      caloriesKcal: 110, grams: 40,
+    });
+  });
+
+  it("A-031 rejects commercial-variant inheritance during individual edit and move", async () => {
+    const original = savedItem(21, {
+      foodSnapshotJson: JSON.stringify({
+        brandName: "Marca A", kind: "meal_item_resolution",
+        resolution: { nutritionOrigin: "catalog" }, classification,
+      }),
+    });
+    const changed = { ...publicItem(original), brand: "Marca B" } as never;
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.repository.updateMealItem({
+      userId: 9, meal: loaded, itemIndex: 0, updatedItem: changed,
+      mealLabel: "Lanche", occurredAt: dated.getTime(),
+      resolvedCatalogIds: new Map([["Leite", 500]]),
+    });
+    expect(state.items()[0]).toMatchObject({
+      foodId: null, foodVariantId: null, nutritionProfileId: null,
+      foodPortionId: null, foodSnapshotJson: null,
+    });
+    const moveState = fixture([original]);
+    const beforeMove = (await moveState.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    const moved = await moveState.repository.moveMealItem({
+      userId: 9, sourceMeal: beforeMove, itemIndex: 0, updatedItem: changed,
+      targetMeal: { mealLabel: "Jantar", occurredAt: dated.getTime() },
+      resolvedCatalogIds: new Map([["Leite", 500]]),
+    });
+    expect(moved?.targetMealId).toBe(8);
+    expect(moveState.items()[0]).toMatchObject({
+      id: 21, mealId: 8, foodId: null, foodVariantId: null,
+      nutritionProfileId: null, foodPortionId: null, foodSnapshotJson: null,
+    });
+  });
+
+  it("A-032 keeps independent snapshots on equal-name/equal-portion foods in the transactional writer", async () => {
+    const original = savedItem(21, { foodId: 10 });
+    const other = savedItem(22, { foodId: 20, foodVariantId: 122 });
+    const firstClass = {
+      processingLevel: "processed" as const, isFruit: false, isVegetable: false, fiberGrams: 2.6,
+    };
+    const secondClass = { ...firstClass, processingLevel: "ultra_processed" as const };
+    const state = fixture([original, other]);
+    await state.update([
+      {
+        ...publicItem(original), foodId: 10, classification: firstClass,
+        foodSnapshotJson: JSON.stringify({ kind: "nutrition_a" }),
+      } as never,
+      {
+        ...publicItem(other), foodId: 20, classification: secondClass,
+        foodSnapshotJson: JSON.stringify({ kind: "nutrition_b" }),
+      } as never,
+    ]);
+    expect(state.writes.map(write => write.op)).toEqual(["update-item", "update-item"]);
+    const [first, second] = state.items();
+    expect(first).toMatchObject({ id: 21, foodId: 10, foodVariantId: 121, nutritionProfileId: 221 });
+    expect(second).toMatchObject({ id: 22, foodId: 20, foodVariantId: 122, nutritionProfileId: 222 });
+    expect(JSON.parse(first.foodSnapshotJson!)).toMatchObject({
+      kind: "nutrition_a", classification: { schemaVersion: 1, ...firstClass },
+    });
+    expect(JSON.parse(second.foodSnapshotJson!)).toMatchObject({
+      kind: "nutrition_b", classification: { schemaVersion: 1, ...secondClass },
+    });
+  });
+
+  it("A-032 keeps each homonym's classification during a refreshed snapshot without explicit classification", async () => {
+    const first = savedItem(21);
+    const second = savedItem(22, {
+      foodId: 20, foodSnapshotJson: JSON.stringify({
+        classification: { ...classification, processingLevel: "ultra_processed", isFruit: false },
+      }),
+    });
+    const state = fixture([first, second]);
+    await state.update([
+      { ...publicItem(first), foodSnapshotJson: JSON.stringify({ sourceVersion: "updated-a" }) } as never,
+      { ...publicItem(second), foodSnapshotJson: JSON.stringify({ sourceVersion: "updated-b" }) } as never,
+    ]);
+    const [a, b] = state.items();
+    expect(JSON.parse(a.foodSnapshotJson!)).toMatchObject({
+      sourceVersion: "updated-a", classification,
+    });
+    expect(JSON.parse(b.foodSnapshotJson!)).toMatchObject({
+      sourceVersion: "updated-b",
+      classification: { ...classification, processingLevel: "ultra_processed", isFruit: false },
+    });
   });
 
   it("clears a confirmed classification only on explicit null, leaving the item reference intact", async () => {

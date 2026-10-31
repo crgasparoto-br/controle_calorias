@@ -3,8 +3,8 @@ import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../.
 import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
-import { mergeConfirmedMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
-import { historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
+import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
+import { guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -278,11 +278,10 @@ function buildMealItemUpdate(
     ...(enriched.sodiumMg !== undefined ? { sodiumMg: enriched.sodiumMg } : {}),
     // Preserve the existing nutrition/resolution snapshot on a partial edit;
     // replace only its classification when the item explicitly supplies one.
-    ...(enriched.foodSnapshotJson !== undefined
-      ? { foodSnapshotJson: mergeConfirmedMealClassification(enriched.foodSnapshotJson, item.classification) }
-      : item.classification !== undefined
-        ? { foodSnapshotJson: mergeConfirmedMealClassification(savedSnapshot, item.classification) }
-        : {}),
+    ...(enriched.foodSnapshotJson !== undefined || item.classification !== undefined
+      ? { foodSnapshotJson: mergePreservingMealClassification(
+          enriched.foodSnapshotJson, savedSnapshot, item.classification,
+        ) } : {}),
   };
 }
 
@@ -610,7 +609,8 @@ export function createDrizzleMealsRepository(deps: {
         });
         await tx
           .update(mealItems)
-          .set(buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson))
+          .set(guardHistoricalMealItemUpdate(locked.items[itemIndex], updatedItem,
+            buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson)))
           .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, meal.id)));
       });
     },
@@ -649,7 +649,8 @@ export function createDrizzleMealsRepository(deps: {
           .update(mealItems)
           .set({
             mealId: createdMealId,
-            ...buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson),
+            ...guardHistoricalMealItemUpdate(locked.items[itemIndex], updatedItem,
+              buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson)),
           })
           .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, sourceMeal.id)));
 

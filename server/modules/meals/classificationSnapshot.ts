@@ -52,6 +52,24 @@ export function mergeConfirmedMealClassification(
  * Historical rows predating versioning may already have classification. Only
  * the new schema is strict; a missing/invalid/unrecognized version stays null.
  */
+/**
+ * A nutrition refresh is not permission to replace an item's confirmed
+ * historical classification. Only an explicit classification input changes it.
+ */
+export function mergePreservingMealClassification(
+  nextSnapshotJson: string | null | undefined,
+  savedSnapshotJson: string | null | undefined,
+  explicitClassification: FoodClassificationEstimate | null | undefined,
+): string | null {
+  if (explicitClassification !== undefined) {
+    return mergeConfirmedMealClassification(nextSnapshotJson ?? savedSnapshotJson, explicitClassification);
+  }
+  if (nextSnapshotJson === undefined || nextSnapshotJson === null) return savedSnapshotJson ?? null;
+  return mergeConfirmedMealClassification(
+    nextSnapshotJson, readConfirmedMealClassification(savedSnapshotJson),
+  );
+}
+
 export function readConfirmedMealClassification(
   snapshotJson: string | null | undefined,
 ): FoodClassificationEstimate | null {
