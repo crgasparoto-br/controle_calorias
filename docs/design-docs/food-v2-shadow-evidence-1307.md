@@ -51,7 +51,9 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   Esta classificação é um snapshot do valor recebido no registro V1, **não**
   uma certificação independente de acurácia V2. Itens históricos já gravados
   sem a informação continuam desconhecidos, sem backfill nem migração tácita.
-- A-030: a atualizacao de refeicoes preserva as linhas fisicas quando a mudanca e
+- A-030: `mealItemHistoryReconciliation.ts` isola a reconciliação pura e
+  `mealsRepository.ts` aplica as mudanças na mesma transação, preservando o
+  limite de crescimento do módulo principal. A atualizacao de refeicoes preserva as linhas fisicas quando a mudanca e
   apenas do rotulo, data ou outra metadata; edicoes de porcao atualizam apenas
   o item alterado e conservam os IDs de variante/perfil e o snapshot anterior.
   Em insercao, remocao e reordenacao, os itens historicos sao pareados por
