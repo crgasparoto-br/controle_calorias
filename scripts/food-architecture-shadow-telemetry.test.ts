@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { findFoodStaticCandidates } from "./food-intelligence-architecture";
 
 const probe = (name: string, content: string) =>
@@ -96,4 +98,18 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
     expect(blocked.some(x=>x.ruleId==="17"),JSON.stringify(blocked)).toBe(true);
     expect(blocked.some(x=>x.ruleId==="18"),JSON.stringify(blocked)).toBe(true);
   });
+
+  it("A-032 rejects unsafe name/portion-based post-save nutrition updates", () => {
+    const service = readFileSync(resolve(process.cwd(), "server/modules/meals/service.ts"), "utf8");
+    const snapshots = readFileSync(resolve(process.cwd(), "server/modules/meals/nutritionSnapshot.ts"), "utf8");
+    const repository = readFileSync(resolve(process.cwd(), "server/repositories/mealsRepository.ts"), "utf8");
+    // A write after the confirmed repository transaction can hit two homonyms
+    // and overwrite both identities. The old post-save SQL must stay removed.
+    expect(service).not.toContain("persistMealItemNutritionSnapshots");
+    expect(snapshots).not.toContain("persistMealItemNutritionSnapshots");
+    expect(snapshots).not.toMatch(/UPDATE\\s+mealItems/);
+    expect(repository).toContain("foodSnapshotJson: mergeConfirmedMealClassification");
+    expect(repository).toContain("buildMealItemValues(input.meal.id, input.items");
+  });
+
 });
