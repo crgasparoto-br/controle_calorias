@@ -56,8 +56,9 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   o item alterado e conservam os IDs de variante/perfil e o snapshot anterior.
   Em insercao, remocao e reordenacao, os itens historicos sao pareados por
   identidade armazenada e conteudo discriminante antes de reconstruir a lista.
-  Itens realmente novos ou com identidade diferente nao herdam refs nem
-  classificacao de outro alimento; `classification=null` continua limpando
+  Itens realmente novos, de marca/variante alterada ou em pareamento
+  ambiguo entre duplicatas nao herdam refs nem classificacao sem prova
+  de correspondencia; `classification=null` continua limpando
   apenas o atributo solicitado. Nao consulta nem remapeia catálogos atuais.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,

@@ -423,6 +423,26 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(state.items()[0].foodSnapshotJson).toBeNull();
   });
 
+  it("does not inherit a saved variant after an explicit commercial identity change", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), brand: "Marca Nova" } as never]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    expect(state.items()[0].foodVariantId).toBeUndefined();
+    expect(state.items()[0].foodSnapshotJson).toBeNull();
+  });
+
+  it("rejects ambiguous inherited variant identity after removing one identical duplicate", async () => {
+    const first = savedItem(21);
+    const second = savedItem(22);
+    const state = fixture([first, second]);
+    await state.update([publicItem(first)]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    expect(state.items()[0].foodVariantId).toBeUndefined();
+    expect(state.items()[0].nutritionProfileId).toBeUndefined();
+    expect(state.items()[0].foodSnapshotJson).toBeNull();
+  });
+
   it("clears a confirmed classification only on explicit null, leaving the item reference intact", async () => {
     const original = savedItem(21);
     const state = fixture([original]);

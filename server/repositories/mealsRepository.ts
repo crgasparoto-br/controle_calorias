@@ -331,6 +331,19 @@ function samePersistedMealItem(row: any, expected: MealDraftItem) {
 /** A public V1 edit omits shadow-only IDs; omission must not erase persisted identity. */
 function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item: MealDraftItem) {
   const incoming = item as MealDraftItem & { foodId?: number };
+  // Brand/variant labels are not materialized in the public V1 reader. An
+  // explicit commercial change cannot inherit a saved variant just by name.
+  if (item.brand || item.productVariant) {
+    let snapshot: Record<string, unknown> | null = null;
+    try {
+      const parsed: unknown = row.foodSnapshotJson ? JSON.parse(row.foodSnapshotJson) : null;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        snapshot = parsed as Record<string, unknown>;
+      }
+    } catch { /* An invalid source cannot prove commercial identity. */ }
+    if (!snapshot || (item.brand && snapshot.brandName !== item.brand) ||
+        (item.productVariant && snapshot.productVariant !== item.productVariant)) return false;
+  }
   const historicalRef = row.foodVariantId != null ? `variant:${row.foodVariantId}`
     : row.foodId != null ? `food:${row.foodId}`
     : row.foodCatalogId != null ? `catalog:${row.foodCatalogId}` : null;
@@ -379,10 +392,14 @@ function matchHistoricalMealRows(
     matches[itemIndex] = previous[oldIndex];
     used.add(oldIndex);
   };
-  // Match in place first to avoid exchanging two indistinguishable variants.
-  for (let i = 0; i < items.length; i++) {
-    if (i < previous.length && sameHistoricalMealFood(previous[i], items[i]) &&
-        samePersistedMealItem(previous[i], items[i])) assign(i, i);
+  // Positional identity is only safe when the full list cardinality is
+  // unchanged. After removal, two identical labels can denote distinct V2
+  // variants; choosing the first one would silently forge historical identity.
+  if (previous.length === items.length) {
+    for (let i = 0; i < items.length; i++) {
+      if (sameHistoricalMealFood(previous[i], items[i]) &&
+          samePersistedMealItem(previous[i], items[i])) assign(i, i);
+    }
   }
   // Reordering with distinct stored values is safe; ambiguous matches do not
   // inherit another item's historical reference.
@@ -395,8 +412,11 @@ function matchHistoricalMealRows(
   // Portion/quantity edits may retain their own saved identity when the row
   // remains at the same position and the food identity is unchanged.
   for (let i = 0; i < items.length; i++) {
-    if (!matches[i] && i < previous.length && !used.has(i) &&
-        sameHistoricalMealFood(previous[i], items[i])) assign(i, i);
+    if (matches[i] || i >= previous.length || used.has(i) ||
+        !sameHistoricalMealFood(previous[i], items[i])) continue;
+    const possible = previous.flatMap((row, index) => !used.has(index) &&
+      sameHistoricalMealFood(row, items[i]) ? [index] : []);
+    if (possible.length === 1 && possible[0] === i) assign(i, i);
   }
   return matches;
 }
