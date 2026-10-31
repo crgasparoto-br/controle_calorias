@@ -526,7 +526,12 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
         resolution: { nutritionOrigin: "catalog" }, classification,
       }),
     });
-    const changed = { ...publicItem(original), brand: "Marca B" } as never;
+    const changed = {
+      ...publicItem(original), foodId: 10, brand: "Marca B",
+      // A V1 editor may keep the previous foodId and its freshly regenerated
+      // nutrition snapshot even after the user replaces the commercial item.
+      foodSnapshotJson: JSON.stringify({ brandName: "Marca A", calculated: { caloriesKcal: 80 } }),
+    } as never;
     const state = fixture([original]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
     await state.repository.updateMealItem({

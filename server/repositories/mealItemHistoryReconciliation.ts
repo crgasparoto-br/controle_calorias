@@ -49,15 +49,20 @@ export function guardHistoricalMealItemUpdate(
   const enriched = item as MealDraftItem & {
     foodSnapshotJson?: string; fiberG?: number | null; sodiumMg?: number | null;
   };
-  const freshSnapshot = enriched.foodSnapshotJson ?? (item.resolution
-    ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution }) : null);
+  const freshFoodId = enriched.foodId != null && enriched.foodId !== saved.foodId
+    ? enriched.foodId : null;
+  const newCatalog = item.foodCatalogId != null && item.foodCatalogId !== saved.foodCatalogId;
+  // Regenerated nutrition from the old foodId is not evidence for a new
+  // brand/variant. Without a new identity, discard that stale payload.
+  const freshSnapshot = freshFoodId !== null || (saved.foodId == null && newCatalog)
+    ? (enriched.foodSnapshotJson ?? (item.resolution
+        ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution }) : null))
+    : null;
   return {
     ...updates,
-    // A client may carry the former catalog ID while changing brand or food.
-    // Only an explicitly different, freshly resolved catalog reference is safe.
-    foodCatalogId: item.foodCatalogId != null && item.foodCatalogId !== saved.foodCatalogId
-      ? (updates.foodCatalogId ?? null) : null,
-    foodId: enriched.foodId ?? null,
+    // A client may carry the former IDs while changing brand or food.
+    foodCatalogId: newCatalog ? (updates.foodCatalogId ?? null) : null,
+    foodId: freshFoodId,
     foodVariantId: null, nutritionProfileId: null, foodPortionId: null,
     recipeId: null, portionId: null, itemType: "food",
     fiberG: enriched.fiberG ?? null, sodiumMg: enriched.sodiumMg ?? null,
