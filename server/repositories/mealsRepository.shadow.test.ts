@@ -415,6 +415,24 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
       foodCatalogId: 500, foodSnapshotJson: first.foodSnapshotJson });
   });
 
+  it("reorders two same-name variants without exchanging their historical profiles", async () => {
+    const first = savedItem(21);
+    const second = savedItem(22, { calories: 120, caloriesKcal: 120,
+      foodSnapshotJson: JSON.stringify({ classification: {
+        ...classification, processingLevel: "ultra_processed", isFruit: false,
+      } }) });
+    const state = fixture([first, second]);
+    await state.update([publicItem(second), publicItem(first)]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    const rows = state.items();
+    expect(rows.map(row => row.foodVariantId)).toEqual([122, 121]);
+    expect(rows.map(row => row.nutritionProfileId)).toEqual([222, 221]);
+    expect(rows.map(row => row.foodSnapshotJson)).toEqual([
+      second.foodSnapshotJson, first.foodSnapshotJson,
+    ]);
+    expect(rows.map(row => row.calories)).toEqual([120, 80]);
+  });
+
   it("never transfers a prior variant/classification to a different food", async () => {
     const original = savedItem(21);
     const state = fixture([original]);

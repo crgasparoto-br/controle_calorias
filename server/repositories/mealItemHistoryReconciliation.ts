@@ -40,9 +40,18 @@ export function historyInPlaceEditIndices(
 ): number[] | null {
   if (previous.length !== items.length || !previous.every((row, index) =>
     Number.isSafeInteger(row.id) && row.id > 0 && sameHistoricalMealFood(row, items[index]))) return null;
+  // Equal-length meals can still reorder same-name commercial variants. If
+  // an edited slot exactly matches a different stored row, reconcile by content
+  // instead of attaching the incoming nutrition to the old index's variant.
+  const unchanged = previous.map((row, index) => isSamePersisted(row, items[index]));
+  for (let i = 0; i < items.length; i++) {
+    if (unchanged[i]) continue;
+    if (previous.some((row, j) => j !== i && sameHistoricalMealFood(row, items[i]) &&
+        isSamePersisted(row, items[i]))) return null;
+  }
   return items.flatMap((item, index) => {
     const enriched = item as MealDraftItem & { foodSnapshotJson?: string };
-    return isSamePersisted(previous[index], item) && item.classification === undefined &&
+    return unchanged[index] && item.classification === undefined &&
       enriched.foodSnapshotJson === undefined ? [] : [index];
   });
 }

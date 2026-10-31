@@ -60,6 +60,8 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   identidade armazenada e conteudo discriminante antes de reconstruir a lista.
   Alteracoes de porcao sincronizam os campos fisicos de gramatura/macros com
   os valores confirmados, sem recalculo pelo catalogo.
+  Reordenacao de variantes homonimas com mesma cardinalidade tambem exige
+  reconciliacao por valores discriminantes, nao atualizacao pelo indice.
   Itens realmente novos, de marca/variante alterada ou em pareamento
   ambiguo entre duplicatas nao herdam refs nem classificacao sem prova
   de correspondencia; `classification=null` continua limpando
