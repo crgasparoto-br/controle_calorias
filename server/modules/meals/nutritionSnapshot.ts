@@ -3,6 +3,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { getDb } from "../../db";
 import { convertFoodPortionToGrams, getGlobalFoodCatalogItem, recordGlobalFoodUsage } from "../foods/service";
 import type { MealItemInput } from "./schemas";
+import { mergeConfirmedMealClassification } from "./classificationSnapshot";
 import {
   deriveNutritionSourceForMealItem,
   type NutritionSourceSelection,
@@ -151,7 +152,7 @@ export async function enrichMealItemsWithNutritionSnapshots(
       fatG: calculated.fatG,
       fiberG: calculated.fiberG,
       sodiumMg: calculated.sodiumMg,
-      foodSnapshotJson: JSON.stringify(snapshot),
+      foodSnapshotJson: mergeConfirmedMealClassification(JSON.stringify(snapshot), item.classification) ?? undefined,
       nutritionSource,
       source: "catalog",
     });

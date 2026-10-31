@@ -3,6 +3,7 @@ import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../.
 import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
+import { mergeConfirmedMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -126,29 +127,6 @@ function readMealItemResolution(value: string | null | undefined) {
   }
 }
 
-/**
- * Read an existing persisted classification only. A current catalog ID, name
- * or nutrition reference cannot synthesize historical classification (Gate 19).
- */
-function parseSavedQuality(value: string | null | undefined): MealDraftItem["classification"] {
-  if (!value) return null;
-  try {
-    const row = JSON.parse(value) as { classification?: Record<string, unknown> | null };
-    const c = row?.classification;
-    if (!c || typeof c !== "object" || Array.isArray(c)) return null;
-    if (!["natural_or_minimally_processed", "processed_culinary_ingredient",
-          "processed", "ultra_processed"].includes(String(c.processingLevel))) return null;
-    if (typeof c.isFruit !== "boolean" || typeof c.isVegetable !== "boolean" ||
-        typeof c.fiberGrams !== "number" || !Number.isFinite(c.fiberGrams) ||
-        c.fiberGrams < 0) return null;
-    return {
-      processingLevel: c.processingLevel as NonNullable<MealDraftItem["classification"]>["processingLevel"],
-      isFruit: c.isFruit, isVegetable: c.isVegetable,
-      fiberGrams: c.fiberGrams,
-    };
-  } catch { return null; }
-}
-
 function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>) {
   return items.map(item => ({
     ...(() => {
@@ -172,9 +150,12 @@ function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCat
         fatG: enriched.fatG ?? item.fat,
         fiberG: enriched.fiberG ?? null,
         sodiumMg: enriched.sodiumMg ?? null,
-        foodSnapshotJson: enriched.foodSnapshotJson ?? (item.resolution
-          ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
-          : null),
+        foodSnapshotJson: mergeConfirmedMealClassification(
+          enriched.foodSnapshotJson ?? (item.resolution
+            ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
+            : null),
+          item.classification,
+        ),
       };
     })(),
     mealId,
@@ -263,7 +244,11 @@ function assertMealMetadataSnapshot(currentMeal: any, expectedMeal: SavedMealRec
   }
 }
 
-function buildMealItemUpdate(item: MealDraftItem, resolvedCatalogIds: Map<string, number>) {
+function buildMealItemUpdate(
+  item: MealDraftItem,
+  resolvedCatalogIds: Map<string, number>,
+  savedSnapshot: string | null | undefined,
+) {
   const values = { ...buildMealItemValues(0, [item], resolvedCatalogIds)[0] } as Record<string, unknown>;
   const enriched = item as MealDraftItem & {
     foodId?: number;
@@ -290,7 +275,13 @@ function buildMealItemUpdate(item: MealDraftItem, resolvedCatalogIds: Map<string
     ...(enriched.fatG !== undefined ? { fatG: enriched.fatG } : {}),
     ...(enriched.fiberG !== undefined ? { fiberG: enriched.fiberG } : {}),
     ...(enriched.sodiumMg !== undefined ? { sodiumMg: enriched.sodiumMg } : {}),
-    ...(enriched.foodSnapshotJson !== undefined ? { foodSnapshotJson: enriched.foodSnapshotJson } : {}),
+    // Preserve the existing nutrition/resolution snapshot on a partial edit;
+    // replace only its classification when the item explicitly supplies one.
+    ...(enriched.foodSnapshotJson !== undefined
+      ? { foodSnapshotJson: mergeConfirmedMealClassification(enriched.foodSnapshotJson, item.classification) }
+      : item.classification !== undefined
+        ? { foodSnapshotJson: mergeConfirmedMealClassification(savedSnapshot, item.classification) }
+        : {}),
   };
 }
 
@@ -456,7 +447,7 @@ async function loadSavedMeals(
                 ? "variant:" + item.foodVariantId
                 : item.foodId != null ? "food:" + item.foodId
                 : item.foodCatalogId != null ? "catalog:" + item.foodCatalogId : null,
-              classification: parseSavedQuality(item.foodSnapshotJson),
+              classification: readConfirmedMealClassification(item.foodSnapshotJson),
             } : {}),
             foodName: item.foodName,
             canonicalName: item.canonicalName,
@@ -600,7 +591,7 @@ export function createDrizzleMealsRepository(deps: {
         });
         await tx
           .update(mealItems)
-          .set(buildMealItemUpdate(updatedItem, resolvedCatalogIds))
+          .set(buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson))
           .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, meal.id)));
       });
     },
@@ -639,7 +630,7 @@ export function createDrizzleMealsRepository(deps: {
           .update(mealItems)
           .set({
             mealId: createdMealId,
-            ...buildMealItemUpdate(updatedItem, resolvedCatalogIds),
+            ...buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson),
           })
           .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, sourceMeal.id)));
 

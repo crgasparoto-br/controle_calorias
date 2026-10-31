@@ -35,6 +35,22 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   O indicador é investigativo, não prova de erro nutricional nem aprovação de
   acurácia. Os mesmos sinais chegam ao baseline via agregação direta e replay,
   inclusive quando a observação V2 é parcial ou falha.
+- A-029: a classificação *fornecida com o item confirmado* atravessa o
+  `mealItemSchema` e é persistida em `foodSnapshotJson.classification` com
+  `schemaVersion=1`, usando apenas nível de processamento, flags de fruta/
+  vegetal/água potável e fibra declarada. O gravador compõe a classificação
+  com os campos já existentes do snapshot nutricional e da resolução, sem
+  substituí-los; o caminho SQL de snapshot nutricional e a atualização de item
+  preservam a mesma regra. `classification=null` limpa uma classificação
+  anterior, `undefined` não a inventa e o leitor shadow aceita o formato
+  legado sem versão apenas quando tipado e íntegro. Versão desconhecida,
+  campo inválido ou snapshot ausente resultam em `unknown` explícito; não há
+  reclassificação por catálogo, nome ou macro. Teste integrado usa o schema
+  público, o gravador real do repositório, a releitura e os agregadores,
+  além de simular mudança posterior de catálogo e ausência de classificação.
+  Esta classificação é um snapshot do valor recebido no registro V1, **não**
+  uma certificação independente de acurácia V2. Itens históricos já gravados
+  sem a informação continuam desconhecidos, sem backfill nem migração tácita.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
   cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,
