@@ -61,7 +61,8 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
     const mealId = await repository.persistMeal({
       meal: { userId: 9, source: "web", mealLabel: "Lanche", sourceText: "Registro",
         confidence: 0.9, occurredAt: Date.parse("2026-10-31T08:00:00Z") },
-      items: [received, withoutClassification], media: [], resolvedCatalogIds: new Map(),
+      items: [received, withoutClassification], media: [],
+      resolvedCatalogIds: new Map([["Banana", 500], ["Legado", 501]]),
     });
     expect(mealId).toBe(60);
     expect(warnings).not.toHaveBeenCalled();
