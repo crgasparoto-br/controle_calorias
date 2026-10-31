@@ -108,7 +108,9 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
     expect(service).not.toContain("persistMealItemNutritionSnapshots");
     expect(snapshots).not.toContain("persistMealItemNutritionSnapshots");
     expect(snapshots).not.toMatch(/UPDATE\s+mealItems/);
-    expect(repository).toContain("foodSnapshotJson: mergeConfirmedMealClassification");
+    // The classification merge remains nested inside the commercial identity
+    // merge, both performed in the row-scoped transactional writer.
+    expect(repository).toMatch(/foodSnapshotJson: mergePreservingMealCommercialIdentity\(\s*mergeConfirmedMealClassification\(/);
     expect(repository).toContain("buildMealItemValues(input.meal.id, input.items");
   });
 

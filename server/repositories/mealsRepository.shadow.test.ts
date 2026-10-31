@@ -490,7 +490,11 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     await state.update([{ ...publicItem(original), brand: "Marca Nova" } as never]);
     expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
     expect(state.items()[0].foodVariantId).toBeUndefined();
-    expect(state.items()[0].foodSnapshotJson).toBeNull();
+    expect(state.items()[0].nutritionProfileId).toBeUndefined();
+    // The new brand is a newly confirmed label, not inherited nutrition.
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca Nova" },
+    });
   });
 
   it("treats explicitly cleared brand as a commercial identity change", async () => {
@@ -499,7 +503,11 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     await state.update([{ ...publicItem(original), brand: null } as never]);
     expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
     expect(state.items()[0].foodVariantId).toBeUndefined();
-    expect(state.items()[0].foodSnapshotJson).toBeNull();
+    expect(state.items()[0].nutritionProfileId).toBeUndefined();
+    // Explicit null is persisted while the old nutrition and provenance are not.
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: null },
+    });
   });
 
   it("rejects ambiguous inherited variant identity after removing one identical duplicate", async () => {
@@ -666,7 +674,10 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     });
     expect(state.items()[0]).toMatchObject({
       foodId: null, foodCatalogId: null, foodVariantId: null, nutritionProfileId: null,
-      foodPortionId: null, foodSnapshotJson: null,
+      foodPortionId: null,
+    });
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca B" },
     });
     const moveState = fixture([original]);
     const beforeMove = (await moveState.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
@@ -678,7 +689,10 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(moved?.targetMealId).toBe(8);
     expect(moveState.items()[0]).toMatchObject({
       id: 21, mealId: 8, foodId: null, foodCatalogId: null, foodVariantId: null,
-      nutritionProfileId: null, foodPortionId: null, foodSnapshotJson: null,
+      nutritionProfileId: null, foodPortionId: null,
+    });
+    expect(JSON.parse(moveState.items()[0].foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca B" },
     });
   });
 
