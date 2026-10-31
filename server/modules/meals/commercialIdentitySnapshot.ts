@@ -22,10 +22,16 @@ function decode(snapshotJson: string | null | undefined): JsonRecord | null {
   }
 }
 
+// Length bounds mirror the public meal-item schema, not food materiality rules.
+const MAX_COMMERCIAL_FIELD_LENGTH: Readonly<Record<CommercialKey, number>> = {
+  brand: 80,
+  productVariant: 120,
+};
+
 function validCommercialValue(value: unknown, key: CommercialKey): value is string | null {
-  const max = key === "brand" ? 80 : 120;
   return value === null || (typeof value === "string" &&
-    value.length > 0 && value.length <= max && value.trim() === value);
+    value.length > 0 && value.length <= MAX_COMMERCIAL_FIELD_LENGTH[key] &&
+    value.trim() === value);
 }
 
 /** Previously confirmed labels outrank catalog labels; legacy resolution is fallback evidence. */
