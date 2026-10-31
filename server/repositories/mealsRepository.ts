@@ -328,6 +328,79 @@ function samePersistedMealItem(row: any, expected: MealDraftItem) {
     && String(row.source ?? "") === String(expected.source ?? "");
 }
 
+/** A public V1 edit omits shadow-only IDs; omission must not erase persisted identity. */
+function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item: MealDraftItem) {
+  const incoming = item as MealDraftItem & { foodId?: number };
+  const historicalRef = row.foodVariantId != null ? `variant:${row.foodVariantId}`
+    : row.foodId != null ? `food:${row.foodId}`
+    : row.foodCatalogId != null ? `catalog:${row.foodCatalogId}` : null;
+  return row.foodName === item.foodName && row.canonicalName === item.canonicalName &&
+    row.source === item.source && (row.foodCatalogId ?? null) === (item.foodCatalogId ?? null) &&
+    (incoming.foodId === undefined || incoming.foodId === row.foodId) &&
+    (!item.historicalRef || item.historicalRef === historicalRef);
+}
+
+/** Retain each confirmed row's immutable V2 references and typed snapshot. */
+function preserveHistoricalMealValues(
+  mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>,
+  saved: Array<typeof mealItems.$inferSelect | null>,
+) {
+  const values = buildMealItemValues(mealId, items, resolvedCatalogIds);
+  return values.map((value, index) => {
+    const previous = saved[index];
+    if (!previous) return value;
+    const incoming = items[index] as MealDraftItem & {
+      foodId?: number; foodSnapshotJson?: string; fiberG?: number | null; sodiumMg?: number | null;
+    };
+    return {
+      ...value,
+      // Saved identity is authoritative when the logical food did not change.
+      foodCatalogId: previous.foodCatalogId, foodId: incoming.foodId ?? previous.foodId,
+      foodVariantId: previous.foodVariantId, nutritionProfileId: previous.nutritionProfileId,
+      foodPortionId: previous.foodPortionId, recipeId: previous.recipeId,
+      portionId: previous.portionId, itemType: previous.itemType,
+      createdAt: previous.createdAt,
+      ...(incoming.fiberG === undefined ? { fiberG: previous.fiberG } : {}),
+      ...(incoming.sodiumMg === undefined ? { sodiumMg: previous.sodiumMg } : {}),
+      foodSnapshotJson: mergeConfirmedMealClassification(
+        incoming.foodSnapshotJson ?? previous.foodSnapshotJson, incoming.classification,
+      ),
+    };
+  });
+}
+
+/** Match immutable source rows before any destructive fallback; never match by label alone. */
+function matchHistoricalMealRows(
+  previous: Array<typeof mealItems.$inferSelect>, items: MealDraftItem[],
+): Array<typeof mealItems.$inferSelect | null> {
+  const matches: Array<typeof mealItems.$inferSelect | null> = items.map(() => null);
+  const used = new Set<number>();
+  const assign = (itemIndex: number, oldIndex: number) => {
+    matches[itemIndex] = previous[oldIndex];
+    used.add(oldIndex);
+  };
+  // Match in place first to avoid exchanging two indistinguishable variants.
+  for (let i = 0; i < items.length; i++) {
+    if (i < previous.length && sameHistoricalMealFood(previous[i], items[i]) &&
+        samePersistedMealItem(previous[i], items[i])) assign(i, i);
+  }
+  // Reordering with distinct stored values is safe; ambiguous matches do not
+  // inherit another item's historical reference.
+  for (let i = 0; i < items.length; i++) {
+    if (matches[i]) continue;
+    const candidates = previous.flatMap((row, index) => !used.has(index) &&
+      sameHistoricalMealFood(row, items[i]) && samePersistedMealItem(row, items[i]) ? [index] : []);
+    if (candidates.length === 1) assign(i, candidates[0]);
+  }
+  // Portion/quantity edits may retain their own saved identity when the row
+  // remains at the same position and the food identity is unchanged.
+  for (let i = 0; i < items.length; i++) {
+    if (!matches[i] && i < previous.length && !used.has(i) &&
+        sameHistoricalMealFood(previous[i], items[i])) assign(i, i);
+  }
+  return matches;
+}
+
 async function replaceMealItemsInTransaction(
   tx: any,
   input: {
@@ -335,15 +408,37 @@ async function replaceMealItemsInTransaction(
     items: MealDraftItem[];
     resolvedCatalogIds: Map<string, number>;
   },
+  previous: Array<typeof mealItems.$inferSelect>,
 ) {
   await tx
     .update(meals)
     .set({ status: "draft" })
     .where(and(eq(meals.userId, input.meal.userId), eq(meals.id, input.meal.id)));
 
-  await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
-  if (input.items.length) {
-    await tx.insert(mealItems).values(buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds));
+  const inPlace = previous.length === input.items.length && previous.every((row, index) =>
+    Number.isSafeInteger(row.id) && row.id > 0 && sameHistoricalMealFood(row, input.items[index]));
+  if (inPlace) {
+    // Edit only changed items. A relabel/date-only update cannot recreate rows,
+    // invalidate immutable references, or silently refresh nutrition metadata.
+    for (let index = 0; index < input.items.length; index++) {
+      const item = input.items[index];
+      const saved = previous[index];
+      const enriched = item as MealDraftItem & { foodSnapshotJson?: string };
+      if (samePersistedMealItem(saved, item) && item.classification === undefined &&
+          enriched.foodSnapshotJson === undefined) continue;
+      await tx.update(mealItems).set({
+        ...buildMealItemUpdate(item, input.resolvedCatalogIds, saved.foodSnapshotJson),
+        foodCatalogId: saved.foodCatalogId,
+      }).where(and(eq(mealItems.mealId, input.meal.id), eq(mealItems.id, saved.id)));
+    }
+  } else {
+    // Only for insertion, removal or identity reorder: reconstruct the list in
+    // requested order, carrying metadata solely from a proven matching item.
+    const retained = matchHistoricalMealRows(previous, input.items);
+    const values = preserveHistoricalMealValues(input.meal.id, input.items,
+      input.resolvedCatalogIds, retained);
+    await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
+    if (values.length) await tx.insert(mealItems).values(values);
   }
 
   await tx
@@ -561,9 +656,9 @@ export function createDrizzleMealsRepository(deps: {
       if (!db) return;
 
       await runInTransaction(db, async tx => {
-        const ownsMeal = await assertMealBelongsToUser(tx, meal.userId, meal.id);
-        if (!ownsMeal) return;
-        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
+        const locked = await lockMealAndItems(tx, meal.userId, meal.id);
+        if (!locked) return;
+        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds }, locked.items);
       });
     },
 
@@ -662,7 +757,8 @@ export function createDrizzleMealsRepository(deps: {
         const matchingItems = currentItems.filter((row: unknown) => samePersistedMealItem(row, expectedOriginalItem));
         if (matchingItems.length !== 1) return "stale" as const;
 
-        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
+        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds },
+          currentItems.slice().sort((a: any, b: any) => Number(a.id) - Number(b.id)));
         await upsertHouseholdMeasurePreference(tx, { userId: meal.userId, ...learning });
         return "updated" as const;
       });

@@ -266,3 +266,171 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
     expect(productive?.[0].items.every(item => item.historicalRef === undefined)).toBe(true);
   });
 });
+/** A-030: exercise the real repository update/re-read boundary, not a pure projection. */
+describe("#1307 / A-030 — historical identity survives meal updates", () => {
+  const classification = {
+    schemaVersion: 1, processingLevel: "natural_or_minimally_processed",
+    isFruit: true, isVegetable: false, fiberGrams: 2.6,
+  } as const;
+  const dated = new Date("2026-10-31T10:00:00Z");
+  const mealRow = () => ({
+    id: 7, userId: 9, source: "web", mealLabel: "Lanche", status: "confirmed",
+    occurredAt: dated, createdAt: dated, confidence: 0.9,
+    notes: null, sourceText: "Registro", transcript: null,
+  });
+  const savedItem = (id: number, props: Record<string, unknown> = {}) => ({
+    id, mealId: 7, foodId: 10, foodCatalogId: 500, foodVariantId: id + 100,
+    nutritionProfileId: id + 200, foodPortionId: id + 300,
+    recipeId: null, portionId: null, itemType: "food", createdAt: dated,
+    foodName: "Leite", canonicalName: "Leite", portionText: "1 copo",
+    quantity: 1, unit: "copo", servings: 1, estimatedGrams: 200,
+    calories: 80, protein: 7, carbs: 9, fat: 4,
+    grams: 200, caloriesKcal: 80, proteinG: 7, carbG: 9, fatG: 4,
+    fiberG: 2.6, sodiumMg: 1, source: "catalog", sourceMediaStorageKey: null,
+    foodSnapshotJson: JSON.stringify({
+      kind: "meal_item_resolution", resolution: { nutritionOrigin: "catalog", nutritionVerified: true },
+      classification,
+    }),
+    ...props,
+  });
+  const publicItem = (row: ReturnType<typeof savedItem>) => ({
+    foodCatalogId: row.foodCatalogId, foodName: row.foodName,
+    canonicalName: row.canonicalName, portionText: row.portionText,
+    quantity: row.quantity, unit: row.unit, servings: row.servings,
+    estimatedGrams: row.estimatedGrams, calories: row.calories,
+    protein: row.protein, carbs: row.carbs, fat: row.fat,
+    source: row.source, confidence: 0.9,
+  });
+  function fixture(initial: Array<ReturnType<typeof savedItem>>) {
+    const meal = mealRow();
+    let rows: Array<ReturnType<typeof savedItem>> = initial.map(row => ({ ...row }));
+    const writes: Array<{ op: string; payload?: unknown }> = [];
+    let generatedId = 1000;
+    const containsId = (input: unknown, id: number, seen = new Set<object>()): boolean => {
+      if (!input || typeof input !== "object" || seen.has(input)) return false;
+      seen.add(input);
+      if (Array.isArray(input)) return input.some(value => containsId(value, id, seen));
+      const record = input as Record<string, unknown>;
+      if (record.value === id) return true;
+      return Object.values(record).some(value => containsId(value, id, seen));
+    };
+    const result = (table: unknown) => table === meals ? [{ ...meal }] :
+      table === mealItems ? rows.map(row => ({ ...row })) : [];
+    const db = {
+      select: () => ({ from: (table: unknown) => {
+        const query = {
+          where() { return query; }, orderBy() { return query; }, for() { return query; },
+          async limit() { return result(table); },
+          then<T>(resolve: (rows: Record<string, unknown>[]) => T, reject?: (error: unknown) => T) {
+            return Promise.resolve(result(table)).then(resolve, reject);
+          },
+        };
+        return query;
+      } }),
+      update(table: unknown) {
+        return { set(value: Record<string, unknown>) {
+          return { async where(filter: unknown) {
+            if (table === meals) Object.assign(meal, value);
+            if (table === mealItems) {
+              const matches = rows.filter(row => containsId(filter, row.id));
+              expect(matches).toHaveLength(1);
+              Object.assign(matches[0], value);
+              writes.push({ op: "update-item", payload: value });
+            }
+          } };
+        } };
+      },
+      delete(table: unknown) { return { async where() {
+        if (table === mealItems) { writes.push({ op: "delete-items" }); rows = []; }
+      } }; },
+      insert(table: unknown) { return { async values(values: Record<string, unknown>[]) {
+        if (table === mealItems) {
+          writes.push({ op: "insert-items", payload: values });
+          rows.push(...values.map(value => ({ ...value, id: generatedId++ }) as ReturnType<typeof savedItem>));
+        }
+      } }; },
+      async transaction<T>(fn: (transaction: unknown) => Promise<T>) { return fn(db); },
+    };
+    const repository = createDrizzleMealsRepository({ getDb: async () => db as never, onWarning: vi.fn() });
+    const update = (items: Array<ReturnType<typeof publicItem>>, mealLabel = "Jantar") =>
+      repository.persistMealUpdate({
+        meal: { id: 7, userId: 9, mealLabel, occurredAt: dated.getTime(), confidence: 0.9 },
+        items: items as never,
+        // Deliberately divergent live mapping: an old item may not be reidentified.
+        resolvedCatalogIds: new Map([["Leite", 999]]),
+      });
+    return { repository, update, writes, items: () => rows.map(row => ({ ...row })) };
+  }
+
+  it("relabels a meal without rewriting item IDs, confirmed classification or V2 references", async () => {
+    const old = savedItem(21);
+    const state = fixture([old]);
+    await state.update([publicItem(old)], "Jantar");
+    expect(state.writes).toEqual([]);
+    expect(state.items()).toEqual([old]);
+    const historical = await state.repository.findConfirmedByUserId(9, { shadowReadOnly: true, includeMedia: false });
+    expect(historical?.[0].items[0]).toMatchObject({
+      historicalRef: "variant:121", classification: { processingLevel: "natural_or_minimally_processed", fiberGrams: 2.6 },
+      calories: 80, protein: 7, carbs: 9, fat: 4,
+    });
+    expect(historical?.[0].mealLabel).toBe("Jantar");
+  });
+
+  it("updates only a portion-edited row and keeps its sibling, IDs and provenance", async () => {
+    const first = savedItem(21);
+    const sibling = savedItem(22, { foodName: "Iogurte", canonicalName: "Iogurte", calories: 120, caloriesKcal: 120 });
+    const state = fixture([first, sibling]);
+    await state.update([
+      { ...publicItem(first), portionText: "2 copos", quantity: 2, estimatedGrams: 400, calories: 160 },
+      publicItem(sibling),
+    ]);
+    expect(state.writes.map(write => write.op)).toEqual(["update-item"]);
+    const current = state.items();
+    expect(current[0]).toMatchObject({ id: 21, foodVariantId: 121, nutritionProfileId: 221,
+      foodSnapshotJson: first.foodSnapshotJson, calories: 160 });
+    expect(current[1]).toEqual(sibling);
+    expect(current[0].foodCatalogId).toBe(500);
+  });
+
+  it("reorders two same-name variants and adds a new item without cross-contaminating snapshots", async () => {
+    const first = savedItem(21);
+    const second = savedItem(22, {
+      calories: 120, caloriesKcal: 120,
+      foodSnapshotJson: JSON.stringify({ classification: {
+        ...classification, schemaVersion: 1, processingLevel: "ultra_processed", isFruit: false,
+      } }),
+    });
+    const newFood = savedItem(90, { foodId: null, foodCatalogId: null, foodVariantId: null,
+      foodName: "Café", canonicalName: "Café", calories: 2, caloriesKcal: 2 });
+    const state = fixture([first, second]);
+    await state.update([publicItem(newFood), publicItem(second), publicItem(first)]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    const [newRow, savedSecond, savedFirst] = state.items();
+    expect(newRow.foodVariantId).toBeUndefined();
+    expect(newRow.foodSnapshotJson).toBeNull();
+    expect(savedSecond).toMatchObject({ foodVariantId: 122, nutritionProfileId: 222,
+      foodCatalogId: 500, foodSnapshotJson: second.foodSnapshotJson });
+    expect(savedFirst).toMatchObject({ foodVariantId: 121, nutritionProfileId: 221,
+      foodCatalogId: 500, foodSnapshotJson: first.foodSnapshotJson });
+  });
+
+  it("never transfers a prior variant/classification to a different food", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), foodName: "Queijo", canonicalName: "Queijo", foodCatalogId: 700 }]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    expect(state.items()[0].foodVariantId).toBeUndefined();
+    expect(state.items()[0].foodSnapshotJson).toBeNull();
+  });
+
+  it("clears a confirmed classification only on explicit null, leaving the item reference intact", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), classification: null } as never]);
+    expect(state.writes.map(write => write.op)).toEqual(["update-item"]);
+    expect(state.items()[0].foodVariantId).toBe(121);
+    const snapshot = JSON.parse(state.items()[0].foodSnapshotJson!);
+    expect(snapshot.classification).toBeUndefined();
+    expect(snapshot.resolution).toEqual({ nutritionOrigin: "catalog", nutritionVerified: true });
+  });
+});

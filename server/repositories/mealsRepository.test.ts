@@ -300,7 +300,7 @@ describe("createDrizzleMealsRepository persistMealUpdate", () => {
     });
 
     const ops = db.committedOperations.map((o: DbOperation) => o.op);
-    expect(ops).toEqual(["select.limit", "update.set", "update.where", "delete.where", "insert.values", "update.set", "update.where"]);
+    expect(ops).toEqual(["select.limit", "select.items", "update.set", "update.where", "delete.where", "insert.values", "update.set", "update.where"]);
 
     const [draftSet] = db.committedOperations.filter((o: DbOperation) => o.op === "update.set");
     expect(draftSet.payload).toEqual({ status: "draft" });

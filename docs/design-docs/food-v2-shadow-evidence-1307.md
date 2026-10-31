@@ -51,6 +51,14 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   Esta classificação é um snapshot do valor recebido no registro V1, **não**
   uma certificação independente de acurácia V2. Itens históricos já gravados
   sem a informação continuam desconhecidos, sem backfill nem migração tácita.
+- A-030: a atualizacao de refeicoes preserva as linhas fisicas quando a mudanca e
+  apenas do rotulo, data ou outra metadata; edicoes de porcao atualizam apenas
+  o item alterado e conservam os IDs de variante/perfil e o snapshot anterior.
+  Em insercao, remocao e reordenacao, os itens historicos sao pareados por
+  identidade armazenada e conteudo discriminante antes de reconstruir a lista.
+  Itens realmente novos ou com identidade diferente nao herdam refs nem
+  classificacao de outro alimento; `classification=null` continua limpando
+  apenas o atributo solicitado. Nao consulta nem remapeia catálogos atuais.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
   cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,
