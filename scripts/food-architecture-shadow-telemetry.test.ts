@@ -107,7 +107,7 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
     // and overwrite both identities. The old post-save SQL must stay removed.
     expect(service).not.toContain("persistMealItemNutritionSnapshots");
     expect(snapshots).not.toContain("persistMealItemNutritionSnapshots");
-    expect(snapshots).not.toMatch(/UPDATE\\s+mealItems/);
+    expect(snapshots).not.toMatch(/UPDATE\s+mealItems/);
     expect(repository).toContain("foodSnapshotJson: mergeConfirmedMealClassification");
     expect(repository).toContain("buildMealItemValues(input.meal.id, input.items");
   });
