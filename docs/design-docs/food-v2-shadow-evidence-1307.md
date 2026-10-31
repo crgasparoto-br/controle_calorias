@@ -40,8 +40,8 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   `schemaVersion=1`, usando apenas nível de processamento, flags de fruta/
   vegetal/água potável e fibra declarada. O gravador compõe a classificação
   com os campos já existentes do snapshot nutricional e da resolução, sem
-  substituí-los; o caminho SQL de snapshot nutricional e a atualização de item
-  preservam a mesma regra. `classification=null` limpa uma classificação
+  substituí-los; a gravação transacional do repositório e a edição
+  individual preservam a mesma regra. `classification=null` limpa uma classificação
   anterior, `undefined` não a inventa e o leitor shadow aceita o formato
   legado sem versão apenas quando tipado e íntegro. Versão desconhecida,
   campo inválido ou snapshot ausente resultam em `unknown` explícito; não há
