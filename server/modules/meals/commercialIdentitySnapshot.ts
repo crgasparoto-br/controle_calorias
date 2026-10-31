@@ -85,7 +85,9 @@ export function mergePreservingMealCommercialIdentity(
     }
   }
   if (Object.keys(confirmed).length === 0) {
-    return nextSnapshotJson ?? savedSnapshotJson ?? null;
+    // null can be the result of an explicit classification clear. Unlike an
+    // omitted snapshot, it must never fall back to the old JSON.
+    return nextSnapshotJson === undefined ? savedSnapshotJson ?? null : nextSnapshotJson;
   }
   // An explicitly cleared classification must not be resurrected from saved.
   const target = nextSnapshotJson === undefined ? saved ?? {} :

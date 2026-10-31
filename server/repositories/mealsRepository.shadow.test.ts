@@ -582,6 +582,23 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(JSON.parse(state.items()[0].foodSnapshotJson!).classification).toBeUndefined();
   });
 
+  it("A-034 does not resurrect an explicitly cleared classification-only snapshot", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({ classification }) });
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), classification: null } as never]);
+    expect(state.items()[0].foodVariantId).toBe(121);
+    expect(state.items()[0].foodSnapshotJson).toBeNull();
+
+    const withCommercial = savedItem(22, { foodSnapshotJson: JSON.stringify({
+      classification, confirmedCommercialIdentity: { brand: "Marca A" },
+    }) });
+    const second = fixture([withCommercial]);
+    await second.update([{ ...publicItem(withCommercial), classification: null } as never]);
+    const snapshot = JSON.parse(second.items()[0].foodSnapshotJson!);
+    expect(snapshot.classification).toBeUndefined();
+    expect(snapshot.confirmedCommercialIdentity).toEqual({ brand: "Marca A" });
+  });
+
   it("A-031 preserves V2 identity and confirmed classification on a one-item portion edit", async () => {
     const original = savedItem(21);
     const state = fixture([original]);
