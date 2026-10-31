@@ -92,6 +92,11 @@ function emptyMacroDifferences(): FoodShadowEvent["differences"]["macros"] {
 const hasNutrition = (item: FoodShadowV1Item) =>
   [item.calories, item.protein, item.carbs, item.fat].some(value => Number.isFinite(value) && value > 0);
 const v1Origin = (item: FoodShadowV1Item) => item.resolution?.nutritionOrigin ?? null;
+/** Missing or explicitly unavailable nutrition provenance is suspicious even for zero macros. */
+const lacksDeclaredV1NutritionProvenance = (item: FoodShadowV1Item) => {
+  const origin = v1Origin(item);
+  return !origin || origin === "unavailable";
+};
 const v2Origin = (item: FoodResolutionDecision) => {
   const nutritionEvidence = item.evidence.filter(event => item.nutrition.evidenceIds.includes(event.evidenceId));
   if (!nutritionEvidence.length) return null;
@@ -208,8 +213,9 @@ export function buildFoodShadowEvent(input: {
   };
   let possibleSilentFallback = 0;
   for (const item of v1) {
-    // Missing provenance on numeric nutrition is suspicious, not a verified failure.
-    if (hasNutrition(item) && !v1Origin(item)) possibleSilentFallback++;
+    // Every registered item needs declared nutrition provenance, including zeros.
+    // This flags possible fallback for investigation, never a verified error.
+    if (lacksDeclaredV1NutritionProvenance(item)) possibleSilentFallback++;
   }
   let missingProvenanceCount = 0;
   let explicitFailure = 0;

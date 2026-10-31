@@ -28,6 +28,13 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   getters; falha de inspeção auxiliar degrada a evidência V2, nunca a resposta
   ou o erro produtivo da V1. O override `enabled` é exclusivo de `NODE_ENV=test`:
   em execução produtiva, `FOOD_V2_SHADOW_ENABLED` é sempre obrigatório.
+- A-028: `possibleSilentFallback` contabiliza cada item V1 observado
+  cuja procedência nutricional esteja ausente ou explicitamente `unavailable`,
+  inclusive macros zerados. Zero com origem declarada (`catalog`, por exemplo)
+  não vira suspeita; estimativa com origem explícita não é fallback *silencioso*.
+  O indicador é investigativo, não prova de erro nutricional nem aprovação de
+  acurácia. Os mesmos sinais chegam ao baseline via agregação direta e replay,
+  inclusive quando a observação V2 é parcial ou falha.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
   cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,

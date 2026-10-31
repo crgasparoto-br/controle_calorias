@@ -51,6 +51,59 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     expect(JSON.stringify(report)).not.toContain("0ad100b8");
   });
 
+  it("A-028 flags missing or unavailable V1 nutrition provenance without inventing a confirmed error", () => {
+    const original = buildV1HistoricalSnapshotFixture();
+    const cases = [
+      { calories: 0, origin: null, expected: 1 }, // A-028: numeric placeholder, no source
+      { calories: 120, origin: "unavailable", expected: 1 }, // Explicit absence, not a source
+      { calories: 0, origin: "unavailable", expected: 1 }, // Both failures at once
+      { calories: 120, origin: null, expected: 1 }, // Original positive-control gap
+      { calories: 0, origin: "catalog", expected: 0 }, // Legitimate zero with declared source
+      { calories: 120, origin: "nutrition_label", expected: 0 },
+      { calories: 120, origin: "heuristic", expected: 0 }, // Declared estimation is not silent
+    ] as const;
+    const makeTrace = (id: number) => `b4e590ab-35bd-44cd-932a-${String(id).padStart(12, "0")}`;
+    const records = cases.map(({ calories, origin, expected }, index) => {
+      const shadowEvent = buildFoodShadowEvent({
+        traceId: makeTrace(index + 1), modality: "text", entrypoint: "web",
+        scenarioClass: "generic",
+        v1: { ...original, items: [{
+          ...original.items[0], calories, protein: 0, carbs: 0, fat: 0,
+          resolution: origin === null ? null : { nutritionOrigin: origin },
+        }] },
+        v1Failure: null,
+        v2: [buildFoodResolutionDecisionFixture()],
+        observations: [buildFoodObservationFixture()], failure: "none",
+        timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+      });
+      expect(shadowEvent.flagged.possibleSilentFallback).toBe(expected);
+      expect(shadowEvent.verifiedCorrect).toBeNull();
+      return shadowEvent;
+    });
+    // A failed/partial observation must not erase a saved V1 provenance gap.
+    const partial = buildFoodShadowEvent({
+      traceId: makeTrace(cases.length + 1), modality: "text", entrypoint: "web",
+      scenarioClass: "generic",
+      v1: { ...original, items: [{
+        ...original.items[0], calories: 0, protein: 0, carbs: 0, fat: 0,
+        resolution: null,
+      }] },
+      v1Failure: null, v2: null, observations: [], failure: "evidence_unavailable",
+      timings: { v1Ms: 1, languageMs: 0, resolverMs: 0, totalMs: 1 },
+    });
+    expect(partial.flagged.possibleSilentFallback).toBe(1);
+    const all = [...records, partial];
+    const direct = buildFoodShadowBaseline(all);
+    const replay = replaySanitizedFoodShadowEvents(envelope(...all));
+    expect(direct.segments).toHaveLength(1);
+    expect(direct.segments[0]).toMatchObject({
+      runs: 8, compared: 7, failed: 1, potentialSilentFallbacks: 5,
+    });
+    expect(replay.baseline).toEqual(direct);
+    expect(replay.baseline.verifiedAccuracy).toBeNull();
+    expect(replay.baseline.rolloutEligible).toBe(false);
+  });
+
   it("A-026 enforces the same strict sanitization for direct aggregation and replay", () => {
     const positive = event();
     expect(buildFoodShadowBaseline([positive]).segments[0]).toMatchObject({
