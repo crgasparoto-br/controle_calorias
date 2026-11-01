@@ -381,15 +381,18 @@ async function replaceMealItemsInTransaction(
     // neither should contaminate, or prevent, a verified replacement.
     const sanitized = input.items.map((item, index) =>
       replaced[index] ? sanitizeUnverifiedReplacement(item) : item);
+    // Rebind this function-local input; never mutate the caller's V1 items.
+    const originalItems = input.items;
+    input = { ...input, items: sanitized };
     const draftValues = preserveHistoricalMealValues(
-      buildMealItemValues(input.meal.id, sanitized, input.resolvedCatalogIds),
-      sanitized, retained,
+      buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
+      input.items, retained,
     ).map((value, index) => retained[index] ? value :
-      discardUnverifiedCommercialReplacement(value, sanitized[index],
+      discardUnverifiedCommercialReplacement(value, input.items[index],
         displaced, input.resolvedCatalogIds));
     const values = await Promise.all(draftValues.map((value, index) =>
       replaced[index] ? requireFreshReplacementNutrition(tx, input.meal.userId,
-        displaced, input.items[index], input.resolvedCatalogIds, value) : value));
+        displaced, originalItems[index], input.resolvedCatalogIds, value) : value));
     await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
     if (values.length) await tx.insert(mealItems).values(values);
   }
@@ -719,8 +722,44 @@ export function createDrizzleMealsRepository(deps: {
         const matchingItems = currentItems.filter((row: unknown) => samePersistedMealItem(row, expectedOriginalItem));
         if (matchingItems.length !== 1) return "stale" as const;
 
-        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds },
-          currentItems.slice().sort((a: any, b: any) => Number(a.id) - Number(b.id)));
+        const next = items[0];
+        const prev = expectedOriginalItem;
+        // A household-measure correction is not a food replacement. When the
+        // optimistic snapshot matches exactly one physical row, update ONLY
+        // portion/numeric columns, keeping its commercial identity, V2 IDs,
+        // source and confirmed classification. A different identity continues
+        // through the replacement guard and cannot inherit old nutrition.
+        const sameIdentity = currentItems.length === 1 && items.length === 1 &&
+          next.foodName === prev.foodName && next.canonicalName === prev.canonicalName &&
+          next.brand === prev.brand && next.productVariant === prev.productVariant &&
+          (next.foodCatalogId ?? null) === (prev.foodCatalogId ?? null) &&
+          (next as MealDraftItem & { foodId?: number }).foodId ===
+            (prev as MealDraftItem & { foodId?: number }).foodId &&
+          next.source === prev.source && next.historicalRef === prev.historicalRef &&
+          next.sourceMediaStorageKey === prev.sourceMediaStorageKey;
+        if (sameIdentity) {
+          const numbers = [next.estimatedGrams, next.quantity, next.servings,
+            next.calories, next.protein, next.carbs, next.fat];
+          if (!numbers.every(n => typeof n === "number" && Number.isFinite(n) &&
+            n >= 0 && n <= 10000) || next.estimatedGrams <= 0) {
+            throw new Error("Correção de medida caseira inválida.");
+          }
+          await tx.update(mealItems).set({
+            portionText: next.portionText, quantity: next.quantity, unit: next.unit,
+            servings: next.servings, estimatedGrams: next.estimatedGrams,
+            grams: next.estimatedGrams, calories: next.calories, protein: next.protein,
+            carbs: next.carbs, fat: next.fat, caloriesKcal: next.calories,
+            proteinG: next.protein, carbG: next.carbs, fatG: next.fat,
+          }).where(eq(mealItems.mealId, meal.id));
+          await tx.update(meals).set({
+            mealLabel: meal.mealLabel, notes: meal.notes ?? null,
+            confidence: meal.confidence, occurredAt: new Date(meal.occurredAt),
+            status: "confirmed", updatedAt: new Date(),
+          }).where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+        } else {
+          await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds },
+            currentItems.slice().sort((a: any, b: any) => Number(a.id) - Number(b.id)));
+        }
         await upsertHouseholdMeasurePreference(tx, { userId: meal.userId, ...learning });
         return "updated" as const;
       });
