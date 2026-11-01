@@ -723,6 +723,9 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     const original = savedItem(21);
     const newItem = { ...publicItem(original), foodName: "Iogurte", canonicalName: "Iogurte",
       foodCatalogId: 900, brand: "Marca B", productVariant: "Desnatado",
+      // The old editor can replay a versioned, invalid-on-input classification.
+      // It must be discarded before either replacement path validates nutrition.
+      classification, resolution: { nutritionOrigin: "catalog", nutritionVerified: true },
       estimatedGrams: 100, calories: 80, protein: 7, carbs: 9, fat: 4 } as never;
     const resolved = new Map([[foodCatalogDirectKey(900), 900]]);
     const row = catalogFood(900, { productVariant: "Desnatado" });
@@ -736,6 +739,8 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(state.items()[0]).toMatchObject({ id: 21, calories: 70,
       protein: 5, carbs: 6, fat: 3, grams: 100,
       foodCatalogId: 900, foodVariantId: null });
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!).classification).toBeUndefined();
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!).resolution).toBeUndefined();
     const movedState = fixture([original], [row]);
     const beforeMove = (await movedState.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
     const moved = await movedState.repository.moveMealItem({
@@ -747,6 +752,8 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(movedState.items()[0]).toMatchObject({ id: 21, mealId: 8,
       calories: 70, protein: 5, carbs: 6, fat: 3, foodCatalogId: 900,
       foodVariantId: null, source: "catalog" });
+    expect(JSON.parse(movedState.items()[0].foodSnapshotJson!).classification).toBeUndefined();
+    expect(JSON.parse(movedState.items()[0].foodSnapshotJson!).resolution).toBeUndefined();
   });
 
   it("A-037 uses a new V2 calculated snapshot and never an old classification", async () => {

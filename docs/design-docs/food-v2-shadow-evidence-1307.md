@@ -125,6 +125,10 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   antigo; um ID direto ativo/acessivel permanece disponivel no preflight de
   edicao mesmo se o payload trouxer classificacao anterior, que sera descartada
   na substituicao. A criacao normal nao relaxa o gate da classificacao.
+  Edição completa, edição individual e movimentação sanitizam classificacao,
+  resolucao e snapshot antigos **antes** de construir valores preliminares
+  de uma substituicao; o novo snapshot V2 original ainda pode ser validado
+  em separado sem herdar metadados antigos.
   A transacao confirma a identidade e recalcula a nutricao antes do commit;
   apos commit, API, totais e cache releem os nutrientes persistidos.
   Edicao da mesma

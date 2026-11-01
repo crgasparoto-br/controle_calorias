@@ -250,6 +250,12 @@ function assertMealMetadataSnapshot(currentMeal: any, expectedMeal: SavedMealRec
   }
 }
 
+/** Only new item-bound evidence may establish a replacement's nutrition. */
+function sanitizeUnverifiedReplacement(item: MealDraftItem) {
+  return { ...item, classification: undefined, resolution: undefined,
+    foodSnapshotJson: undefined };
+}
+
 function buildMealItemUpdate(
   item: MealDraftItem,
   resolvedCatalogIds: Map<string, number>,
@@ -373,9 +379,8 @@ async function replaceMealItemsInTransaction(
     // Sanitize BEFORE snapshot/classification validation. An old editor may
     // submit stale (or invalid) classification alongside a new catalog ID;
     // neither should contaminate, or prevent, a verified replacement.
-    const sanitized = input.items.map((item, index) => replaced[index]
-      ? { ...item, classification: undefined, resolution: undefined,
-          foodSnapshotJson: undefined } : item);
+    const sanitized = input.items.map((item, index) =>
+      replaced[index] ? sanitizeUnverifiedReplacement(item) : item);
     const draftValues = preserveHistoricalMealValues(
       buildMealItemValues(input.meal.id, sanitized, input.resolvedCatalogIds),
       sanitized, retained,
@@ -633,9 +638,11 @@ export function createDrizzleMealsRepository(deps: {
           occurredAt,
         });
         const previous = locked.items[itemIndex];
-        const guarded = guardHistoricalMealItemUpdate(previous, updatedItem,
-          buildMealItemUpdate(updatedItem, resolvedCatalogIds, previous.foodSnapshotJson));
-        const values = sameHistoricalMealFood(previous, updatedItem) ? guarded :
+        const sameIdentity = sameHistoricalMealFood(previous, updatedItem);
+        const safeItem = sameIdentity ? updatedItem : sanitizeUnverifiedReplacement(updatedItem);
+        const guarded = guardHistoricalMealItemUpdate(previous, safeItem,
+          buildMealItemUpdate(safeItem, resolvedCatalogIds, previous.foodSnapshotJson));
+        const values = sameIdentity ? guarded :
           await requireFreshReplacementNutrition(tx, userId, [previous],
             updatedItem, resolvedCatalogIds, guarded);
         await tx.update(mealItems).set(values)
@@ -674,9 +681,11 @@ export function createDrizzleMealsRepository(deps: {
         });
 
         const previous = locked.items[itemIndex];
-        const guarded = guardHistoricalMealItemUpdate(previous, updatedItem,
-          buildMealItemUpdate(updatedItem, resolvedCatalogIds, previous.foodSnapshotJson));
-        const values = sameHistoricalMealFood(previous, updatedItem) ? guarded :
+        const sameIdentity = sameHistoricalMealFood(previous, updatedItem);
+        const safeItem = sameIdentity ? updatedItem : sanitizeUnverifiedReplacement(updatedItem);
+        const guarded = guardHistoricalMealItemUpdate(previous, safeItem,
+          buildMealItemUpdate(safeItem, resolvedCatalogIds, previous.foodSnapshotJson));
+        const values = sameIdentity ? guarded :
           await requireFreshReplacementNutrition(tx, userId, [previous],
             updatedItem, resolvedCatalogIds, guarded);
         await tx.update(mealItems).set({ mealId: createdMealId, ...values })
