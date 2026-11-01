@@ -368,17 +368,23 @@ async function replaceMealItemsInTransaction(
     // Only displaced rows can be a predecessor of a reconstructed item.
     // A matched sibling must not invalidate a separately verified direct ID.
     const displaced = previous.filter(row => !retained.includes(row));
+    const replaced = input.items.map((item, index) => !retained[index] &&
+      displaced.length > 0 && !displaced.some(row => sameHistoricalMealFood(row, item)));
+    // Sanitize BEFORE snapshot/classification validation. An old editor may
+    // submit stale (or invalid) classification alongside a new catalog ID;
+    // neither should contaminate, or prevent, a verified replacement.
+    const sanitized = input.items.map((item, index) => replaced[index]
+      ? { ...item, classification: undefined, resolution: undefined,
+          foodSnapshotJson: undefined } : item);
     const draftValues = preserveHistoricalMealValues(
-      buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
-      input.items, retained,
+      buildMealItemValues(input.meal.id, sanitized, input.resolvedCatalogIds),
+      sanitized, retained,
     ).map((value, index) => retained[index] ? value :
-      discardUnverifiedCommercialReplacement(value, input.items[index],
+      discardUnverifiedCommercialReplacement(value, sanitized[index],
         displaced, input.resolvedCatalogIds));
     const values = await Promise.all(draftValues.map((value, index) =>
-      retained[index] || !displaced.length ||
-      displaced.some(row => sameHistoricalMealFood(row, input.items[index]))
-        ? value : requireFreshReplacementNutrition(tx, input.meal.userId, displaced,
-          input.items[index], input.resolvedCatalogIds, value)));
+      replaced[index] ? requireFreshReplacementNutrition(tx, input.meal.userId,
+        displaced, input.items[index], input.resolvedCatalogIds, value) : value));
     await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
     if (values.length) await tx.insert(mealItems).values(values);
   }
