@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mealItems, meals } from "../../drizzle/schema";
 import { createDrizzleMealsRepository } from "./mealsRepository";
+import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import { calculateHistoricalQualityIndicators } from "../modules/insights/foodQuality";
 import { calculateFoodQualitySummary } from "../../shared/reportsGoalAnalytics";
 import { buildFoodShadowEvent } from "../modules/foodIntelligenceV2/shadowComparison";
@@ -354,12 +355,13 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
       async transaction<T>(fn: (transaction: unknown) => Promise<T>) { return fn(db); },
     };
     const repository = createDrizzleMealsRepository({ getDb: async () => db as never, onWarning: vi.fn() });
-    const update = (items: Array<ReturnType<typeof publicItem>>, mealLabel = "Jantar") =>
+    const update = (items: Array<ReturnType<typeof publicItem>>, mealLabel = "Jantar",
+      resolvedCatalogIds = new Map([["Leite", 999]])) =>
       repository.persistMealUpdate({
         meal: { id: 7, userId: 9, mealLabel, occurredAt: dated.getTime(), confidence: 0.9 },
         items: items as never,
         // Deliberately divergent live mapping: an old item may not be reidentified.
-        resolvedCatalogIds: new Map([["Leite", 999]]),
+        resolvedCatalogIds,
       });
     return { repository, update, writes, items: () => rows.map(row => ({ ...row })) };
   }
@@ -605,6 +607,121 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     const snapshot = JSON.parse(second.items()[0].foodSnapshotJson!);
     expect(snapshot.classification).toBeUndefined();
     expect(snapshot.confirmedCommercialIdentity).toEqual({ brand: "Marca A" });
+  });
+
+  it("A-035 drops stale V1 catalog and resolution on the public reader -> full meal edit path", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", kind: "meal_item_resolution",
+      resolution: { productVariant: "Integral", nutritionOrigin: "catalog", nutritionVerified: true },
+      classification,
+    }) });
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    expect(loaded.items[0].resolution?.productVariant).toBe("Integral");
+    await state.update([{ ...loaded.items[0], brand: "Marca B" } as never]);
+    const saved = state.items()[0];
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    expect(saved).toMatchObject({
+      foodCatalogId: null, foodId: null, source: "heuristic", fiberG: null, sodiumMg: null,
+    });
+    expect(saved.foodVariantId).toBeUndefined();
+    expect(saved.nutritionProfileId).toBeUndefined();
+    expect(JSON.parse(saved.foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca B" },
+    });
+  });
+
+  it("A-035 clears stale resolution on a variant change without affecting its homonym sibling", async () => {
+    const first = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", resolution: { productVariant: "Integral", nutritionOrigin: "catalog",
+        nutritionVerified: true }, classification,
+    }) });
+    const sibling = savedItem(22, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca B", resolution: { productVariant: "Desnatado", nutritionOrigin: "catalog",
+        nutritionVerified: true }, classification,
+    }) });
+    const state = fixture([first, sibling]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.update([
+      { ...loaded.items[0], brand: "Marca A", productVariant: "Desnatado" } as never,
+      loaded.items[1] as never,
+    ]);
+    const [changed, retained] = state.items();
+    expect(changed.foodCatalogId).toBeNull();
+    expect(changed.foodId).toBeNull();
+    expect(changed.foodVariantId).toBeUndefined();
+    expect(JSON.parse(changed.foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca A", productVariant: "Desnatado" },
+    });
+    expect(retained.foodVariantId).toBe(122);
+    expect(retained.foodSnapshotJson).toBe(sibling.foodSnapshotJson);
+  });
+
+  it("A-035 accepts a different, verified direct catalog but never the stale resolution", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", resolution: { productVariant: "Integral", nutritionOrigin: "catalog",
+        nutritionVerified: true }, classification,
+    }) });
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.update([{ ...loaded.items[0], brand: "Marca B", foodCatalogId: 900 } as never],
+      "Jantar", new Map([[foodCatalogDirectKey(900), 900], ["Leite", 500]]));
+    const saved = state.items()[0];
+    expect(saved.foodCatalogId).toBe(900);
+    expect(saved.foodId).toBeNull();
+    expect(saved.source).toBe("catalog");
+    expect(JSON.parse(saved.foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca B" },
+    });
+  });
+
+  it("A-036 persists commercial confirmation from legacy without changing macros or portion", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", resolution: { productVariant: "Integral",
+        nutritionOrigin: "catalog", nutritionVerified: true }, classification,
+    }) });
+    const state = fixture([original]);
+    const item = { ...publicItem(original), brand: "Marca A", productVariant: "Integral" };
+    await state.update([item] as never);
+    expect(state.writes.map(write => write.op)).toEqual(["update-item"]);
+    const saved = state.items()[0];
+    expect(saved).toMatchObject({ id: 21, foodVariantId: 121, nutritionProfileId: 221,
+      foodCatalogId: 500, calories: 80, portionText: "1 copo" });
+    expect(JSON.parse(saved.foodSnapshotJson!)).toMatchObject({
+      brandName: "Marca A", classification,
+      confirmedCommercialIdentity: { brand: "Marca A", productVariant: "Integral" },
+      resolution: { productVariant: "Integral", nutritionVerified: true },
+    });
+    // Once the confirmation is typed, an identical update must be write-free.
+    const again = fixture([saved]);
+    await again.update([item] as never);
+    expect(again.writes).toEqual([]);
+  });
+
+  it("A-036 supports brand-only and variant-only confirmations independently", async () => {
+    const legacy = JSON.stringify({ brandName: "Marca A", resolution: {
+      productVariant: "Integral", nutritionOrigin: "catalog", nutritionVerified: true,
+    } });
+    for (const input of [{ brand: "Marca A" }, { productVariant: "Integral" }]) {
+      const original = savedItem(21, { foodSnapshotJson: legacy });
+      const state = fixture([original]);
+      await state.update([{ ...publicItem(original), ...input }] as never);
+      expect(state.writes.map(write => write.op)).toEqual(["update-item"]);
+      expect(JSON.parse(state.items()[0].foodSnapshotJson!).confirmedCommercialIdentity)
+        .toEqual(input);
+    }
+  });
+
+  it("A-036 confirms only one homonym, retaining the sibling's separate identity", async () => {
+    const first = savedItem(21, { foodSnapshotJson: JSON.stringify({ brandName: "Marca A" }) });
+    const sibling = savedItem(22, { foodSnapshotJson: JSON.stringify({ brandName: "Marca B" }) });
+    const state = fixture([first, sibling]);
+    await state.update([{ ...publicItem(first), brand: "Marca A" }, publicItem(sibling)] as never);
+    expect(state.writes.map(write => write.op)).toEqual(["update-item"]);
+    const [confirmed, unchanged] = state.items();
+    expect(confirmed.foodVariantId).toBe(121);
+    expect(JSON.parse(confirmed.foodSnapshotJson!).confirmedCommercialIdentity).toEqual({ brand: "Marca A" });
+    expect(unchanged).toEqual(sibling);
   });
 
   it("A-031 preserves V2 identity and confirmed classification on a one-item portion edit", async () => {

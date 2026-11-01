@@ -1,8 +1,9 @@
 /** A-030: pure historical-item reconciliation; no catalog queries or mutations. */
 import { mealItems } from "../../drizzle/schema";
+import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification } from "../modules/meals/classificationSnapshot";
-import { matchesSavedMealCommercialIdentity, mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
+import { matchesSavedMealCommercialIdentity, mergePreservingMealCommercialIdentity, needsSavedMealCommercialConfirmation } from "../modules/meals/commercialIdentitySnapshot";
 
 /** A public V1 edit omits shadow-only IDs; omission must not erase persisted identity. */
 export function sameHistoricalMealFood(row: typeof mealItems.$inferSelect, item: MealDraftItem) {
@@ -76,8 +77,65 @@ export function historyInPlaceEditIndices(
   return items.flatMap((item, index) => {
     const enriched = item as MealDraftItem & { foodSnapshotJson?: string };
     return unchanged[index] && item.classification === undefined &&
-      enriched.foodSnapshotJson === undefined ? [] : [index];
+      enriched.foodSnapshotJson === undefined &&
+      !needsSavedMealCommercialConfirmation(previous[index].foodSnapshotJson, item)
+      ? [] : [index];
   });
+}
+
+/**
+ * An unmatched, explicitly different commercial item must not reuse another
+ * item's V1 catalog, V2 nutrition snapshot or verified resolution merely
+ * because it kept the same name. Call only after row-level reconciliation.
+ */
+export function discardUnverifiedCommercialReplacement<T extends object>(
+  value: T, item: MealDraftItem, previous: Array<typeof mealItems.$inferSelect>,
+  resolvedCatalogIds: Map<string, number>,
+): T {
+  if (item.brand === undefined && item.productVariant === undefined) return value;
+  const conflicting = previous.filter(row =>
+    row.foodName === item.foodName && row.canonicalName === item.canonicalName &&
+    !matchesSavedMealCommercialIdentity(row.foodSnapshotJson, item));
+  if (!conflicting.length) return value;
+
+  const enriched = item as MealDraftItem & {
+    foodId?: number; foodSnapshotJson?: string; fiberG?: number | null;
+    sodiumMg?: number | null;
+  };
+  // A new *direct* catalog ID may survive; a name-based catalog lookup cannot
+  // prove commercial identity and may return the replaced item's catalog.
+  const directCatalog = Number(item.foodCatalogId);
+  const freshCatalog = Number.isSafeInteger(directCatalog) && directCatalog > 0 &&
+    previous.every(row => row.foodCatalogId !== directCatalog) &&
+    resolvedCatalogIds.get(foodCatalogDirectKey(directCatalog)) === directCatalog;
+  // A new V2 food requires a new ID AND a matching authoritative snapshot.
+  // Merely retaining the old foodId through enrichment is not new evidence.
+  const foodId = Number(enriched.foodId);
+  let freshFood = false;
+  if (Number.isSafeInteger(foodId) && foodId > 0 &&
+      previous.every(row => row.foodId !== foodId) && enriched.foodSnapshotJson &&
+      matchesSavedMealCommercialIdentity(enriched.foodSnapshotJson, item)) {
+    try {
+      const snapshot: unknown = JSON.parse(enriched.foodSnapshotJson);
+      freshFood = !!snapshot && typeof snapshot === "object" &&
+        (snapshot as { foodId?: unknown }).foodId === foodId;
+    } catch { /* Unparseable evidence cannot prove a replacement. */ }
+  }
+
+  const snapshot = mergePreservingMealCommercialIdentity(
+    mergeConfirmedMealClassification(freshFood ? enriched.foodSnapshotJson : null,
+      item.classification), null, item,
+  );
+  return {
+    ...value,
+    foodCatalogId: freshCatalog ? directCatalog : null,
+    foodId: freshFood ? foodId : null,
+    // Unverified old nutrition, fiber and source must not appear as confirmed.
+    fiberG: freshFood ? (enriched.fiberG ?? null) : null,
+    sodiumMg: freshFood ? (enriched.sodiumMg ?? null) : null,
+    foodSnapshotJson: snapshot,
+    source: freshCatalog || freshFood ? item.source : "heuristic",
+  };
 }
 
 /** Retain each confirmed row's immutable V2 references and typed snapshot. */

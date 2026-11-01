@@ -60,6 +60,19 @@ export function matchesSavedMealCommercialIdentity(
   return true;
 }
 
+/** Explicit labels proven by legacy data still need a typed, item-scoped confirmation. */
+export function needsSavedMealCommercialConfirmation(
+  snapshotJson: string | null | undefined, item: CommercialFields,
+): boolean {
+  if (item.brand === undefined && item.productVariant === undefined) return false;
+  const snapshot = decode(snapshotJson);
+  const confirmed = isRecord(snapshot?.confirmedCommercialIdentity)
+    ? snapshot.confirmedCommercialIdentity : null;
+  return (["brand", "productVariant"] as const).some(key =>
+    item[key] !== undefined && (!confirmed || !has(confirmed, key) ||
+      confirmed[key] !== item[key]));
+}
+
 /**
  * Keep previously confirmed commercial labels on same-food edits. A real
  * replacement passes savedSnapshotJson=null and cannot inherit old labels.

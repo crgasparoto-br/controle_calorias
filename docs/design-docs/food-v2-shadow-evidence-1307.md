@@ -93,6 +93,17 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   `server/repositories/mealsRepository.shadow.test.ts` cobrem dupla edicao
   homonima, reordenacao com refs, persistencia, variante identica, legado
   comprovado e legado sem prova.
+- A-035/A-036: na edicao completa de uma refeicao, itens sem pareamento
+  historico que apresentam marca/variante comercial conflitante descartam
+  o catalogo V1 anterior, a resolucao nutricional e o snapshot do produto
+  substituido. Um novo ID direto de catalogo comprovado pode ser preservado,
+  mas a resolucao historica anterior nao e promovida; sem nova origem
+  comprovada, o campo `source` degrada para `heuristic`, sem alegar acuracia.
+  A confirmacao comercial explicita em registro legado exige escrita tipada
+  mesmo sem alterar porcao ou macros; confirmacao ja persistida e identica
+  nao reescreve o item. Testes exercitam o leitor V1 ate a transacao, homonimos,
+  substituicao de marca/variante, ID novo e controles de idempotencia.
+  Isto nao ativa V2, Gate A nem telemetria produtiva.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
   cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,

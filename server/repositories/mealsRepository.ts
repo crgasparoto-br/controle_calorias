@@ -5,7 +5,7 @@ import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
 import { mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
-import { guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
+import { discardUnverifiedCommercialReplacement, guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -367,7 +367,9 @@ async function replaceMealItemsInTransaction(
     const values = preserveHistoricalMealValues(
       buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
       input.items, retained,
-    );
+    ).map((value, index) => retained[index] ? value :
+      discardUnverifiedCommercialReplacement(value, input.items[index],
+        previous, input.resolvedCatalogIds));
     await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
     if (values.length) await tx.insert(mealItems).values(values);
   }
