@@ -84,19 +84,18 @@ export function historyInPlaceEditIndices(
 }
 
 /**
- * An unmatched, explicitly different commercial item must not reuse another
- * item's V1 catalog, V2 nutrition snapshot or verified resolution merely
- * because it kept the same name. Call only after row-level reconciliation.
+ * A replacement may carry an old V1 catalog, resolution and provenance through
+ * the edit API even when its food name and commercial identity both changed.
+ * The caller provides ONLY displaced historical rows, never retained siblings.
  */
 export function discardUnverifiedCommercialReplacement<T extends object>(
   value: T, item: MealDraftItem, previous: Array<typeof mealItems.$inferSelect>,
   resolvedCatalogIds: Map<string, number>,
 ): T {
-  if (item.brand === undefined && item.productVariant === undefined) return value;
-  const conflicting = previous.filter(row =>
-    row.foodName === item.foodName && row.canonicalName === item.canonicalName &&
-    !matchesSavedMealCommercialIdentity(row.foodSnapshotJson, item));
-  if (!conflicting.length) return value;
+  // A confirmed match has already been retained; no displaced row means this
+  // is a pure insertion, not an unverified replacement of historical evidence.
+  if (!previous.length) return value;
+  const conflicting = previous;
 
   const enriched = item as MealDraftItem & {
     foodId?: number; foodSnapshotJson?: string; fiberG?: number | null;

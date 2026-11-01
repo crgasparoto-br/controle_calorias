@@ -364,12 +364,15 @@ async function replaceMealItemsInTransaction(
     // Only for insertion, removal or identity reorder: reconstruct the list in
     // requested order, carrying metadata solely from a proven matching item.
     const retained = retainConfirmedItemRows(previous, input.items, samePersistedMealItem);
+    // Only displaced rows can be a predecessor of a reconstructed item.
+    // A matched sibling must not invalidate a separately verified direct ID.
+    const displaced = previous.filter(row => !retained.includes(row));
     const values = preserveHistoricalMealValues(
       buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
       input.items, retained,
     ).map((value, index) => retained[index] ? value :
       discardUnverifiedCommercialReplacement(value, input.items[index],
-        previous, input.resolvedCatalogIds));
+        displaced, input.resolvedCatalogIds));
     await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
     if (values.length) await tx.insert(mealItems).values(values);
   }

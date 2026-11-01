@@ -664,7 +664,8 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     }) });
     const state = fixture([original]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
-    await state.update([{ ...loaded.items[0], brand: "Marca B", foodCatalogId: 900 } as never],
+    await state.update([{ ...loaded.items[0], foodName: "Iogurte", canonicalName: "Iogurte",
+      brand: "Marca B", foodCatalogId: 900 } as never],
       "Jantar", new Map([[foodCatalogDirectKey(900), 900], ["Leite", 500]]));
     const saved = state.items()[0];
     expect(saved.foodCatalogId).toBe(900);
@@ -697,6 +698,66 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(untouched.foodCatalogId).toBe(900);
     expect(untouched.foodVariantId).toBe(122);
     expect(untouched.foodSnapshotJson).toBe(sibling.foodSnapshotJson);
+  });
+
+  it("A-035 rejects stale V1 provenance when name and commercial identity change together", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", resolution: { productVariant: "Integral",
+        nutritionOrigin: "catalog", nutritionVerified: true }, classification,
+    }) });
+    const sibling = savedItem(22, { foodName: "Banana", canonicalName: "Banana",
+      foodCatalogId: 700, foodId: 20,
+      foodSnapshotJson: JSON.stringify({ classification }),
+    });
+    const state = fixture([original, sibling]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.update([
+      { ...loaded.items[0], foodName: "Iogurte", canonicalName: "Iogurte natural",
+        brand: "Marca B", productVariant: "Desnatado" } as never,
+      loaded.items[1] as never,
+    ]);
+    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
+    const [changed, untouched] = state.items();
+    expect(changed).toMatchObject({ foodName: "Iogurte", canonicalName: "Iogurte natural",
+      foodCatalogId: null, foodId: null, source: "heuristic", fiberG: null, sodiumMg: null });
+    expect(changed.foodVariantId).toBeUndefined();
+    expect(changed.nutritionProfileId).toBeUndefined();
+    expect(JSON.parse(changed.foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca B", productVariant: "Desnatado" },
+    });
+    expect(untouched.foodCatalogId).toBe(700);
+    expect(untouched.foodVariantId).toBe(122);
+    expect(untouched.foodSnapshotJson).toBe(sibling.foodSnapshotJson);
+  });
+
+  it("A-035 rejects a stale catalog source on name-only replacement", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.update([{ ...loaded.items[0],
+      foodName: "Iogurte", canonicalName: "Iogurte natural" } as never]);
+    const [changed] = state.items();
+    expect(changed).toMatchObject({ foodCatalogId: null, foodId: null, source: "heuristic",
+      foodSnapshotJson: null, fiberG: null, sodiumMg: null });
+    expect(changed.foodVariantId).toBeUndefined();
+  });
+
+  it("A-035 preserves an added food with its own evidence when nothing was displaced", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    const added = { ...publicItem(original), foodName: "Iogurte", canonicalName: "Iogurte",
+      brand: "Marca B", foodCatalogId: 900,
+      resolution: { productVariant: "Natural", nutritionOrigin: "catalog", nutritionVerified: true } };
+    await state.update([publicItem(original), added] as never,
+      "Jantar", new Map([[foodCatalogDirectKey(900), 900], ["Leite", 500]]));
+    const [unchanged, inserted] = state.items();
+    expect(unchanged.foodVariantId).toBe(121);
+    expect(unchanged.foodSnapshotJson).toBe(original.foodSnapshotJson);
+    expect(inserted).toMatchObject({ foodName: "Iogurte", foodCatalogId: 900, source: "catalog" });
+    expect(JSON.parse(inserted.foodSnapshotJson!)).toEqual({
+      kind: "meal_item_resolution", resolution: added.resolution,
+      confirmedCommercialIdentity: { brand: "Marca B" },
+    });
   });
 
   it("A-036 persists commercial confirmation from legacy without changing macros or portion", async () => {
