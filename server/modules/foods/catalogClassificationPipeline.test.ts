@@ -78,7 +78,8 @@ describe("embedded NOVA classification persistence pipeline", () => {
       foodClassification: { processingLevel: "processed", isFruit: false,
         isVegetable: false, fiberGrams: 1 },
     });
-    const resolved = await service.resolveFoodCatalogIds([staleDraft], 77, { createMissing: false });
+    const resolved = await service.resolveFoodCatalogIds(
+      [{ ...staleDraft, classification: undefined }], 77);
     expect(resolved).toEqual(new Map());
     expect(insert).not.toHaveBeenCalled();
   });
@@ -234,19 +235,17 @@ describe("embedded NOVA classification persistence pipeline", () => {
     expect(resolved.get(draftItem.canonicalName)).toBe(503);
     expect(insert).toHaveBeenCalledTimes(1);
 
-    // A-037: only the no-create edit preflight may keep an active direct ID
-    // while a stale classification is pending removal in the locked transaction.
-    const editResolved = await service.resolveFoodCatalogIds([draftItem], 77, {
-      createMissing: false, allowUnclassifiedDirectIdForEdit: true,
-    });
+    // A-037: edit-only candidates hide classification for catalogue lookup,
+    // without mutating the original confirmed draft or creating catalogue rows.
+    const editCandidate = { ...draftItem, classification: undefined };
+    const editResolved = await service.resolveFoodCatalogIds([editCandidate], 77);
     expect(editResolved.get("catalog:41")).toBe(41);
     expect(editResolved.get(draftItem.canonicalName)).toBe(41);
+    expect(draftItem.classification).toBeDefined();
     expect(insert).toHaveBeenCalledTimes(1);
 
     const invalidDirect = await service.resolveFoodCatalogIds(
-      [{ ...draftItem, foodCatalogId: 999 }], 77,
-      { createMissing: false, allowUnclassifiedDirectIdForEdit: true },
-    );
+      [{ ...editCandidate, foodCatalogId: 999 }], 77);
     expect(invalidDirect.has("catalog:999")).toBe(false);
     expect(insert).toHaveBeenCalledTimes(1);
   });

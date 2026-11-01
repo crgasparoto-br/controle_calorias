@@ -122,9 +122,12 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   referencia nominal sem prova direta falham com mensagem de revisao
   nutricional, antes da gravacao dos itens, sob transacao. Durante edicoes,
   a resolucao do catalogo nao cria registro automatico a partir do payload
-  antigo; um ID direto ativo/acessivel permanece disponivel no preflight de
-  edicao mesmo se o payload trouxer classificacao anterior, que sera descartada
-  na substituicao. A criacao normal nao relaxa o gate da classificacao.
+  antigo: uma projecao somente de consulta omite a classificacao do payload
+  para que o resolvedor canonico possa verificar um ID direto ativo/acessivel,
+  sem fabricar entradas classificadas ou mudar suas regras normativas.
+  O item original segue intacto para validacao transacional; classificacao
+  anterior sera descartada apenas quando houver substituicao efetiva.
+  A criacao normal nao relaxa o gate da classificacao.
   Edição completa, edição individual e movimentação sanitizam classificacao,
   resolucao e snapshot antigos **antes** de construir valores preliminares
   de uma substituicao; o novo snapshot V2 original ainda pode ser validado

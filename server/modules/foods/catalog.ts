@@ -668,8 +668,7 @@ export function createFoodsService(deps: {
     return Boolean(item.classification?.processingLevel);
   }
 
-  async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number,
-    options: { createMissing?: boolean; allowUnclassifiedDirectIdForEdit?: boolean } = {}) {
+  async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number) {
     const db = await deps.getDb();
     if (!db || !items.length) return new Map<string, number>();
 
@@ -736,11 +735,7 @@ export function createFoodsService(deps: {
           Number.isFinite(directId) &&
           directId > 0 &&
           validCatalogIds.has(directId) &&
-          (!itemHasClassification(item) || (directRow && rowHasReusableClassification(directRow)) ||
-            // An edit-only direct ID is authorization evidence, not permission
-            // to inherit the submitted classification or nutrition. The locked
-            // repository validates identity and recomputes replacement macros.
-            (options.createMissing === false && options.allowUnclassifiedDirectIdForEdit === true))
+          (!itemHasClassification(item) || (directRow && rowHasReusableClassification(directRow)))
         ) {
           resolved.set(foodCatalogDirectKey(directId), directId);
           setResolvedCatalogId(resolved, item.canonicalName, directId);
@@ -764,8 +759,7 @@ export function createFoodsService(deps: {
           continue;
         }
 
-        if (options.createMissing !== false &&
-            !resolved.has(directKey) && !resolved.has(fallbackKey)) {
+        if (!resolved.has(directKey) && !resolved.has(fallbackKey)) {
           const createdId = await createAutoClassifiedCatalogEntry(
             userId,
             item

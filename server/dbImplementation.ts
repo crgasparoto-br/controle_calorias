@@ -679,6 +679,15 @@ export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
 export const createUserFood = foodsService.createUserFood;
 export const updateUserFood = foodsService.updateUserFood;
 const resolveFoodCatalogIds = foodsService.resolveFoodCatalogIds;
+
+// Edits need catalogue identity only. Hide draft classification from this
+// read-only preflight so the canonical resolver can neither manufacture an
+// auto-classified catalogue entry nor reject a valid, unclassified direct ID.
+// The original draft remains intact for locked persistence validation.
+function editCatalogCandidates(items: MealDraftItem[]): MealDraftItem[] {
+  return items.map(item => ({ ...item, classification: undefined }));
+}
+
 export type { FoodSearchItem, FoodUpsertInput } from "./modules/foods/catalog";
 
 function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
@@ -750,7 +759,7 @@ async function updateMealInDb(meal: SavedMeal) {
   // A failed replacement must not manufacture a catalog entry from the old
   // item's nutrition before the locked repository validates its identity.
   const resolvedCatalogIds = meal.items.length
-    ? await resolveFoodCatalogIds(meal.items, meal.userId, { createMissing: false, allowUnclassifiedDirectIdForEdit: true })
+    ? await resolveFoodCatalogIds(editCatalogCandidates(meal.items), meal.userId)
     : new Map<string, number>();
 
   await mealsRepository.persistMealUpdate({
@@ -1415,8 +1424,8 @@ export async function updateUserMealItem(input: {
     });
   }
 
-  const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId,
-    { createMissing: false, allowUnclassifiedDirectIdForEdit: true });
+  const resolvedCatalogIds = await resolveFoodCatalogIds(
+    editCatalogCandidates([input.updatedItem]), input.userId);
   await mealsRepository.updateMealItem({
     userId: input.userId,
     meal: input.sourceMeal,
@@ -1485,8 +1494,8 @@ export async function moveUserMealItem(input: {
     }
   }
 
-  const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId,
-    { createMissing: false, allowUnclassifiedDirectIdForEdit: true });
+  const resolvedCatalogIds = await resolveFoodCatalogIds(
+    editCatalogCandidates([input.updatedItem]), input.userId);
   const targetOccurredAt = new Date(input.occurredAt).getTime();
   const result = await mealsRepository.moveMealItem({
     userId: input.userId,
