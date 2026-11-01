@@ -122,7 +122,11 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   referencia nominal sem prova direta falham com mensagem de revisao
   nutricional, antes da gravacao dos itens, sob transacao. Durante edicoes,
   a resolucao do catalogo nao cria registro automatico a partir do payload
-  antigo; apos commit, API, totais e cache releem os nutrientes persistidos.
+  antigo; um ID direto ativo/acessivel permanece disponivel no preflight de
+  edicao mesmo se o payload trouxer classificacao anterior, que sera descartada
+  na substituicao. A criacao normal nao relaxa o gate da classificacao.
+  A transacao confirma a identidade e recalcula a nutricao antes do commit;
+  apos commit, API, totais e cache releem os nutrientes persistidos.
   Edicao da mesma
   identidade (inclusive porcao), reordenacao e inclusao sem deslocar item
   anterior conservam as regras anteriores. O contrato nao declara

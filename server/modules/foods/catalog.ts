@@ -669,7 +669,7 @@ export function createFoodsService(deps: {
   }
 
   async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number,
-    options: { createMissing?: boolean } = {}) {
+    options: { createMissing?: boolean; allowUnclassifiedDirectIdForEdit?: boolean } = {}) {
     const db = await deps.getDb();
     if (!db || !items.length) return new Map<string, number>();
 
@@ -736,7 +736,11 @@ export function createFoodsService(deps: {
           Number.isFinite(directId) &&
           directId > 0 &&
           validCatalogIds.has(directId) &&
-          (!itemHasClassification(item) || (directRow && rowHasReusableClassification(directRow)))
+          (!itemHasClassification(item) || (directRow && rowHasReusableClassification(directRow)) ||
+            // An edit-only direct ID is authorization evidence, not permission
+            // to inherit the submitted classification or nutrition. The locked
+            // repository validates identity and recomputes replacement macros.
+            (options.createMissing === false && options.allowUnclassifiedDirectIdForEdit === true))
         ) {
           resolved.set(foodCatalogDirectKey(directId), directId);
           setResolvedCatalogId(resolved, item.canonicalName, directId);

@@ -750,7 +750,7 @@ async function updateMealInDb(meal: SavedMeal) {
   // A failed replacement must not manufacture a catalog entry from the old
   // item's nutrition before the locked repository validates its identity.
   const resolvedCatalogIds = meal.items.length
-    ? await resolveFoodCatalogIds(meal.items, meal.userId, { createMissing: false })
+    ? await resolveFoodCatalogIds(meal.items, meal.userId, { createMissing: false, allowUnclassifiedDirectIdForEdit: true })
     : new Map<string, number>();
 
   await mealsRepository.persistMealUpdate({
@@ -1416,7 +1416,7 @@ export async function updateUserMealItem(input: {
   }
 
   const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId,
-    { createMissing: false });
+    { createMissing: false, allowUnclassifiedDirectIdForEdit: true });
   await mealsRepository.updateMealItem({
     userId: input.userId,
     meal: input.sourceMeal,
@@ -1486,7 +1486,7 @@ export async function moveUserMealItem(input: {
   }
 
   const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId,
-    { createMissing: false });
+    { createMissing: false, allowUnclassifiedDirectIdForEdit: true });
   const targetOccurredAt = new Date(input.occurredAt).getTime();
   const result = await mealsRepository.moveMealItem({
     userId: input.userId,
