@@ -222,7 +222,7 @@ export function retainConfirmedItemRows(
  * Without a saved item reference the caller cannot arbitrarily decide which
  * unrelated item inherited a displaced row. Ambiguity fails closed.
  */
-export function classifyMealReplacementSlots(
+export function reconcileHistoricalMealItemSlots(
   displaced: Array<typeof mealItems.$inferSelect>,
   retained: Array<typeof mealItems.$inferSelect | null>,
   items: MealDraftItem[],
