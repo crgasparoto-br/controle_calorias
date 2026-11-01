@@ -106,14 +106,14 @@ export function discardUnverifiedCommercialReplacement<T extends object>(
   // prove commercial identity and may return the replaced item's catalog.
   const directCatalog = Number(item.foodCatalogId);
   const freshCatalog = Number.isSafeInteger(directCatalog) && directCatalog > 0 &&
-    previous.every(row => row.foodCatalogId !== directCatalog) &&
+    conflicting.every(row => row.foodCatalogId !== directCatalog) &&
     resolvedCatalogIds.get(foodCatalogDirectKey(directCatalog)) === directCatalog;
   // A new V2 food requires a new ID AND a matching authoritative snapshot.
   // Merely retaining the old foodId through enrichment is not new evidence.
   const foodId = Number(enriched.foodId);
   let freshFood = false;
   if (Number.isSafeInteger(foodId) && foodId > 0 &&
-      previous.every(row => row.foodId !== foodId) && enriched.foodSnapshotJson &&
+      conflicting.every(row => row.foodId !== foodId) && enriched.foodSnapshotJson &&
       matchesSavedMealCommercialIdentity(enriched.foodSnapshotJson, item)) {
     try {
       const snapshot: unknown = JSON.parse(enriched.foodSnapshotJson);

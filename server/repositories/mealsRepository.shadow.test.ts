@@ -675,6 +675,30 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     });
   });
 
+  it("A-035 keeps a verified direct catalog even when a sibling already uses that ID", async () => {
+    const first = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", resolution: { nutritionOrigin: "catalog", nutritionVerified: true },
+    }) });
+    const sibling = savedItem(22, { foodCatalogId: 900, foodId: 20,
+      foodSnapshotJson: JSON.stringify({ confirmedCommercialIdentity: { brand: "Marca B" } }),
+    });
+    const state = fixture([first, sibling]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.update([
+      { ...loaded.items[0], brand: "Marca B", foodCatalogId: 900 } as never,
+      loaded.items[1] as never,
+    ], "Jantar", new Map([[foodCatalogDirectKey(900), 900], ["Leite", 500]]));
+    const [changed, untouched] = state.items();
+    expect(changed.foodCatalogId).toBe(900);
+    expect(changed.foodId).toBeNull();
+    expect(JSON.parse(changed.foodSnapshotJson!)).toEqual({
+      confirmedCommercialIdentity: { brand: "Marca B" },
+    });
+    expect(untouched.foodCatalogId).toBe(900);
+    expect(untouched.foodVariantId).toBe(122);
+    expect(untouched.foodSnapshotJson).toBe(sibling.foodSnapshotJson);
+  });
+
   it("A-036 persists commercial confirmation from legacy without changing macros or portion", async () => {
     const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
       brandName: "Marca A", resolution: { productVariant: "Integral",
