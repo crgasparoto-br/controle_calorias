@@ -668,7 +668,8 @@ export function createFoodsService(deps: {
     return Boolean(item.classification?.processingLevel);
   }
 
-  async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number) {
+  async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number,
+    options: { createMissing?: boolean } = {}) {
     const db = await deps.getDb();
     if (!db || !items.length) return new Map<string, number>();
 
@@ -759,7 +760,8 @@ export function createFoodsService(deps: {
           continue;
         }
 
-        if (!resolved.has(directKey) && !resolved.has(fallbackKey)) {
+        if (options.createMissing !== false &&
+            !resolved.has(directKey) && !resolved.has(fallbackKey)) {
           const createdId = await createAutoClassifiedCatalogEntry(
             userId,
             item

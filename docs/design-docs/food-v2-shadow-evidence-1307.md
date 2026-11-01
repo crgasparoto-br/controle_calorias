@@ -107,6 +107,26 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   deslocada, mesmo se nome e identidade comercial mudarem juntos ou apenas
   o nome mudar; itens irmaos retidos nao invalidam uma nova referencia direta
   comprovada, e inclusoes puras nao sao tratadas como substituicoes.
+  A-037 (nutricao da substituicao): a identidade comprovada de um novo item
+  nao comprova os valores numericos enviados pelo editor V1. Na mesma
+  transacao de edicao completa, edicao individual ou movimentacao, uma troca
+  real de alimento/marca/variante exige um snapshot nutricional novo, vinculado
+  a outro `foodId` e aos macros calculados, ou um `foodCatalogId` direto,
+  ativo, acessivel ao usuario, com nome/identidade comercial compativeis.
+  Para este segundo caso, os macros, gramatura e fibra sao **recalculados da
+  linha atual do catalogo** usando `estimatedGrams / gramsPerServing`, nao
+  copiados do payload/registro antigo. A classificacao recebida junto com
+  uma substituicao nao ganha procedencia historica: permanece ausente ate
+  nova evidencia especifica. Snapshot, `resolution`, origem de midia e
+  referencias antigas nao sao herdados. Falta, conflito, dados invalidos ou
+  referencia nominal sem prova direta falham com mensagem de revisao
+  nutricional, antes da gravacao dos itens, sob transacao. Durante edicoes,
+  a resolucao do catalogo nao cria registro automatico a partir do payload
+  antigo; apos commit, API, totais e cache releem os nutrientes persistidos.
+  Edicao da mesma
+  identidade (inclusive porcao), reordenacao e inclusao sem deslocar item
+  anterior conservam as regras anteriores. O contrato nao declara
+  `nutritionVerified=true` por mera existencia de item do catalogo.
   Isto nao ativa V2, Gate A nem telemetria produtiva.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,

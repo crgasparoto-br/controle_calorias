@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mealItems, meals } from "../../drizzle/schema";
+import { foodCatalog, mealItems, meals } from "../../drizzle/schema";
 import { createDrizzleMealsRepository } from "./mealsRepository";
 import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import { calculateHistoricalQualityIndicators } from "../modules/insights/foodQuality";
@@ -302,7 +302,14 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     protein: row.protein, carbs: row.carbs, fat: row.fat,
     source: row.source, confidence: 0.9,
   });
-  function fixture(initial: Array<ReturnType<typeof savedItem>>) {
+  const catalogFood = (id: number, props: Record<string, unknown> = {}) => ({
+    id, status: "active", createdByUserId: null, name: "Iogurte",
+    brandName: "Marca B", productVariant: null,
+    gramsPerServing: 200, calories: 140, protein: 10, carbs: 12, fat: 6, fiber: 2,
+    ...props,
+  });
+  function fixture(initial: Array<ReturnType<typeof savedItem>>,
+    catalogRows: Array<ReturnType<typeof catalogFood>> = []) {
     const meal = mealRow();
     let rows: Array<ReturnType<typeof savedItem>> = initial.map(row => ({ ...row }));
     const writes: Array<{ op: string; payload?: unknown }> = [];
@@ -316,7 +323,8 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
       return Object.values(record).some(value => containsId(value, id, seen));
     };
     const result = (table: unknown) => table === meals ? [{ ...meal }] :
-      table === mealItems ? rows.map(row => ({ ...row })) : [];
+      table === mealItems ? rows.map(row => ({ ...row })) :
+      table === foodCatalog ? catalogRows.map(row => ({ ...row })) : [];
     const db = {
       select: () => ({ from: (table: unknown) => {
         const query = {
@@ -480,38 +488,27 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
   it("never transfers a prior variant/classification to a different food", async () => {
     const original = savedItem(21);
     const state = fixture([original]);
-    await state.update([{ ...publicItem(original), foodName: "Queijo", canonicalName: "Queijo", foodCatalogId: 700 }]);
-    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
-    expect(state.items()[0].foodVariantId).toBeUndefined();
-    expect(state.items()[0].foodSnapshotJson).toBeNull();
+    await expect(state.update([{ ...publicItem(original), foodName: "Queijo",
+      canonicalName: "Queijo", foodCatalogId: 700 }])).rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()[0]).toEqual(original);
   });
-
   it("does not inherit a saved variant after an explicit commercial identity change", async () => {
     const original = savedItem(21);
     const state = fixture([original]);
-    await state.update([{ ...publicItem(original), brand: "Marca Nova" } as never]);
-    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
-    expect(state.items()[0].foodVariantId).toBeUndefined();
-    expect(state.items()[0].nutritionProfileId).toBeUndefined();
-    // The new brand is a newly confirmed label, not inherited nutrition.
-    expect(JSON.parse(state.items()[0].foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: "Marca Nova" },
-    });
+    await expect(state.update([{ ...publicItem(original), brand: "Marca Nova" } as never]))
+      .rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()[0]).toEqual(original);
   });
-
   it("treats explicitly cleared brand as a commercial identity change", async () => {
     const original = savedItem(21);
     const state = fixture([original]);
-    await state.update([{ ...publicItem(original), brand: null } as never]);
-    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
-    expect(state.items()[0].foodVariantId).toBeUndefined();
-    expect(state.items()[0].nutritionProfileId).toBeUndefined();
-    // Explicit null is persisted while the old nutrition and provenance are not.
-    expect(JSON.parse(state.items()[0].foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: null },
-    });
+    await expect(state.update([{ ...publicItem(original), brand: null } as never]))
+      .rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()[0]).toEqual(original);
   });
-
   it("rejects ambiguous inherited variant identity after removing one identical duplicate", async () => {
     const first = savedItem(21);
     const second = savedItem(22);
@@ -581,17 +578,12 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
       brandName: "Marca A", classification,
     }) });
     const state = fixture([original]);
-    await state.update([{ ...publicItem(original), brand: "Marca A",
+    await expect(state.update([{ ...publicItem(original), brand: "Marca A",
       productVariant: "Integral 1 L", portionText: "2 copos", quantity: 2,
-      estimatedGrams: 400, calories: 160 } as never]);
-    expect(state.items()[0].foodVariantId).toBeUndefined();
-    expect(state.items()[0].nutritionProfileId).toBeUndefined();
-    expect(JSON.parse(state.items()[0].foodSnapshotJson!).confirmedCommercialIdentity).toEqual({
-      brand: "Marca A", productVariant: "Integral 1 L",
-    });
-    expect(JSON.parse(state.items()[0].foodSnapshotJson!).classification).toBeUndefined();
+      estimatedGrams: 400, calories: 160 } as never])).rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()[0]).toEqual(original);
   });
-
   it("A-034 does not resurrect an explicitly cleared classification-only snapshot", async () => {
     const original = savedItem(21, { foodSnapshotJson: JSON.stringify({ classification }) });
     const state = fixture([original]);
@@ -611,69 +603,170 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
 
   it("A-035 drops stale V1 catalog and resolution on the public reader -> full meal edit path", async () => {
     const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
-      brandName: "Marca A", kind: "meal_item_resolution",
-      resolution: { productVariant: "Integral", nutritionOrigin: "catalog", nutritionVerified: true },
-      classification,
+      brandName: "Marca A", resolution: { productVariant: "Integral",
+        nutritionOrigin: "catalog", nutritionVerified: true }, classification,
     }) });
     const state = fixture([original]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
     expect(loaded.items[0].resolution?.productVariant).toBe("Integral");
-    await state.update([{ ...loaded.items[0], brand: "Marca B" } as never]);
-    const saved = state.items()[0];
-    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
-    expect(saved).toMatchObject({
-      foodCatalogId: null, foodId: null, source: "heuristic", fiberG: null, sodiumMg: null,
-    });
-    expect(saved.foodVariantId).toBeUndefined();
-    expect(saved.nutritionProfileId).toBeUndefined();
-    expect(JSON.parse(saved.foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: "Marca B" },
-    });
+    await expect(state.update([{ ...loaded.items[0], brand: "Marca B" } as never]))
+      .rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()[0]).toEqual(original);
   });
-
   it("A-035 clears stale resolution on a variant change without affecting its homonym sibling", async () => {
     const first = savedItem(21, { foodSnapshotJson: JSON.stringify({
-      brandName: "Marca A", resolution: { productVariant: "Integral", nutritionOrigin: "catalog",
-        nutritionVerified: true }, classification,
+      brandName: "Marca A", resolution: { productVariant: "Integral",
+        nutritionOrigin: "catalog", nutritionVerified: true }, classification,
     }) });
     const sibling = savedItem(22, { foodSnapshotJson: JSON.stringify({
-      brandName: "Marca B", resolution: { productVariant: "Desnatado", nutritionOrigin: "catalog",
-        nutritionVerified: true }, classification,
+      brandName: "Marca B", resolution: { productVariant: "Desnatado",
+        nutritionOrigin: "catalog", nutritionVerified: true }, classification,
     }) });
     const state = fixture([first, sibling]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
-    await state.update([
+    await expect(state.update([
       { ...loaded.items[0], brand: "Marca A", productVariant: "Desnatado" } as never,
       loaded.items[1] as never,
-    ]);
-    const [changed, retained] = state.items();
-    expect(changed.foodCatalogId).toBeNull();
-    expect(changed.foodId).toBeNull();
-    expect(changed.foodVariantId).toBeUndefined();
-    expect(JSON.parse(changed.foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: "Marca A", productVariant: "Desnatado" },
-    });
-    expect(retained.foodVariantId).toBe(122);
-    expect(retained.foodSnapshotJson).toBe(sibling.foodSnapshotJson);
+    ])).rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()).toEqual([first, sibling]);
   });
-
   it("A-035 accepts a different, verified direct catalog but never the stale resolution", async () => {
     const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
       brandName: "Marca A", resolution: { productVariant: "Integral", nutritionOrigin: "catalog",
         nutritionVerified: true }, classification,
     }) });
-    const state = fixture([original]);
+    const state = fixture([original], [catalogFood(900)]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
     await state.update([{ ...loaded.items[0], foodName: "Iogurte", canonicalName: "Iogurte",
       brand: "Marca B", foodCatalogId: 900 } as never],
       "Jantar", new Map([[foodCatalogDirectKey(900), 900], ["Leite", 500]]));
     const saved = state.items()[0];
-    expect(saved.foodCatalogId).toBe(900);
-    expect(saved.foodId).toBeNull();
-    expect(saved.source).toBe("catalog");
+    expect(saved).toMatchObject({ foodCatalogId: 900, foodId: null, source: "catalog",
+      calories: 140, protein: 10, carbs: 12, fat: 6,
+      caloriesKcal: 140, proteinG: 10, carbG: 12, fatG: 6, grams: 200 });
     expect(JSON.parse(saved.foodSnapshotJson!)).toEqual({
+      kind: "catalog_replacement_nutrition", foodCatalogId: 900, grams: 200,
+      calculated: { caloriesKcal: 140, proteinG: 10, carbG: 12, fatG: 6 },
       confirmedCommercialIdentity: { brand: "Marca B" },
     });
+    const reread = await state.repository.findConfirmedByUserId(9, { includeMedia: false });
+    expect(reread?.[0].items[0]).toMatchObject({ foodCatalogId: 900,
+      foodName: "Iogurte", calories: 140, protein: 10, carbs: 12, fat: 6 });
+    expect(reread?.[0].items[0].resolution).toBeUndefined();
+  });
+  it("A-037 never persists old macros or classification under a newly selected catalog ID", async () => {
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", resolution: { nutritionOrigin: "catalog", nutritionVerified: true },
+      classification,
+    }) });
+    const state = fixture([original], [catalogFood(900, {
+      name: "Iogurte natural", productVariant: "Desnatado", calories: 85,
+      protein: 9, carbs: 11, fat: 0.5, fiber: 0,
+    })]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.update([{ ...loaded.items[0], foodName: "Iogurte natural",
+      canonicalName: "Iogurte natural", brand: "Marca B", productVariant: "Desnatado",
+      foodCatalogId: 900, classification } as never], "Jantar",
+      new Map([[foodCatalogDirectKey(900), 900]]));
+    const saved = state.items()[0];
+    expect(saved).toMatchObject({ foodCatalogId: 900, foodId: null,
+      calories: 85, protein: 9, carbs: 11, fat: 0.5,
+      caloriesKcal: 85, proteinG: 9, carbG: 11, fatG: 0.5,
+      fiberG: 0, sodiumMg: null, source: "catalog" });
+    const snapshot = JSON.parse(saved.foodSnapshotJson!);
+    expect(snapshot.classification).toBeUndefined();
+    expect(snapshot.resolution).toBeUndefined();
+    expect(snapshot.confirmedCommercialIdentity).toEqual({
+      brand: "Marca B", productVariant: "Desnatado",
+    });
+    const reread = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    expect(reread.items[0]).toMatchObject({
+      foodName: "Iogurte natural", calories: 85, protein: 9, carbs: 11, fat: 0.5,
+    });
+  });
+
+  it("A-037 fails closed when direct catalog nutrition is absent or mismatched", async () => {
+    const original = savedItem(21);
+    for (const catalog of [[], [catalogFood(900, { name: "Outro alimento" })],
+      [catalogFood(900, { status: "deprecated" })],
+      [catalogFood(900, { createdByUserId: 999 })],
+      [catalogFood(900, { calories: Number.NaN })],
+      [catalogFood(900, { gramsPerServing: 0 })]]) {
+      const state = fixture([original], catalog);
+      const item = { ...publicItem(original), foodName: "Iogurte", canonicalName: "Iogurte",
+        brand: "Marca B", foodCatalogId: 900 };
+      await expect(state.update([item] as never, "Jantar",
+        new Map([[foodCatalogDirectKey(900), 900]]))).rejects.toThrow(/Recalcule/);
+      expect(state.writes).toEqual([]);
+      expect(state.items()[0]).toEqual(original);
+    }
+  });
+
+  it("A-037 preserves same-food edits and pure additions without copying a displaced food", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    await state.update([{ ...publicItem(original), portionText: "2 copos",
+      quantity: 2, estimatedGrams: 400, calories: 160 }]);
+    expect(state.items()[0]).toMatchObject({ calories: 160, foodVariantId: 121 });
+    const added = { ...publicItem(original), foodName: "Iogurte", canonicalName: "Iogurte",
+      foodCatalogId: 900, brand: "Marca B", calories: 85, protein: 9, carbs: 11, fat: 0.5 };
+    const extra = fixture([original]);
+    await extra.update([publicItem(original), added] as never, "Jantar",
+      new Map([[foodCatalogDirectKey(900), 900]]));
+    expect(extra.items()[1]).toMatchObject({ foodName: "Iogurte", calories: 85, foodCatalogId: 900 });
+    expect(extra.items()[0].foodVariantId).toBe(121);
+  });
+
+  it("A-037 recalculates individual edits and moves from the new catalog without stale macros", async () => {
+    const original = savedItem(21);
+    const newItem = { ...publicItem(original), foodName: "Iogurte", canonicalName: "Iogurte",
+      foodCatalogId: 900, brand: "Marca B", productVariant: "Desnatado",
+      estimatedGrams: 100, calories: 80, protein: 7, carbs: 9, fat: 4 } as never;
+    const resolved = new Map([[foodCatalogDirectKey(900), 900]]);
+    const row = catalogFood(900, { productVariant: "Desnatado" });
+    const state = fixture([original], [row]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    await state.repository.updateMealItem({
+      userId: 9, meal: loaded, itemIndex: 0, updatedItem: newItem,
+      mealLabel: "Lanche", occurredAt: dated.getTime(), resolvedCatalogIds: resolved,
+    });
+    expect(state.writes.map(write => write.op)).toEqual(["update-item"]);
+    expect(state.items()[0]).toMatchObject({ id: 21, calories: 70,
+      protein: 5, carbs: 6, fat: 3, grams: 100,
+      foodCatalogId: 900, foodVariantId: null });
+    const movedState = fixture([original], [row]);
+    const beforeMove = (await movedState.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    const moved = await movedState.repository.moveMealItem({
+      userId: 9, sourceMeal: beforeMove, itemIndex: 0, updatedItem: newItem,
+      targetMeal: { mealLabel: "Jantar", occurredAt: dated.getTime() },
+      resolvedCatalogIds: resolved,
+    });
+    expect(moved?.targetMealId).toBe(8);
+    expect(movedState.items()[0]).toMatchObject({ id: 21, mealId: 8,
+      calories: 70, protein: 5, carbs: 6, fat: 3, foodCatalogId: 900,
+      foodVariantId: null, source: "catalog" });
+  });
+
+  it("A-037 uses a new V2 calculated snapshot and never an old classification", async () => {
+    const original = savedItem(21);
+    const state = fixture([original]);
+    const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
+    const calculated = { caloriesKcal: 123, proteinG: 11, carbG: 14, fatG: 3,
+      fiberG: 1.4, sodiumMg: 6 };
+    await state.update([{ ...loaded.items[0], foodName: "Iogurte", canonicalName: "Iogurte",
+      foodId: 45, foodCatalogId: null, source: "catalog", classification,
+      calories: 80, protein: 7, carbs: 9, fat: 4,
+      foodSnapshotJson: JSON.stringify({ foodId: 45, name: "Iogurte", grams: 200,
+        calculated, classification }),
+    } as never]);
+    const saved = state.items()[0];
+    expect(saved).toMatchObject({ foodId: 45, foodCatalogId: null,
+      calories: 123, protein: 11, carbs: 14, fat: 3,
+      caloriesKcal: 123, proteinG: 11, carbG: 14, fatG: 3 });
+    expect(JSON.parse(saved.foodSnapshotJson!).classification).toBeUndefined();
+    expect(JSON.parse(saved.foodSnapshotJson!).calculated).toEqual(calculated);
   });
 
   it("A-035 keeps a verified direct catalog even when a sibling already uses that ID", async () => {
@@ -683,23 +776,21 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     const sibling = savedItem(22, { foodCatalogId: 900, foodId: 20,
       foodSnapshotJson: JSON.stringify({ confirmedCommercialIdentity: { brand: "Marca B" } }),
     });
-    const state = fixture([first, sibling]);
+    const state = fixture([first, sibling], [catalogFood(900, { name: "Leite" })]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
     await state.update([
       { ...loaded.items[0], brand: "Marca B", foodCatalogId: 900 } as never,
       loaded.items[1] as never,
     ], "Jantar", new Map([[foodCatalogDirectKey(900), 900], ["Leite", 500]]));
     const [changed, untouched] = state.items();
-    expect(changed.foodCatalogId).toBe(900);
-    expect(changed.foodId).toBeNull();
-    expect(JSON.parse(changed.foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: "Marca B" },
-    });
+    expect(changed).toMatchObject({ foodCatalogId: 900, foodId: null,
+      calories: 140, protein: 10, carbs: 12, fat: 6 });
+    expect(JSON.parse(changed.foodSnapshotJson!).confirmedCommercialIdentity).toEqual({ brand: "Marca B" });
     expect(untouched.foodCatalogId).toBe(900);
     expect(untouched.foodVariantId).toBe(122);
     expect(untouched.foodSnapshotJson).toBe(sibling.foodSnapshotJson);
+    expect(untouched.calories).toBe(sibling.calories);
   });
-
   it("A-035 rejects stale V1 provenance when name and commercial identity change together", async () => {
     const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
       brandName: "Marca A", resolution: { productVariant: "Integral",
@@ -711,37 +802,24 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     });
     const state = fixture([original, sibling]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
-    await state.update([
+    await expect(state.update([
       { ...loaded.items[0], foodName: "Iogurte", canonicalName: "Iogurte natural",
         brand: "Marca B", productVariant: "Desnatado" } as never,
       loaded.items[1] as never,
-    ]);
-    expect(state.writes.map(write => write.op)).toEqual(["delete-items", "insert-items"]);
-    const [changed, untouched] = state.items();
-    expect(changed).toMatchObject({ foodName: "Iogurte", canonicalName: "Iogurte natural",
-      foodCatalogId: null, foodId: null, source: "heuristic", fiberG: null, sodiumMg: null });
-    expect(changed.foodVariantId).toBeUndefined();
-    expect(changed.nutritionProfileId).toBeUndefined();
-    expect(JSON.parse(changed.foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: "Marca B", productVariant: "Desnatado" },
-    });
-    expect(untouched.foodCatalogId).toBe(700);
-    expect(untouched.foodVariantId).toBe(122);
-    expect(untouched.foodSnapshotJson).toBe(sibling.foodSnapshotJson);
+    ])).rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()).toEqual([original, sibling]);
   });
-
   it("A-035 rejects a stale catalog source on name-only replacement", async () => {
     const original = savedItem(21);
     const state = fixture([original]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
-    await state.update([{ ...loaded.items[0],
-      foodName: "Iogurte", canonicalName: "Iogurte natural" } as never]);
-    const [changed] = state.items();
-    expect(changed).toMatchObject({ foodCatalogId: null, foodId: null, source: "heuristic",
-      foodSnapshotJson: null, fiberG: null, sodiumMg: null });
-    expect(changed.foodVariantId).toBeUndefined();
+    await expect(state.update([{ ...loaded.items[0],
+      foodName: "Iogurte", canonicalName: "Iogurte natural" } as never]))
+      .rejects.toThrow(/Recalcule/);
+    expect(state.writes).toEqual([]);
+    expect(state.items()[0]).toEqual(original);
   });
-
   it("A-035 preserves an added food with its own evidence when nothing was displaced", async () => {
     const original = savedItem(21);
     const state = fixture([original]);
@@ -834,70 +912,54 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
 
   it("A-031 clears stale food references, fiber and classification on a one-item food replacement", async () => {
     const original = savedItem(21);
-    const state = fixture([original]);
+    const state = fixture([original], [catalogFood(700, {
+      name: "Queijo", brandName: null, calories: 110, protein: 8, carbs: 1, fat: 9,
+      gramsPerServing: 40, fiber: null,
+    })]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
     await state.repository.updateMealItem({
       userId: 9, meal: loaded, itemIndex: 0,
       updatedItem: {
         ...publicItem(original), foodName: "Queijo", canonicalName: "Queijo",
-        foodCatalogId: 700, calories: 110, estimatedGrams: 40,
+        foodCatalogId: 700, calories: 80, estimatedGrams: 40,
       } as never,
       mealLabel: "Lanche", occurredAt: dated.getTime(),
-      resolvedCatalogIds: new Map([["Queijo", 700]]),
+      resolvedCatalogIds: new Map([[foodCatalogDirectKey(700), 700], ["Queijo", 700]]),
     });
     expect(state.items()[0]).toMatchObject({
       id: 21, foodName: "Queijo", foodCatalogId: 700, foodId: null,
       foodVariantId: null, nutritionProfileId: null, foodPortionId: null,
-      recipeId: null, portionId: null, itemType: "food",
-      foodSnapshotJson: null, fiberG: null, sodiumMg: null,
-      caloriesKcal: 110, grams: 40,
+      recipeId: null, portionId: null, itemType: "food", fiberG: null, sodiumMg: null,
+      calories: 110, caloriesKcal: 110, protein: 8, carbs: 1, fat: 9, grams: 40,
     });
+    expect(JSON.parse(state.items()[0].foodSnapshotJson!).classification).toBeUndefined();
   });
-
   it("A-031 rejects commercial-variant inheritance during individual edit and move", async () => {
-    const original = savedItem(21, {
-      foodSnapshotJson: JSON.stringify({
-        brandName: "Marca A", kind: "meal_item_resolution",
-        resolution: { nutritionOrigin: "catalog" }, classification,
-      }),
-    });
+    const original = savedItem(21, { foodSnapshotJson: JSON.stringify({
+      brandName: "Marca A", kind: "meal_item_resolution",
+      resolution: { nutritionOrigin: "catalog" }, classification,
+    }) });
     const changed = {
       ...publicItem(original), foodId: 10, brand: "Marca B",
-      // A V1 editor may keep the previous foodId and its freshly regenerated
-      // nutrition snapshot even after the user replaces the commercial item.
       foodSnapshotJson: JSON.stringify({ brandName: "Marca A", calculated: { caloriesKcal: 80 } }),
     } as never;
     const state = fixture([original]);
     const loaded = (await state.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
-    await state.repository.updateMealItem({
+    await expect(state.repository.updateMealItem({
       userId: 9, meal: loaded, itemIndex: 0, updatedItem: changed,
       mealLabel: "Lanche", occurredAt: dated.getTime(),
       resolvedCatalogIds: new Map([["Leite", 500]]),
-    });
-    expect(state.items()[0]).toMatchObject({
-      foodId: null, foodCatalogId: null, foodVariantId: null, nutritionProfileId: null,
-      foodPortionId: null,
-    });
-    expect(JSON.parse(state.items()[0].foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: "Marca B" },
-    });
+    })).rejects.toThrow(/Recalcule/);
+    expect(state.items()[0]).toEqual(original);
     const moveState = fixture([original]);
     const beforeMove = (await moveState.repository.findConfirmedByUserId(9, { includeMedia: false }))![0];
-    const moved = await moveState.repository.moveMealItem({
+    await expect(moveState.repository.moveMealItem({
       userId: 9, sourceMeal: beforeMove, itemIndex: 0, updatedItem: changed,
       targetMeal: { mealLabel: "Jantar", occurredAt: dated.getTime() },
       resolvedCatalogIds: new Map([["Leite", 500]]),
-    });
-    expect(moved?.targetMealId).toBe(8);
-    expect(moveState.items()[0]).toMatchObject({
-      id: 21, mealId: 8, foodId: null, foodCatalogId: null, foodVariantId: null,
-      nutritionProfileId: null, foodPortionId: null,
-    });
-    expect(JSON.parse(moveState.items()[0].foodSnapshotJson!)).toEqual({
-      confirmedCommercialIdentity: { brand: "Marca B" },
-    });
+    })).rejects.toThrow(/Recalcule/);
+    expect(moveState.items()[0]).toEqual(original);
   });
-
   it("A-032 keeps independent snapshots on equal-name/equal-portion foods in the transactional writer", async () => {
     const original = savedItem(21, { foodId: 10 });
     const other = savedItem(22, { foodId: 20, foodVariantId: 122 });

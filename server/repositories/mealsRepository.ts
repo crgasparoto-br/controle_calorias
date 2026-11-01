@@ -5,7 +5,8 @@ import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
 import { mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
-import { discardUnverifiedCommercialReplacement, guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues } from "./mealItemHistoryReconciliation";
+import { discardUnverifiedCommercialReplacement, guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues, sameHistoricalMealFood } from "./mealItemHistoryReconciliation";
+import { requireFreshReplacementNutrition } from "./mealReplacementNutrition";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -367,12 +368,17 @@ async function replaceMealItemsInTransaction(
     // Only displaced rows can be a predecessor of a reconstructed item.
     // A matched sibling must not invalidate a separately verified direct ID.
     const displaced = previous.filter(row => !retained.includes(row));
-    const values = preserveHistoricalMealValues(
+    const draftValues = preserveHistoricalMealValues(
       buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
       input.items, retained,
     ).map((value, index) => retained[index] ? value :
       discardUnverifiedCommercialReplacement(value, input.items[index],
         displaced, input.resolvedCatalogIds));
+    const values = await Promise.all(draftValues.map((value, index) =>
+      retained[index] || !displaced.length ||
+      displaced.some(row => sameHistoricalMealFood(row, input.items[index]))
+        ? value : requireFreshReplacementNutrition(tx, input.meal.userId, displaced,
+          input.items[index], input.resolvedCatalogIds, value)));
     await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
     if (values.length) await tx.insert(mealItems).values(values);
   }
@@ -620,11 +626,14 @@ export function createDrizzleMealsRepository(deps: {
           mealLabel,
           occurredAt,
         });
-        await tx
-          .update(mealItems)
-          .set(guardHistoricalMealItemUpdate(locked.items[itemIndex], updatedItem,
-            buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson)))
-          .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, meal.id)));
+        const previous = locked.items[itemIndex];
+        const guarded = guardHistoricalMealItemUpdate(previous, updatedItem,
+          buildMealItemUpdate(updatedItem, resolvedCatalogIds, previous.foodSnapshotJson));
+        const values = sameHistoricalMealFood(previous, updatedItem) ? guarded :
+          await requireFreshReplacementNutrition(tx, userId, [previous],
+            updatedItem, resolvedCatalogIds, guarded);
+        await tx.update(mealItems).set(values)
+          .where(and(eq(mealItems.id, previous.id), eq(mealItems.mealId, meal.id)));
       });
     },
 
@@ -658,14 +667,14 @@ export function createDrizzleMealsRepository(deps: {
           resolvedCatalogIds,
         });
 
-        await tx
-          .update(mealItems)
-          .set({
-            mealId: createdMealId,
-            ...guardHistoricalMealItemUpdate(locked.items[itemIndex], updatedItem,
-              buildMealItemUpdate(updatedItem, resolvedCatalogIds, locked.items[itemIndex].foodSnapshotJson)),
-          })
-          .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, sourceMeal.id)));
+        const previous = locked.items[itemIndex];
+        const guarded = guardHistoricalMealItemUpdate(previous, updatedItem,
+          buildMealItemUpdate(updatedItem, resolvedCatalogIds, previous.foodSnapshotJson));
+        const values = sameHistoricalMealFood(previous, updatedItem) ? guarded :
+          await requireFreshReplacementNutrition(tx, userId, [previous],
+            updatedItem, resolvedCatalogIds, guarded);
+        await tx.update(mealItems).set({ mealId: createdMealId, ...values })
+          .where(and(eq(mealItems.id, previous.id), eq(mealItems.mealId, sourceMeal.id)));
 
         return createdMealId;
       });

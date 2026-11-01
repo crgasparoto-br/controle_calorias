@@ -61,6 +61,28 @@ describe("embedded NOVA classification persistence pipeline", () => {
     }));
   });
 
+  it("A-037 does not write catalog entries while preparing an unverified edit", async () => {
+    const insert = vi.fn(async () => 501);
+    const service = createFoodsService({
+      foodCatalogRepository: createRepository(insert),
+      findMealItemsWithDates: async () => [],
+      getUserMealsMemory: () => [],
+      getDb: async () => ({}),
+      onWarning: vi.fn(),
+    });
+    const staleDraft = buildEstimatedNutritionFallbackItem({
+      foodName: "Iogurte substituto sem nutricao confirmada",
+      brand: "Marca B", quantity: 100, unit: "g", portionText: "100 g",
+      servings: 1, estimatedGrams: 100, estimatedCalories: 80,
+      estimatedMacros: { protein: 7, carbs: 9, fat: 4 }, confidence: 0.81,
+      foodClassification: { processingLevel: "processed", isFruit: false,
+        isVegetable: false, fiberGrams: 1 },
+    });
+    const resolved = await service.resolveFoodCatalogIds([staleDraft], 77, { createMissing: false });
+    expect(resolved).toEqual(new Map());
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it("does not create an auto-classified catalog entry without classification", async () => {
     const insert = vi.fn(async () => 501);
     const service = createFoodsService({

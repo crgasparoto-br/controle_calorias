@@ -216,4 +216,3 @@ export function retainConfirmedItemRows(
   }
   return matches;
 }
-
