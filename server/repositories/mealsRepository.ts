@@ -381,18 +381,15 @@ async function replaceMealItemsInTransaction(
     // neither should contaminate, or prevent, a verified replacement.
     const sanitized = input.items.map((item, index) =>
       replaced[index] ? sanitizeUnverifiedReplacement(item) : item);
-    // Rebind this function-local input; never mutate the caller's V1 items.
-    const originalItems = input.items;
-    input = { ...input, items: sanitized };
     const draftValues = preserveHistoricalMealValues(
-      buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds),
-      input.items, retained,
+      buildMealItemValues(input.meal.id, sanitized, input.resolvedCatalogIds),
+      sanitized, retained,
     ).map((value, index) => retained[index] ? value :
-      discardUnverifiedCommercialReplacement(value, input.items[index],
+      discardUnverifiedCommercialReplacement(value, sanitized[index],
         displaced, input.resolvedCatalogIds));
     const values = await Promise.all(draftValues.map((value, index) =>
       replaced[index] ? requireFreshReplacementNutrition(tx, input.meal.userId,
-        displaced, originalItems[index], input.resolvedCatalogIds, value) : value));
+        displaced, input.items[index], input.resolvedCatalogIds, value) : value));
     await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
     if (values.length) await tx.insert(mealItems).values(values);
   }
