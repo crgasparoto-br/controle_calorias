@@ -111,7 +111,12 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
     // The classification merge remains nested inside the commercial identity
     // merge, both performed in the row-scoped transactional writer.
     expect(repository).toMatch(/foodSnapshotJson: mergePreservingMealCommercialIdentity\(\s*mergeConfirmedMealClassification\(/);
-    expect(repository).toContain("buildMealItemValues(input.meal.id, input.items");
+    // A-037 now sanitizes displaced replacements *before* constructing the
+    // row-bound snapshot. Requiring the old raw input literal would regress
+    // this safety invariant while missing the very conversion being tested.
+    expect(repository).toMatch(/buildMealItemValues\(input\.meal\.id,\s*sanitized\b/);
+    expect(repository).toMatch(/replaced\[index\]\s*\?\s*sanitizeUnverifiedReplacement\(item\)/);
+    expect(repository).not.toContain("buildMealItemValues(input.meal.id, input.items");
   });
 
 });
