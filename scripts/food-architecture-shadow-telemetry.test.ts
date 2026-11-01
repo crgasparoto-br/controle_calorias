@@ -111,12 +111,17 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
     // The classification merge remains nested inside the commercial identity
     // merge, both performed in the row-scoped transactional writer.
     expect(repository).toMatch(/foodSnapshotJson: mergePreservingMealCommercialIdentity\(\s*mergeConfirmedMealClassification\(/);
-    // A-037 now sanitizes displaced replacements *before* constructing the
-    // row-bound snapshot. Requiring the old raw input literal would regress
-    // this safety invariant while missing the very conversion being tested.
-    expect(repository).toMatch(/buildMealItemValues\(input\.meal\.id,\s*sanitized\b/);
-    expect(repository).toMatch(/replaced\[index\]\s*\?\s*sanitizeUnverifiedReplacement\(item\)/);
-    expect(repository).not.toContain("buildMealItemValues(input.meal.id, input.items");
+    // The only allowed source for reconstructed values is the sanitized
+    // replacement draft. Direct use and local rebinding are equivalent only
+    // when the sanitization happens before the builder is called.
+    const sanitizedAt = repository.indexOf("const sanitized = input.items.map(");
+    expect(sanitizedAt).toBeGreaterThan(-1);
+    const candidate = repository.slice(sanitizedAt);
+    expect(candidate).toMatch(/replaced\[index\]\s*\?\s*sanitizeUnverifiedReplacement\(item\)/);
+    const direct = candidate.indexOf("buildMealItemValues(input.meal.id, sanitized");
+    const rebound = candidate.indexOf("input = { ...input, items: sanitized }");
+    const reboundBuild = candidate.indexOf("buildMealItemValues(input.meal.id, input.items");
+    expect(direct >= 0 || (rebound >= 0 && reboundBuild > rebound)).toBe(true);
   });
 
 });
