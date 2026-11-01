@@ -216,3 +216,65 @@ export function retainConfirmedItemRows(
   }
   return matches;
 }
+
+/**
+ * Distinguish a verified replacement from a new insertion in a mixed update.
+ * Without a saved item reference the caller cannot arbitrarily decide which
+ * unrelated item inherited a displaced row. Ambiguity fails closed.
+ */
+export function classifyMealReplacementSlots(
+  displaced: Array<typeof mealItems.$inferSelect>,
+  retained: Array<typeof mealItems.$inferSelect | null>,
+  items: MealDraftItem[],
+  resolvedCatalogIds: Map<string, number>,
+): boolean[] {
+  const flags = items.map(() => false);
+  if (!displaced.length) return flags;
+  const unmatched = items.flatMap((item, index) => !retained[index] &&
+    !displaced.some(row => sameHistoricalMealFood(row, item)) ? [index] : []);
+  if (unmatched.length <= displaced.length) {
+    for (const index of unmatched) flags[index] = true;
+    return flags;
+  }
+
+  // More unmatched items than displaced rows means some are new insertions.
+  // Require independently revalidated, item-bound references for every
+  // displaced replacement instead of guessing by order or by food name.
+  const verified = unmatched.filter(index => {
+    const item = items[index] as MealDraftItem & { foodId?: number; foodSnapshotJson?: string };
+    const catalogId = Number(item.foodCatalogId);
+    const direct = Number.isSafeInteger(catalogId) && catalogId > 0 &&
+      displaced.every(row => row.foodCatalogId !== catalogId) &&
+      resolvedCatalogIds.get(foodCatalogDirectKey(catalogId)) === catalogId;
+    const foodId = Number(item.foodId);
+    const newFood = Number.isSafeInteger(foodId) && foodId > 0 &&
+      displaced.every(row => row.foodId !== foodId) && !!item.foodSnapshotJson;
+    return direct || newFood;
+  });
+  if (verified.length < displaced.length) {
+    throw new Error("Não foi possível distinguir os alimentos substituídos dos novos itens. Recarregue e confirme a nutrição.");
+  }
+  for (const index of verified.slice(0, displaced.length)) flags[index] = true;
+
+  // Extra items must not be copies of a displaced food with a new name.
+  for (const index of unmatched) {
+    if (flags[index]) continue;
+    const item = items[index] as MealDraftItem & { foodId?: number; foodSnapshotJson?: string };
+    const stale = displaced.some(row =>
+      (item.foodCatalogId != null && item.foodCatalogId === row.foodCatalogId) ||
+      (item.foodId != null && item.foodId === row.foodId) ||
+      (!!item.historicalRef && item.historicalRef ===
+        (row.foodVariantId != null ? `variant:${row.foodVariantId}` :
+        row.foodId != null ? `food:${row.foodId}` :
+        row.foodCatalogId != null ? `catalog:${row.foodCatalogId}` : null)) ||
+      (!!item.sourceMediaStorageKey && item.sourceMediaStorageKey === row.sourceMediaStorageKey) ||
+      (!!item.foodSnapshotJson && item.foodSnapshotJson === row.foodSnapshotJson) ||
+      (item.source === row.source && item.estimatedGrams === row.estimatedGrams &&
+        item.calories === row.calories && item.protein === row.protein &&
+        item.carbs === row.carbs && item.fat === row.fat));
+    if (stale) {
+      throw new Error("Novo item reutiliza evidência de alimento substituído. Recalcule e confirme a nutrição.");
+    }
+  }
+  return flags;
+}

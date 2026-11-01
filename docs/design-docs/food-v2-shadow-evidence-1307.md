@@ -131,6 +131,11 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   em separado sem herdar metadados antigos.
   A transacao confirma a identidade e recalcula a nutricao antes do commit;
   apos commit, API, totais e cache releem os nutrientes persistidos.
+  Em edicao mista, uma substituicao comprovada por ID direto ou novo
+  snapshot V2 nao bloqueia uma insercao legitima independente, mesmo quando
+  ela aparece antes da substituicao. Ambiguidade sem prova suficiente ou nova
+  linha que reutilize identificacao/macro/proveniencia de registro deslocado
+  falha antes da escrita, sem atribuir a insercao o historico anterior.
   Edicao da mesma
   identidade (inclusive porcao), reordenacao e inclusao sem deslocar item
   anterior conservam as regras anteriores. O contrato nao declara

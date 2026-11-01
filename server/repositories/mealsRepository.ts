@@ -5,7 +5,7 @@ import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
 import { mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
-import { discardUnverifiedCommercialReplacement, guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues, sameHistoricalMealFood } from "./mealItemHistoryReconciliation";
+import { classifyMealReplacementSlots, discardUnverifiedCommercialReplacement, guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues, sameHistoricalMealFood } from "./mealItemHistoryReconciliation";
 import { requireFreshReplacementNutrition } from "./mealReplacementNutrition";
 
 type DbProvider = () => Promise<any | null>;
@@ -374,8 +374,8 @@ async function replaceMealItemsInTransaction(
     // Only displaced rows can be a predecessor of a reconstructed item.
     // A matched sibling must not invalidate a separately verified direct ID.
     const displaced = previous.filter(row => !retained.includes(row));
-    const replaced = input.items.map((item, index) => !retained[index] &&
-      displaced.length > 0 && !displaced.some(row => sameHistoricalMealFood(row, item)));
+    const replaced = classifyMealReplacementSlots(
+      displaced, retained, input.items, input.resolvedCatalogIds);
     // Sanitize BEFORE snapshot/classification validation. An old editor may
     // submit stale (or invalid) classification alongside a new catalog ID;
     // neither should contaminate, or prevent, a verified replacement.

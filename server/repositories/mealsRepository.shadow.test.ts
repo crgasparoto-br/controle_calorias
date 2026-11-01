@@ -719,6 +719,56 @@ describe("#1307 / A-030 — historical identity survives meal updates", () => {
     expect(extra.items()[0].foodVariantId).toBe(121);
   });
 
+  it("A-037 keeps genuine insertions alongside verified replacements regardless of order", async () => {
+    const original = savedItem(21);
+    const replacement = { ...publicItem(original), foodName: "Iogurte",
+      canonicalName: "Iogurte", brand: "Marca B", foodCatalogId: 900,
+      calories: 80, protein: 7, carbs: 9, fat: 4 };
+    const newItem = { ...publicItem(original), foodName: "Banana",
+      canonicalName: "Banana", foodCatalogId: null, brand: undefined,
+      source: "heuristic", calories: 105, protein: 1.2, carbs: 27, fat: 0.3 };
+    const freshId = new Map([[foodCatalogDirectKey(900), 900]]);
+    for (const insertsFirst of [false, true]) {
+      const state = fixture([original], [catalogFood(900)]);
+      const submitted = insertsFirst ? [newItem, replacement] : [replacement, newItem];
+      await state.update(submitted as never, "Jantar", freshId);
+      const rows = state.items();
+      expect(rows).toHaveLength(2);
+      const replaced = rows.find(row => row.foodName === "Iogurte")!;
+      const inserted = rows.find(row => row.foodName === "Banana")!;
+      expect(replaced).toMatchObject({ foodCatalogId: 900,
+        calories: 140, protein: 10, carbs: 12, fat: 6, source: "catalog" });
+      expect(inserted).toMatchObject({ foodName: "Banana", foodCatalogId: null,
+        calories: 105, protein: 1.2, carbs: 27, fat: 0.3, source: "heuristic" });
+      expect(inserted.foodVariantId).toBeUndefined();
+      expect(inserted.foodSnapshotJson).toBeNull();
+    }
+  });
+
+  it("A-037 refuses ambiguous mixed replacements and stale insertions atomically", async () => {
+    const original = savedItem(21);
+    const newItem = { ...publicItem(original), foodName: "Banana",
+      canonicalName: "Banana", foodCatalogId: null, brand: undefined,
+      source: "heuristic", calories: 105, protein: 1.2, carbs: 27, fat: 0.3 };
+    const unverified = { ...publicItem(original), foodName: "Queijo",
+      canonicalName: "Queijo", foodCatalogId: null, brand: undefined };
+    const ambiguous = fixture([original]);
+    await expect(ambiguous.update([newItem, unverified] as never))
+      .rejects.toThrow(/distinguir/);
+    expect(ambiguous.writes).toEqual([]);
+    expect(ambiguous.items()).toEqual([original]);
+
+    const authenticated = fixture([original], [catalogFood(900)]);
+    const replacement = { ...publicItem(original), foodName: "Iogurte",
+      canonicalName: "Iogurte", brand: "Marca B", foodCatalogId: 900 };
+    const copied = { ...publicItem(original), foodName: "Outro alimento",
+      canonicalName: "Outro alimento", foodCatalogId: null };
+    await expect(authenticated.update([replacement, copied] as never, "Jantar",
+      new Map([[foodCatalogDirectKey(900), 900]]))).rejects.toThrow(/reutiliza evidência/);
+    expect(authenticated.writes).toEqual([]);
+    expect(authenticated.items()).toEqual([original]);
+  });
+
   it("A-037 recalculates individual edits and moves from the new catalog without stale macros", async () => {
     const original = savedItem(21);
     const newItem = { ...publicItem(original), foodName: "Iogurte", canonicalName: "Iogurte",
