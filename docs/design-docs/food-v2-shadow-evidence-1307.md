@@ -128,6 +128,13 @@ Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
   anterior conservam as regras anteriores. O contrato nao declara
   `nutritionVerified=true` por mera existencia de item do catalogo.
   Isto nao ativa V2, Gate A nem telemetria produtiva.
+  Regressao de aprendizado de medida caseira: os testes transacionais modelam
+  IDs fisicos e a marca legada que existia em `foodSnapshotJson`, confirmam
+  que a primeira correcao de gramas grava somente o item afetado, que uma
+  segunda gravacao concorrente com snapshot antigo e rejeitada e que a
+  confirmacao comercial tipada e preservada. Marca alterada ou ausencia
+  historica de evidencia comercial sao recusadas sem escrever preferencia
+  de aprendizado ou reaproveitar nutricao do alimento anterior.
 - A-026: agregador direto e replay compartilham o schema estrito
   `shadowEventValidation.ts`, incluindo enums de segmentação, campos extras,
   cardinalidades, coerência `run/failure/outcome`, etapas S1/S2/S3, sinais,

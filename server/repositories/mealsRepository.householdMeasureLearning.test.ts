@@ -37,8 +37,24 @@ function learning(correctedGrams: number) {
   return built;
 }
 
-function createSerializedLearningDb(initialItems: MealDraftItem[]) {
-  let currentItems: any[] = initialItems.map(value => ({ mealId: 901, ...value }));
+function createSerializedLearningDb(
+  initialItems: MealDraftItem[],
+  options: { legacyBrandEvidence?: boolean } = {},
+) {
+  // Represent real persisted rows: identity is stored in a legacy snapshot,
+  // never inferred from an extra draft-only "brand" column.
+  let currentItems: any[] = initialItems.map((value, index) => {
+    const { brand, productVariant, ...persisted } = value;
+    const legacyIdentity = {
+      ...(brand !== undefined ? { brandName: brand } : {}),
+      ...(productVariant !== undefined ? { productVariant } : {}),
+    };
+    return {
+      id: index + 1, mealId: 901, ...persisted,
+      foodSnapshotJson: options.legacyBrandEvidence === false || !Object.keys(legacyIdentity).length
+        ? null : JSON.stringify(legacyIdentity),
+    };
+  });
   const preferenceWrites: Array<{ userId: number; preferenceKey: string; preferenceValue: string }> = [];
   const operations: string[] = [];
   let queue = Promise.resolve();
@@ -67,9 +83,17 @@ function createSerializedLearningDb(initialItems: MealDraftItem[]) {
         })),
       })),
       update: vi.fn((table: unknown) => ({
-        set: vi.fn(() => ({
+        set: vi.fn((changes: Record<string, unknown>) => ({
           where: vi.fn(async () => {
-            operations.push(table === meals ? "meal.update" : "other.update");
+            if (table === mealItems) {
+              // The real repository updates the locked physical row in place.
+              // A no-op mock would hide a stale second concurrent operation.
+              if (currentItems.length !== 1) throw new Error("expected one locked meal item");
+              Object.assign(currentItems[0], changes);
+              operations.push("items.update");
+            } else {
+              operations.push(table === meals ? "meal.update" : "other.update");
+            }
           }),
         })),
       })),
@@ -163,7 +187,44 @@ describe("persistMealUpdateWithHouseholdMeasureLearning", () => {
     expect(JSON.parse(state.preferenceWrites[0].preferenceValue).grams).toBe(80);
     expect(state.currentItems()).toHaveLength(1);
     expect(Number(state.currentItems()[0].estimatedGrams)).toBe(80);
+    expect(state.currentItems()[0].id).toBe(1);
+    expect(JSON.parse(state.currentItems()[0].foodSnapshotJson).confirmedCommercialIdentity)
+      .toEqual({ brand: "Marca A" });
+    expect(state.operations.filter(op => op === "items.update")).toHaveLength(1);
+    expect(state.operations).not.toContain("items.delete");
     expect(state.operations.filter(op => op === "learning.upsert")).toHaveLength(1);
     expect(state.operations.filter(op => op === "meal.lock")).toHaveLength(2);
+  });
+
+  it("não grava aprendizado nem troca nutrição quando marca confirmada é substituída", async () => {
+    const state = createSerializedLearningDb([item(72)]);
+    const repository = createDrizzleMealsRepository({
+      getDb: async () => state.db as any,
+      onWarning: vi.fn(),
+    });
+    const changed = { ...updateInput(80), items: [{ ...item(80), brand: "Marca B" }] };
+
+    await expect(repository.persistMealUpdateWithHouseholdMeasureLearning(changed))
+      .rejects.toThrow(/Recalcule e confirme/);
+    expect(state.preferenceWrites).toEqual([]);
+    expect(state.operations).not.toContain("items.update");
+    expect(state.operations).not.toContain("items.delete");
+    expect(state.currentItems()[0].estimatedGrams).toBe(72);
+  });
+
+  it("não trata marca sem prova em histórico legado como identidade confirmada", async () => {
+    const state = createSerializedLearningDb([item(72)], { legacyBrandEvidence: false });
+    const repository = createDrizzleMealsRepository({
+      getDb: async () => state.db as any,
+      onWarning: vi.fn(),
+    });
+
+    await expect(repository.persistMealUpdateWithHouseholdMeasureLearning(updateInput(80)))
+      .rejects.toThrow(/Recalcule e confirme/);
+    expect(state.preferenceWrites).toEqual([]);
+    expect(state.operations).not.toContain("items.update");
+    expect(state.operations).not.toContain("items.delete");
+    expect(state.currentItems()[0].estimatedGrams).toBe(72);
+    expect(state.currentItems()[0].foodSnapshotJson).toBeNull();
   });
 });
