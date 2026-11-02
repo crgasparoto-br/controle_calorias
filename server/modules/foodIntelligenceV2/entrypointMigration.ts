@@ -122,6 +122,10 @@ async function readObservations(
   if (CONTINUATIONS.has(request.entrypoint)) {
     throw new Error("food-d1-continuation-requires-structured-evidence");
   }
+  if (request.entrypoint === "text" && request.evidence.modality !== "text" ||
+      request.entrypoint === "audio_transcript" && request.evidence.modality !== "audio_transcript") {
+    throw new Error("food-d1-entrypoint-modality-mismatch");
+  }
   if (request.evidence.modality === "image" &&
       !request.evidence.imageRegionRole) {
     throw new Error("food-d1-image-requires-authorised-ocr-role");
@@ -188,6 +192,9 @@ export async function resolveFoodD1Entrypoint(
         throw new Error("food-d1-previous-decision-scope-mismatch");
       }
     }
+  }
+  if (!MUTATIONS.has(request.entrypoint) && targetByObservation.size > 0) {
+    throw new Error("food-d1-addition-must-not-update-existing-item");
   }
   if (MUTATIONS.has(request.entrypoint) &&
       observations.some(item => !targetByObservation.has(item.observationId))) {
