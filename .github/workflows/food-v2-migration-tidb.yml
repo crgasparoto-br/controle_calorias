@@ -6,6 +6,7 @@ on:
       - "drizzle/**"
       - "scripts/test-food-v2-migration-tidb.mjs"
       - "scripts/test-food-d1-runtime-tidb.ts"
+      - "scripts/test-food-d1-restart-tidb.ts"
       - ".github/workflows/food-v2-migration-tidb.yml"
   workflow_dispatch:
 
@@ -77,6 +78,13 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: mysql://root@127.0.0.1:4000/ci_foodv2_upgrade
         run: pnpm exec tsx scripts/test-food-d1-runtime-tidb.ts
+
+      - name: D1 retry from separate process after original connection exit
+        env:
+          FOOD_V2_TEST_DB_ISOLATED: "1"
+          NODE_ENV: test
+          DATABASE_URL: mysql://root@127.0.0.1:4000/ci_foodv2_upgrade
+        run: pnpm exec tsx scripts/test-food-d1-restart-tidb.ts
 
       - name: Pre-cutover rollback preserves legacy
         run: |
