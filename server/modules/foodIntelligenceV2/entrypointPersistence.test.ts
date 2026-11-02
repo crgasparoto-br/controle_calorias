@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildFoodOperationEnvelopeFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
 import { prepareFoodD1NativeWrite } from "./entrypointPersistence";
-import { commitFoodD1NativeWrite } from "./entrypointPersistenceRepository";
+import { commitFoodD1NativeWrite, hasBoundFoodV2Snapshot } from "./entrypointPersistenceRepository";
 import { hashFoodD1OperationScope } from "./entrypointRouting";
 import type { FoodD1Result } from "./entrypointMigration";
 import type { FoodOperationEnvelope, FoodResolutionDecision } from "./schemas";
@@ -105,5 +105,37 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
     await expect(commitFoodD1NativeWrite({ plan, testEnabled: true,
       verifyCurrentGate: async () => { throw new Error("down"); } }))
       .rejects.toThrow("rollout-gate-revoked");
+  });
+});
+
+describe("#1308 D1 - reject forged and stale V2 item snapshots", () => {
+  const storedItem = (snapshot: unknown, fields: Record<string, unknown> = {}) => ({
+    foodId: 101, foodVariantId: 102, nutritionProfileId: 103,
+    foodSnapshotJson: typeof snapshot === "string" ? snapshot : JSON.stringify(snapshot),
+    ...fields,
+  }) as Parameters<typeof hasBoundFoodV2Snapshot>[0];
+  const canonical = () => ({
+    format: "food-v2", schemaVersion: 2,
+    identity: { foodEntityId: 101, variantId: 102 },
+    nutrition: { profileId: 103, verified: true },
+  });
+  it("accepts only a verified V2 snapshot bound to the persisted physical item", () => {
+    expect(hasBoundFoodV2Snapshot(storedItem(canonical()))).toBe(true);
+    expect(hasBoundFoodV2Snapshot(storedItem(canonical(), { foodVariantId: 999 }))).toBe(false);
+    expect(hasBoundFoodV2Snapshot(storedItem(canonical(), { nutritionProfileId: 104 }))).toBe(false);
+    expect(hasBoundFoodV2Snapshot(storedItem({ ...canonical(), schemaVersion: 1 }))).toBe(false);
+    expect(hasBoundFoodV2Snapshot(storedItem({ ...canonical(), nutrition: {
+      profileId: 103, verified: false,
+    } }))).toBe(false);
+  });
+  it("rejects spoofed legacy JSON, malformed payloads and missing proof", () => {
+    expect(hasBoundFoodV2Snapshot(storedItem({
+      format: "legacy", comment: JSON.stringify(canonical()),
+    }))).toBe(false);
+    expect(hasBoundFoodV2Snapshot(storedItem('{"format":"food-v2"'))).toBe(false);
+    expect(hasBoundFoodV2Snapshot(storedItem(null))).toBe(false);
+    expect(hasBoundFoodV2Snapshot(storedItem({
+      ...canonical(), identity: { foodEntityId: 101, variantId: null },
+    }))).toBe(false);
   });
 });

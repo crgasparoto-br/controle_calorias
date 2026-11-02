@@ -52,6 +52,33 @@ function decodeEffect(value: string): ItemEffect {
 }
 
 /**
+ * Never infer V2 ownership from a substring in serialized legacy metadata.
+ * The snapshot must match the physical row that is about to be edited.
+ */
+export function hasBoundFoodV2Snapshot(item: typeof mealItems.$inferSelect): boolean {
+  if (typeof item.foodSnapshotJson !== "string" || !item.foodSnapshotJson) return false;
+  let decoded: unknown;
+  try { decoded = JSON.parse(item.foodSnapshotJson); }
+  catch { return false; }
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return false;
+  const snapshot = decoded as {
+    format?: unknown;
+    schemaVersion?: unknown;
+    identity?: { foodEntityId?: unknown; variantId?: unknown } | null;
+    nutrition?: { profileId?: unknown; verified?: unknown } | null;
+  };
+  return snapshot.format === "food-v2" && snapshot.schemaVersion === 2 &&
+    !!snapshot.identity && !!snapshot.nutrition &&
+    Number.isSafeInteger(snapshot.identity.foodEntityId) &&
+    Number.isSafeInteger(snapshot.identity.variantId) &&
+    Number.isSafeInteger(snapshot.nutrition.profileId) &&
+    snapshot.identity.foodEntityId === item.foodId &&
+    snapshot.identity.variantId === item.foodVariantId &&
+    snapshot.nutrition.profileId === item.nutritionProfileId &&
+    snapshot.nutrition.verified === true;
+}
+
+/**
  * Lock the pinned route BEFORE reading receipts and writing meal items.
  * This serializes retries across instances while leaving unresolved sibling
  * observations eligible for a later, independent effect in the same operation.
@@ -249,12 +276,14 @@ export async function commitFoodD1NativeWrite(input: {
         .from(mealItems).innerJoin(meals, eq(meals.id, mealItems.mealId))
         .where(and(eq(mealItems.id, itemId), eq(meals.userId, plan.ownerUserId),
           eq(meals.status, "confirmed"))).for("update").limit(1);
+      // A JSON substring can be forged inside a legacy note. Require a
+      // structurally valid V2 snapshot bound to this exact physical row.
       // An explicit edit may substitute another verified variant; labels and
       // continuing clarifications must retain the existing food identity.
       if (!existing ||
           ((plan.entrypoint === "nutrition_label" || plan.entrypoint === "continuation") &&
            existing.item.foodVariantId !== item.variantId) ||
-          !existing.item.foodSnapshotJson?.includes('"format":"food-v2"') ||
+          !hasBoundFoodV2Snapshot(existing.item) ||
           (mealId !== null && mealId !== existing.mealId)) {
         throw new Error("food-d1-native-target-stale-or-foreign");
       }
