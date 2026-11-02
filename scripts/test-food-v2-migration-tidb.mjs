@@ -306,6 +306,35 @@ try {
   await assertRequiredReadIndexes();
   const b2ForwardStatements = await applyFile("../drizzle/0056_food_v2_source_governance.sql");
   assert.equal(b2ForwardStatements, 6);
+  // #1308: the real TiDB migration gate must cover new operation bindings.
+  const d1ForwardStatements = await applyFile("../drizzle/0057_food_d1_operation_binding.sql");
+  assert.equal(d1ForwardStatements, 2);
+  const operation = "ci-d1-op";
+  await connection.query(
+    "INSERT INTO food_d1_user_operation_routes (owner_user_id, operation_key, origin_entrypoint, resolver, revisions_json) VALUES (?, ?, 'text', 'v2', ?)",
+    [fixture.userId, operation, JSON.stringify({ code: "ci", knowledge: "ci", lexicon: "ci", policy: "ci", resolver: "ci", operationScopeHash: "a".repeat(64) })]
+  );
+  await mustReject(connection.query(
+    "INSERT INTO food_d1_user_operation_routes (owner_user_id, operation_key, origin_entrypoint, resolver, revisions_json) VALUES (?, ?, 'text', 'v1', '{}')",
+    [fixture.userId, operation]
+  ), "two resolvers may not own the same user operation");
+  await connection.query(
+    "INSERT INTO food_d1_user_operation_effects (owner_user_id, operation_key, observation_id, decision_hash, outcome_json) VALUES (?, ?, 'obs-1', ?, ?)",
+    [fixture.userId, operation, "b".repeat(64), JSON.stringify({ mealId: 1, itemId: 1 })]
+  );
+  await mustReject(connection.query(
+    "INSERT INTO food_d1_user_operation_effects (owner_user_id, operation_key, observation_id, decision_hash, outcome_json) VALUES (?, ?, 'obs-1', ?, ?)",
+    [fixture.userId, operation, "c".repeat(64), JSON.stringify({ mealId: 1, itemId: 2 })]
+  ), "replaying the same observation cannot duplicate its receipt");
+  await connection.query(
+    "DELETE FROM food_d1_user_operation_routes WHERE owner_user_id=? AND operation_key=?",
+    [fixture.userId, operation]
+  );
+  const [orphan] = await queryRows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [fixture.userId, operation]
+  );
+  assert.equal(Number(orphan.c), 0, "route deletion must cascade to receipts");
   // AUD-1302-026: database leaves unknown B1/legacy provenance unassigned.
   for (const table of ["food_nutrition_profiles", "food_portions", "food_aliases"]) {
     const [column] = await queryRows(
@@ -364,6 +393,7 @@ try {
   await assertLegacyWritesAfterMigration(fixture);
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
+    await applyFile("../drizzle/rollback/0057_food_d1_operation_binding.sql");
     const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
     assert.equal(b2Reversed, 6);
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");
