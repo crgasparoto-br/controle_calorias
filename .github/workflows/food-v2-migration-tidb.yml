@@ -5,6 +5,7 @@ on:
     paths:
       - "drizzle/**"
       - "scripts/test-food-v2-migration-tidb.mjs"
+      - "scripts/test-food-d1-runtime-tidb.ts"
       - ".github/workflows/food-v2-migration-tidb.yml"
   workflow_dispatch:
 
@@ -69,6 +70,13 @@ jobs:
           FOOD_V2_TEST_MODE=upgrade \
           DATABASE_URL=mysql://root@127.0.0.1:4000/ci_foodv2_upgrade \
           node scripts/test-food-v2-migration-tidb.mjs
+
+      - name: D1 native transactional effects, retry and authorization (synthetic fixture)
+        env:
+          FOOD_V2_TEST_DB_ISOLATED: "1"
+          NODE_ENV: test
+          DATABASE_URL: mysql://root@127.0.0.1:4000/ci_foodv2_upgrade
+        run: pnpm exec tsx scripts/test-food-d1-runtime-tidb.ts
 
       - name: Pre-cutover rollback preserves legacy
         run: |

@@ -168,9 +168,11 @@ try {
   console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation", {
     userId, mealId: created.mealId, itemId,
   });
+} catch (error) {
+  console.error("FAIL: D1 TiDB native runtime", error);
+  process.exitCode = 1;
 } finally {
   await sql.end();
-  // The production database pool used by the real adapter owns idle connections.
-  // CI is a dedicated disposable process with no user traffic.
-  process.exit(0);
+  // CI owns a dedicated, disposable process (the Drizzle pool is long-lived).
+  process.exit(process.exitCode || 0);
 }
