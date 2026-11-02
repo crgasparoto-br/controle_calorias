@@ -23,7 +23,12 @@ function decodeRoute(row: typeof foodD1OperationRoutes.$inferSelect): FoodD1Pinn
       (row.resolver !== "v1" && row.resolver !== "v2")) {
     throw new Error("food-d1-corrupt-pinned-owner");
   }
+  const operationScopeHash = (revisions as Record<string, unknown>).operationScopeHash;
+  if (typeof operationScopeHash !== "string" || !/^[a-f0-9]{64}$/.test(operationScopeHash)) {
+    throw new Error("food-d1-corrupt-pinned-operation-scope");
+  }
   return {
+    operationScopeHash,
     operationKey: row.operationKey, ownerUserId: row.ownerUserId,
     originEntrypoint: row.originEntrypoint as FoodD1PinnedRoute["originEntrypoint"],
     resolver: row.resolver,
@@ -37,6 +42,7 @@ function assertCandidate(candidate: FoodD1PinnedRoute): void {
       !candidate.operationKey || candidate.operationKey.length > 200 ||
       !FOOD_D1_ENTRYPOINTS.includes(candidate.originEntrypoint) ||
       (candidate.resolver !== "v1" && candidate.resolver !== "v2") ||
+      !/^[a-f0-9]{64}$/.test(candidate.operationScopeHash) ||
       !candidate.versions || REVISION_KEYS.some(key =>
         typeof candidate.versions[key] !== "string" || !candidate.versions[key].trim())) {
     throw new Error("food-d1-invalid-pinned-route");
@@ -68,7 +74,8 @@ export function createFoodD1RouteDbStore(): FoodD1RouteStore {
           ownerUserId: candidate.ownerUserId,
           originEntrypoint: candidate.originEntrypoint,
           resolver: candidate.resolver,
-          revisionsJson: JSON.stringify(candidate.versions),
+          revisionsJson: JSON.stringify({ ...candidate.versions,
+            operationScopeHash: candidate.operationScopeHash }),
         }).onDuplicateKeyUpdate({ set: { operationKey: sql.raw("operation_key") } });
         const rows = await tx.select().from(foodD1OperationRoutes)
           .where(and(eq(foodD1OperationRoutes.ownerUserId, candidate.ownerUserId),

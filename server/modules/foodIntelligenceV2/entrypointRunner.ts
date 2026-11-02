@@ -41,6 +41,7 @@ export async function runFoodD1Migration<T>(input: {
     envelope: input.request.envelope,
     authenticatedUserId: input.request.authenticatedUserId,
     entrypoint: input.request.entrypoint,
+    source: input.source,
     store,
     expectedAuditedBaseSha: input.expectedAuditedBaseSha,
     verifyGates: input.verifyGates,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildFoodOperationEnvelopeFixture } from "./fixtures";
 import {
-  routeFoodD1Operation, type FoodD1PinnedRoute,
+  routeFoodD1Operation, hashFoodD1OperationScope, type FoodD1PinnedRoute,
   type FoodD1RouteStore, type FoodD1GateApproval,
 } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
@@ -35,7 +35,7 @@ function scenario(s: FoodD1RouteStore) {
   const runV2 = vi.fn(async () => "v2");
   const verifyGates = vi.fn(async () => approval);
   return { envelope: envelope(), authenticatedUserId: 7, entrypoint: "text" as const,
-    store: s, runV1, runV2, verifyGates, expectedAuditedBaseSha: "a".repeat(40) };
+    source: "web" as const, store: s, runV1, runV2, verifyGates, expectedAuditedBaseSha: "a".repeat(40) };
 }
 
 describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
@@ -111,6 +111,28 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
     await expect(routeFoodD1Operation({
       ...request, enabled: false, entrypoint: "edit",
     })).rejects.toThrow("entrypoint-changed-during-operation");
+  });
+
+  it("pins meal date, destination, timezone and channel across retries", async () => {
+    const state = store(), request = scenario(state.backend);
+    await routeFoodD1Operation({ ...request, enabled: false });
+    expect(state.pins.get("op-1")?.operationScopeHash).toBe(
+      hashFoodD1OperationScope(request.envelope, "web"));
+    const poisoned = [
+      { ...request, envelope: { ...request.envelope, mealOperation: {
+        ...request.envelope.mealOperation!, date: "2026-10-06" } } },
+      { ...request, envelope: { ...request.envelope, mealOperation: {
+        ...request.envelope.mealOperation!, targetMeal: "jantar" } } },
+      { ...request, source: "whatsapp" as const },
+      { ...request, envelope: { ...request.envelope,
+        effectiveTimeZone: "UTC" } },
+    ];
+    for (const invalid of poisoned) {
+      await expect(routeFoodD1Operation({ ...invalid, enabled: false }))
+        .rejects.toThrow("operation-scope-changed");
+    }
+    expect(request.runV1).toHaveBeenCalledTimes(1);
+    expect(request.runV2).not.toHaveBeenCalled();
   });
 
   it("uses the atomically winning V1 owner when V1 and V2 compete to create the same key", async () => {

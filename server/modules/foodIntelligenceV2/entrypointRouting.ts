@@ -6,6 +6,7 @@
  * a process-local Map for production. Native V2 writes remain gated by #1335
  * and by a separate V2 consumer/persistence adapter.
  */
+import { createHash } from "node:crypto";
 import { parseFoodOperationEnvelope, type FoodOperationEnvelope } from "./schemas";
 import type { FoodD1Entrypoint } from "./entrypointMigration";
 
@@ -14,8 +15,23 @@ export type FoodD1PinnedRoute = {
   ownerUserId: number;
   originEntrypoint: FoodD1Entrypoint;
   resolver: "v1" | "v2";
+  operationScopeHash: string;
   versions: FoodOperationEnvelope["revisions"];
 };
+
+/**
+ * Immutable identity of the meal operation across retries and later turns.
+ * turnRef is intentionally excluded; a clarification can follow a new turn.
+ */
+export function hashFoodD1OperationScope(
+  envelope: FoodOperationEnvelope, source: "web" | "whatsapp",
+): string {
+  return createHash("sha256").update(JSON.stringify({
+    ownerUserId: envelope.ownerUserId, operationKey: envelope.idempotencyKey,
+    source, effectiveTimeZone: envelope.effectiveTimeZone,
+    mealOperation: envelope.mealOperation,
+  })).digest("hex");
+}
 
 /** findOrCreate must be atomic across instances and return the winning row. */
 export type FoodD1RouteStore = {
@@ -51,6 +67,7 @@ export function isCurrentFoodD1GateApproval(input: FoodD1GateApproval | null | u
 
 function assertPinnedIdentity(
   pin: FoodD1PinnedRoute, env: FoodOperationEnvelope, entrypoint: FoodD1Entrypoint,
+  source: "web" | "whatsapp",
 ): void {
   if (!pin || pin.operationKey !== env.idempotencyKey ||
       pin.ownerUserId !== env.ownerUserId ||
@@ -63,6 +80,9 @@ function assertPinnedIdentity(
       entrypoint !== "continuation" && entrypoint !== "nutrition_label") {
     throw new Error("food-d1-entrypoint-changed-during-operation");
   }
+  if (pin.operationScopeHash !== hashFoodD1OperationScope(env, source)) {
+    throw new Error("food-d1-operation-scope-changed");
+  }
   if (!pin.versions ||
       (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
         .some(key => pin.versions[key] !== env.revisions[key])) {
@@ -74,6 +94,7 @@ export type FoodD1RouteRequest<T> = {
   envelope: FoodOperationEnvelope;
   authenticatedUserId: number;
   entrypoint: FoodD1Entrypoint;
+  source: "web" | "whatsapp";
   store: FoodD1RouteStore;
   /** V1 callback must retain its current arguments and semantics. */
   runV1: () => Promise<T>;
@@ -125,12 +146,13 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
         ownerUserId: authenticatedUserId,
         originEntrypoint: entrypoint,
         resolver: enabled ? "v2" : "v1",
+        operationScopeHash: hashFoodD1OperationScope(envelope, request.source),
         versions: { ...envelope.revisions },
       };
       pin = await store.findOrCreate(candidate);
     }
   }
-  assertPinnedIdentity(pin, envelope, entrypoint);
+  assertPinnedIdentity(pin, envelope, entrypoint, request.source);
   if (pin.resolver === "v1") return request.runV1();
   if (!enabled) throw new Error("food-d1-operation-paused-by-rollback");
   if (!approved) {
