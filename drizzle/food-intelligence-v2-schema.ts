@@ -450,7 +450,7 @@ export const foodPersonalReconciliationQuarantine = mysqlTable("food_personal_re
 
 /** D1 #1308: resolver and policy ownership persist across retries/restarts. */
 export const foodD1OperationRoutes = mysqlTable("food_d1_user_operation_routes", {
-  ownerUserId: int("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  ownerUserId: int("owner_user_id").notNull(),
   operationKey: varchar("operation_key", { length: 200 }).notNull(),
   originEntrypoint: varchar("origin_entrypoint", { length: 40 }).notNull(),
   resolver: mysqlEnum("resolver", ["v1", "v2"]).notNull(),
@@ -458,6 +458,10 @@ export const foodD1OperationRoutes = mysqlTable("food_d1_user_operation_routes",
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, table => ({
   uniqueOperation: uniqueIndex("food_d1_user_operation_routes_u0").on(table.ownerUserId, table.operationKey),
+  ownerFk: foreignKey({
+    name: "food_d1_user_operation_routes_user_fk",
+    columns: [table.ownerUserId], foreignColumns: [users.id],
+  }).onDelete("cascade"),
 }));
 
 /** Per-observation receipts permit late siblings and exactly-once item effects. */
