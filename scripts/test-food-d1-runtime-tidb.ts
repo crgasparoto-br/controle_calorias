@@ -155,6 +155,27 @@ try {
   const [total] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
   assert.equal(Number(total.c), 1, "label and edit must not create another meal");
 
+  // Two separate route-store instances race to commit the very first effect.
+  const concurrentEnv = makeEnvelope("ci-d1-native-concurrent");
+  const concurrentPlan = prepare(concurrentEnv,
+    result("addition", "ci-d1-obs-concurrent"));
+  const concurrent = await Promise.all([
+    commit(concurrentEnv, "addition", concurrentPlan),
+    commit(concurrentEnv, "addition", concurrentPlan),
+  ]);
+  assert.deepEqual(concurrent[0].recordedItemIds, concurrent[1].recordedItemIds,
+    "parallel workers must return one physical receipt");
+  const [concurrentItems] = await rows(
+    "SELECT COUNT(*) AS c FROM mealItems WHERE id=?",
+    [concurrent[0].recordedItemIds[0]],
+  );
+  assert.equal(Number(concurrentItems.c), 1, "concurrent insert must commit once");
+  const [concurrentReceipts] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, concurrentEnv.idempotencyKey],
+  );
+  assert.equal(Number(concurrentReceipts.c), 1);
+
   await sql.query(
     "UPDATE food_source_read_grants SET status='revoked', revoked_at=NOW(), allow_read=0 WHERE source_id=?",
     [sourceId],
@@ -164,7 +185,7 @@ try {
     prepare(revokedEnv, result("addition", "ci-d1-obs-revoked"))),
     /source-revoked-or-unlicensed/);
   const [afterRevoke] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
-  assert.equal(Number(afterRevoke.c), 1, "source revocation is checked in the write transaction");
+  assert.equal(Number(afterRevoke.c), 2, "source revocation is checked in the write transaction");
   console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation", {
     userId, mealId: created.mealId, itemId,
   });
