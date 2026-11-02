@@ -447,3 +447,32 @@ export const foodPersonalReconciliationQuarantine = mysqlTable("food_personal_re
   ownerIdx: index("food_personal_recon_i0").on(table.ownerUserId, table.retentionUntil),
   retentionIdx: index("food_personal_recon_i1").on(table.retentionUntil),
 }));
+
+/** D1 #1308: resolver and policy ownership persist across retries/restarts. */
+export const foodD1OperationRoutes = mysqlTable("food_d1_user_operation_routes", {
+  ownerUserId: int("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  operationKey: varchar("operation_key", { length: 200 }).notNull(),
+  originEntrypoint: varchar("origin_entrypoint", { length: 40 }).notNull(),
+  resolver: mysqlEnum("resolver", ["v1", "v2"]).notNull(),
+  revisionsJson: text("revisions_json").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, table => ({
+  uniqueOperation: uniqueIndex("food_d1_user_operation_routes_u0").on(table.ownerUserId, table.operationKey),
+}));
+
+/** Per-observation receipts permit late siblings and exactly-once item effects. */
+export const foodD1OperationEffects = mysqlTable("food_d1_user_operation_effects", {
+  ownerUserId: int("owner_user_id").notNull(),
+  operationKey: varchar("operation_key", { length: 200 }).notNull(),
+  observationId: varchar("observation_id", { length: 200 }).notNull(),
+  decisionHash: varchar("decision_hash", { length: 64 }).notNull(),
+  outcomeJson: text("outcome_json").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, table => ({
+  uniqueEffect: uniqueIndex("food_d1_operation_effects_u0").on(table.ownerUserId, table.operationKey, table.observationId),
+  pinnedRouteFk: foreignKey({
+    name: "food_d1_operation_effects_route_fk",
+    columns: [table.ownerUserId, table.operationKey],
+    foreignColumns: [foodD1OperationRoutes.ownerUserId, foodD1OperationRoutes.operationKey],
+  }).onDelete("cascade"),
+}));

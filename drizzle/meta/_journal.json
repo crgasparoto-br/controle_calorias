@@ -386,6 +386,13 @@
       "when": 1792601700000,
       "tag": "0056_food_v2_source_governance",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "5",
+      "when": 1793582400000,
+      "tag": "0057_food_d1_operation_binding",
+      "breakpoints": true
     }
   ]
 }
