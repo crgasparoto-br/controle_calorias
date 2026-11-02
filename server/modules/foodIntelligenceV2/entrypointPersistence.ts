@@ -151,6 +151,6 @@ export function prepareFoodD1NativeWrite(input: {
     traceId: envelope.traceId, entrypoint: result.entrypoint, source: input.source,
     revisions: { ...envelope.revisions },
     confidence: confidences.length ? Math.min(...confidences) : null,
-    mealLabel: envelope.mealOperation.targetMeal, occurredAt: input.occurredAt,
+    mealLabel: envelope.mealOperation!.targetMeal, occurredAt: input.occurredAt,
     requestHash, items, skipped };
 }
