@@ -40,7 +40,7 @@ function enabledForRequest(override: boolean | undefined): boolean {
     ? override : isFoodD1CutoverRequested();
 }
 
-function approvalIsCurrent(input: FoodD1GateApproval | null | undefined, expectedBaseSha: string | undefined): boolean {
+export function isCurrentFoodD1GateApproval(input: FoodD1GateApproval | null | undefined, expectedBaseSha: string | undefined): boolean {
   return typeof expectedBaseSha === "string" && /^[a-f0-9]{40}$/i.test(expectedBaseSha) &&
     input?.status === "approved" &&
     typeof input.gateAReference === "string" && input.gateAReference.trim().length > 5 &&
@@ -110,19 +110,25 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
       let proof: FoodD1GateApproval | null = null;
       try { proof = await request.verifyGates?.() ?? null; }
       catch { /* Missing Gate A/rollout never permits V2. */ }
-      if (!approvalIsCurrent(proof, request.expectedAuditedBaseSha)) {
-        throw new Error("food-d1-independent-gates-not-approved");
+      if (!isCurrentFoodD1GateApproval(proof, request.expectedAuditedBaseSha)) {
+        // A concurrently winning legacy owner remains authoritative even if
+        // the V2 gate is revoked. Never create a new V2 owner without proof.
+        pin = await store.find(envelope.idempotencyKey, authenticatedUserId);
+        if (!pin) throw new Error("food-d1-independent-gates-not-approved");
+      } else {
+        approved = true;
       }
-      approved = true;
     }
-    const candidate: FoodD1PinnedRoute = {
-      operationKey: envelope.idempotencyKey,
-      ownerUserId: authenticatedUserId,
-      originEntrypoint: entrypoint,
-      resolver: enabled ? "v2" : "v1",
-      versions: { ...envelope.revisions },
-    };
-    pin = await store.findOrCreate(candidate);
+    if (!pin) {
+      const candidate: FoodD1PinnedRoute = {
+        operationKey: envelope.idempotencyKey,
+        ownerUserId: authenticatedUserId,
+        originEntrypoint: entrypoint,
+        resolver: enabled ? "v2" : "v1",
+        versions: { ...envelope.revisions },
+      };
+      pin = await store.findOrCreate(candidate);
+    }
   }
   assertPinnedIdentity(pin, envelope, entrypoint);
   if (pin.resolver === "v1") return request.runV1();
@@ -131,7 +137,7 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
     let proof: FoodD1GateApproval | null = null;
     try { proof = await request.verifyGates?.() ?? null; }
     catch { /* Revocation/failure always blocks the pinned V2 path. */ }
-    if (!approvalIsCurrent(proof, request.expectedAuditedBaseSha)) {
+    if (!isCurrentFoodD1GateApproval(proof, request.expectedAuditedBaseSha)) {
       throw new Error("food-d1-independent-gates-not-approved");
     }
   }

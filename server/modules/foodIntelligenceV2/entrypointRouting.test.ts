@@ -145,4 +145,33 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
     })).rejects.toThrow("independent-gates-not-approved");
     expect(state.pins.size).toBe(0);
   });
+
+  it("keeps an incumbent V1 owner when its binding wins while V2 approval is unavailable", async () => {
+    const state = store(), incumbent = scenario(state.backend);
+    await routeFoodD1Operation({ ...incumbent, enabled: false });
+    let reads = 0;
+    const request = scenario({
+      async find() {
+        reads++;
+        return reads === 1 ? null : state.pins.get("op-1") ?? null;
+      },
+      async findOrCreate() { throw new Error("no new route may be created"); },
+    });
+    const outcome = await routeFoodD1Operation({ ...request, enabled: true,
+      verifyGates: async () => null });
+    expect(outcome).toBe("v1");
+    expect(reads).toBe(2);
+    expect(request.runV1).toHaveBeenCalledTimes(1);
+    expect(request.runV2).not.toHaveBeenCalled();
+  });
+
+  it("refuses a new owner if the approval is revoked and no legacy pin exists", async () => {
+    const state = store(), request = scenario(state.backend);
+    await expect(routeFoodD1Operation({ ...request, enabled: true,
+      verifyGates: async () => null })).rejects.toThrow("independent-gates-not-approved");
+    expect(state.pins.size).toBe(0);
+    expect(request.runV1).not.toHaveBeenCalled();
+    expect(request.runV2).not.toHaveBeenCalled();
+  });
+
 });
