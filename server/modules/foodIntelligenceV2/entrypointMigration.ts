@@ -77,6 +77,14 @@ export type FoodD1Result = {
 export type FoodD1Dependencies = {
   lexicon: LinguisticLexiconStore;
   knowledge: FoodKnowledgeStore;
+  /** Source authorization belongs to the authenticated channel boundary. */
+  authorizeEvidence: (request: {
+    ownerUserId: number; entrypoint: FoodD1Entrypoint; evidence: FoodD1Evidence;
+  }) => Promise<boolean>;
+  /** A physical item ID must be owned by this user before any edit/label. */
+  authorizeExistingItem: (request: {
+    ownerUserId: number; mealItemId: string;
+  }) => Promise<boolean>;
 };
 
 /** A label and a clarification are bound to an existing item's structured state. */
@@ -164,6 +172,14 @@ export async function resolveFoodD1Entrypoint(
   request: FoodD1Request, deps: FoodD1Dependencies,
 ): Promise<FoodD1Result> {
   const envelope = validateEnvelope(request);
+  let sourceAuthorized = false;
+  try {
+    sourceAuthorized = await deps.authorizeEvidence({
+      ownerUserId: envelope.ownerUserId, entrypoint: request.entrypoint,
+      evidence: request.evidence,
+    });
+  } catch { /* A missing/broken authorization source is a hard stop. */ }
+  if (!sourceAuthorized) throw new Error("food-d1-evidence-not-authorized");
   const observations = await readObservations(request, envelope, deps.lexicon);
   if (!observations.length) throw new Error("food-d1-no-observations");
   const targetByObservation = new Map<string, FoodD1Target>();
@@ -174,6 +190,13 @@ export async function resolveFoodD1Entrypoint(
         usedMealItems.has(target.mealItemId)) {
       throw new Error("food-d1-ambiguous-item-target");
     }
+    let ownsTarget = false;
+    try {
+      ownsTarget = await deps.authorizeExistingItem({
+        ownerUserId: envelope.ownerUserId, mealItemId: target.mealItemId,
+      });
+    } catch { /* An inaccessible item must never be mutated. */ }
+    if (!ownsTarget) throw new Error("food-d1-item-not-authorized");
     targetByObservation.set(target.observationId, target);
     usedMealItems.add(target.mealItemId);
   }
@@ -221,15 +244,37 @@ export async function resolveFoodD1Entrypoint(
     const decision = await resolveFoodObservation(observation, {
       ...context, previousDecision: target?.previousDecision ?? undefined,
     }, deps.knowledge);
+    // OCR by itself is not a verified nutritional label. A label without
+    // independently sourced, verified nutrient facts cannot overwrite the
+    // physical item with old or fabricated macros. An identity mismatch also
+    // pauses the update rather than changing a different item silently.
+    const previousIdentity = target?.previousDecision?.identity;
+    const labelIdentityChanged = request.entrypoint === "nutrition_label" &&
+      previousIdentity !== undefined && (
+        previousIdentity.foodEntityId !== null &&
+        decision.identity.foodEntityId !== previousIdentity.foodEntityId ||
+        previousIdentity.variantId !== null &&
+        decision.identity.variantId !== previousIdentity.variantId
+      );
+    const labelSourceVerified = observation.evidence.some(evidence =>
+      evidence.field.startsWith("nutrition.") &&
+      evidence.origin === "nutrition_label" &&
+      evidence.verified && evidence.sourceId !== null);
+    const labelBlocked = request.entrypoint === "nutrition_label" &&
+      (labelIdentityChanged || !labelSourceVerified);
     const disposition: FoodD1ItemResult["disposition"] =
       decision.nextAction === "reject" ? "rejected" :
+      labelBlocked ? "deferred" :
       decision.status === "resolved" && decision.nutrition.consumed !== null
         ? "ready" : "deferred";
     items.push({
       observationId: observation.observationId,
       mealItemId: target?.mealItemId ?? null,
       decision, disposition,
-      reasonCodes: decision.reasonCodes,
+      reasonCodes: labelBlocked
+        ? [...decision.reasonCodes, labelIdentityChanged
+          ? "label_identity_mismatch" : "label_evidence_unverified"]
+        : decision.reasonCodes,
     });
   }
   return {
