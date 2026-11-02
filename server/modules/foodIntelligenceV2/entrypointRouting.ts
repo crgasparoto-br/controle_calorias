@@ -6,7 +6,7 @@
  * a process-local Map for production. Native V2 writes remain gated by #1335
  * and by a separate V2 consumer/persistence adapter.
  */
-import type { FoodOperationEnvelope } from "./schemas";
+import { parseFoodOperationEnvelope, type FoodOperationEnvelope } from "./schemas";
 import type { FoodD1Entrypoint } from "./entrypointMigration";
 
 export type FoodD1PinnedRoute = {
@@ -89,7 +89,10 @@ export type FoodD1RouteRequest<T> = {
  * becomes enabled later.
  */
 export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): Promise<T> {
-  const { envelope, authenticatedUserId, entrypoint, store } = request;
+  const { authenticatedUserId, entrypoint, store } = request;
+  const parsed = parseFoodOperationEnvelope(request.envelope);
+  if (!parsed.ok) throw new Error("invalid-food-d1-envelope:" + parsed.code);
+  const envelope = parsed.value;
   if (!Number.isSafeInteger(authenticatedUserId) || authenticatedUserId <= 0 ||
       envelope.ownerUserId !== authenticatedUserId ||
       !envelope.idempotencyKey?.trim()) {
