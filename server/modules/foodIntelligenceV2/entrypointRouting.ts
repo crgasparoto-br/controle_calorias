@@ -40,11 +40,13 @@ function enabledForRequest(override: boolean | undefined): boolean {
     ? override : isFoodD1CutoverRequested();
 }
 
-function approvalIsCurrent(input: FoodD1GateApproval | null | undefined): boolean {
-  return input?.status === "approved" &&
+function approvalIsCurrent(input: FoodD1GateApproval | null | undefined, expectedBaseSha: string | undefined): boolean {
+  return typeof expectedBaseSha === "string" && /^[a-f0-9]{40}$/i.test(expectedBaseSha) &&
+    input?.status === "approved" &&
     typeof input.gateAReference === "string" && input.gateAReference.trim().length > 5 &&
     typeof input.rolloutReference === "string" && input.rolloutReference.trim().length > 5 &&
-    typeof input.auditedBaseSha === "string" && /^[a-f0-9]{40}$/i.test(input.auditedBaseSha);
+    typeof input.auditedBaseSha === "string" &&
+    input.auditedBaseSha.toLowerCase() === expectedBaseSha.toLowerCase();
 }
 
 function assertPinnedIdentity(
@@ -79,6 +81,8 @@ export type FoodD1RouteRequest<T> = {
   runV2: () => Promise<T>;
   /** No production approval provider is registered until #1335 is certified. */
   verifyGates?: () => Promise<FoodD1GateApproval | null>;
+  /** Sealed server-side material SHA; never read it from an untrusted inbound. */
+  expectedAuditedBaseSha?: string;
   enabled?: boolean;
 };
 
@@ -106,7 +110,7 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
       let proof: FoodD1GateApproval | null = null;
       try { proof = await request.verifyGates?.() ?? null; }
       catch { /* Missing Gate A/rollout never permits V2. */ }
-      if (!approvalIsCurrent(proof)) {
+      if (!approvalIsCurrent(proof, request.expectedAuditedBaseSha)) {
         throw new Error("food-d1-independent-gates-not-approved");
       }
       approved = true;
@@ -127,7 +131,7 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
     let proof: FoodD1GateApproval | null = null;
     try { proof = await request.verifyGates?.() ?? null; }
     catch { /* Revocation/failure always blocks the pinned V2 path. */ }
-    if (!approvalIsCurrent(proof)) {
+    if (!approvalIsCurrent(proof, request.expectedAuditedBaseSha)) {
       throw new Error("food-d1-independent-gates-not-approved");
     }
   }
