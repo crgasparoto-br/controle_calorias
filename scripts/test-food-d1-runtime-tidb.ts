@@ -37,7 +37,7 @@ const userId = await insert(
   "INSERT INTO users (openId, name, email) VALUES ('ci-d1-user', 'D1 Synthetic', 'ci-d1@example.invalid')",
 );
 const foodId = await insert(
-  "INSERT INTO foods (owner_user_id, name, normalized_name, calories_kcal_per_100g, protein_grams_per_100g, carbs_grams_per_100g, fat_grams_per_100g) VALUES (?, 'CI D1 Food', 'ci d1 food', 270, 12, 3, 23)",
+  "INSERT INTO foods (owner_user_id, scope, name, normalized_name, calories_kcal_per_100g, protein_grams_per_100g, carbs_grams_per_100g, fat_grams_per_100g) VALUES (?, 'user', 'CI D1 Food', 'ci d1 food', 270, 12, 3, 23)",
   [userId],
 );
 const sourceId = await insert(
@@ -161,6 +161,29 @@ try {
     "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
     [userId, env.idempotencyKey]);
   assert.equal(Number(twoReceipts.c), 2);
+
+  // An initially eligible V2 result cannot cross a family ownership or
+  // lifecycle change that happens before the definitive write transaction.
+  const otherUser = await insert(
+    "INSERT INTO users (openId, name, email) VALUES ('ci-d1-foreign', 'Foreign Fixture', 'ci-d1-foreign@example.invalid')",
+  );
+  await sql.query("UPDATE foods SET owner_user_id=? WHERE id=?", [otherUser, foodId]);
+  const foreignEnv = makeEnvelope("ci-d1-stale-family-owner");
+  await assert.rejects(
+    commit(foreignEnv, "addition", prepare(foreignEnv, result("addition", "ci-d1-foreign-observation"))),
+    /family-ineligible/,
+    "changed food family ownership must not leak another user's identity");
+  await sql.query("UPDATE foods SET owner_user_id=? WHERE id=?", [userId, foodId]);
+  await sql.query("UPDATE foods SET status='deprecated' WHERE id=?", [foodId]);
+  const retiredEnv = makeEnvelope("ci-d1-stale-family-status");
+  await assert.rejects(
+    commit(retiredEnv, "addition", prepare(retiredEnv, result("addition", "ci-d1-retired-observation"))),
+    /family-ineligible/,
+    "retired food family must not be written from an old resolver decision");
+  await sql.query("UPDATE foods SET status='active' WHERE id=?", [foodId]);
+  const [unchangedFamilyWrites] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
+  assert.equal(Number(unchangedFamilyWrites.c), 1,
+    "family revocation must not leave a partial meal");
 
   const orphanEnv = makeEnvelope("ci-d1-continuation-without-original");
   const orphan = result("continuation", "ci-d1-orphan");

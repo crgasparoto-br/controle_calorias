@@ -2,8 +2,9 @@
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { foodD1OperationEffects, foodD1OperationRoutes, foodNutritionProfiles,
-  foodSourceReadGrants, foodVariants } from "../../../drizzle/food-intelligence-v2-schema";
-import { mealItems, meals } from "../../../drizzle/schema";
+  foodSourceReadGrants, foodVariants, foodVariantSources } from "../../../drizzle/food-intelligence-v2-schema";
+import { foods, mealItems, meals } from "../../../drizzle/schema";
+import { isGovernedFamilyVisible } from "./knowledgeEligibility";
 import { getDb } from "../../db";
 import { canReadFoodSource } from "./sourceGrants";
 import { isFoodD1CutoverRequested, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
@@ -222,7 +223,7 @@ export async function commitFoodD1NativeWrite(input: {
     // Before any new effect, recheck mutable eligibility and source grants.
     for (const item of newItems) {
       const [profile] = await tx.select().from(foodNutritionProfiles)
-        .where(eq(foodNutritionProfiles.id, item.profileId)).limit(1);
+        .where(eq(foodNutritionProfiles.id, item.profileId)).for("update").limit(1);
       if (!profile || profile.status !== "verified" ||
           profile.foodVariantId !== item.variantId ||
           profile.sourceId !== item.sourceId || !profile.sourceVersion ||
@@ -231,13 +232,28 @@ export async function commitFoodD1NativeWrite(input: {
         throw new Error("food-d1-native-profile-ineligible");
       }
       const [variant] = await tx.select().from(foodVariants)
-        .where(eq(foodVariants.id, item.variantId)).limit(1);
+        .where(eq(foodVariants.id, item.variantId)).for("update").limit(1);
       if (!variant || variant.foodId !== item.foodEntityId ||
           variant.status !== "active" || variant.governanceStatus !== "verified") {
         throw new Error("food-d1-native-variant-ineligible");
       }
+      const [family] = await tx.select({
+        status: foods.status, scope: foods.scope, ownerUserId: foods.ownerUserId,
+      }).from(foods).where(eq(foods.id, item.foodEntityId)).for("update").limit(1);
+      if (!family || family.status !== "active" ||
+          !isGovernedFamilyVisible(family.scope, family.ownerUserId, plan.ownerUserId)) {
+        throw new Error("food-d1-native-family-ineligible");
+      }
+      if (profile.foodVariantSourceId !== null) {
+        const [mapping] = await tx.select().from(foodVariantSources)
+          .where(eq(foodVariantSources.id, profile.foodVariantSourceId)).for("update").limit(1);
+        if (!mapping || mapping.status !== "active" ||
+            mapping.foodVariantId !== item.variantId || mapping.sourceId !== item.sourceId) {
+          throw new Error("food-d1-native-source-mapping-ineligible");
+        }
+      }
       const [grant] = await tx.select().from(foodSourceReadGrants)
-        .where(eq(foodSourceReadGrants.sourceId, item.sourceId)).limit(1);
+        .where(eq(foodSourceReadGrants.sourceId, item.sourceId)).for("update").limit(1);
       if (!canReadFoodSource(grant ?? null, profile.sourceVersion, now)) {
         throw new Error("food-d1-native-source-revoked-or-unlicensed");
       }
