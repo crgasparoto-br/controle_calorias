@@ -105,6 +105,26 @@ describe("meal item nutrition snapshots", () => {
     });
   });
 
+  it("A-029 keeps confirmed classification in the real nutrition snapshot without replacing macros", async () => {
+    vi.mocked(getGlobalFoodCatalogItem).mockResolvedValueOnce(catalogFood());
+    const classification = {
+      processingLevel: "processed" as const, isFruit: false,
+      isVegetable: false, fiberGrams: 1.2,
+    };
+    const [item] = await enrichMealItemsWithNutritionSnapshots(7, [
+      { ...baseItem, classification },
+    ]);
+    const snapshot = JSON.parse(item.foodSnapshotJson!);
+    expect(snapshot.classification).toEqual({ schemaVersion: 1, ...classification });
+    expect(snapshot.calculated.caloriesKcal).toBe(102.4);
+    expect(snapshot.nutritionSource.type).toBe("curated_catalog");
+    expect(item.calories).toBe(102.4);
+    // The catalog does not supply an implicit classification at save time.
+    vi.mocked(getGlobalFoodCatalogItem).mockResolvedValueOnce(catalogFood());
+    const [withoutClassification] = await enrichMealItemsWithNutritionSnapshots(7, [baseItem]);
+    expect(JSON.parse(withoutClassification.foodSnapshotJson!)).not.toHaveProperty("classification");
+  });
+
   it("marca item sem foodId como estimativa documentada para auditoria", async () => {
     const [item] = await enrichMealItemsWithNutritionSnapshots(7, [{
       ...baseItem,

@@ -679,6 +679,15 @@ export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
 export const createUserFood = foodsService.createUserFood;
 export const updateUserFood = foodsService.updateUserFood;
 const resolveFoodCatalogIds = foodsService.resolveFoodCatalogIds;
+
+// Edits need catalogue identity only. Hide draft classification from this
+// read-only preflight so the canonical resolver can neither manufacture an
+// auto-classified catalogue entry nor reject a valid, unclassified direct ID.
+// The original draft remains intact for locked persistence validation.
+function editCatalogCandidates(items: MealDraftItem[]): MealDraftItem[] {
+  return items.map(item => ({ ...item, classification: undefined }));
+}
+
 export type { FoodSearchItem, FoodUpsertInput } from "./modules/foods/catalog";
 
 function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
@@ -745,9 +754,13 @@ async function persistMealToDb(meal: SavedMeal) {
 
 async function updateMealInDb(meal: SavedMeal) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) return false;
 
-  const resolvedCatalogIds = meal.items.length ? await resolveFoodCatalogIds(meal.items, meal.userId) : new Map<string, number>();
+  // A failed replacement must not manufacture a catalog entry from the old
+  // item's nutrition before the locked repository validates its identity.
+  const resolvedCatalogIds = meal.items.length
+    ? await resolveFoodCatalogIds(editCatalogCandidates(meal.items), meal.userId)
+    : new Map<string, number>();
 
   await mealsRepository.persistMealUpdate({
     meal: {
@@ -761,6 +774,7 @@ async function updateMealInDb(meal: SavedMeal) {
     items: meal.items,
     resolvedCatalogIds,
   });
+  return true;
 }
 
 async function deleteMealFromDb(userId: number, mealId: number) {
@@ -1363,7 +1377,14 @@ export async function updateUserMeal(input: {
     items: input.items,
   };
 
-  await updateMealInDb(updatedMeal);
+  const persisted = await updateMealInDb(updatedMeal);
+  if (persisted) {
+    // Re-read authoritative calculated nutrition, not the old macros the V1
+    // edit payload carried. Public totals, cache and habit learning must agree.
+    const saved = (await loadMealsFromDb(input.userId))?.find(meal => meal.id === updatedMeal.id);
+    if (!saved) throw new Error("Refeição confirmada não encontrada após atualização.");
+    updatedMeal.items = saved.items;
+  }
   mealStore.set(
     input.userId,
     current.map(meal => (meal.id === input.mealId ? updatedMeal : meal)).sort((a, b) => b.occurredAt - a.occurredAt),
@@ -1403,7 +1424,8 @@ export async function updateUserMealItem(input: {
     });
   }
 
-  const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId);
+  const resolvedCatalogIds = await resolveFoodCatalogIds(
+    editCatalogCandidates([input.updatedItem]), input.userId);
   await mealsRepository.updateMealItem({
     userId: input.userId,
     meal: input.sourceMeal,
@@ -1421,6 +1443,9 @@ export async function updateUserMealItem(input: {
     items: input.sourceMeal.items.map((item, index) => index === input.itemIndex ? input.updatedItem : item),
   };
   const current = await listUserMeals(input.userId);
+  const savedItemMeal = current.find(meal => meal.id === updatedMeal.id);
+  if (!savedItemMeal) throw new Error("Refeição confirmada não encontrada após atualização.");
+  updatedMeal.items = savedItemMeal.items;
   mealStore.set(
     input.userId,
     current.map(meal => meal.id === updatedMeal.id ? updatedMeal : meal).sort((a, b) => b.occurredAt - a.occurredAt),
@@ -1469,7 +1494,8 @@ export async function moveUserMealItem(input: {
     }
   }
 
-  const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId);
+  const resolvedCatalogIds = await resolveFoodCatalogIds(
+    editCatalogCandidates([input.updatedItem]), input.userId);
   const targetOccurredAt = new Date(input.occurredAt).getTime();
   const result = await mealsRepository.moveMealItem({
     userId: input.userId,

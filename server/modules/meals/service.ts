@@ -43,7 +43,6 @@ import { decorateMealWithImageUrl } from "./mealImageAssociations";
 import { dedupeMealItemsByProductIdentity } from "./mealItemDeduplication";
 import {
   enrichMealItemsWithNutritionSnapshots,
-  persistMealItemNutritionSnapshots,
   recordMealItemsCatalogUsage,
   type MealItemWithNutritionSnapshot,
 } from "./nutritionSnapshot";
@@ -284,7 +283,6 @@ export async function createManualMeal(userId: number, input: ManualMealInput) {
   const items = await prepareMealItemsForSave(userId, input.items);
   await ensureCurrentIrreversibleEffectAllowed();
   const meal = decorateMealWithImageUrl(await createUserManualMeal({ userId, ...input, items }));
-  await persistMealItemNutritionSnapshots(meal.id, items);
   return meal;
 }
 
@@ -321,7 +319,6 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
     updateHabits: options.updateHabits !== false,
     logEvent: options.logEvent !== false,
   }));
-  await persistMealItemNutritionSnapshots(meal.id, items);
 
   if (options.finalizeBatch) {
     if (options.finalizeBatch.recordCatalogUsage !== false) {
@@ -429,7 +426,6 @@ export async function updateMealWithHouseholdMeasureLearning(
     expectedOriginalItem: learning.expectedOriginalItem,
     learning: learning.relation,
   }));
-  await persistMealItemNutritionSnapshots(meal.id, items);
   return meal;
 }
 
@@ -557,6 +553,5 @@ export async function confirmMeal(userId: number, input: ConfirmMealInput) {
     notes: input.notes,
     items,
   }));
-  await persistMealItemNutritionSnapshots(meal.id, items);
   return meal;
 }

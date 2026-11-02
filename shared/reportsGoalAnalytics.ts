@@ -81,6 +81,8 @@ export type FoodQualityUnclassifiedReason = "missing_catalog_id" | "catalog_id_n
 
 export type FoodQualityItem = {
   calories: number;
+  /** Persisted variant/identity reference, never re-resolved from today's catalog. */
+  historicalRef?: string | null;
   foodCatalogId?: number | null;
   foodName?: string | null;
   canonicalName?: string | null;
@@ -221,6 +223,11 @@ function normalizeDiagnosticKey(value: string) {
 }
 
 function buildDiagnosticKey(item: FoodQualityItem) {
+  // Gate 19: an explicit immutable identity cannot be silently merged with
+  // a different historical variant just because the displayed names match.
+  if (item.historicalRef && /^[a-z0-9_-]+:[a-z0-9_.-]+$/i.test(item.historicalRef)) {
+    return "snapshot:" + item.historicalRef.toLowerCase();
+  }
   return normalizeDiagnosticKey(item.canonicalName ?? item.foodName ?? item.portionText ?? "") || "alimento sem identificacao";
 }
 

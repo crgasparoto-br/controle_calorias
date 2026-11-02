@@ -61,6 +61,29 @@ describe("embedded NOVA classification persistence pipeline", () => {
     }));
   });
 
+  it("A-037 does not write catalog entries while preparing an unverified edit", async () => {
+    const insert = vi.fn(async () => 501);
+    const service = createFoodsService({
+      foodCatalogRepository: createRepository(insert),
+      findMealItemsWithDates: async () => [],
+      getUserMealsMemory: () => [],
+      getDb: async () => ({}),
+      onWarning: vi.fn(),
+    });
+    const staleDraft = buildEstimatedNutritionFallbackItem({
+      foodName: "Iogurte substituto sem nutricao confirmada",
+      brand: "Marca B", quantity: 100, unit: "g", portionText: "100 g",
+      servings: 1, estimatedGrams: 100, estimatedCalories: 80,
+      estimatedMacros: { protein: 7, carbs: 9, fat: 4 }, confidence: 0.81,
+      foodClassification: { processingLevel: "processed", isFruit: false,
+        isVegetable: false, fiberGrams: 1 },
+    });
+    const resolved = await service.resolveFoodCatalogIds(
+      [{ ...staleDraft, classification: undefined }], 77);
+    expect(resolved).toEqual(new Map());
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it("does not create an auto-classified catalog entry without classification", async () => {
     const insert = vi.fn(async () => 501);
     const service = createFoodsService({
@@ -210,6 +233,20 @@ describe("embedded NOVA classification persistence pipeline", () => {
 
     expect(resolved.get("catalog:41")).toBeUndefined();
     expect(resolved.get(draftItem.canonicalName)).toBe(503);
+    expect(insert).toHaveBeenCalledTimes(1);
+
+    // A-037: edit-only candidates hide classification for catalogue lookup,
+    // without mutating the original confirmed draft or creating catalogue rows.
+    const editCandidate = { ...draftItem, classification: undefined };
+    const editResolved = await service.resolveFoodCatalogIds([editCandidate], 77);
+    expect(editResolved.get("catalog:41")).toBe(41);
+    expect(editResolved.get(draftItem.canonicalName)).toBe(41);
+    expect(draftItem.classification).toBeDefined();
+    expect(insert).toHaveBeenCalledTimes(1);
+
+    const invalidDirect = await service.resolveFoodCatalogIds(
+      [{ ...editCandidate, foodCatalogId: 999 }], 77);
+    expect(invalidDirect.has("catalog:999")).toBe(false);
     expect(insert).toHaveBeenCalledTimes(1);
   });
 });

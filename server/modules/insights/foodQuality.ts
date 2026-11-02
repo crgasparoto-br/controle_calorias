@@ -22,6 +22,14 @@ export type FoodLookup = {
 
 export type MealFoodQualityItem = {
   foodCatalogId?: number | null;
+  historicalRef?: string | null;
+  /** Classification copied from the item at confirmation; never looked up again. */
+  classification?: {
+    processingLevel: FoodProcessingLevel;
+    isFruit: boolean;
+    isVegetable: boolean;
+    fiberGrams: number;
+  } | null;
   foodName: string;
   canonicalName: string;
   portionText: string;
@@ -157,7 +165,7 @@ function getUnclassifiedReason(item: MealFoodQualityItem, hasLookup: boolean): F
   return "missing_catalog_id";
 }
 
-function buildUnclassifiedFoodQualityItem(
+function buildUnknownQualityItem(
   item: MealFoodQualityItem,
   calories: number,
   reason: FoodQualityUnclassifiedReason,
@@ -165,6 +173,7 @@ function buildUnclassifiedFoodQualityItem(
   return {
     calories,
     foodCatalogId: item.foodCatalogId ?? null,
+    ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
     foodName: item.foodName,
     canonicalName: item.canonicalName,
     portionText: item.portionText,
@@ -185,6 +194,7 @@ export function calculateQualityIndicators(
   meals: MealForFoodQuality[],
   waterMl: number,
   foodLookup?: FoodLookup,
+  readMode: "current_catalog" | "historical_snapshot" = "current_catalog",
 ) {
   if (!meals.length) {
     return {
@@ -206,19 +216,44 @@ export function calculateQualityIndicators(
         const itemCalories = Number(item.calories || 0);
         acc.proteinGrams += Number(item.protein || 0);
 
+        if (readMode === "historical_snapshot") {
+          // §8.14/Gate 19: the snapshot is the only authority for past
+          // classifications. A missing snapshot stays unknown, even if the
+          // current catalog has a plausible name or a different category.
+          const saved = item.classification;
+          if (!saved || saved.processingLevel === "unknown") {
+            acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, "unknown"));
+            continue;
+          }
+          const servings = Number.isFinite(item.servings) && item.servings > 0 ? item.servings : 0;
+          if (Number.isFinite(saved.fiberGrams) && saved.fiberGrams >= 0) acc.fiberGrams += saved.fiberGrams;
+          if (saved.isFruit) acc.fruitServings += servings;
+          if (saved.isVegetable) acc.vegetableServings += servings;
+          if (saved.processingLevel === "ultra_processed") acc.ultraProcessedServings += servings;
+          acc.foodQualityItems.push({
+            calories: itemCalories, foodCatalogId: item.foodCatalogId ?? null,
+            ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
+            foodName: item.foodName, canonicalName: item.canonicalName,
+            portionText: item.portionText, processingLevel: saved.processingLevel,
+            isClassified: true, isFruit: saved.isFruit, isVegetable: saved.isVegetable,
+            isUltraProcessed: saved.processingLevel === "ultra_processed",
+          });
+          continue;
+        }
+
         if (!foodLookup) {
-          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, "unknown"));
+          acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, "unknown"));
           continue;
         }
 
         const food = resolveFoodLookupEntry(foodLookup, item);
         if (!food) {
-          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, getUnclassifiedReason(item, true)));
+          acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, getUnclassifiedReason(item, true)));
           continue;
         }
 
         if (!food.isClassified) {
-          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, "unknown"));
+          acc.foodQualityItems.push(buildUnknownQualityItem(item, itemCalories, "unknown"));
           continue;
         }
 
@@ -231,6 +266,7 @@ export function calculateQualityIndicators(
         acc.foodQualityItems.push({
           calories: itemCalories,
           foodCatalogId: item.foodCatalogId ?? null,
+          ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
           foodName: item.foodName,
           canonicalName: item.canonicalName,
           portionText: item.portionText,
@@ -270,4 +306,9 @@ export function calculateQualityIndicators(
     regularityScore: quality.regularityScore,
     foodQualityItems: quality.foodQualityItems,
   };
+}
+
+/** Read-only historical mode for the C4 shadow reader; current catalog is not consulted. */
+export function calculateHistoricalQualityIndicators(meals: MealForFoodQuality[], waterMl: number) {
+  return calculateQualityIndicators(meals, waterMl, undefined, "historical_snapshot");
 }

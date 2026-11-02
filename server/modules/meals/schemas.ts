@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { nutritionSourceSchema } from "./nutritionSourceSelection";
+import { confirmedMealClassificationSchema } from "./classificationSnapshot";
 
 export const mealLabelSchema = z.string().trim().min(1).max(80);
 
@@ -91,6 +92,8 @@ const mealItemBaseSchema = z.object({
   source: z.enum(["catalog", "hybrid", "heuristic"]),
   sourceMediaStorageKey: z.string().trim().min(1).max(255).optional(),
   resolution: mealItemResolutionSchema.optional(),
+  /** Classification actually supplied with this confirmed V1 item; never re-inferred. */
+  classification: confirmedMealClassificationSchema.nullable().optional(),
   nutritionSource: nutritionSourceSchema.optional(),
 });
 

@@ -124,6 +124,8 @@ export type MealItemResolutionMetadata = {
 };
 
 export type MealDraftItem = {
+  /** Immutable reference from the confirmed item's persisted snapshot (shadow reads). */
+  historicalRef?: string | null;
   foodId?: number;
   foodCatalogId?: number | null;
   portionId?: number;

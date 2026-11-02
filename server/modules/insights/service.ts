@@ -15,7 +15,7 @@ import { buildWeeklyNutritionStatus } from "../../../shared/safeMessages";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, getWeekDateKeys, listCalendarDateKeys } from "../../../shared/timeZone";
 import { calculateAdjustedGoalCalories, calculateCalorieAdherence, calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
 import { getNutritionGoalForDate } from "../goals/service";
-import { calculateQualityIndicators, createFoodLookup } from "./foodQuality";
+import { calculateHistoricalQualityIndicators, calculateQualityIndicators, createFoodLookup } from "./foodQuality";
 import {
   listReportExercisesByDateRange,
   listReportMealsByDateRange,
@@ -241,6 +241,18 @@ function addFoodLookupName(names: Set<string>, value: string | null | undefined)
   if (normalized) {
     names.add(normalized);
   }
+}
+
+/**
+ * Shadow reader for ADR §8.14: only persisted item fields and classification
+ * snapshots may feed historical aggregates. No getFoodsByIds/searchFoods call.
+ * The existing V1 lookup below is deliberately left unchanged until cutover.
+ */
+export function buildHistoricalFoodQualityForShadow(
+  meals: Parameters<typeof calculateQualityIndicators>[0],
+  waterMl: number,
+) {
+  return calculateHistoricalQualityIndicators(meals, waterMl);
 }
 
 function collectFoodQualityLookupNames(mealsByDay: ReportRangeData["mealsByDay"]) {

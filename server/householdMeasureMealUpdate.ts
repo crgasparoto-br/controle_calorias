@@ -34,6 +34,25 @@ function preserveResolvedCatalogIds(items: MealDraftItem[]) {
   return ids;
 }
 
+/**
+ * C4 shadow-only historical projection. Never maps by names, queries a
+ * catalog, rewrites a confirmed item, or recalculates macros. This is separate
+ * from the unchanged V1 household-measure update behavior below.
+ */
+export function projectHistoricalHouseholdItemsForShadow(items: readonly MealDraftItem[]) {
+  return items.map(item => Object.freeze({
+    historicalRef: item.historicalRef ??
+      (item.foodCatalogId ? "catalog:" + item.foodCatalogId : null),
+    foodCatalogId: item.foodCatalogId ?? null,
+    estimatedGrams: item.estimatedGrams,
+    calories: item.calories,
+    protein: item.protein,
+    carbs: item.carbs,
+    fat: item.fat,
+    classification: item.classification ? Object.freeze({ ...item.classification }) : null,
+  }));
+}
+
 export async function updateMealAndHouseholdMeasureLearning(input: {
   userId: number;
   mealId: number;
