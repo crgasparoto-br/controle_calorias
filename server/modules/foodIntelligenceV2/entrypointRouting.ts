@@ -33,10 +33,10 @@ export function hashFoodD1OperationScope(
   })).digest("hex");
 }
 
-/** findOrCreate must be atomic across instances and return the winning row. */
+/** bindPinnedRoute must be atomic across instances and return the winning row. */
 export type FoodD1RouteStore = {
-  find(operationKey: string, ownerUserId: number): Promise<FoodD1PinnedRoute | null>;
-  findOrCreate(candidate: FoodD1PinnedRoute): Promise<FoodD1PinnedRoute>;
+  readPinnedRoute(operationKey: string, ownerUserId: number): Promise<FoodD1PinnedRoute | null>;
+  bindPinnedRoute(candidate: FoodD1PinnedRoute): Promise<FoodD1PinnedRoute>;
 };
 
 export type FoodD1GateApproval = {
@@ -124,7 +124,7 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
     throw new Error("food-d1-owner-mismatch");
   }
   const enabled = enabledForRequest(request.enabled);
-  let pin = await store.find(envelope.idempotencyKey, authenticatedUserId);
+  let pin = await store.readPinnedRoute(envelope.idempotencyKey, authenticatedUserId);
   let approved = false;
   if (!pin) {
     if (enabled) {
@@ -134,7 +134,7 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
       if (!isCurrentFoodD1GateApproval(proof, request.expectedAuditedBaseSha)) {
         // A concurrently winning legacy owner remains authoritative even if
         // the V2 gate is revoked. Never create a new V2 owner without proof.
-        pin = await store.find(envelope.idempotencyKey, authenticatedUserId);
+        pin = await store.readPinnedRoute(envelope.idempotencyKey, authenticatedUserId);
         if (!pin) throw new Error("food-d1-independent-gates-not-approved");
       } else {
         approved = true;
@@ -149,7 +149,7 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
         operationScopeHash: hashFoodD1OperationScope(envelope, request.source),
         versions: { ...envelope.revisions },
       };
-      pin = await store.findOrCreate(candidate);
+      pin = await store.bindPinnedRoute(candidate);
     }
   }
   assertPinnedIdentity(pin, envelope, entrypoint, request.source);

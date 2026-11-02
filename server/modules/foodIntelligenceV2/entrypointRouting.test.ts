@@ -18,8 +18,8 @@ const approval: FoodD1GateApproval = {
 function store() {
   const pins = new Map<string, FoodD1PinnedRoute>();
   const backend: FoodD1RouteStore = {
-    async find(operationKey) { return pins.get(operationKey) ?? null; },
-    async findOrCreate(candidate) {
+    async readPinnedRoute(operationKey) { return pins.get(operationKey) ?? null; },
+    async bindPinnedRoute(candidate) {
       const winner = pins.get(candidate.operationKey);
       if (winner) return winner;
       const stored = { ...candidate, versions: { ...candidate.versions } };
@@ -56,8 +56,8 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
     const exported = structuredClone([...state.pins.entries()]);
     const restored = new Map<string, FoodD1PinnedRoute>(exported);
     const afterRestart: FoodD1RouteStore = {
-      async find(key) { return restored.get(key) ?? null; },
-      async findOrCreate(candidate) {
+      async readPinnedRoute(key) { return restored.get(key) ?? null; },
+      async bindPinnedRoute(candidate) {
         if (!restored.has(candidate.operationKey)) restored.set(candidate.operationKey, candidate);
         return restored.get(candidate.operationKey)!;
       },
@@ -138,8 +138,8 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
   it("uses the atomically winning V1 owner when V1 and V2 compete to create the same key", async () => {
     const state = store();
     const request = scenario({
-      async find() { return null; },
-      async findOrCreate(candidate) {
+      async readPinnedRoute() { return null; },
+      async bindPinnedRoute(candidate) {
         const winner: FoodD1PinnedRoute = { ...candidate, resolver: "v1" };
         state.pins.set(candidate.operationKey, winner);
         return winner;
@@ -173,11 +173,11 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
     await routeFoodD1Operation({ ...incumbent, enabled: false });
     let reads = 0;
     const request = scenario({
-      async find() {
+      async readPinnedRoute() {
         reads++;
         return reads === 1 ? null : state.pins.get("op-1") ?? null;
       },
-      async findOrCreate() { throw new Error("no new route may be created"); },
+      async bindPinnedRoute() { throw new Error("no new route may be created"); },
     });
     const outcome = await routeFoodD1Operation({ ...request, enabled: true,
       verifyGates: async () => null });

@@ -168,7 +168,7 @@ async function readObservations(
  * Reuse the same LCL and resolver for all nine entrypoint classes.
  * No V1 result is fed back as observation and no meal is saved here.
  */
-export async function resolveFoodD1Entrypoint(
+export async function buildD1OperationPlan(
   request: FoodD1Request, deps: FoodD1Dependencies,
 ): Promise<FoodD1Result> {
   const envelope = validateEnvelope(request);

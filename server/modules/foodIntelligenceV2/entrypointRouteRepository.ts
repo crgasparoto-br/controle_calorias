@@ -51,7 +51,7 @@ function assertCandidate(candidate: FoodD1PinnedRoute): void {
 
 export function createFoodD1RouteDbStore(): FoodD1RouteStore {
   return {
-    async find(operationKey, ownerUserId) {
+    async readPinnedRoute(operationKey, ownerUserId) {
       if (!operationKey || !Number.isSafeInteger(ownerUserId) || ownerUserId <= 0) {
         throw new Error("food-d1-invalid-route-lookup");
       }
@@ -62,7 +62,7 @@ export function createFoodD1RouteDbStore(): FoodD1RouteStore {
           eq(foodD1OperationRoutes.operationKey, operationKey))).limit(1);
       return rows.length ? decodeRoute(rows[0]) : null;
     },
-    async findOrCreate(candidate) {
+    async bindPinnedRoute(candidate) {
       assertCandidate(candidate);
       const db = await getDb();
       if (!db || typeof db.transaction !== "function") {

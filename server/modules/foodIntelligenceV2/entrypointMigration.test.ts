@@ -4,7 +4,7 @@ import {
   buildFoodResolutionDecisionFixture,
 } from "./fixtures";
 import {
-  resolveFoodD1Entrypoint, type FoodD1Dependencies, type FoodD1Request,
+  buildD1OperationPlan, type FoodD1Dependencies, type FoodD1Request,
 } from "./entrypointMigration";
 import type { FoodKnowledgeLocalResult, FoodKnowledgeStore, GovernedFoodMatch } from "./knowledgeRead";
 import type { FoodOperationEnvelope, FoodObservation } from "./schemas";
@@ -69,9 +69,9 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
   it("uses the same governed identity, quantity and nutrition for equivalent text, transcript and OCR evidence", async () => {
     const connections = deps();
     const outputs = await Promise.all([
-      resolveFoodD1Entrypoint(surface("text", "text", "source:text"), connections),
-      resolveFoodD1Entrypoint(surface("audio_transcript", "audio_transcript", "source:audio"), connections),
-      resolveFoodD1Entrypoint(surface("packaging", "image", "source:ocr", "front_identity"), connections),
+      buildD1OperationPlan(surface("text", "text", "source:text"), connections),
+      buildD1OperationPlan(surface("audio_transcript", "audio_transcript", "source:audio"), connections),
+      buildD1OperationPlan(surface("packaging", "image", "source:ocr", "front_identity"), connections),
     ]);
     expect(outputs.every(out => out.items.length === 1)).toBe(true);
     const decisions = outputs.map(out => out.items[0].decision);
@@ -96,7 +96,7 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
       identityHints: { foodName: "item não encontrado" },
       evidence: [{ value: "item não encontrado" }, {}],
     });
-    const output = await resolveFoodD1Entrypoint({
+    const output = await buildD1OperationPlan({
       authenticatedUserId: 7, entrypoint: "addition", envelope: envelope(),
       evidence: { kind: "structured", observations: [known, missing] },
       now: new Date("2026-11-01T12:00:00Z"),
@@ -115,7 +115,7 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
     const previous = buildFoodResolutionDecisionFixture({
       ownerUserId: 7, traceId: "trace-1", observationIds: ["obs-1"],
     });
-    const output = await resolveFoodD1Entrypoint({
+    const output = await buildD1OperationPlan({
       authenticatedUserId: 7, entrypoint: "continuation", envelope: envelope(),
       evidence: { kind: "structured", observations: [buildFoodObservationFixture()] },
       targets: [{
@@ -139,16 +139,16 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
       targets: [{ observationId: "obs-1", mealItemId: null, previousDecision: previous }],
     };
     const authorized = deps();
-    const result = await resolveFoodD1Entrypoint(request, authorized);
+    const result = await buildD1OperationPlan(request, authorized);
     expect(result.items).toHaveLength(1);
     expect(result.items[0].mealItemId).toBeNull();
     expect(result.items[0].decision.revision).toBeGreaterThan(previous.revision);
     expect(authorized.authorizeExistingItem).not.toHaveBeenCalled();
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan({
       ...request,
       targets: [{ observationId: "obs-1", mealItemId: null, previousDecision: null }],
     }, deps())).rejects.toThrow("previous-structured-decision-required");
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan({
       ...request, entrypoint: "nutrition_label",
     }, deps())).rejects.toThrow("ambiguous-item-target");
   });
@@ -157,7 +157,7 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
     const previous = buildFoodResolutionDecisionFixture({
       ownerUserId: 8, traceId: "trace-1", observationIds: ["obs-1"],
     });
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan({
       ...surface("nutrition_label", "image", "source:label", "front_identity"),
       targets: [{ observationId: "obs-1", mealItemId: "item-100", previousDecision: previous }],
     }, deps())).rejects.toThrow("continuation-requires-structured-evidence");
@@ -167,11 +167,11 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
       evidence: { kind: "structured", observations: [buildFoodObservationFixture()] },
       targets: [{ observationId: "obs-1", mealItemId: "item-100", previousDecision: previous }],
     };
-    await expect(resolveFoodD1Entrypoint(partial, deps())).rejects.toThrow("previous-decision-scope-mismatch");
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan(partial, deps())).rejects.toThrow("previous-decision-scope-mismatch");
+    await expect(buildD1OperationPlan({
       ...partial, targets: [],
     }, deps())).rejects.toThrow("existing-item-target-required");
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan({
       ...partial, targets: [
         { observationId: "obs-1", mealItemId: "item-100", previousDecision: null },
       ],
@@ -179,7 +179,7 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
   });
 
   it("fails closed on ungrounded images, duplicated targets, untrusted owner and version drift", async () => {
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan({
       ...surface("plate_image", "image", "source:unverified"),
     }, deps())).rejects.toThrow("image-requires-authorised-ocr-role");
 
@@ -195,11 +195,11 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
         { observationId: "obs-2", mealItemId: "same-row", previousDecision: null },
       ],
     };
-    await expect(resolveFoodD1Entrypoint(invalid, deps())).rejects.toThrow("ambiguous-item-target");
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan(invalid, deps())).rejects.toThrow("ambiguous-item-target");
+    await expect(buildD1OperationPlan({
       ...surface("text", "text", "source:text"), authenticatedUserId: 8,
     }, deps())).rejects.toThrow("owner-mismatch");
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan({
       ...invalid, entrypoint: "addition", targets: [],
       evidence: { kind: "structured",
         observations: [buildFoodObservationFixture({lexiconRevision:"older-revision"})] },
@@ -209,14 +209,14 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
   it("denies untrusted media/structured evidence and physical items before the resolver runs", async () => {
     const untrusted = deps();
     untrusted.authorizeEvidence = vi.fn(async () => false);
-    await expect(resolveFoodD1Entrypoint(
+    await expect(buildD1OperationPlan(
       surface("packaging", "image", "media:untrusted", "front_identity"), untrusted,
     )).rejects.toThrow("evidence-not-authorized");
     expect(untrusted.knowledge.readLocal).not.toHaveBeenCalled();
 
     const foreignTarget = deps();
     foreignTarget.authorizeExistingItem = vi.fn(async () => false);
-    await expect(resolveFoodD1Entrypoint({
+    await expect(buildD1OperationPlan({
       authenticatedUserId: 7, entrypoint: "edit", envelope: envelope(),
       evidence: { kind: "structured", observations: [buildFoodObservationFixture()] },
       targets: [{ observationId: "obs-1", mealItemId: "other-owner-row", previousDecision: null }],
@@ -228,7 +228,7 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
     const previous = buildFoodResolutionDecisionFixture({
       ownerUserId: 7, traceId: "trace-1", observationIds: ["obs-1"],
     });
-    const result = await resolveFoodD1Entrypoint({
+    const result = await buildD1OperationPlan({
       authenticatedUserId: 7, entrypoint: "nutrition_label", envelope: envelope(),
       evidence: { kind: "structured", observations: [buildFoodObservationFixture()] },
       targets: [{ observationId: "obs-1", mealItemId: "same-existing-item", previousDecision: previous }],
@@ -240,7 +240,7 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
   });
 
   it("replay delegates to the same V2 resolver without a separate nutrition engine", async () => {
-    const output = await resolveFoodD1Entrypoint(surface("simulator", "text", "replay:1"), deps());
+    const output = await buildD1OperationPlan(surface("simulator", "text", "replay:1"), deps());
     expect(output.entrypoint).toBe("simulator");
     expect(output.items).toHaveLength(1);
     expect(output.committed).toBe(false);

@@ -1,5 +1,5 @@
 /** #1308: a single D1 route for all authorized modalities (inactive until Gate A). */
-import { resolveFoodD1Entrypoint, type FoodD1Result, type FoodD1Dependencies,
+import { buildD1OperationPlan, type FoodD1Result, type FoodD1Dependencies,
   type FoodD1Request } from "./entrypointMigration";
 import { routeFoodD1Operation, isFoodD1CutoverRequested, isCurrentFoodD1GateApproval,
   type FoodD1GateApproval } from "./entrypointRouting";
@@ -35,7 +35,7 @@ export async function runFoodD1Migration<T>(input: {
     if (!isCurrentFoodD1GateApproval(approval, input.expectedAuditedBaseSha)) {
       throw new Error("food-d1-independent-gates-not-approved");
     }
-    return resolveFoodD1Entrypoint(input.request, {
+    return buildD1OperationPlan(input.request, {
       ...input.dependencies,
       knowledge: readOnlyFoodKnowledge(input.dependencies.knowledge),
     });
@@ -51,7 +51,7 @@ export async function runFoodD1Migration<T>(input: {
     verifyGates: input.verifyGates,
     runV1: input.legacy,
     runV2: async () => {
-      const result = await resolveFoodD1Entrypoint(input.request, input.dependencies);
+      const result = await buildD1OperationPlan(input.request, input.dependencies);
       const plan = prepareFoodD1NativeWrite({
         envelope: input.request.envelope, result,
         authenticatedUserId: input.request.authenticatedUserId,
