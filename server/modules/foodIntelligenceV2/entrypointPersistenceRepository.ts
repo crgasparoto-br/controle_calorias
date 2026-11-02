@@ -119,6 +119,7 @@ export async function commitFoodD1NativeWrite(input: {
     // physical targets and must never create a new meal on continuation.
     if (plan.entrypoint === "continuation" &&
         plan.items.some(item => item.targetItemId === null) &&
+        previousManifest !== undefined &&
         !["text", "audio_transcript", "addition", "plate_image", "packaging"]
           .includes(pins[0].originEntrypoint)) {
       throw new Error("food-d1-native-deferred-sibling-origin-not-addition");
