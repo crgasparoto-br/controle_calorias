@@ -1076,7 +1076,8 @@ function isStructuralInputRegex(target: ts.Expression, node: ts.Node): boolean {
   const literal = resolveLiteralRegexPattern(target, node);
   return literal !== null && [
     String.raw`/[\u0300-\u036f]/g`, String.raw`/\s+/g`,
-    String.raw`/^[0-9a-f]{40}$/i`,
+    String.raw`/^[0-9a-f]{40}$/i`, String.raw`/^[a-f0-9]{40}$/i`,
+    String.raw`/^[a-f0-9]{64}$/`, String.raw`/^[1-9]\\d*$/`,
     String.raw`/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i`,
   ].includes(literal);
 }
@@ -1536,6 +1537,92 @@ function iteratedLexicalDecision(call: ts.CallExpression, source: ts.SourceFile)
   return result;
 }
 
+/**
+ * D1 entrypoints form a versioned *operation* discriminator, not a vocabulary
+ * of food names or commercial attributes. Only the exact nine protocol states
+ * have structural meaning. An extra value (including a food alias) remains
+ * detectable by the ordinary lexical gates.
+ */
+const D1_OPERATION_ENTRYPOINTS = new Set([
+  "text", "audio_transcript", "addition", "edit", "plate_image", "packaging",
+  "nutrition_label", "continuation", "simulator",
+]);
+function isStructuralD1EntrypointTable(node: ts.VariableDeclaration): boolean {
+  if (!ts.isIdentifier(node.name) || node.name.text !== "FOOD_D1_ENTRYPOINTS" ||
+      !node.initializer) return false;
+  const values = unwrap(node.initializer);
+  if (!ts.isArrayLiteralExpression(values) ||
+      values.elements.length !== D1_OPERATION_ENTRYPOINTS.size) return false;
+  const names = values.elements.map(element => {
+    const item = unwrap(element);
+    return ts.isStringLiteral(item) ? item.text : null;
+  });
+  return names.every(name => name !== null && D1_OPERATION_ENTRYPOINTS.has(name)) &&
+    new Set(names).size === D1_OPERATION_ENTRYPOINTS.size;
+}
+
+function isStructuralD1EntrypointMembership(
+  argument: ts.Expression, words: readonly string[],
+): boolean {
+  const field = unwrap(argument);
+  return ts.isPropertyAccessExpression(field) &&
+    (field.name.text === "entrypoint" || field.name.text === "originEntrypoint") &&
+    words.length > 0 && words.every(word => D1_OPERATION_ENTRYPOINTS.has(word));
+}
+
+/**
+ * A native FoodObservation from the D1 parser is not a decision serialized
+ * back to text. Keep the round-trip gate active for untrusted, V1, or textual
+ * arguments, even when they call a function with the canonical resolver name.
+ */
+function isCanonicalD1StructuredObservationCall(
+  node: ts.CallExpression, source: ts.SourceFile,
+): boolean {
+  if (!/(?:^|\/)server\/modules\/foodIntelligenceV2\/entrypointMigration\.ts$/.test(
+      source.fileName.replace(/\\/g, "/")) ||
+      !ts.isIdentifier(node.expression) ||
+      node.expression.text !== "resolveFoodObservation" ||
+      node.arguments.length !== 3) return false;
+  const importsCanonicalResolver = source.statements.some(statement =>
+    ts.isImportDeclaration(statement) &&
+    ts.isStringLiteral(statement.moduleSpecifier) &&
+    statement.moduleSpecifier.text === "./resolver" &&
+    !!statement.importClause?.namedBindings &&
+    ts.isNamedImports(statement.importClause.namedBindings) &&
+    statement.importClause.namedBindings.elements.some(element =>
+      !element.isTypeOnly && element.name.text === "resolveFoodObservation" &&
+      (!element.propertyName || element.propertyName.text === element.name.text)));
+  if (!importsCanonicalResolver) return false;
+  const observation = unwrap(node.arguments[0]);
+  if (!ts.isIdentifier(observation)) return false;
+  let loop: ts.ForOfStatement | null = null;
+  for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
+    if (ts.isForOfStatement(parent)) { loop = parent; break; }
+    if (ts.isFunctionLike(parent)) break;
+  }
+  if (!loop || !ts.isVariableDeclarationList(loop.initializer) ||
+      !ts.isIdentifier(loop.expression) || loop.expression.text !== "observations" ||
+      !loop.initializer.declarations.some(item =>
+        ts.isIdentifier(item.name) && item.name.text === observation.text)) return false;
+  let body: ts.Node | undefined = loop.parent;
+  while (body && !ts.isFunctionLike(body)) body = body.parent;
+  if (!body) return false;
+  let parsedObservations = false;
+  const scan = (child: ts.Node): void => {
+    if (ts.isVariableDeclaration(child) &&
+        ts.isIdentifier(child.name) && child.name.text === "observations" &&
+        child.initializer && ts.isAwaitExpression(child.initializer) &&
+        ts.isCallExpression(child.initializer.expression) &&
+        ts.isIdentifier(child.initializer.expression.expression) &&
+        child.initializer.expression.expression.text === "readObservations") {
+      parsedObservations = true;
+    }
+    ts.forEachChild(child, scan);
+  };
+  scan(body);
+  return parsedObservations;
+}
+
 /** A class/object resolver property may only be exempt when it is a pure
  * forwarding wrapper to the actual canonical import, without local decisions. */
 function isCanonicalFoodResolverDelegate(
@@ -1921,7 +2008,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       return { symbol: symbol + ":meal-choice-catalog", subject: node.initializer.getText(source) };
     }
     if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
-        (isGovernedNutritionProvenanceAnchor(node) ||
+        (isStructuralD1EntrypointTable(node) ||
+         isGovernedNutritionProvenanceAnchor(node) ||
         (ts.isIdentifier(node.name) &&
           /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(node.name.text) &&
           isPureContractSizeBounds(node.initializer) &&
@@ -2075,6 +2163,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         callback.body.getText(source) + " " + enclosingDeclaration(node));
     if (["some", "find", "every"].includes(method) && !comparison) return null;
     const words = referencesLiteralWords(node.expression.expression, node);
+    if (rule.id === "18" && isStructuralD1EntrypointMembership(
+        node.arguments[0], words)) return null;
     if (words.length > 0) {
       const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
       // The source path alone cannot make administrative status values food
@@ -2341,6 +2431,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const argumentsText = node.arguments.map(a => a.getText(source)).join(" ");
     const provenance = rule.ownerFunction === "decision-roundtrip" ?
       node.arguments.map(arg => localDecisionEvidence(arg, node, source)).join(" ") : "";
+    if (rule.id === "3" &&
+        isCanonicalD1StructuredObservationCall(node, source)) return null;
     if (matches(rule.symbolPattern, symbol) &&
         matches(rule.evidencePattern, argumentsText + " " + provenance)) {
       return { symbol, subject: node.getText(source) };
@@ -3490,6 +3582,16 @@ function isStructuralContractValue(field: string, literal: string): boolean {
     // Governed evidence provenance types are schema states, not food descriptors.
     // A different value (e.g. a real attribute token) is still evaluated by gate 18.
     evidenceType: ["manufacturer", "nutrition_label"],
+    // D1's typed routing, lifecycle and persistence metadata are not a
+    // vocabulary of food identity or nutritional materiality. Non-protocol
+    // words still reach gate 18.
+    entrypoint: [...D1_OPERATION_ENTRYPOINTS],
+    originEntrypoint: [...D1_OPERATION_ENTRYPOINTS],
+    resolver: ["v1", "v2"],
+    disposition: ["ready", "deferred", "rejected"],
+    source: ["web", "whatsapp", "catalog"],
+    format: ["food-v2"],
+    NODE_ENV: ["test", "development", "production"],
     // Source-table discriminant is structural migration metadata, not food materiality.
     table: ["foods", "foodCatalog"],
     scope: ["global", "user"],
