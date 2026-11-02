@@ -35,7 +35,7 @@ function scenario(s: FoodD1RouteStore) {
   const runV2 = vi.fn(async () => "v2");
   const verifyGates = vi.fn(async () => approval);
   return { envelope: envelope(), authenticatedUserId: 7, entrypoint: "text" as const,
-    store: s, runV1, runV2, verifyGates };
+    store: s, runV1, runV2, verifyGates, expectedAuditedBaseSha: "a".repeat(40) };
 }
 
 describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
@@ -124,6 +124,15 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
       },
     });
     expect(await routeFoodD1Operation({ ...request, enabled: true })).toBe("v1");
+    expect(request.runV2).not.toHaveBeenCalled();
+  });
+
+  it("rejects independent approval for a different code material SHA", async () => {
+    const state = store(), request = scenario(state.backend);
+    await expect(routeFoodD1Operation({
+      ...request, enabled: true, expectedAuditedBaseSha: "b".repeat(40),
+    })).rejects.toThrow("independent-gates-not-approved");
+    expect(state.pins.size).toBe(0);
     expect(request.runV2).not.toHaveBeenCalled();
   });
 
