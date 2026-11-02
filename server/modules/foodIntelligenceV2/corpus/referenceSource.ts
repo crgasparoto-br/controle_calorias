@@ -29,11 +29,10 @@ export const CANONICAL_ADR_PATH =
  * declaradas. Alterar a ADR sem atualizar este pino **reprova** a verificação:
  * a referência precisa ser reexaminada, não herdada.
  */
-// #1306: revalidated after adding only the C3 preregistration protocol.
- // Existing equivalence/case references and food oracles remain unchanged;
- // referenceSource.test.ts still verifies every declared section exists.
+// #1308: revalidated the additive D1 contract against the canonical ADR bytes.
+// Case oracles remain independent; referenceSource.test.ts verifies referenced sections.
 export const CANONICAL_ADR_SHA256 =
-  "2b2897797090c8242bde2925edd7a00c59b81a2cba8125cb4a175240afba88c5";
+  "e2e279a2aa9491c39af0f9bb5250584642f23a1d5d5030d100a9ae636e003dc4";
 
 export interface CanonicalReference {
   readonly path: string;

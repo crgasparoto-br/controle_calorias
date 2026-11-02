@@ -272,8 +272,9 @@ export async function resolveFoodD1Entrypoint(
       mealItemId: target?.mealItemId ?? null,
       decision, disposition,
       reasonCodes: labelBlocked
-        ? [...decision.reasonCodes, labelIdentityChanged
-          ? "label_identity_mismatch" : "label_evidence_unverified"]
+        ? [...decision.reasonCodes,
+          ...(labelIdentityChanged ? ["label_identity_mismatch"] : []),
+          ...(!labelSourceVerified ? ["label_evidence_unverified"] : [])]
         : decision.reasonCodes,
     });
   }
