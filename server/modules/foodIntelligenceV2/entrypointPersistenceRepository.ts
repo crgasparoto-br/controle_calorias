@@ -1,0 +1,217 @@
+/** #1308: native V2 item effects in a transaction, never projected through V1 DTOs. */
+import { createHash } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { foodD1OperationEffects, foodD1OperationRoutes, foodNutritionProfiles,
+  foodSourceReadGrants, foodVariants } from "../../../drizzle/food-intelligence-v2-schema";
+import { mealItems, meals } from "../../../drizzle/schema";
+import { getDb } from "../../db";
+import { canReadFoodSource } from "./sourceGrants";
+import { isFoodD1CutoverRequested } from "./entrypointRouting";
+import type { FoodD1PreparedItem, FoodD1PreparedWrite } from "./entrypointPersistence";
+
+export type FoodD1CommitResult = {
+  committed: boolean;
+  operationKey: string;
+  mealId: number | null;
+  recordedItemIds: number[];
+  skipped: FoodD1PreparedWrite["skipped"];
+};
+type ItemEffect = { mealId: number; itemId: number };
+
+function itemFingerprint(item: FoodD1PreparedItem): string {
+  const v = item.values;
+  return createHash("sha256").update(JSON.stringify({
+    observationId: item.observationId, targetItemId: item.targetItemId,
+    foodEntityId: item.foodEntityId, variantId: item.variantId,
+    profileId: item.profileId, sourceId: item.sourceId,
+    quantity: v.quantity, unit: v.unit, grams: v.grams,
+    calories: v.calories, protein: v.protein, carbs: v.carbs,
+    fat: v.fat, fiberG: v.fiberG, sodiumMg: v.sodiumMg,
+  })).digest("hex");
+}
+
+function requireInsertId(result: unknown): number {
+  const value = result as { insertId?: unknown } | [{ insertId?: unknown }];
+  const numeric = Number(Array.isArray(value) ? value[0]?.insertId : value?.insertId);
+  if (!Number.isSafeInteger(numeric) || numeric <= 0) {
+    throw new Error("food-d1-native-insert-id-unavailable");
+  }
+  return numeric;
+}
+
+function decodeEffect(value: string): ItemEffect {
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); }
+  catch { throw new Error("food-d1-native-corrupt-item-receipt"); }
+  const data = parsed as ItemEffect;
+  if (!data || !Number.isSafeInteger(data.mealId) || data.mealId <= 0 ||
+      !Number.isSafeInteger(data.itemId) || data.itemId <= 0) {
+    throw new Error("food-d1-native-corrupt-item-receipt");
+  }
+  return data;
+}
+
+/**
+ * Lock the pinned route BEFORE reading receipts and writing meal items.
+ * This serializes retries across instances while leaving unresolved sibling
+ * observations eligible for a later, independent effect in the same operation.
+ */
+export async function commitFoodD1NativeWrite(input: {
+  plan: FoodD1PreparedWrite;
+  verifyCurrentGate: () => Promise<boolean>;
+  /** Isolated tests only; production requires the server flag. */
+  testEnabled?: boolean;
+}): Promise<FoodD1CommitResult> {
+  const { plan } = input;
+  const enabled = isFoodD1CutoverRequested() ||
+    (process.env.NODE_ENV === "test" && input.testEnabled === true);
+  if (!enabled || !plan || !Number.isSafeInteger(plan.ownerUserId) || plan.ownerUserId <= 0) {
+    throw new Error("food-d1-native-write-disabled");
+  }
+  let approved = false;
+  try { approved = await input.verifyCurrentGate(); }
+  catch { /* Inaccessible approval source is a hard stop. */ }
+  if (!approved) throw new Error("food-d1-native-rollout-gate-revoked");
+  const db = await getDb();
+  if (!db || typeof db.transaction !== "function") {
+    throw new Error("food-d1-native-transaction-unavailable");
+  }
+  return db.transaction(async tx => {
+    const pins = await tx.select().from(foodD1OperationRoutes)
+      .where(and(eq(foodD1OperationRoutes.ownerUserId, plan.ownerUserId),
+        eq(foodD1OperationRoutes.operationKey, plan.operationKey)))
+      .for("update").limit(1);
+    if (pins.length !== 1 || pins[0].resolver !== "v2" ||
+        (pins[0].originEntrypoint !== plan.entrypoint &&
+          plan.entrypoint !== "continuation" && plan.entrypoint !== "nutrition_label")) {
+      throw new Error("food-d1-native-route-not-pinned-to-v2");
+    }
+    let revisions: unknown;
+    try { revisions = JSON.parse(pins[0].revisionsJson); }
+    catch { throw new Error("food-d1-native-corrupt-pinned-revisions"); }
+    if (!revisions || ["code", "knowledge", "lexicon", "policy", "resolver"].some(key =>
+        (revisions as Record<string, string>)[key] !==
+          plan.revisions[key as keyof typeof plan.revisions])) {
+      throw new Error("food-d1-native-pinned-revisions-mismatch");
+    }
+    const rows = await tx.select().from(foodD1OperationEffects)
+      .where(and(eq(foodD1OperationEffects.ownerUserId, plan.ownerUserId),
+        eq(foodD1OperationEffects.operationKey, plan.operationKey)))
+      .for("update");
+    const previous = new Map(rows.map(row => [row.observationId, row]));
+    let mealId: number | null = null;
+    const previouslyAffected = new Set<number>();
+    for (const row of rows) {
+      const effect = decodeEffect(row.outcomeJson);
+      if (mealId !== null && mealId !== effect.mealId) {
+        throw new Error("food-d1-native-cross-meal-receipt");
+      }
+      mealId = effect.mealId;
+      previouslyAffected.add(effect.itemId);
+    }
+    const recordedItemIds: number[] = [];
+    const newItems: FoodD1PreparedItem[] = [];
+    for (const item of plan.items) {
+      const persisted = previous.get(item.observationId);
+      if (persisted) {
+        if (persisted.decisionHash !== itemFingerprint(item)) {
+          throw new Error("food-d1-native-idempotency-payload-conflict");
+        }
+        recordedItemIds.push(decodeEffect(persisted.outcomeJson).itemId);
+      } else {
+        if (item.targetItemId !== null && previouslyAffected.has(item.targetItemId)) {
+          throw new Error("food-d1-native-repeated-physical-target");
+        }
+        newItems.push(item);
+      }
+    }
+    const additions = newItems.filter(item => item.targetItemId === null);
+    const edits = newItems.filter(item => item.targetItemId !== null);
+    if (additions.length && edits.length) {
+      throw new Error("food-d1-native-mixed-add-edit-not-supported");
+    }
+    const now = new Date();
+    // Before any new effect, recheck mutable eligibility and source grants.
+    for (const item of newItems) {
+      const [profile] = await tx.select().from(foodNutritionProfiles)
+        .where(eq(foodNutritionProfiles.id, item.profileId)).limit(1);
+      if (!profile || profile.status !== "verified" ||
+          profile.foodVariantId !== item.variantId ||
+          profile.sourceId !== item.sourceId || !profile.sourceVersion ||
+          (profile.validFrom && profile.validFrom.getTime() > now.getTime()) ||
+          (profile.validTo && profile.validTo.getTime() <= now.getTime())) {
+        throw new Error("food-d1-native-profile-ineligible");
+      }
+      const [variant] = await tx.select().from(foodVariants)
+        .where(eq(foodVariants.id, item.variantId)).limit(1);
+      if (!variant || variant.foodId !== item.foodEntityId ||
+          variant.status !== "active" || variant.governanceStatus !== "verified") {
+        throw new Error("food-d1-native-variant-ineligible");
+      }
+      const [grant] = await tx.select().from(foodSourceReadGrants)
+        .where(eq(foodSourceReadGrants.sourceId, item.sourceId)).limit(1);
+      if (!canReadFoodSource(grant ?? null, profile.sourceVersion, now)) {
+        throw new Error("food-d1-native-source-revoked-or-unlicensed");
+      }
+    }
+    if (additions.length) {
+      if (mealId === null) {
+        if (plan.confidence === null || !Number.isFinite(plan.confidence)) {
+          throw new Error("food-d1-native-confidence-unavailable");
+        }
+        const created = await tx.insert(meals).values({
+          userId: plan.ownerUserId, source: plan.source, status: "draft",
+          mealLabel: plan.mealLabel, sourceText: null,
+          confidence: plan.confidence, occurredAt: plan.occurredAt,
+        });
+        mealId = requireInsertId(created);
+      } else {
+        const [existingMeal] = await tx.select().from(meals)
+          .where(and(eq(meals.id, mealId), eq(meals.userId, plan.ownerUserId),
+            eq(meals.status, "confirmed"))).for("update").limit(1);
+        if (!existingMeal || existingMeal.mealLabel !== plan.mealLabel ||
+            existingMeal.occurredAt.getTime() !== plan.occurredAt.getTime()) {
+          throw new Error("food-d1-native-prior-meal-changed");
+        }
+      }
+      for (const item of additions) {
+        const persisted = await tx.insert(mealItems)
+          .values({ mealId: mealId!, ...item.values });
+        const itemId = requireInsertId(persisted);
+        recordedItemIds.push(itemId);
+        await tx.insert(foodD1OperationEffects).values({
+          ownerUserId: plan.ownerUserId, operationKey: plan.operationKey,
+          observationId: item.observationId,
+          decisionHash: itemFingerprint(item),
+          outcomeJson: JSON.stringify({ mealId, itemId }),
+        });
+      }
+      await tx.update(meals).set({ status: "confirmed" })
+        .where(and(eq(meals.id, mealId!), eq(meals.userId, plan.ownerUserId)));
+    }
+    for (const item of edits) {
+      const itemId = item.targetItemId!;
+      const [existing] = await tx.select({ item: mealItems, mealId: meals.id })
+        .from(mealItems).innerJoin(meals, eq(meals.id, mealItems.mealId))
+        .where(and(eq(mealItems.id, itemId), eq(meals.userId, plan.ownerUserId),
+          eq(meals.status, "confirmed"))).for("update").limit(1);
+      if (!existing || existing.item.foodVariantId !== item.variantId ||
+          !existing.item.foodSnapshotJson?.includes('"format":"food-v2"') ||
+          (mealId !== null && mealId !== existing.mealId)) {
+        throw new Error("food-d1-native-target-stale-or-foreign");
+      }
+      mealId = existing.mealId;
+      await tx.update(mealItems).set(item.values)
+        .where(and(eq(mealItems.id, itemId), eq(mealItems.mealId, mealId)));
+      recordedItemIds.push(itemId);
+      await tx.insert(foodD1OperationEffects).values({
+        ownerUserId: plan.ownerUserId, operationKey: plan.operationKey,
+        observationId: item.observationId,
+        decisionHash: itemFingerprint(item),
+        outcomeJson: JSON.stringify({ mealId, itemId }),
+      });
+    }
+    return { committed: recordedItemIds.length > 0, operationKey: plan.operationKey,
+      mealId, recordedItemIds, skipped: plan.skipped };
+  });
+}
