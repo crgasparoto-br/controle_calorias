@@ -62,9 +62,15 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
   it("requires physical targets for edits and newly verified nutrition for labels", () => {
     expect(() => prepare({ result: { ...result(), entrypoint: "edit" } }))
       .toThrow("item-action-mismatch");
-    expect(() => prepare({ result: { ...result(), entrypoint: "nutrition_label",
-      items: [{ ...result().items[0], mealItemId: "100" }] } }))
+    // The default fixture includes a verified label; strip just its label origin.
+    const noLabelProof = decision({ evidence: [{}, {}, { origin: "catalog" }] });
+    expect(() => prepare({ result: { ...result(noLabelProof),
+      entrypoint: "nutrition_label",
+      items: [{ ...result(noLabelProof).items[0], mealItemId: "100" }] } }))
       .toThrow("label-not-verified");
+    const positive = prepare({ result: { ...result(), entrypoint: "nutrition_label",
+      items: [{ ...result().items[0], mealItemId: "100" }] } });
+    expect(positive.items[0].targetItemId).toBe(100);
   });
 
   it("keeps unresolved siblings in the result without recording them", () => {

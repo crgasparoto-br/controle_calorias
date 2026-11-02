@@ -195,7 +195,11 @@ export async function commitFoodD1NativeWrite(input: {
         .from(mealItems).innerJoin(meals, eq(meals.id, mealItems.mealId))
         .where(and(eq(mealItems.id, itemId), eq(meals.userId, plan.ownerUserId),
           eq(meals.status, "confirmed"))).for("update").limit(1);
-      if (!existing || existing.item.foodVariantId !== item.variantId ||
+      // An explicit edit may substitute another verified variant; labels and
+      // continuing clarifications must retain the existing food identity.
+      if (!existing ||
+          ((plan.entrypoint === "nutrition_label" || plan.entrypoint === "continuation") &&
+           existing.item.foodVariantId !== item.variantId) ||
           !existing.item.foodSnapshotJson?.includes('"format":"food-v2"') ||
           (mealId !== null && mealId !== existing.mealId)) {
         throw new Error("food-d1-native-target-stale-or-foreign");

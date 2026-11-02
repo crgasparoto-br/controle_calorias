@@ -1,7 +1,7 @@
 /** #1308: a single D1 route for all authorized modalities (inactive until Gate A). */
-import { resolveFoodD1Entrypoint, type FoodD1Dependencies,
+import { resolveFoodD1Entrypoint, type FoodD1Result, type FoodD1Dependencies,
   type FoodD1Request } from "./entrypointMigration";
-import { routeFoodD1Operation, isCurrentFoodD1GateApproval,
+import { routeFoodD1Operation, isFoodD1CutoverRequested, isCurrentFoodD1GateApproval,
   type FoodD1GateApproval } from "./entrypointRouting";
 import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
 import { prepareFoodD1NativeWrite } from "./entrypointPersistence";
@@ -23,7 +23,19 @@ export async function runFoodD1Migration<T>(input: {
   verifyGates: () => Promise<FoodD1GateApproval | null>;
   /** SHA of the trusted running build, not from an inbound request. */
   expectedAuditedBaseSha: string;
-}): Promise<T | FoodD1CommitResult> {
+}): Promise<T | FoodD1CommitResult | FoodD1Result> {
+  // The public simulator shares the resolver but is read-only: no route
+  // binding, meal mutation or database dependency in replay.
+  if (input.request.entrypoint === "simulator") {
+    if (!isFoodD1CutoverRequested()) return input.legacy();
+    let approval: FoodD1GateApproval | null = null;
+    try { approval = await input.verifyGates(); }
+    catch { /* Approval unavailable: fail closed. */ }
+    if (!isCurrentFoodD1GateApproval(approval, input.expectedAuditedBaseSha)) {
+      throw new Error("food-d1-independent-gates-not-approved");
+    }
+    return resolveFoodD1Entrypoint(input.request, input.dependencies);
+  }
   const store = createFoodD1RouteDbStore();
   return routeFoodD1Operation<T | FoodD1CommitResult>({
     envelope: input.request.envelope,
