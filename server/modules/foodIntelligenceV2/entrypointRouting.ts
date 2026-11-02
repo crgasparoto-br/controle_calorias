@@ -8,7 +8,7 @@
  */
 import { createHash } from "node:crypto";
 import { parseFoodOperationEnvelope, type FoodOperationEnvelope } from "./schemas";
-import type { FoodD1Entrypoint } from "./entrypointMigration";
+import { FOOD_D1_ENTRYPOINTS, type FoodD1Entrypoint } from "./entrypointMigration";
 
 export type FoodD1PinnedRoute = {
   operationKey: string;
@@ -51,9 +51,25 @@ export function isFoodD1CutoverRequested(): boolean {
   return process.env.FOOD_V2_D1_ENABLED?.trim().toLowerCase() === "true";
 }
 
-function enabledForRequest(override: boolean | undefined): boolean {
+/**
+ * A second, typed server-side selector limits rollout to named D1 entrypoints.
+ * Absent or malformed selection NEVER opens a production route, even when the
+ * global switch is mistakenly enabled. Tests may exercise the global switch.
+ */
+export function isFoodD1EntrypointCutoverRequested(entrypoint: FoodD1Entrypoint): boolean {
+  if (!isFoodD1CutoverRequested() || !FOOD_D1_ENTRYPOINTS.includes(entrypoint)) return false;
+  const configured = process.env.FOOD_V2_D1_ENTRYPOINTS;
+  if (configured === undefined) return process.env.NODE_ENV === "test";
+  const selected = configured.split(",").map(value => value.trim());
+  if (!selected.length || selected.some(value =>
+      !value || !FOOD_D1_ENTRYPOINTS.includes(value as FoodD1Entrypoint)) ||
+      new Set(selected).size !== selected.length) return false;
+  return selected.includes(entrypoint);
+}
+
+function enabledForRequest(override: boolean | undefined, original: FoodD1Entrypoint): boolean {
   return process.env.NODE_ENV === "test" && override !== undefined
-    ? override : isFoodD1CutoverRequested();
+    ? override : isFoodD1EntrypointCutoverRequested(original);
 }
 
 export function isCurrentFoodD1GateApproval(input: FoodD1GateApproval | null | undefined, expectedBaseSha: string | undefined): boolean {
@@ -123,8 +139,12 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
       !envelope.idempotencyKey?.trim()) {
     throw new Error("food-d1-owner-mismatch");
   }
-  const enabled = enabledForRequest(request.enabled);
   let pin = await store.readPinnedRoute(envelope.idempotencyKey, authenticatedUserId);
+  // Resumed operations inherit the original entrypoint's rollout scope.
+  const enabled = enabledForRequest(request.enabled, pin?.originEntrypoint ?? entrypoint);
+  if (!pin && enabled && entrypoint === "continuation") {
+    throw new Error("food-d1-orphan-continuation");
+  }
   let approved = false;
   if (!pin) {
     if (enabled) {

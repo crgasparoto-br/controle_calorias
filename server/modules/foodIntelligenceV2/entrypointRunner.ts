@@ -1,7 +1,7 @@
 /** #1308: a single D1 route for all authorized modalities (inactive until Gate A). */
 import { buildD1OperationPlan, type FoodD1Result, type FoodD1Dependencies,
   type FoodD1Request } from "./entrypointMigration";
-import { routeFoodD1Operation, isFoodD1CutoverRequested, isCurrentFoodD1GateApproval,
+import { routeFoodD1Operation, isFoodD1EntrypointCutoverRequested, isCurrentFoodD1GateApproval,
   type FoodD1GateApproval } from "./entrypointRouting";
 import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
 import { readOnlyFoodKnowledge } from "./shadowRunner";
@@ -28,7 +28,7 @@ export async function runFoodD1Migration<T>(input: {
   // The public simulator shares the resolver but is read-only: no route
   // binding, meal mutation or database dependency in replay.
   if (input.request.entrypoint === "simulator") {
-    if (!isFoodD1CutoverRequested()) return input.legacy();
+    if (!isFoodD1EntrypointCutoverRequested("simulator")) return input.legacy();
     let approval: FoodD1GateApproval | null = null;
     try { approval = await input.verifyGates(); }
     catch { /* Approval unavailable: fail closed. */ }

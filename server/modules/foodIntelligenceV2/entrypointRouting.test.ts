@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildFoodOperationEnvelopeFixture } from "./fixtures";
 import {
-  routeFoodD1Operation, hashFoodD1OperationScope, type FoodD1PinnedRoute,
+  routeFoodD1Operation, hashFoodD1OperationScope,
+  isFoodD1EntrypointCutoverRequested, type FoodD1PinnedRoute,
   type FoodD1RouteStore, type FoodD1GateApproval,
 } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
@@ -194,6 +195,69 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
     expect(state.pins.size).toBe(0);
     expect(request.runV1).not.toHaveBeenCalled();
     expect(request.runV2).not.toHaveBeenCalled();
+  });
+
+  it("scopes a progressive rollout and preserves the original pin on removal", async () => {
+    const previousGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const previousScope = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
+      expect(isFoodD1EntrypointCutoverRequested("text")).toBe(true);
+      expect(isFoodD1EntrypointCutoverRequested("audio_transcript")).toBe(false);
+      const textStore = store(), text = scenario(textStore.backend);
+      expect(await routeFoodD1Operation(text)).toBe("v2");
+      const audioStore = store(), audio = {
+        ...scenario(audioStore.backend), entrypoint: "audio_transcript" as const,
+      };
+      expect(await routeFoodD1Operation(audio)).toBe("v1");
+      expect(audio.verifyGates).not.toHaveBeenCalled();
+      expect(audioStore.pins.get("op-1")?.resolver).toBe("v1");
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "audio_transcript";
+      await expect(routeFoodD1Operation({
+        ...text, entrypoint: "continuation",
+      })).rejects.toThrow("operation-paused-by-rollback");
+      expect(textStore.pins.get("op-1")?.resolver).toBe("v2");
+      expect(text.runV1).not.toHaveBeenCalled();
+      expect(text.runV2).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = previousGlobal;
+      if (previousScope === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = previousScope;
+    }
+  });
+
+  it("rejects malformed selection and orphan V2 continuation before binding a route", async () => {
+    const previousGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const previousScope = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const previousNodeEnv = process.env.NODE_ENV;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      for (const malformed of ["", "banana", "text,banana", "text,text", "text,"]) {
+        process.env.FOOD_V2_D1_ENTRYPOINTS = malformed;
+        expect(isFoodD1EntrypointCutoverRequested("text")).toBe(false);
+      }
+      delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      process.env.NODE_ENV = "production";
+      expect(isFoodD1EntrypointCutoverRequested("text")).toBe(false);
+      process.env.NODE_ENV = previousNodeEnv;
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "continuation";
+      const state = store(), request = scenario(state.backend);
+      await expect(routeFoodD1Operation({
+        ...request, entrypoint: "continuation",
+      })).rejects.toThrow("food-d1-orphan-continuation");
+      expect(state.pins.size).toBe(0);
+      expect(request.runV1).not.toHaveBeenCalled();
+      expect(request.runV2).not.toHaveBeenCalled();
+    } finally {
+      if (previousGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = previousGlobal;
+      if (previousScope === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = previousScope;
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+    }
   });
 
 });

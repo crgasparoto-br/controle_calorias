@@ -6,7 +6,7 @@ import { foodD1OperationEffects, foodD1OperationRoutes, foodNutritionProfiles,
 import { mealItems, meals } from "../../../drizzle/schema";
 import { getDb } from "../../db";
 import { canReadFoodSource } from "./sourceGrants";
-import { isFoodD1CutoverRequested } from "./entrypointRouting";
+import { isFoodD1CutoverRequested, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { FoodD1PreparedItem, FoodD1PreparedWrite } from "./entrypointPersistence";
 
 export type FoodD1CommitResult = {
@@ -112,6 +112,13 @@ export async function commitFoodD1NativeWrite(input: {
         (pins[0].originEntrypoint !== plan.entrypoint &&
           plan.entrypoint !== "continuation" && plan.entrypoint !== "nutrition_label")) {
       throw new Error("food-d1-native-route-not-pinned-to-v2");
+    }
+    // Direct write adapters cannot bypass the original entrypoint rollout
+    // selection. Only explicit synthetic test injection may bypass this gate.
+    if (!(process.env.NODE_ENV === "test" && input.testEnabled === true) &&
+        !isFoodD1EntrypointCutoverRequested(
+          pins[0].originEntrypoint as FoodD1PreparedWrite["entrypoint"])) {
+      throw new Error("food-d1-native-entrypoint-not-enabled");
     }
     let revisions: unknown;
     try { revisions = JSON.parse(pins[0].revisionsJson); }
