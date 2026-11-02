@@ -44,6 +44,12 @@ pnpm agent:check
 
 Para mudanças de resolução alimentar, catálogo, memória, rótulo ou multimodalidade, ler também `docs/design-docs/adr-food-intelligence-resolver-v2.md`. Enquanto o ADR estiver em migração, regressões devem provar o comportamento no entrypoint público e distinguir o baseline atual da arquitetura alvo; mocks não podem substituir a própria decisão alimentar que o teste pretende validar.
 
+### Preparação D1 de entrypoints multimodais (#1308)
+
+O componente V2 `entrypointMigration.ts` é, neste recorte, um plano de decisões **somente leitura**, sem chamada à persistência de refeições; `registeredCount=0` e `committed=false` são invariantes, inclusive quando um dos itens está resolvido. O contrato de continuidade exige observação e decisão estruturadas, proprietário autenticado e ID físico do item; rótulo não pode criar outro registro por reprocessamento de texto. `entrypointRouting.ts` exige implementação futura de um store **transacional, compartilhado e idempotente** para fixar versão, policy, entrypoint e resolver da operação. É proibido substituir isso por cache de processo, recomputar o owner a cada retry ou reprocessar dados V1 como entrada factual V2.
+
+`FOOD_V2_D1_ENABLED` permanece OFF por padrão; não há conexão produtiva, fonte de aprovação #1335 nem autorização de rollout. Ausência/revogação de gates impede V2. Ao desligar a flag durante uma operação V2, a retomada é bloqueada explicitamente, sem replay da V1. A migração dos entrypoints públicos, o adaptador de persistência nativo V2 e os testes reais (incluindo restart, concorrência, rótulo e LGPD) permanecem bloqueadores para concluir a issue #1308 e liberar homologação.
+
 ### Contratos operacionais do Food Intelligence V2
 
 Além da convergência funcional, o V2 deve ser validado como sistema operacionalmente seguro:
