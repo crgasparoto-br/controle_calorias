@@ -109,9 +109,17 @@ export function prepareFoodD1NativeWrite(input: {
       throw new Error("food-d1-invalid-physical-item-id");
     }
     if (targetItemId !== null) physical.add(targetItemId);
-    if (["edit", "nutrition_label", "continuation"].includes(result.entrypoint) !==
-        (targetItemId !== null)) {
+    const requiresPhysical = result.entrypoint === "edit" ||
+      result.entrypoint === "nutrition_label";
+    if ((requiresPhysical && targetItemId === null) ||
+        (!requiresPhysical && result.entrypoint !== "continuation" && targetItemId !== null)) {
       throw new Error("food-d1-native-item-action-mismatch");
+    }
+    // A not-yet-persisted sibling is an existing pending observation, not a
+    // new addition. The original manifest is checked again in the DB.
+    if (result.entrypoint === "continuation" && targetItemId === null &&
+        item.decision.revision < 2) {
+      throw new Error("food-d1-native-uncontinued-deferred-sibling");
     }
     const units = quantity.unit && quantity.value !== null ?
       { value: quantity.value, unit: quantity.unit } :

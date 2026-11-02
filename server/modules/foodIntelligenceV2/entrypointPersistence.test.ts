@@ -75,6 +75,18 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
     expect(positive.items[0].targetItemId).toBe(100);
   });
 
+  it("prepares only a previously resolved deferred sibling for native continuation", () => {
+    const continued = decision({ revision: 2 });
+    const output = prepare({
+      result: { ...result(continued), entrypoint: "continuation" },
+    });
+    expect(output.items[0].targetItemId).toBeNull();
+    expect(output.items[0].values.foodVariantId).toBe(102);
+    expect(() => prepare({
+      result: { ...result(), entrypoint: "continuation" },
+    })).toThrow("uncontinued-deferred-sibling");
+  });
+
   it("keeps unresolved siblings in the result without recording them", () => {
     const other = { observationId: "obs-2", mealItemId: null,
       decision: decision({ observationIds: ["obs-2"] }),

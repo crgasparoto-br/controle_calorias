@@ -88,10 +88,16 @@ try {
     "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key='ci-d1-native-add'",
     [userId],
   );
-  assert.equal(Number(receiptCount.c), 1);
+  assert.equal(Number(receiptCount.c), 2,
+    "restart must retain both the first item and the deferred sibling completed later");
   const [mealCount] = await rows("SELECT COUNT(*) AS c FROM mealItems WHERE mealId=?", [oldReceipt.mealId]);
-  assert.equal(Number(mealCount.c), 1);
-  console.log("PASS: a separate process reused original D1 route, receipt and meal identity");
+  assert.equal(Number(mealCount.c), 2);
+  const [pinned] = await rows(
+    "SELECT revisions_json FROM food_d1_user_operation_routes WHERE owner_user_id=? AND operation_key='ci-d1-native-add'",
+    [userId]);
+  assert.deepEqual(JSON.parse(String(pinned.revisions_json)).observationIds,
+    ["ci-d1-missing", "ci-d1-obs-1"]);
+  console.log("PASS: a separate process reused D1 route, original and deferred receipts and meal identity");
 } catch (error) {
   console.error("FAIL: D1 cross-process retry", error);
   process.exitCode = 1;

@@ -35,8 +35,8 @@ export type FoodD1Evidence =
 
 export type FoodD1Target = {
   observationId: string;
-  /** Physical ID of an existing meal item; never guessed from food names. */
-  mealItemId: string;
+  /** Null only for a deferred sibling not yet written in a pinned operation. */
+  mealItemId: string | null;
   /** A prior structured decision, not a re-parsed reply or V1 semanticContract. */
   previousDecision: FoodResolutionDecision | null;
 };
@@ -185,20 +185,30 @@ export async function resolveFoodD1Entrypoint(
   const targetByObservation = new Map<string, FoodD1Target>();
   const usedMealItems = new Set<string>();
   for (const target of request.targets ?? []) {
-    if (!target.observationId.trim() || !target.mealItemId.trim() ||
+    const physicalId = target.mealItemId;
+    const pendingSibling = request.entrypoint === "continuation" && physicalId === null;
+    if (!target.observationId?.trim() ||
+        (physicalId !== null && (typeof physicalId !== "string" || !physicalId.trim())) ||
+        (physicalId === null && !pendingSibling) ||
         targetByObservation.has(target.observationId) ||
-        usedMealItems.has(target.mealItemId)) {
+        (physicalId !== null && usedMealItems.has(physicalId))) {
       throw new Error("food-d1-ambiguous-item-target");
     }
-    let ownsTarget = false;
-    try {
-      ownsTarget = await deps.authorizeExistingItem({
-        ownerUserId: envelope.ownerUserId, mealItemId: target.mealItemId,
-      });
-    } catch { /* An inaccessible item must never be mutated. */ }
-    if (!ownsTarget) throw new Error("food-d1-item-not-authorized");
+    if (physicalId !== null) {
+      let ownsTarget = false;
+      try {
+        ownsTarget = await deps.authorizeExistingItem({
+          ownerUserId: envelope.ownerUserId, mealItemId: physicalId,
+        });
+      } catch { /* An inaccessible item must never be mutated. */ }
+      if (!ownsTarget) throw new Error("food-d1-item-not-authorized");
+      usedMealItems.add(physicalId);
+    } else if (!target.previousDecision) {
+      // No physical item exists yet: require the original structured state.
+      // The native transaction independently checks the pinned observation.
+      throw new Error("food-d1-previous-structured-decision-required");
+    }
     targetByObservation.set(target.observationId, target);
-    usedMealItems.add(target.mealItemId);
   }
 
   const observationIds = new Set(observations.map(item => item.observationId));

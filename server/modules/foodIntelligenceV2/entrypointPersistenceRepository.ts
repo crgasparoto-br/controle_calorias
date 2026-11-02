@@ -101,6 +101,42 @@ export async function commitFoodD1NativeWrite(input: {
       .where(and(eq(foodD1OperationEffects.ownerUserId, plan.ownerUserId),
         eq(foodD1OperationEffects.operationKey, plan.operationKey)))
       .for("update");
+    // Pin all original sibling IDs under the same route lock as receipts.
+    // A later turn may complete an unresolved sibling but may not inject
+    // a new observation into a previously bound operation.
+    const observedIds = [
+      ...plan.items.map(item => item.observationId),
+      ...plan.skipped.map(item => item.observationId),
+    ];
+    if (!observedIds.length || observedIds.some(id => typeof id !== "string" ||
+        !id.trim() || id.length > 200) ||
+        new Set(observedIds).size !== observedIds.length) {
+      throw new Error("food-d1-native-invalid-observation-manifest");
+    }
+    const previousManifest = (revisions as Record<string, unknown>).observationIds;
+    if (previousManifest === undefined) {
+      if (rows.length !== 0) {
+        throw new Error("food-d1-native-missing-original-observation-manifest");
+      }
+      await tx.update(foodD1OperationRoutes).set({
+        revisionsJson: JSON.stringify({
+          ...(revisions as Record<string, unknown>),
+          observationIds: [...observedIds].sort(),
+        }),
+      }).where(and(eq(foodD1OperationRoutes.ownerUserId, plan.ownerUserId),
+        eq(foodD1OperationRoutes.operationKey, plan.operationKey)));
+    } else {
+      if (!Array.isArray(previousManifest) || !previousManifest.length ||
+          previousManifest.some(id => typeof id !== "string" ||
+            !id.trim() || id.length > 200) ||
+          new Set(previousManifest).size !== previousManifest.length) {
+        throw new Error("food-d1-native-corrupt-observation-manifest");
+      }
+      const allowedIds = new Set<string>(previousManifest as string[]);
+      if (observedIds.some(id => !allowedIds.has(id))) {
+        throw new Error("food-d1-native-observation-not-in-original-operation");
+      }
+    }
     const previous = new Map(rows.map(row => [row.observationId, row]));
     let mealId: number | null = null;
     const previouslyAffected = new Set<number>();

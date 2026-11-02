@@ -139,6 +139,29 @@ try {
   const [stillOne] = await rows("SELECT COUNT(*) AS c FROM mealItems WHERE mealId=?", [created.mealId]);
   assert.equal(Number(stillOne.c), 1, "changed-scope retry must not duplicate a meal");
 
+  const newSibling = prepare(env, result("addition", "ci-d1-injected"));
+  await assert.rejects(commit(env, "addition", newSibling),
+    /observation-not-in-original-operation/,
+    "same idempotency key must not allow invented sibling observations");
+  const deferred = result("continuation", "ci-d1-missing");
+  deferred.items[0].decision.revision = 2;
+  const deferredPlan = prepare(env, deferred);
+  const completed = await commit(env, "continuation", deferredPlan);
+  assert.equal(completed.mealId, Number(created.mealId),
+    "the deferred sibling must use the original physical meal");
+  assert.equal(completed.recordedItemIds.length, 1);
+  assert.notEqual(completed.recordedItemIds[0], itemId);
+  const repeated = await commit(env, "continuation", deferredPlan);
+  assert.deepEqual(repeated.recordedItemIds, completed.recordedItemIds,
+    "retry after continuation must return exactly the same physical item");
+  const [twoSiblings] = await rows(
+    "SELECT COUNT(*) AS c FROM mealItems WHERE mealId=?", [created.mealId]);
+  assert.equal(Number(twoSiblings.c), 2, "only the original two siblings may be persisted");
+  const [twoReceipts] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, env.idempotencyKey]);
+  assert.equal(Number(twoReceipts.c), 2);
+
   const editEnv = makeEnvelope("ci-d1-native-edit");
   const editPlan = prepare(editEnv, result("edit", "ci-d1-obs-edit", replacement, itemId));
   const edited = await commit(editEnv, "edit", editPlan);

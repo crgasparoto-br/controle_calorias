@@ -129,6 +129,30 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
     expect(output.registeredCount).toBe(0);
   });
 
+  it("finishes an original deferred sibling without inventing a physical target", async () => {
+    const previous = buildFoodResolutionDecisionFixture({
+      ownerUserId: 7, traceId: "trace-1", observationIds: ["obs-1"],
+    });
+    const request: FoodD1Request = {
+      authenticatedUserId: 7, entrypoint: "continuation", envelope: envelope(),
+      evidence: { kind: "structured", observations: [buildFoodObservationFixture()] },
+      targets: [{ observationId: "obs-1", mealItemId: null, previousDecision: previous }],
+    };
+    const authorized = deps();
+    const result = await resolveFoodD1Entrypoint(request, authorized);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].mealItemId).toBeNull();
+    expect(result.items[0].decision.revision).toBeGreaterThan(previous.revision);
+    expect(authorized.authorizeExistingItem).not.toHaveBeenCalled();
+    await expect(resolveFoodD1Entrypoint({
+      ...request,
+      targets: [{ observationId: "obs-1", mealItemId: null, previousDecision: null }],
+    }, deps())).rejects.toThrow("previous-structured-decision-required");
+    await expect(resolveFoodD1Entrypoint({
+      ...request, entrypoint: "nutrition_label",
+    }, deps())).rejects.toThrow("ambiguous-item-target");
+  });
+
   it("rejects label/continuation round-trips, invented targets and cross-user history", async () => {
     const previous = buildFoodResolutionDecisionFixture({
       ownerUserId: 8, traceId: "trace-1", observationIds: ["obs-1"],
