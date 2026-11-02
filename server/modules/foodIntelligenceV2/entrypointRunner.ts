@@ -4,6 +4,7 @@ import { resolveFoodD1Entrypoint, type FoodD1Result, type FoodD1Dependencies,
 import { routeFoodD1Operation, isFoodD1CutoverRequested, isCurrentFoodD1GateApproval,
   type FoodD1GateApproval } from "./entrypointRouting";
 import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
+import { readOnlyFoodKnowledge } from "./shadowRunner";
 import { prepareFoodD1NativeWrite } from "./entrypointPersistence";
 import { commitFoodD1NativeWrite, type FoodD1CommitResult } from "./entrypointPersistenceRepository";
 
@@ -34,7 +35,10 @@ export async function runFoodD1Migration<T>(input: {
     if (!isCurrentFoodD1GateApproval(approval, input.expectedAuditedBaseSha)) {
       throw new Error("food-d1-independent-gates-not-approved");
     }
-    return resolveFoodD1Entrypoint(input.request, input.dependencies);
+    return resolveFoodD1Entrypoint(input.request, {
+      ...input.dependencies,
+      knowledge: readOnlyFoodKnowledge(input.dependencies.knowledge),
+    });
   }
   const store = createFoodD1RouteDbStore();
   return routeFoodD1Operation<T | FoodD1CommitResult>({
