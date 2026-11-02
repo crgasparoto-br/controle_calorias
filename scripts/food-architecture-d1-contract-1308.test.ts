@@ -15,7 +15,7 @@ describe("#1308 typed operation states remain separate from food lexemes", () =>
   const states = '["text", "audio_transcript", "addition", "edit", "plate_image", "packaging", "nutrition_label", "continuation", "simulator"] as const';
   it("accepts only the complete nine-state technical entrypoint contract", () => {
     expect(issues(`export const FOOD_D1_ENTRYPOINTS = ${states};`, "17")).toEqual([]);
-    expect(issues(`export const FOOD_D1_ENTRYPOINTS = [...${states.slice(0,-9)}, "banana"] as const;`, "17")
+    expect(issues(`export const FOOD_D1_ENTRYPOINTS = ${states.replace('"simulator"', '"banana"')};`, "17")
       .length).toBeGreaterThan(0);
   });
   it("accepts exact D1 enum fields but still blocks real materiality claims", () => {
