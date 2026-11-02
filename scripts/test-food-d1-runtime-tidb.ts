@@ -167,7 +167,7 @@ try {
   orphan.items[0].decision.revision = 2;
   await assert.rejects(
     commit(orphanEnv, "continuation", prepare(orphanEnv, orphan)),
-    /continuation-original-operation-missing/,
+    /food-d1-orphan-continuation/,
     "a new operation must never be bootstrapped from a forged previous decision");
 
   const editEnv = makeEnvelope("ci-d1-native-edit");
