@@ -68,7 +68,7 @@ const makeDecision = (observationId: string, variant = first): FoodResolutionDec
   buildFoodResolutionDecisionFixture({
     ownerUserId: userId, observationIds: [observationId],
     identity: { foodEntityId: foodId, variantId: variant.variantId,
-      canonicalName: variant.tag },
+      canonicalName: variant.tag, variant: variant.tag },
     nutrition: { profileId: variant.profileId, sourceId,
       snapshotHash: "sha256:ci-d1-verified" },
     evidence: [{}, {}, { sourceId }],
