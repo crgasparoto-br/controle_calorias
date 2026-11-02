@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildFoodOperationEnvelopeFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
 import { prepareFoodD1NativeWrite } from "./entrypointPersistence";
 import { commitFoodD1NativeWrite } from "./entrypointPersistenceRepository";
+import { hashFoodD1OperationScope } from "./entrypointRouting";
 import type { FoodD1Result } from "./entrypointMigration";
 import type { FoodOperationEnvelope, FoodResolutionDecision } from "./schemas";
 
@@ -32,6 +33,7 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
     expect(JSON.parse(output.items[0].values.foodSnapshotJson).nutrition.verified).toBe(true);
     expect(output.confidence).toBe(0.9);
     expect(output.requestHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(output.operationScopeHash).toBe(hashFoodD1OperationScope(envelope(), "whatsapp"));
     expect(output.items[0].values.foodSnapshotJson).not.toContain("rawInput");
   });
 

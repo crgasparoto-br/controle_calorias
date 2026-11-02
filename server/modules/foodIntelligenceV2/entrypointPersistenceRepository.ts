@@ -89,7 +89,10 @@ export async function commitFoodD1NativeWrite(input: {
     let revisions: unknown;
     try { revisions = JSON.parse(pins[0].revisionsJson); }
     catch { throw new Error("food-d1-native-corrupt-pinned-revisions"); }
-    if (!revisions || ["code", "knowledge", "lexicon", "policy", "resolver"].some(key =>
+    if (!revisions || (revisions as Record<string, unknown>).operationScopeHash !== plan.operationScopeHash) {
+      throw new Error("food-d1-native-operation-scope-changed");
+    }
+    if (["code", "knowledge", "lexicon", "policy", "resolver"].some(key =>
         (revisions as Record<string, string>)[key] !==
           plan.revisions[key as keyof typeof plan.revisions])) {
       throw new Error("food-d1-native-pinned-revisions-mismatch");

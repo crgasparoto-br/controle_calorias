@@ -4,6 +4,7 @@ import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { parseFoodOperationEnvelope, parseFoodResolutionDecision,
   type FoodOperationEnvelope } from "./schemas";
 import type { FoodD1Result } from "./entrypointMigration";
+import { hashFoodD1OperationScope } from "./entrypointRouting";
 
 export type FoodD1PreparedItem = {
   observationId: string;
@@ -25,6 +26,7 @@ export type FoodD1PreparedItem = {
 export type FoodD1PreparedWrite = {
   ownerUserId: number;
   operationKey: string;
+  operationScopeHash: string;
   traceId: string;
   entrypoint: FoodD1Result["entrypoint"];
   source: "web" | "whatsapp";
@@ -148,6 +150,7 @@ export function prepareFoodD1NativeWrite(input: {
     skipped,
   })).digest("hex");
   return { ownerUserId: envelope.ownerUserId, operationKey: envelope.idempotencyKey,
+    operationScopeHash: hashFoodD1OperationScope(envelope, input.source),
     traceId: envelope.traceId, entrypoint: result.entrypoint, source: input.source,
     revisions: { ...envelope.revisions },
     confidence: confidences.length ? Math.min(...confidences) : null,
