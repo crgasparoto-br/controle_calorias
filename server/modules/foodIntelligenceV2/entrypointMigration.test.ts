@@ -37,6 +37,8 @@ const match: GovernedFoodMatch = {
 
 function deps(): FoodD1Dependencies & { knowledge: FoodKnowledgeStore } {
   return {
+    authorizeEvidence: vi.fn(async () => true),
+    authorizeExistingItem: vi.fn(async () => true),
     lexicon: { load: vi.fn(async () => []) },
     knowledge: {
       readLocal: vi.fn(async (input): Promise<FoodKnowledgeLocalResult> =>
@@ -178,6 +180,39 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
       evidence: { kind: "structured",
         observations: [buildFoodObservationFixture({lexiconRevision:"older-revision"})] },
     }, deps())).rejects.toThrow("lexicon-version-mismatch");
+  });
+
+  it("denies untrusted media/structured evidence and physical items before the resolver runs", async () => {
+    const untrusted = deps();
+    untrusted.authorizeEvidence = vi.fn(async () => false);
+    await expect(resolveFoodD1Entrypoint(
+      surface("packaging", "image", "media:untrusted", "front_identity"), untrusted,
+    )).rejects.toThrow("evidence-not-authorized");
+    expect(untrusted.knowledge.readLocal).not.toHaveBeenCalled();
+
+    const foreignTarget = deps();
+    foreignTarget.authorizeExistingItem = vi.fn(async () => false);
+    await expect(resolveFoodD1Entrypoint({
+      authenticatedUserId: 7, entrypoint: "edit", envelope: envelope(),
+      evidence: { kind: "structured", observations: [buildFoodObservationFixture()] },
+      targets: [{ observationId: "obs-1", mealItemId: "other-owner-row", previousDecision: null }],
+    }, foreignTarget)).rejects.toThrow("item-not-authorized");
+    expect(foreignTarget.knowledge.readLocal).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a pre-existing nutrition fact as a newly verified label update", async () => {
+    const previous = buildFoodResolutionDecisionFixture({
+      ownerUserId: 7, traceId: "trace-1", observationIds: ["obs-1"],
+    });
+    const result = await resolveFoodD1Entrypoint({
+      authenticatedUserId: 7, entrypoint: "nutrition_label", envelope: envelope(),
+      evidence: { kind: "structured", observations: [buildFoodObservationFixture()] },
+      targets: [{ observationId: "obs-1", mealItemId: "same-existing-item", previousDecision: previous }],
+    }, deps());
+    expect(result.items[0].mealItemId).toBe("same-existing-item");
+    expect(result.items[0].disposition).toBe("deferred");
+    expect(result.items[0].reasonCodes).toContain("label_evidence_unverified");
+    expect(result.committed).toBe(false);
   });
 
   it("replay delegates to the same V2 resolver without a separate nutrition engine", async () => {
