@@ -114,6 +114,15 @@ export async function commitFoodD1NativeWrite(input: {
       throw new Error("food-d1-native-invalid-observation-manifest");
     }
     const previousManifest = (revisions as Record<string, unknown>).observationIds;
+    // A missing physical target is valid only for a deferred sibling of an
+    // original creation operation. An editing/labeling operation has existing
+    // physical targets and must never create a new meal on continuation.
+    if (plan.entrypoint === "continuation" &&
+        plan.items.some(item => item.targetItemId === null) &&
+        !["text", "audio_transcript", "addition", "plate_image", "packaging"]
+          .includes(pins[0].originEntrypoint)) {
+      throw new Error("food-d1-native-deferred-sibling-origin-not-addition");
+    }
     if (previousManifest === undefined) {
       // A continuation cannot bootstrap a new operation from a caller-supplied
       // prior decision: an original, pinned batch must already exist.

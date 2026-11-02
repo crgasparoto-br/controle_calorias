@@ -177,6 +177,24 @@ try {
   const [updated] = await rows("SELECT foodVariantId, calories FROM mealItems WHERE id=?", [itemId]);
   assert.equal(Number(updated.foodVariantId), replacement.variantId,
     "edit replaces the physical item in place");
+  const deferredEditEnv = makeEnvelope("ci-d1-edit-deferred");
+  const deferredEdit = result("edit", "ci-d1-edit-deferred-obs", replacement, itemId);
+  deferredEdit.items[0].disposition = "deferred";
+  deferredEdit.items[0].reasonCodes = ["quantity_missing"];
+  deferredEdit.readyCount = 0;
+  deferredEdit.skippedCount = 1;
+  const deferredEditResult = await commit(deferredEditEnv, "edit",
+    prepare(deferredEditEnv, deferredEdit));
+  assert.equal(deferredEditResult.committed, false);
+  const forbiddenContinuation = result("continuation",
+    "ci-d1-edit-deferred-obs", replacement);
+  forbiddenContinuation.items[0].decision.revision = 2;
+  await assert.rejects(
+    commit(deferredEditEnv, "continuation",
+      prepare(deferredEditEnv, forbiddenContinuation)),
+    /deferred-sibling-origin-not-addition/,
+    "a pending edit must not be converted into an unrelated meal addition");
+
   const labelEnv = makeEnvelope("ci-d1-native-label");
   const oldLabel = prepare(labelEnv, result("nutrition_label", "ci-d1-obs-label", first, itemId));
   await assert.rejects(commit(labelEnv, "nutrition_label", oldLabel),
