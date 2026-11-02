@@ -115,6 +115,11 @@ export async function commitFoodD1NativeWrite(input: {
     }
     const previousManifest = (revisions as Record<string, unknown>).observationIds;
     if (previousManifest === undefined) {
+      // A continuation cannot bootstrap a new operation from a caller-supplied
+      // prior decision: an original, pinned batch must already exist.
+      if (plan.entrypoint === "continuation") {
+        throw new Error("food-d1-native-continuation-original-operation-missing");
+      }
       if (rows.length !== 0) {
         throw new Error("food-d1-native-missing-original-observation-manifest");
       }

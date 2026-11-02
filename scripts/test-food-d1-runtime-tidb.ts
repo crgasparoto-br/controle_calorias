@@ -162,6 +162,14 @@ try {
     [userId, env.idempotencyKey]);
   assert.equal(Number(twoReceipts.c), 2);
 
+  const orphanEnv = makeEnvelope("ci-d1-continuation-without-original");
+  const orphan = result("continuation", "ci-d1-orphan");
+  orphan.items[0].decision.revision = 2;
+  await assert.rejects(
+    commit(orphanEnv, "continuation", prepare(orphanEnv, orphan)),
+    /continuation-original-operation-missing/,
+    "a new operation must never be bootstrapped from a forged previous decision");
+
   const editEnv = makeEnvelope("ci-d1-native-edit");
   const editPlan = prepare(editEnv, result("edit", "ci-d1-obs-edit", replacement, itemId));
   const edited = await commit(editEnv, "edit", editPlan);
@@ -175,6 +183,17 @@ try {
     /target-stale-or-foreign/, "label must not silently change a selected food");
   const [unchanged] = await rows("SELECT foodVariantId FROM mealItems WHERE id=?", [itemId]);
   assert.equal(Number(unchanged.foodVariantId), replacement.variantId);
+  const matchingLabelEnv = makeEnvelope("ci-d1-native-verified-label");
+  const matchingLabelPlan = prepare(matchingLabelEnv,
+    result("nutrition_label", "ci-d1-label-positive", replacement, itemId));
+  const matchingLabel = await commit(matchingLabelEnv, "nutrition_label", matchingLabelPlan);
+  assert.deepEqual(matchingLabel.recordedItemIds, [itemId],
+    "a verified compatible label must update the existing physical item in place");
+  const [matchingLabelReceipt] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, matchingLabelEnv.idempotencyKey]);
+  assert.equal(Number(matchingLabelReceipt.c), 1);
+
   const [total] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
   assert.equal(Number(total.c), 1, "label and edit must not create another meal");
 
