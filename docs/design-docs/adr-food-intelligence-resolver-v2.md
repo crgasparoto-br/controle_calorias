@@ -2704,6 +2704,14 @@ Migrar progressivamente:
 
 10. consumidores de leitura classificados em §8.14.4.
 
+### Fase D1 — contrato preparatório de migração de entrypoints (#1308, ainda sem cutover)
+
+O núcleo `server/modules/foodIntelligenceV2/entrypointMigration.ts` recebe um envelope §4/§7 já validado pelo proprietário autenticado, evidências de texto, transcrição ou OCR com papel e origem e, para edição/rótulo/continuação, o ID **físico** exato do item e a decisão estruturada anterior. Todos os tipos de entrada D1 utilizam a mesma LCL e `resolveFoodObservation`; o simulador usa o mesmo método, sem engine paralela. A entrada estruturada aceita observações de um adaptador multimodal autorizado sem reprocessar `MealSemanticContract` V1. Mídia sem OCR/legenda autorizada não vira identidade. Informação apenas de ingredientes/tabela não vira novo item. Uma operação parcialmente resolvida recebe um plano explícito por item, com `committed=false` e motivos de bloqueio, sem efeitos no banco.
+
+O roteador `entrypointRouting.ts` define a escolha V1/V2 fixada por operação e a interface de armazenamento transacional compartilhado para chave idempotente. Uma flag desligada mantém novas operações na V1; aprovação independente e rollout são exigidos para V2; retry não muda owner, revisão, operação ou usuário. Rollback bloqueia a continuação V2, sem reexecutá-la pela V1. Não há implementação produtiva do provedor de aprovação nem do store de bindings para D1: uma `Map` de teste não é persistência. A flag `FOOD_V2_D1_ENABLED` tem default OFF e **não é autorização de Gate A**.
+
+**Limite desta entrega preparatória:** esse núcleo não está conectado aos handlers, router ou telas produtivos e não grava/refaz refeição, rótulo ou histórico. `projectDecisionV2ToV1` permanece intencionalmente fail-closed por campos V1 obrigatórios ausentes. Falta um consumidor nativo V2, transaction adapter com idempotência em banco, migração real dos 10 grupos de consumidores da Fase D, testes end-to-end públicos e a prova externa #1335. Até isso existir, V1 é o único decisor produtivo; não declarar os critérios de aceite de #1308 concluídos ou cutover liberado.
+
 ### Fase E — governança e aprendizado
 
 - memória pessoal;
