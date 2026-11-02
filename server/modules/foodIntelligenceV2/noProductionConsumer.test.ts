@@ -11,6 +11,12 @@ import { describe, expect, it } from "vitest";
  * com consumidores do domínio alimentar.
  */
 const REPOSITORY_ROOT = resolve(__dirname, "../../..");
+// Only the two disposable TiDB integration scripts are exempt from the
+// no-production-consumer baseline. Production code must still fail this gate.
+const D1_ISOLATED_TIDB_TESTS = new Set([
+  resolve(REPOSITORY_ROOT, "scripts/test-food-d1-runtime-tidb.ts"),
+  resolve(REPOSITORY_ROOT, "scripts/test-food-d1-restart-tidb.ts"),
+]);
 const MODULE_DIRECTORY = resolve(__dirname);
 const SCANNED_ROOTS = ["server", "client/src", "shared", "scripts"] as const;
 const V2_MODULE_PATH = /(?:^|[/\\])foodIntelligenceV2(?:[/\\]|$)/;
@@ -108,7 +114,7 @@ describe("fronteira da Fase A1", () => {
       }
       for (const file of files) {
         if (file.startsWith(MODULE_DIRECTORY + sep)) continue;
-        if (ISOLATED_TEST_FILE.test(file)) continue;
+        if (ISOLATED_TEST_FILE.test(file) || D1_ISOLATED_TIDB_TESTS.has(file)) continue;
         const content = await readFile(file, "utf8");
         if (importsV2AtRuntime(file, content)) {
           offenders.push(relative(REPOSITORY_ROOT, file));
@@ -132,6 +138,12 @@ describe("fronteira da Fase A1", () => {
     }
     expect(ISOLATED_TEST_FILE.test("scripts/food-architecture-call-target.test.ts")).toBe(true);
     expect(ISOLATED_TEST_FILE.test("server/services/food.ts")).toBe(false);
+    expect(D1_ISOLATED_TIDB_TESTS.has(resolve(REPOSITORY_ROOT,
+      "scripts/test-food-d1-runtime-tidb.ts"))).toBe(true);
+    expect(D1_ISOLATED_TIDB_TESTS.has(resolve(REPOSITORY_ROOT,
+      "scripts/test-food-d1-restart-tidb.ts"))).toBe(true);
+    expect(D1_ISOLATED_TIDB_TESTS.has(resolve(REPOSITORY_ROOT,
+      "server/whatsappWebhook.ts"))).toBe(false);
   });
 
   it("bloqueia ESM, reexport, CommonJS e importação dinâmica reais", () => {
