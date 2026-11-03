@@ -255,7 +255,13 @@ async function handleProfessionalAccessDecision(userId: number, text?: string | 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   // The authenticated tRPC endpoint is the same. A selected V2 simulation is
   // read-only and must obtain independent approval before any V1 side effect.
-  const d1Plan = await tryRunPublicFoodD1Simulation(userId, input);
+  // The public caller may omit pendingContextKind. Preserve server-known
+  // conversation state before the read-only V2 simulator can interpret text.
+  const activeConversation = getWhatsappConversationPendingContext(userId, input.receivedAt);
+  const d1Input = activeConversation && input.pendingContextKind === undefined
+    ? { ...input, pendingContextKind: activeConversation.kind }
+    : input;
+  const d1Plan = await tryRunPublicFoodD1Simulation(userId, d1Input);
   if (d1Plan) {
     return {
       handled: true,
