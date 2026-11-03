@@ -216,7 +216,10 @@ export function calculateQualityIndicators(
         const itemCalories = Number(item.calories || 0);
         acc.proteinGrams += Number(item.protein || 0);
 
-        if (readMode === "historical_snapshot") {
+        // V2-bound historicalRef is emitted only after physical snapshot
+        // validation by the public meal repository. In a mixed V1 report,
+        // never reclassify that physical V2 item by a current catalog name.
+        if (readMode === "historical_snapshot" || item.historicalRef != null) {
           // §8.14/Gate 19: the snapshot is the only authority for past
           // classifications. A missing snapshot stays unknown, even if the
           // current catalog has a plausible name or a different category.
