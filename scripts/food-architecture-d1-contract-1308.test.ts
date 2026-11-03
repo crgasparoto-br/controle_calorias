@@ -36,6 +36,34 @@ describe("#1308 typed operation states remain separate from food lexemes", () =>
     expect(gate(bad,"server/modules/foodIntelligenceV2/entrypointPersistence.ts")
       .some(e => e.includes("gate 18"))).toBe(true);
   });
+  it("treats a typed public D1 entrypoint state as structure, not food materiality", () => {
+    const file = "server/modules/foodIntelligenceV2/entrypointRouting.ts";
+    const valid = `
+      function routeFoodD1Operation(request: { entrypoint: "continuation" | "text" }, pin: unknown) {
+        return !pin && request.entrypoint === "continuation";
+      }
+    `;
+    const unsafe = valid.replace('=== "continuation"', '=== "light"');
+    expect(issues(valid, "18", file)).toEqual([]);
+    expect(issues(unsafe, "18", file).length).toBeGreaterThan(0);
+  });
+  it("does not mistake typed, independent version pinning for a food lexicon", () => {
+    const file = "server/modules/foodIntelligenceV2/entrypointPersistenceRepository.ts";
+    const valid = `
+      function commitFoodD1NativeWrite(revisions: { code: string; knowledge: string },
+        plan: { revisions: { code: string; knowledge: string } }) {
+        return revisions.code !== plan.revisions.code ||
+          revisions.knowledge !== plan.revisions.knowledge;
+      }
+    `;
+    expect(issues(valid, "18", file)).toEqual([]);
+    const unsafe = `
+      function commitFoodD1NativeWrite(input: { nutrition: string }) {
+        return ["integral", "diet"].includes(input.nutrition);
+      }
+    `;
+    expect(issues(unsafe, "18", file).length).toBeGreaterThan(0);
+  });
   it("retains food regex detection while accepting strict ID patterns", () => {
     const good = `
       function prepareFood(input: string) {

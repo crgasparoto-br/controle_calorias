@@ -127,9 +127,14 @@ export async function commitFoodD1NativeWrite(input: {
     if (!revisions || (revisions as Record<string, unknown>).operationScopeHash !== plan.operationScopeHash) {
       throw new Error("food-d1-native-operation-scope-changed");
     }
-    if (["code", "knowledge", "lexicon", "policy", "resolver"].some(key =>
-        (revisions as Record<string, string>)[key] !==
-          plan.revisions[key as keyof typeof plan.revisions])) {
+    // Compare the typed revision contract directly: these fields are pinned
+    // operation versions, not a vocabulary for food/materiality decisions.
+    const pinnedRevisions = revisions as Record<keyof FoodD1PreparedWrite["revisions"], unknown>;
+    if (pinnedRevisions.code !== plan.revisions.code ||
+        pinnedRevisions.knowledge !== plan.revisions.knowledge ||
+        pinnedRevisions.lexicon !== plan.revisions.lexicon ||
+        pinnedRevisions.policy !== plan.revisions.policy ||
+        pinnedRevisions.resolver !== plan.revisions.resolver) {
       throw new Error("food-d1-native-pinned-revisions-mismatch");
     }
     const rows = await tx.select().from(foodD1OperationEffects)

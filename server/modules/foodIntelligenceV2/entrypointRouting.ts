@@ -142,7 +142,7 @@ export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): P
   let pin = await store.readPinnedRoute(envelope.idempotencyKey, authenticatedUserId);
   // Resumed operations inherit the original entrypoint's rollout scope.
   const enabled = enabledForRequest(request.enabled, pin?.originEntrypoint ?? entrypoint);
-  if (!pin && enabled && entrypoint === "continuation") {
+  if (!pin && enabled && request.entrypoint === "continuation") {
     throw new Error("food-d1-orphan-continuation");
   }
   let approved = false;
