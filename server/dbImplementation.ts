@@ -5,6 +5,7 @@ import { InsertUser, NutritionGoal, User, WeightEntry } from "../drizzle/schema"
 import { ENV } from "./_core/env";
 import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 import { clearMealItemsSourceMedia } from "./mealItemImageProvenance";
+import { assertLegacyMealProjectionSafe } from "./modules/meals/foodV2Snapshot";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, getUtcRangeForInclusiveLocalDateRange, getUtcRangeForLocalDate, getWeekDateKeys } from "../shared/timeZone";
@@ -1194,6 +1195,7 @@ export async function createUserManualMeal(input: {
   notes?: string;
   items: MealDraftItem[];
 }) {
+  assertLegacyMealProjectionSafe(input.items);
   const savedMeal: SavedMeal = {
     id: mealIdSequence++,
     userId: input.userId,
@@ -1290,6 +1292,7 @@ export async function saveFavoriteMeal(input: {
   if (!meal) {
     throw new Error("Refeição não encontrada para favoritar.");
   }
+  assertLegacyMealProjectionSafe(meal.items);
 
   const favorite: FavoriteMeal = {
     id: favoriteMealIdSequence++,

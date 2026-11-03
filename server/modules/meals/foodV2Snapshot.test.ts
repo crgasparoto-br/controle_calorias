@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mealItems, meals } from "../../../drizzle/schema";
 import { createDrizzleMealsRepository } from "../../repositories/mealsRepository";
-import { assertLegacyMealItemMutationSafe } from "./foodV2Snapshot";
+import { assertLegacyMealItemMutationSafe, assertLegacyMealProjectionSafe } from "./foodV2Snapshot";
 import { mealItemSchema } from "./schemas";
 
 describe("#1308 D1: V1 writer cannot overwrite a V2 food snapshot", () => {
@@ -28,6 +28,21 @@ describe("#1308 D1: V1 writer cannot overwrite a V2 food snapshot", () => {
     ];
     expect(() => assertLegacyMealItemMutationSafe(rows))
       .toThrow("food-v2-legacy-item-mutation-not-supported");
+  });
+});
+
+describe("#1308 D1: V1 duplication/favorite cannot flatten a V2 DTO", () => {
+  it("allows ordinary V1 records and absent V2 marker", () => {
+    expect(() => assertLegacyMealProjectionSafe([
+      {},
+      { v2SnapshotVerified: undefined },
+    ])).not.toThrow();
+  });
+
+  it("rejects copying any V2 sibling before a new meal can be created", () => {
+    expect(() => assertLegacyMealProjectionSafe([
+      {}, { v2SnapshotVerified: true }, {},
+    ])).toThrow("food-v2-legacy-item-mutation-not-supported");
   });
 });
 

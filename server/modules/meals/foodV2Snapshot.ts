@@ -48,3 +48,15 @@ export function assertLegacyMealItemMutationSafe(
   }
 }
 
+/**
+ * A confirmed V2 item's public read projection carries its version marker but
+ * not the full physical identity, source-grant and decision snapshot. Legacy
+ * duplication/favorites must not reinsert that lossy DTO as a new food item.
+ */
+export function assertLegacyMealProjectionSafe(
+  items: readonly { v2SnapshotVerified?: true }[],
+): void {
+  if (items.some(item => item.v2SnapshotVerified === true)) {
+    throw new Error("food-v2-legacy-item-mutation-not-supported");
+  }
+}
