@@ -602,7 +602,9 @@ export function createDrizzleMealsRepository(deps: {
               route.originEntrypoint !== "addition" ||
               !routeVersions || typeof routeVersions !== "object" ||
               (routeVersions as Record<string, unknown>).operationScopeHash !==
-                legacyD1Receipt.operationScopeHash) {
+                legacyD1Receipt.operationScopeHash ||
+              (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
+                .some(key => (routeVersions as Record<string, unknown>)[key] !== "legacy-v1")) {
             throw new Error("food-d1-legacy-receipt-unpinned-or-stale");
           }
           const [receipt] = await tx.select().from(foodD1OperationEffects)
@@ -617,16 +619,16 @@ export function createDrizzleMealsRepository(deps: {
             let outcome: unknown;
             try { outcome = JSON.parse(receipt.outcomeJson); }
             catch { throw new Error("food-d1-legacy-receipt-corrupt"); }
-            const id = Number((outcome as { mealId?: unknown } | null)?.mealId);
-            if (!Number.isSafeInteger(id) || (id as number) <= 0) {
+            const id = (outcome as { mealId?: unknown } | null)?.mealId;
+            if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0) {
               throw new Error("food-d1-legacy-receipt-corrupt");
             }
             const [existing] = await tx.select().from(meals)
-              .where(and(eq(meals.id, id as number), eq(meals.userId, meal.userId),
+              .where(and(eq(meals.id, id), eq(meals.userId, meal.userId),
                 eq(meals.status, "confirmed"))).for("update").limit(1);
             if (!existing) throw new Error("food-d1-legacy-receipt-meal-missing");
             legacyD1Receipt.replayed = true;
-            return id as number;
+            return id;
           }
         }
         const mealInsert = await tx.insert(meals).values({

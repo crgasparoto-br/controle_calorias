@@ -110,6 +110,17 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
     await expect(bridge(input)).rejects.toThrow();
   });
+  it("rejects a reused V1 operation with altered resolver/policy revisions", async () => {
+    const bridge = createFoodD1PublicManualAddition({
+      readAuthorizedContext: async () => null,
+      bindLegacyRoute: async candidate => ({
+        ...candidate,
+        versions: { ...candidate.versions, policy: "untrusted-new-policy" },
+      }),
+    });
+    await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
+      .rejects.toThrow("food-d1-legacy-operation-scope-changed");
+  });
   it("fails closed on selected flag without independent authority", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";

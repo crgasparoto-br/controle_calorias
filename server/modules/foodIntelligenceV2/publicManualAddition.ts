@@ -82,7 +82,9 @@ function assertSameLegacyManualScope(pinned: FoodD1PinnedRoute, candidate: FoodD
   if (pinned.resolver !== "v1" || pinned.operationKey !== candidate.operationKey ||
       pinned.ownerUserId !== candidate.ownerUserId ||
       pinned.operationScopeHash !== candidate.operationScopeHash ||
-      pinned.originEntrypoint !== candidate.originEntrypoint) {
+      pinned.originEntrypoint !== candidate.originEntrypoint ||
+      (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
+        .some(key => pinned.versions?.[key] !== candidate.versions[key])) {
     throw new Error("food-d1-legacy-operation-scope-changed");
   }
 }

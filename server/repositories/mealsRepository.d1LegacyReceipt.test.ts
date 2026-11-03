@@ -7,7 +7,10 @@ const hash = "a".repeat(64);
 const routeKey = "d1-manual-7:submission-retry-1";
 const route = (ownerUserId = 7, resolver: "v1" | "v2" = "v1") => ({
   ownerUserId, operationKey: routeKey, originEntrypoint: "addition", resolver,
-  revisionsJson: JSON.stringify({ operationScopeHash: hash }),
+  revisionsJson: JSON.stringify({
+    operationScopeHash: hash, code: "legacy-v1", knowledge: "legacy-v1",
+    lexicon: "legacy-v1", policy: "legacy-v1", resolver: "legacy-v1",
+  }),
 });
 type State = {
   route: ReturnType<typeof route> | null;
@@ -157,6 +160,25 @@ describe("#1308 D1 legacy manual exactly-once physical meal receipts", () => {
       .rejects.toThrow("food-d1-legacy-receipt-unpinned-or-stale");
     expect(store.snapshot().meals).toEqual([]);
     expect(store.snapshot().items).toEqual([]);
+  });
+
+  it("rejects drifted persisted policy revisions and non-numeric forged receipt IDs", async () => {
+    const store = createSerializedDb();
+    const changedRoute = route();
+    store.setRoute({ ...changedRoute, revisionsJson: JSON.stringify({
+      ...JSON.parse(changedRoute.revisionsJson), policy: "revoked-policy",
+    }) });
+    await expect(store.repo.persistMeal(request()))
+      .rejects.toThrow("food-d1-legacy-receipt-unpinned-or-stale");
+    store.setRoute(route());
+    await store.repo.persistMeal(request());
+    const committed = store.snapshot().receipt!;
+    store.setReceipt({ ...committed,
+      outcomeJson: JSON.stringify({ mealId: "301", itemId: 801 }) });
+    await expect(store.repo.persistMeal(request()))
+      .rejects.toThrow("food-d1-legacy-receipt-corrupt");
+    expect(store.snapshot().meals).toHaveLength(1);
+    expect(store.snapshot().items).toHaveLength(1);
   });
 
   it("rejects corrupt receipts or deleted historical meals without a second insert", async () => {
