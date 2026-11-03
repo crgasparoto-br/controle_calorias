@@ -74,6 +74,42 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
       .rejects.toThrow("food-d1-legacy-operation-scope-changed");
   });
+  it("resumes an originally pinned V1 submission after enabling V2 without switching resolvers", async () => {
+    let pinned: FoodD1PinnedRoute | null = null;
+    const run = vi.fn();
+    const bridge = createFoodD1PublicManualAddition({
+      readAuthorizedContext: async () => approved,
+      readPinnedRoute: async () => pinned,
+      bindLegacyRoute: async candidate => { pinned = candidate; return candidate; },
+      run: run as unknown as typeof runFoodD1Migration,
+    });
+    const input = { userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" };
+    expect(await bridge(input)).toBeNull();
+    expect(pinned).toMatchObject({ resolver: "v1", ownerUserId: 7 });
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
+    expect(await bridge(input)).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+    const changedMeal = meal();
+    changedMeal.items[0].calories = 42;
+    await expect(bridge({ ...input, meal: changedMeal }))
+      .rejects.toThrow("food-d1-legacy-operation-scope-changed");
+    expect(run).not.toHaveBeenCalled();
+  });
+  it("does not treat a pinned V2 as a legacy submission after rollout", async () => {
+    let pinned: FoodD1PinnedRoute | null = null;
+    const bridge = createFoodD1PublicManualAddition({
+      readAuthorizedContext: async () => approved,
+      bindLegacyRoute: async candidate => { pinned = candidate; return candidate; },
+      readPinnedRoute: async () => pinned ? { ...pinned, resolver: "v2" } : null,
+      run: vi.fn() as unknown as typeof runFoodD1Migration,
+    });
+    const input = { userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" };
+    await bridge(input);
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
+    await expect(bridge(input)).rejects.toThrow();
+  });
   it("fails closed on selected flag without independent authority", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";

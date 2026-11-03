@@ -2,6 +2,7 @@
  * V1 remains the owner until independently approved Gate A/rollout evidence exists.
  * Manual items are treated as untrusted surface text, never as verified macros.
  */
+import { createHash } from "node:crypto";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type { ManualMealInput } from "../meals/schemas";
 import { governedLinguisticLexiconStore } from "./linguisticLexiconRepository";
@@ -11,7 +12,7 @@ import type { FoodKnowledgeStore } from "./knowledgeRead";
 import { type FoodD1Request } from "./entrypointMigration";
 import { runFoodD1Migration } from "./entrypointRunner";
 import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
-import { hashFoodD1OperationScope, type FoodD1PinnedRoute } from "./entrypointRouting";
+import { hashFoodD1OperationScope, type FoodD1PinnedRoute, type FoodD1RouteStore } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
@@ -24,12 +25,67 @@ export type PublicD1ManualDependencies = {
   run?: typeof runFoodD1Migration;
   /** Exact persisted resolver owner, not a process-local cache. */
   bindLegacyRoute?: (candidate: FoodD1PinnedRoute) => Promise<FoodD1PinnedRoute>;
+  readPinnedRoute?: FoodD1RouteStore["readPinnedRoute"];
 };
 
 /** No production authority exists until #1335; a flag can never manufacture it. */
 const unavailableManualD1Context: PublicD1ManualDependencies = {
   readAuthorizedContext: async () => null,
 };
+
+function buildLegacyManualRoute(input: {
+  userId: number; meal: ManualMealInput; timeZone: string;
+  source?: "web" | "whatsapp";
+}): FoodD1PinnedRoute {
+  const opId = input.meal.d1OperationId;
+  const occurredAt = new Date(input.meal.occurredAt);
+  if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
+      !Number.isFinite(occurredAt.getTime()) ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,79}$/.test(opId ?? "")) {
+    throw new Error("food-d1-public-addition-invalid-legacy-pin");
+  }
+  const key = "d1-manual-" + input.userId + ":" + opId;
+  // Scope includes the complete untrusted manual payload, not merely the
+  // meal name/date. Reusing a key for different items/macros must fail closed.
+  const payloadHash = createHash("sha256").update(JSON.stringify({
+    ownerUserId: input.userId, meal: input.meal,
+  })).digest("hex");
+  const legacyVersion = "legacy-v1";
+  const revisions = {
+    code: legacyVersion, knowledge: legacyVersion, lexicon: legacyVersion,
+    policy: legacyVersion, resolver: legacyVersion,
+  };
+  const envelope: FoodOperationEnvelope = {
+    schemaVersion: 2, traceId: "trace-" + key + ":" + payloadHash,
+    idempotencyKey: key, ownerUserId: input.userId,
+    conversationRef: null, turnRef: null, effectiveTimeZone: input.timeZone,
+    mealOperation: {
+      action: "add", targetMeal: input.meal.mealLabel,
+      date: getDateKeyInTimeZone(occurredAt, input.timeZone),
+    },
+    contextSources: {
+      previousMessage: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
+      preferences: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
+      recentHistory: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
+    },
+    revisions,
+  };
+  return {
+    operationKey: key, ownerUserId: input.userId, originEntrypoint: "addition",
+    resolver: "v1", operationScopeHash: hashFoodD1OperationScope(envelope, input.source ?? "web"),
+    versions: revisions,
+  };
+}
+
+function assertSameLegacyManualScope(pinned: FoodD1PinnedRoute, candidate: FoodD1PinnedRoute) {
+  if (pinned.resolver === "v2") throw new Error("food-d1-operation-paused-by-rollback");
+  if (pinned.resolver !== "v1" || pinned.operationKey !== candidate.operationKey ||
+      pinned.ownerUserId !== candidate.ownerUserId ||
+      pinned.operationScopeHash !== candidate.operationScopeHash ||
+      pinned.originEntrypoint !== candidate.originEntrypoint) {
+    throw new Error("food-d1-legacy-operation-scope-changed");
+  }
+}
 
 export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencies) {
   return async function tryRunFoodD1PublicManualAddition(input: {
@@ -38,54 +94,16 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
     timeZone: string;
     source?: "web" | "whatsapp";
   }): Promise<number | null> {
-    // A client retry of a previously pinned V2 addition must not fall back
-    // to a new V1 meal merely because the rollout flag was disabled.
+    // Preserve a durable V1 owner on rollback; never silently retry a pinned
+    // V2 operation through a V1 write. A selected V2 route needs real Gate A
+    // even to inspect or execute an operation.
     if (!isFoodD1EntrypointCutoverRequested("addition")) {
-      const opId = input.meal.d1OperationId;
-      if (opId) {
-        const key = "d1-manual-" + input.userId + ":" + opId;
-        const occurredAt = new Date(input.meal.occurredAt);
-        if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
-            !Number.isFinite(occurredAt.getTime()) ||
-            !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,79}$/.test(opId)) {
-          throw new Error("food-d1-public-addition-invalid-legacy-pin");
-        }
-        // A V1 submission needs an atomic persisted owner as well; otherwise
-        // enabling V2 after a successful V1 write could replay that same key.
-        const legacyVersion = "legacy-v1";
-        const revisions = {
-          code: legacyVersion, knowledge: legacyVersion, lexicon: legacyVersion,
-          policy: legacyVersion, resolver: legacyVersion,
-        };
-        const envelope: FoodOperationEnvelope = {
-          schemaVersion: 2, traceId: "trace-" + key, idempotencyKey: key,
-          ownerUserId: input.userId, conversationRef: null, turnRef: null,
-          effectiveTimeZone: input.timeZone,
-          mealOperation: { action: "add", targetMeal: input.meal.mealLabel,
-            date: getDateKeyInTimeZone(occurredAt, input.timeZone) },
-          contextSources: {
-            previousMessage: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
-            preferences: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
-            recentHistory: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
-          },
-          revisions,
-        };
-        const candidate: FoodD1PinnedRoute = {
-          operationKey: key, ownerUserId: input.userId, originEntrypoint: "addition",
-          resolver: "v1",
-          operationScopeHash: hashFoodD1OperationScope(envelope, input.source ?? "web"),
-          versions: revisions,
-        };
+      if (input.meal.d1OperationId) {
+        const candidate = buildLegacyManualRoute(input);
         const pinned = await (deps.bindLegacyRoute
           ? deps.bindLegacyRoute(candidate)
           : createFoodD1RouteDbStore().bindPinnedRoute(candidate));
-        if (pinned.resolver === "v2") throw new Error("food-d1-operation-paused-by-rollback");
-        if (pinned.resolver !== "v1" || pinned.operationKey !== key ||
-            pinned.ownerUserId !== input.userId ||
-            pinned.operationScopeHash !== candidate.operationScopeHash ||
-            pinned.originEntrypoint !== "addition") {
-          throw new Error("food-d1-legacy-operation-scope-changed");
-        }
+        assertSameLegacyManualScope(pinned, candidate);
       }
       return null;
     }
@@ -104,6 +122,13 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
       throw new Error("food-d1-public-addition-invalid-date");
     }
     const key = "d1-manual-" + input.userId + ":" + input.meal.d1OperationId;
+    const pinned = await (deps.readPinnedRoute
+      ? deps.readPinnedRoute(key, input.userId)
+      : createFoodD1RouteDbStore().readPinnedRoute(key, input.userId));
+    if (pinned?.resolver === "v1") {
+      assertSameLegacyManualScope(pinned, buildLegacyManualRoute(input));
+      return null;
+    }
     const timeZone = input.timeZone;
     const source = input.source ?? "web";
     const observations = [];
