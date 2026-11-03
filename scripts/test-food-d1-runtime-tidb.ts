@@ -11,6 +11,7 @@ import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/e
 import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
+import { listMeals } from "../server/modules/meals/service";
 import type { FoodD1Result } from "../server/modules/foodIntelligenceV2/entrypointMigration";
 import type { FoodOperationEnvelope, FoodResolutionDecision } from "../server/modules/foodIntelligenceV2/schemas";
 
@@ -288,6 +289,13 @@ try {
     "variant:" + replacement.variantId, "variant:" + first.variantId,
   ], "the reader must preserve both exact physical V2 variants");
   assert.deepEqual(originalMeal.items.map(item => item.calories), [81, 81]);
+  const exposedMeals = await listMeals(userId);
+  const publiclyReturnedMeal = exposedMeals.find(entry => entry.id === Number(created.mealId));
+  assert.ok(publiclyReturnedMeal, "the authenticated web meal service must expose persisted V2 history");
+  assert.deepEqual(publiclyReturnedMeal.items.map(item => item.historicalRef),
+    originalMeal.items.map(item => item.historicalRef),
+    "the public service must retain item variant identifiers without a new food lookup");
+  assert.deepEqual(publiclyReturnedMeal.items.map(item => item.calories), [81, 81]);
   // This modifies only the disposable CI fixture's current knowledge. No real
   // data, production flags or licensed source records are touched.
   await sql.query(
