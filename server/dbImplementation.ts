@@ -726,9 +726,16 @@ async function persistInferenceToDb(draft: PendingInference) {
   });
 }
 
-async function persistMealToDb(meal: SavedMeal) {
+async function persistMealToDb(
+  meal: SavedMeal,
+  legacyD1Receipt?: { operationKey: string; operationScopeHash: string },
+): Promise<boolean> {
   const db = await getDb();
-  if (!db) return;
+  if (!db) {
+    if (legacyD1Receipt) throw new Error("food-d1-legacy-receipt-db-unavailable");
+    return false;
+  }
+  const receipt = legacyD1Receipt ? { ...legacyD1Receipt, replayed: false } : undefined;
 
   const resolvedCatalogIds = meal.items.length
     ? await resolveFoodCatalogIds(meal.items, meal.userId)
@@ -748,9 +755,11 @@ async function persistMealToDb(meal: SavedMeal) {
     items: meal.items,
     media: meal.media,
     resolvedCatalogIds,
+    legacyD1Receipt: receipt,
   });
 
   meal.id = insertedMealId || meal.id;
+  return receipt?.replayed === true;
 }
 
 async function updateMealInDb(meal: SavedMeal) {
@@ -1194,6 +1203,7 @@ export async function createUserManualMeal(input: {
   occurredAt: string;
   notes?: string;
   items: MealDraftItem[];
+  legacyD1Receipt?: { operationKey: string; operationScopeHash: string };
 }) {
   assertLegacyMealProjectionSafe(input.items);
   const savedMeal: SavedMeal = {
@@ -1213,7 +1223,14 @@ export async function createUserManualMeal(input: {
   };
 
   const current = await listUserMeals(input.userId);
-  await persistMealToDb(savedMeal);
+  const replayed = await persistMealToDb(savedMeal, input.legacyD1Receipt);
+  if (replayed) {
+    // A completed transaction is authoritative after restart: neither the
+    // in-process cache nor the habit counters may be advanced twice.
+    const committed = (await loadMealsFromDb(input.userId))?.find(meal => meal.id === savedMeal.id);
+    if (!committed) throw new Error("food-d1-legacy-receipt-meal-unavailable");
+    return { ...committed, totals: sumMealItems(committed.items) };
+  }
   mealStore.set(input.userId, [savedMeal, ...current.filter(meal => meal.id !== savedMeal.id)]);
   await updateHabitsFromMeal(savedMeal);
   logInferenceEvent({

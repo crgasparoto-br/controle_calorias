@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../../drizzle/schema";
+import { foodD1OperationEffects, foodD1OperationRoutes } from "../../drizzle/food-intelligence-v2-schema";
 import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
@@ -61,6 +62,8 @@ export type MealsRepository = {
     items: MealDraftItem[];
     media: SavedMediaRecord[];
     resolvedCatalogIds: Map<string, number>;
+    /** Optional D1 V1 receipt must be committed in the meal transaction. */
+    legacyD1Receipt?: { operationKey: string; operationScopeHash: string; replayed: boolean };
   }): Promise<number>;
   persistMealUpdate(input: {
     meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number };
@@ -571,11 +574,61 @@ export function createDrizzleMealsRepository(deps: {
       return loadSavedMeals(deps, userId, options);
     },
 
-    async persistMeal({ meal, items, media, resolvedCatalogIds }) {
+    async persistMeal({ meal, items, media, resolvedCatalogIds, legacyD1Receipt }) {
       const db = await deps.getDb();
-      if (!db) return 0;
+      if (!db) {
+        if (legacyD1Receipt) throw new Error("food-d1-legacy-receipt-db-unavailable");
+        return 0;
+      }
+      if (legacyD1Receipt && typeof db.transaction !== "function") {
+        throw new Error("food-d1-legacy-receipt-transaction-unavailable");
+      }
 
       return runInTransaction(db, async tx => {
+        if (legacyD1Receipt) {
+          if (typeof legacyD1Receipt.operationKey !== "string" ||
+              legacyD1Receipt.operationKey.length > 200 ||
+              !/^[a-f0-9]{64}$/.test(legacyD1Receipt.operationScopeHash)) {
+            throw new Error("food-d1-legacy-receipt-malformed");
+          }
+          const [route] = await tx.select().from(foodD1OperationRoutes)
+            .where(and(eq(foodD1OperationRoutes.ownerUserId, meal.userId),
+              eq(foodD1OperationRoutes.operationKey, legacyD1Receipt.operationKey)))
+            .for("update").limit(1);
+          let routeVersions: unknown;
+          try { routeVersions = JSON.parse(route?.revisionsJson ?? "null"); }
+          catch { throw new Error("food-d1-legacy-receipt-corrupt-route"); }
+          if (!route || route.resolver !== "v1" ||
+              route.originEntrypoint !== "addition" ||
+              !routeVersions || typeof routeVersions !== "object" ||
+              (routeVersions as Record<string, unknown>).operationScopeHash !==
+                legacyD1Receipt.operationScopeHash) {
+            throw new Error("food-d1-legacy-receipt-unpinned-or-stale");
+          }
+          const [receipt] = await tx.select().from(foodD1OperationEffects)
+            .where(and(eq(foodD1OperationEffects.ownerUserId, meal.userId),
+              eq(foodD1OperationEffects.operationKey, legacyD1Receipt.operationKey),
+              eq(foodD1OperationEffects.observationId, "__manual_v1_confirmed")))
+            .for("update").limit(1);
+          if (receipt) {
+            if (receipt.decisionHash !== legacyD1Receipt.operationScopeHash) {
+              throw new Error("food-d1-legacy-receipt-payload-changed");
+            }
+            let outcome: unknown;
+            try { outcome = JSON.parse(receipt.outcomeJson); }
+            catch { throw new Error("food-d1-legacy-receipt-corrupt"); }
+            const id = (outcome as { mealId?: unknown } | null)?.mealId;
+            if (!Number.isSafeInteger(id) || (id as number) <= 0) {
+              throw new Error("food-d1-legacy-receipt-corrupt");
+            }
+            const [existing] = await tx.select().from(meals)
+              .where(and(eq(meals.id, id as number), eq(meals.userId, meal.userId),
+                eq(meals.status, "confirmed"))).for("update").limit(1);
+            if (!existing) throw new Error("food-d1-legacy-receipt-meal-missing");
+            legacyD1Receipt.replayed = true;
+            return id as number;
+          }
+        }
         const mealInsert = await tx.insert(meals).values({
           userId: meal.userId,
           source: meal.source,
@@ -589,8 +642,11 @@ export function createDrizzleMealsRepository(deps: {
         });
         const mealId = Number((mealInsert as any)?.[0]?.insertId ?? (mealInsert as any)?.insertId ?? 0);
 
+        let itemInsertForReceipt: unknown = null;
         if (items.length) {
-          await tx.insert(mealItems).values(buildMealItemValues(mealId, items, resolvedCatalogIds));
+          itemInsertForReceipt = await tx.insert(mealItems).values(
+            buildMealItemValues(mealId, items, resolvedCatalogIds),
+          );
         }
 
         if (media.length) {
@@ -607,6 +663,20 @@ export function createDrizzleMealsRepository(deps: {
         }
 
         await tx.update(meals).set({ status: "confirmed" }).where(eq(meals.id, mealId));
+        if (legacyD1Receipt) {
+          const firstItemId = Number((itemInsertForReceipt as any)?.[0]?.insertId ??
+            (itemInsertForReceipt as any)?.insertId ?? 0);
+          if (!Number.isSafeInteger(mealId) || mealId <= 0 ||
+              !Number.isSafeInteger(firstItemId) || firstItemId <= 0) {
+            throw new Error("food-d1-legacy-receipt-effect-id-unavailable");
+          }
+          await tx.insert(foodD1OperationEffects).values({
+            ownerUserId: meal.userId, operationKey: legacyD1Receipt.operationKey,
+            observationId: "__manual_v1_confirmed",
+            decisionHash: legacyD1Receipt.operationScopeHash,
+            outcomeJson: JSON.stringify({ mealId, itemId: firstItemId }),
+          });
+        }
 
         return mealId;
       });

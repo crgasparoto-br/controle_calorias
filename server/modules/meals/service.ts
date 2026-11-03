@@ -21,7 +21,7 @@ import {
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
-import { tryRunFoodD1PublicManualAddition } from "../foodIntelligenceV2/publicManualAddition";
+import { buildLegacyManualRoute, tryRunFoodD1PublicManualAddition } from "../foodIntelligenceV2/publicManualAddition";
 import { associateMealItemsWithSourceMedia, clearMealItemSourceMedia } from "../../mealItemImageProvenance";
 import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "../../householdMeasureResolutionPersistence";
 import { updateMealAndHouseholdMeasureLearning } from "../../householdMeasureMealUpdate";
@@ -293,10 +293,18 @@ export async function createManualMeal(
     return committed;
   }
   const { d1OperationId: _ignoredOperationId, ...legacyInput } = input;
+  const pinnedV1 = input.d1OperationId
+    ? buildLegacyManualRoute({ userId, meal: input, timeZone })
+    : null;
   await ensureCurrentIrreversibleEffectAllowed();
   const items = await prepareMealItemsForSave(userId, legacyInput.items);
   await ensureCurrentIrreversibleEffectAllowed();
-  const meal = decorateMealWithImageUrl(await createUserManualMeal({ userId, ...legacyInput, items }));
+  const meal = decorateMealWithImageUrl(await createUserManualMeal({
+    userId, ...legacyInput, items,
+    ...(pinnedV1 ? { legacyD1Receipt: {
+      operationKey: pinnedV1.operationKey, operationScopeHash: pinnedV1.operationScopeHash,
+    } } : {}),
+  }));
   return meal;
 }
 

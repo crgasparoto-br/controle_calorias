@@ -33,7 +33,7 @@ const unavailableManualD1Context: PublicD1ManualDependencies = {
   readAuthorizedContext: async () => null,
 };
 
-function buildLegacyManualRoute(input: {
+export function buildLegacyManualRoute(input: {
   userId: number; meal: ManualMealInput; timeZone: string;
   source?: "web" | "whatsapp";
 }): FoodD1PinnedRoute {
