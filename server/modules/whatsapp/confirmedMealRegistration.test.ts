@@ -75,6 +75,42 @@ describe("issue #899 orchestration regressions", () => {
     }
   });
 
+  it("#1308 preserves already-owned V1 clarification after the V2 selection changes", async () => {
+    const flag = process.env.FOOD_V2_D1_ENABLED;
+    const selected = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const prepare = vi.fn();
+    const processMeal = vi.fn(async input => processed(input.text ?? ""));
+    const createDraft = vi.fn(() => ({ draftId: "legacy-pending-d1-1308" } as any));
+    const confirmMeal = vi.fn(async () => savedMeal());
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "text,audio_transcript";
+      const service = createConfirmedMealRegistrationService({
+        processMeal: processMeal as any, getHabits: vi.fn(async () => []),
+        prepareCountableFoodRegistration: prepare as any, createDraft,
+        confirmMeal: confirmMeal as any,
+        consolidateMeal: vi.fn(async (_deps, meal) => ({ action: "created", meal })) as any,
+        getGoalProgress: vi.fn(async () => undefined) as any,
+      });
+      const result = await service({
+        userId: 899, registrationText: "200 ml café com açúcar",
+        originalText: "200 ml café com açúcar",
+        occurredAt: new Date("2026-07-24T10:00:00.000Z"),
+        userTimezone: "America/Sao_Paulo",
+        skipCountablePreflight: true,
+      });
+      expect(result.status).toBe("registered");
+      expect(processMeal).toHaveBeenCalledOnce();
+      expect(confirmMeal).toHaveBeenCalledOnce();
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      if (flag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = flag;
+      if (selected === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = selected;
+    }
+  });
+
   it("persiste 200 ml café com açúcar pelo pipeline canônico após confirmação", async () => {
     const confirmMeal = vi.fn(async () => savedMeal());
     const service = createConfirmedMealRegistrationService({

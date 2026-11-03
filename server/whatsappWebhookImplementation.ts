@@ -890,11 +890,15 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       // Food entrypoints not connected to V2 cannot silently run V1 once
       // selected. Place after non-food intent routing, before food inference.
-      assertUnmigratedFoodD1EntrypointsOff([
-        ...(message.image?.id ? ["plate_image", "packaging", "nutrition_label"] as const : []),
-        ...(message.audio?.id ? ["audio_transcript"] as const : []),
-        ...(!message.image?.id && !message.audio?.id ? ["text"] as const : []),
-      ]);
+      // Persisted V1 pending items and verified legacy label targets retain V1
+      // ownership across a flag change; an unrelated new item never inherits it.
+      if (resolvedSegments.length === 0 && !nutritionLabelProcessingContext) {
+        assertUnmigratedFoodD1EntrypointsOff([
+          ...(message.image?.id ? ["plate_image", "packaging", "nutrition_label"] as const : []),
+          ...(message.audio?.id ? ["audio_transcript"] as const : []),
+          ...(!message.image?.id && !message.audio?.id ? ["text"] as const : []),
+        ]);
+      }
       let partialProcessing: Awaited<
         ReturnType<typeof processMealInputWithPartialFailures>
       >;

@@ -935,7 +935,11 @@ async function tryHandleAnnotatedImageMessage(
         : null;
     // Annotated-image webhook must not bypass selected V2 via its own V1
     // inference branch. Untrusted captions cannot classify package versus label.
-    assertUnmigratedFoodD1EntrypointsOff(["plate_image", "packaging", "nutrition_label"]);
+    // A persisted V1 label request is owned by its original pending workflow,
+    // so flag changes cannot steal or abort that in-flight clarification.
+    if (!nutritionLabelIdentityContext) {
+      assertUnmigratedFoodD1EntrypointsOff(["plate_image", "packaging", "nutrition_label"]);
+    }
     const processingOutcome = await processImageMealInputWithFallback({
       userId,
       prepared,

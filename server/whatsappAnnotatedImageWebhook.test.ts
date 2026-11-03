@@ -522,6 +522,48 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }
   });
 
+  it("#1308 preserves a durable V1 label pending after selecting V2", async () => {
+    const flag = process.env.FOOD_V2_D1_ENABLED;
+    const selector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "nutrition_label";
+      listActiveNutritionLabelPhotoRequestsMock.mockResolvedValueOnce([{
+        target: {
+          kind: "nutrition_label_photo_request", mealId: 10, itemIndex: 0,
+          identityKey: "danone-natural-integral",
+          originalFoodName: "Iogurte Natural Integral Danone",
+          originalCanonicalName: "Iogurte Natural Integral Danone",
+          originalBrand: "Danone", originalProductVariant: "Natural Integral",
+        },
+      }]);
+      resolveNutritionLabelPhotoEvidenceMock.mockResolvedValueOnce({
+        handled: true, action: "nutrition_label_photo_applied",
+        reply: "Rótulo associado ao mesmo alimento.",
+        eventType: "whatsapp.nutrition_label_photo.applied",
+        detail: "Operação V1 já persistida.",
+      });
+      await handleWhatsAppWebhookWithTextIntent(
+        createImageWebhookRequest("d1-legacy-label-owned") as never,
+        createResponse() as never,
+      );
+      expect(processMealInputMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nutritionLabelIdentityContext: expect.objectContaining({
+            originalBrand: "Danone",
+          }),
+        }),
+      );
+      expect(resolveNutritionLabelPhotoEvidenceMock).toHaveBeenCalledOnce();
+      expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    } finally {
+      if (flag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = flag;
+      if (selector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = selector;
+    }
+  });
+
   it("mantém a correlação da mensagem entre mídia e inferência anotada", async () => {
     const messageId = "image-memory-correlation";
     const res = createResponse();

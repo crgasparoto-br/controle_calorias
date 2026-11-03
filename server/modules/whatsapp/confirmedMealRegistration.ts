@@ -76,7 +76,11 @@ export function createConfirmedMealRegistrationService(
   }): Promise<ConfirmedMealRegistrationOutcome> {
     // This V1 consumer has no trusted text-vs-transcript tag yet. Stop both
     // selected modes before countable preflight or any irreversible effect.
-    assertUnmigratedFoodD1EntrypointsOff(["text", "audio_transcript"]);
+    // An already materialized V1 clarification retains its original owner;
+    // only fresh D1-selected registrations are barred from V1 inference.
+    if (!input.skipCountablePreflight && !input.resolvedSegments?.length) {
+      assertUnmigratedFoodD1EntrypointsOff(["text", "audio_transcript"]);
+    }
     let mutationMayHaveStarted = false;
 
     try {
