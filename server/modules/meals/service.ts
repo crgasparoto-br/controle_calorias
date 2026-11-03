@@ -21,6 +21,7 @@ import {
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
+import { tryRunFoodD1PublicManualAddition } from "../foodIntelligenceV2/publicManualAddition";
 import { associateMealItemsWithSourceMedia, clearMealItemSourceMedia } from "../../mealItemImageProvenance";
 import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "../../householdMeasureResolutionPersistence";
 import { updateMealAndHouseholdMeasureLearning } from "../../householdMeasureMealUpdate";
@@ -278,11 +279,24 @@ export async function getDayTotals(userId: number, date: string, timeZone = DEFA
   return getUserDayMealTotals(userId, date, timeZone);
 }
 
-export async function createManualMeal(userId: number, input: ManualMealInput) {
+export async function createManualMeal(
+  userId: number, input: ManualMealInput, timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  // Run before any legacy catalog preparation or irreversible V1 side effect.
+  // A missing Gate A never silently reroutes a selected V2 operation to V1.
+  const v2MealId = await tryRunFoodD1PublicManualAddition({
+    userId, meal: input, timeZone,
+  });
+  if (v2MealId !== null) {
+    const committed = (await listMeals(userId)).find(meal => meal.id === v2MealId);
+    if (!committed) throw new Error("food-d1-public-addition-committed-meal-unavailable");
+    return committed;
+  }
+  const { d1OperationId: _ignoredOperationId, ...legacyInput } = input;
   await ensureCurrentIrreversibleEffectAllowed();
-  const items = await prepareMealItemsForSave(userId, input.items);
+  const items = await prepareMealItemsForSave(userId, legacyInput.items);
   await ensureCurrentIrreversibleEffectAllowed();
-  const meal = decorateMealWithImageUrl(await createUserManualMeal({ userId, ...input, items }));
+  const meal = decorateMealWithImageUrl(await createUserManualMeal({ userId, ...legacyInput, items }));
   return meal;
 }
 

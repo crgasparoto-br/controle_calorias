@@ -16,6 +16,8 @@ const D1_ISOLATED_TIDB_TESTS = new Set([
 ]);
 const MODULE_DIRECTORY = resolve(__dirname);
 const PUBLIC_D1_SIMULATOR = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/service.ts");
+const PUBLIC_D1_MANUAL_ADD = resolve(REPOSITORY_ROOT, "server/modules/meals/service.ts");
+const PUBLIC_D1_MANUAL_ADD_BRIDGE = "../foodIntelligenceV2/publicManualAddition";
 const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
 const SCANNED_ROOTS = ["server", "client/src", "shared", "scripts"] as const;
 const V2_MODULE_PATH = /(?:^|[/\\])foodIntelligenceV2(?:[/\\]|$)/;
@@ -86,8 +88,10 @@ function importsV2AtRuntime(file: string, content: string): boolean {
 
 /** One exact productive import is allowed, without permission to load anything else. */
 function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[]): boolean {
-  return file === PUBLIC_D1_SIMULATOR && imports.length === 1 &&
-    imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE;
+  return imports.length === 1 && (
+    file === PUBLIC_D1_SIMULATOR && imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE ||
+    file === PUBLIC_D1_MANUAL_ADD && imports[0] === PUBLIC_D1_MANUAL_ADD_BRIDGE
+  );
 }
 
 async function collectSourceFiles(directory: string): Promise<string[]> {
@@ -132,6 +136,9 @@ describe("fronteira da Fase D", () => {
     const publicSimulator = await readFile(PUBLIC_D1_SIMULATOR, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_SIMULATOR, publicSimulator))
       .toEqual([PUBLIC_D1_SIMULATOR_BRIDGE]);
+    const publicManual = await readFile(PUBLIC_D1_MANUAL_ADD, "utf8");
+    expect(runtimeV2Specifiers(PUBLIC_D1_MANUAL_ADD, publicManual))
+      .toEqual([PUBLIC_D1_MANUAL_ADD_BRIDGE]);
   });
 
   it("não isenta outros handlers, imports dinâmicos nem segundos resolvers no simulador", () => {

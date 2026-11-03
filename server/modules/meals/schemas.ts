@@ -104,6 +104,8 @@ export const mealItemSchema = mealItemBaseSchema.transform(item => ({
 }));
 
 export const manualMealSchema = z.object({
+  /** Stable per-submit ID, required only when a verified D1 addition is selected. */
+  d1OperationId: z.string().trim().min(8).max(80).optional(),
   mealLabel: mealLabelSchema,
   occurredAt: z.string().min(1),
   notes: z.string().max(500).optional(),

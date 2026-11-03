@@ -806,7 +806,7 @@ export const nutritionRouter = router({
         const result = await createManualMeal(ctx.user.id, {
           ...mealInput,
           occurredAt,
-        });
+        }, timeZone);
         void analyticsService.track("meal_created", {
           source: "web",
           meal_label_category: mealLabelCategory(input.mealLabel),

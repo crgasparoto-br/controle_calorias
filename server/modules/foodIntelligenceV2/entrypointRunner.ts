@@ -24,6 +24,8 @@ export async function runFoodD1Migration<T>(input: {
   verifyGates: () => Promise<FoodD1GateApproval | null>;
   /** SHA of the trusted running build, not from an inbound request. */
   expectedAuditedBaseSha: string;
+  /** Optional public consumer guard: reject unrepresentable plans before writing. */
+  beforeCommit?: (plan: FoodD1Result) => void;
 }): Promise<T | FoodD1CommitResult | FoodD1Result> {
   // The public simulator shares the resolver but is read-only: no route
   // binding, meal mutation or database dependency in replay.
@@ -52,6 +54,7 @@ export async function runFoodD1Migration<T>(input: {
     runV1: input.legacy,
     runV2: async () => {
       const result = await buildD1OperationPlan(input.request, input.dependencies);
+      input.beforeCommit?.(result);
       const plan = prepareFoodD1NativeWrite({
         envelope: input.request.envelope, result,
         authenticatedUserId: input.request.authenticatedUserId,
