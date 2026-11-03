@@ -58,6 +58,11 @@ export function createFoodD1PublicSimulator(deps: D1SimulatorDependencies) {
     input: SimulateWhatsappInboundInput,
   ): Promise<FoodD1Result | null> {
     if (!isFoodD1EntrypointCutoverRequested("simulator")) return null;
+    // A reply to a pending interaction has no trusted prior decision in this
+    // read-only simulator. Never reinterpret it as a fresh food observation.
+    if (input.pendingContextKind !== undefined) {
+      throw new Error("food-d1-public-simulator-pending-context-unsupported");
+    }
     const context = await deps.readAuthorizedContext();
     if (!context || !isCurrentFoodD1GateApproval(
       context.approval, context.expectedAuditedBaseSha,

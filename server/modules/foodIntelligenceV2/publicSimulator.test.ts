@@ -38,11 +38,26 @@ describe("#1308 public simulator D1 boundary (authenticated tRPC producer)", () 
     delete process.env.FOOD_V2_D1_ENABLED;
     const backend = setup();
     expect(await backend.simulator(7, testInput)).toBeNull();
+    expect(await backend.simulator(7, { ...testInput, pendingContextKind: "quantity" })).toBeNull();
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     expect(await backend.simulator(7, testInput)).toBeNull();
     expect(backend.readAuthorizedContext).not.toHaveBeenCalled();
     expect(backend.lexicon.load).not.toHaveBeenCalled();
+  });
+
+  it("rejects every pending interaction before consulting Gate A, the lexicon or nutrition", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+    const backend = setup();
+    for (const pendingContextKind of ["selection", "quantity", "confirmation", "professional_decision"] as const) {
+      await expect(backend.simulator(7, {
+        ...testInput, text: "50 g", pendingContextKind,
+      })).rejects.toThrow("food-d1-public-simulator-pending-context-unsupported");
+    }
+    expect(backend.readAuthorizedContext).not.toHaveBeenCalled();
+    expect(backend.lexicon.load).not.toHaveBeenCalled();
+    expect(backend.knowledge.readLocal).not.toHaveBeenCalled();
   });
 
   it("fails closed before nutrition or a legacy meal effect without independent approval", async () => {

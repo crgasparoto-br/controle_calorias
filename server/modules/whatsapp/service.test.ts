@@ -123,6 +123,29 @@ describe("simulateWhatsappInbound", () => {
     }
   });
 
+  it("não reinterpreta uma resposta a pendência como nova refeição V2 no simulador público", async () => {
+    const originalFlag = process.env.FOOD_V2_D1_ENABLED;
+    const originalScope = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+      for (const pendingContextKind of ["quantity", "professional_decision"] as const) {
+        await expect(simulateWhatsappInbound(42, {
+          text: "50 g", messageId: "simulator-pending-1308", pendingContextKind,
+        })).rejects.toThrow("food-d1-public-simulator-pending-context-unsupported");
+      }
+      expect(processMealDraftMock).not.toHaveBeenCalled();
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+      expect(logInferenceEventMock).not.toHaveBeenCalled();
+    } finally {
+      if (originalFlag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = originalFlag;
+      if (originalScope === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = originalScope;
+    }
+  });
+
   it("trata correção 'não é água é pão de cenoura' como alimento corrigido antes da intenção de água", async () => {
     const result = await simulateWhatsappInbound(42, { text: "Não é água é pão de cenoura" });
     expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
