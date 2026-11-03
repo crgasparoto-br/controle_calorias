@@ -432,7 +432,7 @@ try {
     }],
   });
   const manualId = "ci-public-manual-d1-0001";
-  const priorManualMeals = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
+  const [priorManualMeals] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
   const manualFirst = await createManualMeal(userId, publicManual(manualId), "UTC");
   const manualRetry = await createManualMeal(userId, publicManual(manualId), "UTC");
   assert.equal(manualRetry.id, manualFirst.id, "V1 public retry must return the existing committed meal");
