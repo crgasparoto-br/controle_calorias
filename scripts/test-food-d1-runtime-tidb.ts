@@ -251,6 +251,31 @@ try {
   assert.equal(Number(afterWrongMealReceipts.c), 0,
     "failed wrong-meal edit must not write a durable effect receipt");
 
+  // Same label, other day: a stale physical ID may not override the
+  // operation's canonical date, even when the owner and food both match.
+  const wrongDateEnv = makeEnvelope("ci-d1-edit-wrong-date");
+  wrongDateEnv.mealOperation = {
+    ...wrongDateEnv.mealOperation!, date: "2026-10-06",
+  };
+  const wrongDatePlan = prepareFoodD1NativeWrite({
+    envelope: wrongDateEnv, authenticatedUserId: userId,
+    result: { ...result("edit", "ci-d1-wrong-date-obs", replacement, itemId),
+      operationKey: wrongDateEnv.idempotencyKey },
+    source: "web", occurredAt: new Date("2026-10-06T12:00:00Z"),
+  });
+  await assert.rejects(
+    commit(wrongDateEnv, "edit", wrongDatePlan),
+    /target-meal-mismatch/,
+    "an item from yesterday cannot be modified as today's meal",
+  );
+  const [afterWrongDate] = await rows(
+    "SELECT foodVariantId FROM mealItems WHERE id=?", [itemId]);
+  assert.equal(Number(afterWrongDate.foodVariantId), first.variantId);
+  const [afterWrongDateReceipts] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, wrongDateEnv.idempotencyKey]);
+  assert.equal(Number(afterWrongDateReceipts.c), 0);
+
   const editEnv = makeEnvelope("ci-d1-native-edit");
   const editPlan = prepare(editEnv, result("edit", "ci-d1-obs-edit", replacement, itemId));
   const edited = await commit(editEnv, "edit", editPlan);
