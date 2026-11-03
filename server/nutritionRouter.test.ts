@@ -143,6 +143,43 @@ describe("nutrition router", () => {
     }
   });
 
+  it("#1308 rejects public item editing when selected V2 lacks independent Gate A", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(13912));
+    const created = await caller.nutrition.meals.createManual({
+      mealLabel: "Almoço",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
+      items: [{
+        foodName: "Arroz", canonicalName: "Arroz", portionText: "100 g",
+        quantity: 100, unit: "g", servings: 1,
+        estimatedGrams: 100, calories: 130, protein: 3,
+        carbs: 28, fat: 1, confidence: 1, source: "catalog",
+      }],
+    });
+    const before = await caller.nutrition.meals.list();
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "edit";
+      await expect(caller.nutrition.meals.updateItem({
+        mealId: created.id, itemIndex: 0, mealLabel: "Almoço",
+        d1OperationId: "edit-public-contract-1308",
+        item: {
+          foodName: "Feijão", canonicalName: "Feijão", portionText: "100 g",
+          quantity: 100, unit: "g", servings: 1,
+          estimatedGrams: 100, calories: 9999, protein: 999,
+          carbs: 999, fat: 999, confidence: 1, source: "heuristic",
+        },
+      })).rejects.toThrow("food-d1-public-edit-gate-unavailable");
+      expect(await caller.nutrition.meals.list()).toEqual(before);
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
   it("#1308 keeps the authenticated public WhatsApp simulator fail-closed without independent Gate A", async () => {
     const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
     const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
