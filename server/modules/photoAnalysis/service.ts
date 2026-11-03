@@ -17,6 +17,7 @@ import { associateMealItemsWithSourceMedia } from "../../mealItemImageProvenance
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
 import { confirmMeal } from "../meals/service";
+import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { searchGlobalFoodCatalog } from "../foods/service";
 import type {
   AnalyzeFoodPhotoInput,
@@ -257,6 +258,8 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
   if (!input.image) {
     throw new MealInferenceError("Envie uma foto para análise.");
   }
+  // Photo confirmation still uses a two-phase legacy DTO, not a native V2 plan.
+  assertUnmigratedFoodD1EntrypointsOff(["plate_image"]);
 
   const now = Date.now();
   const pending: FoodPhotoAnalysis = {

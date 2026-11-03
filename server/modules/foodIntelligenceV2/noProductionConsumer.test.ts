@@ -4,9 +4,8 @@ import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
- * Fase D: allow only a specifically audited, gated simulator bridge.
- * Other productive imports remain forbidden until each public entrypoint is
- * migrated and proven by its own positive/negative golden flow.
+ * Fase D: allow only audited D1 bridges and the inert preflight for unmigrated
+ * public channels. Other imports remain blocked until public golden flows pass.
  */
 const REPOSITORY_ROOT = resolve(__dirname, "../../..");
 // TiDB scripts are isolated fixtures, not productive routing consumers.
@@ -21,6 +20,9 @@ const PUBLIC_D1_MANUAL_ADD_BRIDGE = "../foodIntelligenceV2/publicManualAddition"
 const PUBLIC_D1_EDIT = resolve(REPOSITORY_ROOT, "server/modules/meals/groupOperations.ts");
 const PUBLIC_D1_EDIT_BRIDGE = "../foodIntelligenceV2/publicEdit";
 const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
+const PUBLIC_D1_UNMIGRATED_GUARD = "../foodIntelligenceV2/publicUnmigratedEntrypoints";
+const PUBLIC_D1_WEB_PHOTO = resolve(REPOSITORY_ROOT, "server/modules/photoAnalysis/service.ts");
+const PUBLIC_D1_WHATSAPP_CONFIRMED = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts");
 const SCANNED_ROOTS = ["server", "client/src", "shared", "scripts"] as const;
 const V2_MODULE_PATH = /(?:^|[/\\])foodIntelligenceV2(?:[/\\]|$)/;
 const ISOLATED_TEST_FILE = /(?:^|[/\\])__tests__[/\\]|\.(?:test|spec)\.[cm]?[jt]sx?$/;
@@ -90,10 +92,16 @@ function importsV2AtRuntime(file: string, content: string): boolean {
 
 /** One exact productive import is allowed, without permission to load anything else. */
 function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[]): boolean {
+  if (file === PUBLIC_D1_MANUAL_ADD) {
+    return imports.length === 2 &&
+      imports.includes(PUBLIC_D1_MANUAL_ADD_BRIDGE) &&
+      imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
+  }
   return imports.length === 1 && (
     file === PUBLIC_D1_SIMULATOR && imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE ||
-    file === PUBLIC_D1_MANUAL_ADD && imports[0] === PUBLIC_D1_MANUAL_ADD_BRIDGE ||
-    file === PUBLIC_D1_EDIT && imports[0] === PUBLIC_D1_EDIT_BRIDGE
+    file === PUBLIC_D1_EDIT && imports[0] === PUBLIC_D1_EDIT_BRIDGE ||
+    (file === PUBLIC_D1_WEB_PHOTO || file === PUBLIC_D1_WHATSAPP_CONFIRMED) &&
+      imports[0] === PUBLIC_D1_UNMIGRATED_GUARD
   );
 }
 
@@ -141,7 +149,12 @@ describe("fronteira da Fase D", () => {
       .toEqual([PUBLIC_D1_SIMULATOR_BRIDGE]);
     const publicManual = await readFile(PUBLIC_D1_MANUAL_ADD, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_MANUAL_ADD, publicManual))
-      .toEqual([PUBLIC_D1_MANUAL_ADD_BRIDGE]);
+      .toEqual([PUBLIC_D1_MANUAL_ADD_BRIDGE, PUBLIC_D1_UNMIGRATED_GUARD]);
+    for (const file of [PUBLIC_D1_WEB_PHOTO, PUBLIC_D1_WHATSAPP_CONFIRMED]) {
+      const source = await readFile(file, "utf8");
+      expect(runtimeV2Specifiers(file, source))
+        .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
+    }
     const publicEdit = await readFile(PUBLIC_D1_EDIT, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_EDIT, publicEdit))
       .toEqual([PUBLIC_D1_EDIT_BRIDGE]);

@@ -48,6 +48,33 @@ function savedMeal() {
 }
 
 describe("issue #899 orchestration regressions", () => {
+  it("#1308 rejects selected V2 text before WhatsApp V1 processing", async () => {
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const preflight = vi.fn();
+    const processMeal = vi.fn();
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
+      const service = createConfirmedMealRegistrationService({
+        prepareCountableFoodRegistration: preflight as any,
+        processMeal: processMeal as any,
+      });
+      await expect(service({
+        userId: 899, registrationText: "100 g de arroz", originalText: "100 g de arroz",
+        occurredAt: new Date("2026-07-24T10:00:00.000Z"),
+        userTimezone: "America/Sao_Paulo",
+      })).rejects.toThrow("food-d1-public-entrypoint-migration-incomplete");
+      expect(preflight).not.toHaveBeenCalled();
+      expect(processMeal).not.toHaveBeenCalled();
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
   it("persiste 200 ml café com açúcar pelo pipeline canônico após confirmação", async () => {
     const confirmMeal = vi.fn(async () => savedMeal());
     const service = createConfirmedMealRegistrationService({

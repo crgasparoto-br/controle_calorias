@@ -22,6 +22,7 @@ import {
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
 import { buildLegacyManualRoute, tryRunFoodD1PublicManualAddition } from "../foodIntelligenceV2/publicManualAddition";
+import { assertUnmigratedFoodD1DraftOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { associateMealItemsWithSourceMedia, clearMealItemSourceMedia } from "../../mealItemImageProvenance";
 import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "../../householdMeasureResolutionPersistence";
 import { updateMealAndHouseholdMeasureLearning } from "../../householdMeasureMealUpdate";
@@ -554,6 +555,9 @@ export async function processMealDraft(
   input: ProcessMealDraftInput,
   timeZone = DEFAULT_APP_TIME_ZONE,
 ) {
+  // A selected but unmigrated entrypoint may not fall back to V1; this guard
+  // precedes uploads, transcription, inference and pending-draft creation.
+  assertUnmigratedFoodD1DraftOff(input);
   return runWithAiUsageScope(
     { userId },
     () => processMealDraftAttributed(userId, input, timeZone),

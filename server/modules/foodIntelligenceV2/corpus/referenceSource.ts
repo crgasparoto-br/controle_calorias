@@ -32,7 +32,7 @@ export const CANONICAL_ADR_PATH =
 // #1308: revalidated the additive D1 contract against the canonical ADR bytes.
 // Case oracles remain independent; referenceSource.test.ts verifies referenced sections.
 export const CANONICAL_ADR_SHA256 =
-  "a049ade2ac896ba9f4242339831a27a305cdc71d354be40435acd180b384abce";
+  "bea82d5ea1cd041a727a1b7942c596e66d864e2c020e686427286f7f00fdbb7a";
 
 export interface CanonicalReference {
   readonly path: string;

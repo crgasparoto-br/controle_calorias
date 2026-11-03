@@ -16,6 +16,7 @@ import {
 } from "./countableFoodRegistrationGate";
 import { splitFoodTextSegments } from "../../mealTextParsing";
 import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
+import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 
 export type ConfirmedMealRegistrationOutcome =
   | { status: "registered"; result: WhatsappIntentResult }
@@ -73,6 +74,9 @@ export function createConfirmedMealRegistrationService(
     skipCountablePreflight?: boolean;
     resolvedSegments?: ResolvedRegistrationSegment[];
   }): Promise<ConfirmedMealRegistrationOutcome> {
+    // This V1 consumer has no trusted text-vs-transcript tag yet. Stop both
+    // selected modes before countable preflight or any irreversible effect.
+    assertUnmigratedFoodD1EntrypointsOff(["text", "audio_transcript"]);
     let mutationMayHaveStarted = false;
 
     try {
