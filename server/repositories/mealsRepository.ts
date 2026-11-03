@@ -5,7 +5,7 @@ import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
 import { mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
-import { hasBoundFoodV2Snapshot } from "../modules/meals/foodV2Snapshot";
+import { assertLegacyMealItemMutationSafe, hasBoundFoodV2Snapshot } from "../modules/meals/foodV2Snapshot";
 import { reconcileHistoricalMealItemSlots, discardUnverifiedCommercialReplacement, guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues, sameHistoricalMealFood } from "./mealItemHistoryReconciliation";
 import { requireFreshReplacementNutrition } from "./mealReplacementNutrition";
 
@@ -353,6 +353,9 @@ async function replaceMealItemsInTransaction(
   },
   previous: Array<typeof mealItems.$inferSelect>,
 ) {
+  // The V1 replacement path may reinsert rows, rebind catalog IDs and
+  // invalidate V2 snapshots. Deny before changing meal status or items.
+  assertLegacyMealItemMutationSafe(previous);
   await tx
     .update(meals)
     .set({ status: "draft" })
@@ -635,6 +638,7 @@ export function createDrizzleMealsRepository(deps: {
         if (itemIndex < 0 || itemIndex >= locked.items.length) {
           throw new Error("Alimento não encontrado na refeição.");
         }
+        assertLegacyMealItemMutationSafe([locked.items[itemIndex]]);
 
         await updateMealMetadataInTransaction(tx, {
           userId,
@@ -670,6 +674,7 @@ export function createDrizzleMealsRepository(deps: {
         if (itemIndex < 0 || itemIndex >= locked.items.length) {
           throw new Error("Alimento não encontrado na refeição.");
         }
+        assertLegacyMealItemMutationSafe([locked.items[itemIndex]]);
 
         const createdMealId = await insertConfirmedMealInTransaction(tx, {
           meal: {
