@@ -275,7 +275,10 @@ export async function commitFoodD1NativeWrite(input: {
     }
     for (const item of edits) {
       const itemId = item.targetItemId!;
-      const [existing] = await tx.select({ item: mealItems, mealId: meals.id })
+      const [existing] = await tx.select({
+        item: mealItems, mealId: meals.id,
+        mealLabel: meals.mealLabel, occurredAt: meals.occurredAt,
+      })
         .from(mealItems).innerJoin(meals, eq(meals.id, mealItems.mealId))
         .where(and(eq(mealItems.id, itemId), eq(meals.userId, plan.ownerUserId),
           eq(meals.status, "confirmed"))).for("update").limit(1);
@@ -289,6 +292,13 @@ export async function commitFoodD1NativeWrite(input: {
           !hasBoundFoodV2Snapshot(existing.item) ||
           (mealId !== null && mealId !== existing.mealId)) {
         throw new Error("food-d1-native-target-stale-or-foreign");
+      }
+      // A physical item ID alone does not authorize changing a different
+      // meal of the same user. The canonical operation pins both destination
+      // and local-date-derived occurredAt before its V2 decision is committed.
+      if (existing.mealLabel !== plan.mealLabel ||
+          existing.occurredAt.getTime() !== plan.occurredAt.getTime()) {
+        throw new Error("food-d1-native-target-meal-mismatch");
       }
       mealId = existing.mealId;
       await tx.update(mealItems).set(item.values)
