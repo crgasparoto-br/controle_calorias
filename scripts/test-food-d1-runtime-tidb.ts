@@ -229,6 +229,28 @@ try {
     /food-d1-orphan-continuation/,
     "a new operation must never be bootstrapped from a forged previous decision");
 
+  // Cross-meal negative: an item ID belonging to the same user must not
+  // override the destination named in the canonical operation.
+  const wrongMealEnv = makeEnvelope("ci-d1-edit-wrong-meal");
+  wrongMealEnv.mealOperation = {
+    ...wrongMealEnv.mealOperation!, targetMeal: "jantar",
+  };
+  await assert.rejects(
+    commit(wrongMealEnv, "edit",
+      prepare(wrongMealEnv, result("edit", "ci-d1-wrong-meal-obs", replacement, itemId))),
+    /target-meal-mismatch/,
+    "a valid physical target owned by this user still belongs to another meal",
+  );
+  const [afterWrongMeal] = await rows(
+    "SELECT foodVariantId FROM mealItems WHERE id=?", [itemId]);
+  assert.equal(Number(afterWrongMeal.foodVariantId), first.variantId,
+    "failed wrong-meal edit must not modify the existing physical item");
+  const [afterWrongMealReceipts] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, wrongMealEnv.idempotencyKey]);
+  assert.equal(Number(afterWrongMealReceipts.c), 0,
+    "failed wrong-meal edit must not write a durable effect receipt");
+
   const editEnv = makeEnvelope("ci-d1-native-edit");
   const editPlan = prepare(editEnv, result("edit", "ci-d1-obs-edit", replacement, itemId));
   const edited = await commit(editEnv, "edit", editPlan);
