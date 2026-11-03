@@ -3,6 +3,7 @@ import type { ManualMealInput } from "../meals/schemas";
 import type { FoodD1Result } from "./entrypointMigration";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import { createFoodD1PublicManualAddition } from "./publicManualAddition";
+import type { FoodD1PinnedRoute } from "./entrypointRouting";
 import type { FoodD1CommitResult } from "./entrypointPersistenceRepository";
 import type { runFoodD1Migration } from "./entrypointRunner";
 
@@ -32,7 +33,7 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
   it("preserves existing V1 with flags OFF, without reading Gate A or the lexicon", async () => {
     const load = vi.fn(async () => []);
     const readAuthorizedContext = vi.fn(async () => null);
-    const bindLegacyRoute = vi.fn(async candidate => candidate);
+    const bindLegacyRoute = vi.fn(async (candidate: FoodD1PinnedRoute) => candidate);
     const bridge = createFoodD1PublicManualAddition({
       readAuthorizedContext, lexicon: { load }, bindLegacyRoute,
     });
@@ -45,7 +46,7 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     }));
   });
   it("blocks a pinned V2 addition during rollback before executing legacy", async () => {
-    const bindLegacyRoute = vi.fn(async candidate => ({ ...candidate, resolver: "v2" as const }));
+    const bindLegacyRoute = vi.fn(async (candidate: FoodD1PinnedRoute) => ({ ...candidate, resolver: "v2" as const }));
     const readAuthorizedContext = vi.fn(async () => null);
     const bridge = createFoodD1PublicManualAddition({ readAuthorizedContext, bindLegacyRoute });
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
@@ -64,7 +65,7 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
       .rejects.toThrow("storage-unavailable");
   });
   it("refuses legacy replay when destination changes under the same operation key", async () => {
-    const bindLegacyRoute = vi.fn(async candidate => ({
+    const bindLegacyRoute = vi.fn(async (candidate: FoodD1PinnedRoute) => ({
       ...candidate, operationScopeHash: "0".repeat(64),
     }));
     const bridge = createFoodD1PublicManualAddition({
