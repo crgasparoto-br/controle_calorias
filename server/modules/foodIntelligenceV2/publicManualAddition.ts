@@ -11,6 +11,8 @@ import type { FoodKnowledgeStore } from "./knowledgeRead";
 import { type FoodD1Request } from "./entrypointMigration";
 import { runFoodD1Migration } from "./entrypointRunner";
 import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
+import { hashFoodD1OperationScope, type FoodD1PinnedRoute } from "./entrypointRouting";
+import type { FoodOperationEnvelope } from "./schemas";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 
@@ -21,7 +23,7 @@ export type PublicD1ManualDependencies = {
   knowledge?: FoodKnowledgeStore;
   run?: typeof runFoodD1Migration;
   /** Exact persisted resolver owner, not a process-local cache. */
-  readPinnedResolver?: (ownerUserId: number, operationKey: string) => Promise<"v1" | "v2" | null>;
+  bindLegacyRoute?: (candidate: FoodD1PinnedRoute) => Promise<FoodD1PinnedRoute>;
 };
 
 /** No production authority exists until #1335; a flag can never manufacture it. */
@@ -42,11 +44,48 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
       const opId = input.meal.d1OperationId;
       if (opId) {
         const key = "d1-manual-" + input.userId + ":" + opId;
-        const owner = await (deps.readPinnedResolver
-          ? deps.readPinnedResolver(input.userId, key)
-          : createFoodD1RouteDbStore().readPinnedRoute(key, input.userId)
-              .then(route => route?.resolver ?? null));
-        if (owner === "v2") throw new Error("food-d1-operation-paused-by-rollback");
+        const occurredAt = new Date(input.meal.occurredAt);
+        if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
+            !Number.isFinite(occurredAt.getTime()) ||
+            !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,79}$/.test(opId)) {
+          throw new Error("food-d1-public-addition-invalid-legacy-pin");
+        }
+        // A V1 submission needs an atomic persisted owner as well; otherwise
+        // enabling V2 after a successful V1 write could replay that same key.
+        const legacyVersion = "legacy-v1";
+        const revisions = {
+          code: legacyVersion, knowledge: legacyVersion, lexicon: legacyVersion,
+          policy: legacyVersion, resolver: legacyVersion,
+        };
+        const envelope: FoodOperationEnvelope = {
+          schemaVersion: 2, traceId: "trace-" + key, idempotencyKey: key,
+          ownerUserId: input.userId, conversationRef: null, turnRef: null,
+          effectiveTimeZone: input.timeZone,
+          mealOperation: { action: "add", targetMeal: input.meal.mealLabel,
+            date: getDateKeyInTimeZone(occurredAt, input.timeZone) },
+          contextSources: {
+            previousMessage: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
+            preferences: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
+            recentHistory: { status: "unavailable", reason: "legacy_manual_operation", sourceRef: null },
+          },
+          revisions,
+        };
+        const candidate: FoodD1PinnedRoute = {
+          operationKey: key, ownerUserId: input.userId, originEntrypoint: "addition",
+          resolver: "v1",
+          operationScopeHash: hashFoodD1OperationScope(envelope, input.source ?? "web"),
+          versions: revisions,
+        };
+        const pinned = await (deps.bindLegacyRoute
+          ? deps.bindLegacyRoute(candidate)
+          : createFoodD1RouteDbStore().bindPinnedRoute(candidate));
+        if (pinned.resolver === "v2") throw new Error("food-d1-operation-paused-by-rollback");
+        if (pinned.resolver !== "v1" || pinned.operationKey !== key ||
+            pinned.ownerUserId !== input.userId ||
+            pinned.operationScopeHash !== candidate.operationScopeHash ||
+            pinned.originEntrypoint !== "addition") {
+          throw new Error("food-d1-legacy-operation-scope-changed");
+        }
       }
       return null;
     }
