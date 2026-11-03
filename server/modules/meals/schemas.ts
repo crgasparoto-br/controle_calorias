@@ -132,6 +132,8 @@ export const updateMealSchema = manualMealSchema.extend({
 });
 
 export const updateMealItemSchema = z.object({
+  /** Same operation across client retries; absent for existing V1 records. */
+  d1OperationId: z.string().trim().min(8).max(80).optional(),
   mealId: z.number().int().positive(),
   itemIndex: z.number().int().nonnegative(),
   mealLabel: mealLabelSchema,

@@ -18,6 +18,8 @@ const MODULE_DIRECTORY = resolve(__dirname);
 const PUBLIC_D1_SIMULATOR = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/service.ts");
 const PUBLIC_D1_MANUAL_ADD = resolve(REPOSITORY_ROOT, "server/modules/meals/service.ts");
 const PUBLIC_D1_MANUAL_ADD_BRIDGE = "../foodIntelligenceV2/publicManualAddition";
+const PUBLIC_D1_EDIT = resolve(REPOSITORY_ROOT, "server/modules/meals/groupOperations.ts");
+const PUBLIC_D1_EDIT_BRIDGE = "../foodIntelligenceV2/publicEdit";
 const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
 const SCANNED_ROOTS = ["server", "client/src", "shared", "scripts"] as const;
 const V2_MODULE_PATH = /(?:^|[/\\])foodIntelligenceV2(?:[/\\]|$)/;
@@ -90,7 +92,8 @@ function importsV2AtRuntime(file: string, content: string): boolean {
 function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[]): boolean {
   return imports.length === 1 && (
     file === PUBLIC_D1_SIMULATOR && imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE ||
-    file === PUBLIC_D1_MANUAL_ADD && imports[0] === PUBLIC_D1_MANUAL_ADD_BRIDGE
+    file === PUBLIC_D1_MANUAL_ADD && imports[0] === PUBLIC_D1_MANUAL_ADD_BRIDGE ||
+    file === PUBLIC_D1_EDIT && imports[0] === PUBLIC_D1_EDIT_BRIDGE
   );
 }
 
@@ -139,6 +142,9 @@ describe("fronteira da Fase D", () => {
     const publicManual = await readFile(PUBLIC_D1_MANUAL_ADD, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_MANUAL_ADD, publicManual))
       .toEqual([PUBLIC_D1_MANUAL_ADD_BRIDGE]);
+    const publicEdit = await readFile(PUBLIC_D1_EDIT, "utf8");
+    expect(runtimeV2Specifiers(PUBLIC_D1_EDIT, publicEdit))
+      .toEqual([PUBLIC_D1_EDIT_BRIDGE]);
   });
 
   it("não isenta outros handlers, imports dinâmicos nem segundos resolvers no simulador", () => {

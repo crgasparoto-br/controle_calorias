@@ -833,7 +833,9 @@ export const nutritionRouter = router({
       }),
     updateItem: protectedProcedure
       .input(updateMealItemSchema)
-      .mutation(async ({ ctx, input }) => updateMealItem(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) => updateMealItem(
+        ctx.user.id, input, await getEffectiveUserTimeZone(ctx.user.id),
+      )),
     updateGroup: protectedProcedure
       .input(updateMealGroupMutationSchema)
       .mutation(async ({ ctx, input }) => {

@@ -1,4 +1,6 @@
 import { and, eq } from "drizzle-orm";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { tryRunFoodD1PublicEdit } from "../foodIntelligenceV2/publicEdit";
 import { mealFavorites } from "../../../drizzle/schema";
 import { calculateMealTotals } from "../../../shared/mealTotals";
 import { getDb, logInferenceEvent } from "../../db";
@@ -43,7 +45,9 @@ function buildGroupItems(meals: MealForGroupOperation[]) {
   return meals.flatMap(meal => meal.items.map(item => ({ ...item })));
 }
 
-export async function updateMealItem(userId: number, input: UpdateMealItemInput) {
+export async function updateMealItem(
+  userId: number, input: UpdateMealItemInput, timeZone = DEFAULT_APP_TIME_ZONE,
+) {
   const meals = await listMeals(userId);
   const sourceMeal = meals.find(meal => meal.id === input.mealId);
   if (!sourceMeal) {
@@ -58,6 +62,12 @@ export async function updateMealItem(userId: number, input: UpdateMealItemInput)
   const sourceMealLabel = sourceMeal.mealLabel.trim();
   const updatedItem = { ...input.item };
   const occurredAt = new Date(sourceMeal.occurredAt).toISOString();
+  const v2MealId = await tryRunFoodD1PublicEdit({ userId, request: input, timeZone });
+  if (v2MealId !== null) {
+    const updated = (await listMeals(userId)).find(meal => meal.id === v2MealId);
+    if (!updated) throw new Error("food-d1-public-edit-committed-meal-unavailable");
+    return { moved: false, meal: updated, sourceMeal: updated };
+  }
 
   if (sourceMeal.items.length === 1 || sourceMealLabel === targetMealLabel) {
     const meal = await updateMealItemService(userId, {
