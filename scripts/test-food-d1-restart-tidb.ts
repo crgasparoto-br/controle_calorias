@@ -9,6 +9,7 @@ import { prepareFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/e
 import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/entrypointPersistenceRepository";
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
 import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
+import { createManualMeal } from "../server/modules/meals/service";
 import type { FoodD1Result } from "../server/modules/foodIntelligenceV2/entrypointMigration";
 import type { FoodOperationEnvelope, FoodResolutionDecision } from "../server/modules/foodIntelligenceV2/schemas";
 
@@ -97,7 +98,35 @@ try {
     [userId]);
   assert.deepEqual(JSON.parse(String(pinned.revisions_json)).observationIds,
     ["ci-d1-missing", "ci-d1-obs-1"]);
-  console.log("PASS: a separate process reused D1 route, original and deferred receipts and meal identity");
+  // A new Node process must use the public manual endpoint's persisted V1
+  // receipt rather than the previous process's mealStore or pending cache.
+  const legacyId = "ci-public-manual-d1-0001";
+  const manual = {
+    mealLabel: "Almoço",
+    occurredAt: "2026-10-05T12:00:00.000Z",
+    d1OperationId: legacyId,
+    items: [{
+      foodName: "Arroz CI", canonicalName: "Arroz CI",
+      portionText: "100 g", quantity: 100, unit: "g", servings: 1,
+      estimatedGrams: 100, calories: 130, protein: 3, carbs: 28, fat: 1,
+      confidence: 1, source: "catalog" as const,
+    }],
+  };
+  const [legacyBefore] = await rows(
+    "SELECT outcome_json FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=? AND observation_id='__manual_v1_confirmed'",
+    [userId, "d1-manual-" + userId + ":" + legacyId],
+  );
+  assert.ok(legacyBefore, "public V1 receipt must exist before process restart");
+  const expectedLegacyMealId = JSON.parse(String(legacyBefore.outcome_json)).mealId;
+  const publicRetry = await createManualMeal(userId, manual, "UTC");
+  assert.equal(publicRetry.id, expectedLegacyMealId,
+    "new process must not create another manual V1 meal on retry");
+  const [legacyAfter] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, "d1-manual-" + userId + ":" + legacyId],
+  );
+  assert.equal(Number(legacyAfter.c), 1);
+  console.log("PASS: a separate process reused D1 V2 and public manual V1 route/receipts");
 } catch (error) {
   console.error("FAIL: D1 cross-process retry", error);
   process.exitCode = 1;

@@ -12,7 +12,7 @@ import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entry
 import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligenceV2/publicSimulator";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
-import { listMeals } from "../server/modules/meals/service";
+import { createManualMeal, listMeals } from "../server/modules/meals/service";
 import type { FoodD1Result } from "../server/modules/foodIntelligenceV2/entrypointMigration";
 import type { FoodOperationEnvelope, FoodResolutionDecision } from "../server/modules/foodIntelligenceV2/schemas";
 
@@ -417,7 +417,55 @@ try {
   assert.equal(unchangedMeal.items[1].calories, 81,
     "the historical macro must come from the persisted receipt");
 
-  console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation", {
+  // Run the REAL authenticated-web service boundary in an isolated TiDB:
+  // the persistent V1 operation binding and receipt must survive retries,
+  // including two requests racing on the same operation key.
+  const publicManual = (d1OperationId: string) => ({
+    mealLabel: "Almoço",
+    occurredAt: "2026-10-05T12:00:00.000Z",
+    d1OperationId,
+    items: [{
+      foodName: "Arroz CI", canonicalName: "Arroz CI",
+      portionText: "100 g", quantity: 100, unit: "g",
+      servings: 1, estimatedGrams: 100, calories: 130, protein: 3,
+      carbs: 28, fat: 1, confidence: 1, source: "catalog" as const,
+    }],
+  });
+  const manualId = "ci-public-manual-d1-0001";
+  const priorManualMeals = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
+  const manualFirst = await createManualMeal(userId, publicManual(manualId), "UTC");
+  const manualRetry = await createManualMeal(userId, publicManual(manualId), "UTC");
+  assert.equal(manualRetry.id, manualFirst.id, "V1 public retry must return the existing committed meal");
+  const [firstReceipt] = await rows(
+    "SELECT decision_hash, outcome_json FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=? AND observation_id='__manual_v1_confirmed'",
+    [userId, "d1-manual-" + userId + ":" + manualId],
+  );
+  assert.ok(firstReceipt, "one durable receipt must bind the public V1 manual operation");
+  assert.equal(JSON.parse(String(firstReceipt.outcome_json)).mealId, manualFirst.id);
+  await assert.rejects(
+    createManualMeal(userId, {
+      ...publicManual(manualId),
+      items: [{ ...publicManual(manualId).items[0], calories: 9999 }],
+    }, "UTC"),
+    /food-d1-legacy-operation-scope-changed/,
+    "reusing an operation ID with changed macros must not create another meal",
+  );
+  const concurrentId = "ci-public-manual-d1-concurrent";
+  const [concurrentFirst, concurrentRetry] = await Promise.all([
+    createManualMeal(userId, publicManual(concurrentId), "UTC"),
+    createManualMeal(userId, publicManual(concurrentId), "UTC"),
+  ]);
+  assert.equal(concurrentFirst.id, concurrentRetry.id,
+    "two independent public callers must share the same V1 meal and receipt");
+  const [manualCount] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
+  assert.equal(Number(manualCount.c), Number(priorManualMeals.c) + 2);
+  const [concurrentCount] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, "d1-manual-" + userId + ":" + concurrentId],
+  );
+  assert.equal(Number(concurrentCount.c), 1, "concurrent V1 operation must write exactly one receipt");
+
+  console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation and public V1 exactly-once", {
     userId, mealId: created.mealId, itemId,
   });
 } catch (error) {
