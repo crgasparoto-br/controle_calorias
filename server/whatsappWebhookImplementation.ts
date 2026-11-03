@@ -99,6 +99,7 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
+import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,
@@ -887,6 +888,13 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
       }
 
+      // Food entrypoints not connected to V2 cannot silently run V1 once
+      // selected. Place after non-food intent routing, before food inference.
+      assertUnmigratedFoodD1EntrypointsOff([
+        ...(message.image?.id ? ["plate_image", "packaging", "nutrition_label"] as const : []),
+        ...(message.audio?.id ? ["audio_transcript"] as const : []),
+        ...(!message.image?.id && !message.audio?.id ? ["text"] as const : []),
+      ]);
       let partialProcessing: Awaited<
         ReturnType<typeof processMealInputWithPartialFailures>
       >;

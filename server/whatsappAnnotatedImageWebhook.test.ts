@@ -501,6 +501,27 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
 
+  it("#1308 rejects selected V2 image without a legacy nutrition decision", async () => {
+    const flag = process.env.FOOD_V2_D1_ENABLED;
+    const selector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "nutrition_label";
+      await handleWhatsAppWebhookWithTextIntent(
+        createImageWebhookRequest("d1-native-label-not-migrated") as never,
+        createResponse() as never,
+      );
+      expect(processMealInputMock).not.toHaveBeenCalled();
+      expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+      expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    } finally {
+      if (flag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = flag;
+      if (selector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = selector;
+    }
+  });
+
   it("mantém a correlação da mensagem entre mídia e inferência anotada", async () => {
     const messageId = "image-memory-correlation";
     const res = createResponse();

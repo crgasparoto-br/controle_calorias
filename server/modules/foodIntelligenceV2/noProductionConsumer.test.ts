@@ -23,6 +23,9 @@ const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
 const PUBLIC_D1_UNMIGRATED_GUARD = "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 const PUBLIC_D1_WEB_PHOTO = resolve(REPOSITORY_ROOT, "server/modules/photoAnalysis/service.ts");
 const PUBLIC_D1_WHATSAPP_CONFIRMED = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts");
+const PUBLIC_D1_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappWebhookImplementation.ts");
+const PUBLIC_D1_ANNOTATED_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappAnnotatedImageWebhookImplementation.ts");
+const PUBLIC_D1_ROOT_GUARD = "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
 const SCANNED_ROOTS = ["server", "client/src", "shared", "scripts"] as const;
 const V2_MODULE_PATH = /(?:^|[/\\])foodIntelligenceV2(?:[/\\]|$)/;
 const ISOLATED_TEST_FILE = /(?:^|[/\\])__tests__[/\\]|\.(?:test|spec)\.[cm]?[jt]sx?$/;
@@ -101,7 +104,9 @@ function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[])
     file === PUBLIC_D1_SIMULATOR && imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE ||
     file === PUBLIC_D1_EDIT && imports[0] === PUBLIC_D1_EDIT_BRIDGE ||
     (file === PUBLIC_D1_WEB_PHOTO || file === PUBLIC_D1_WHATSAPP_CONFIRMED) &&
-      imports[0] === PUBLIC_D1_UNMIGRATED_GUARD
+      imports[0] === PUBLIC_D1_UNMIGRATED_GUARD ||
+    (file === PUBLIC_D1_WEBHOOK || file === PUBLIC_D1_ANNOTATED_WEBHOOK) &&
+      imports[0] === PUBLIC_D1_ROOT_GUARD
   );
 }
 
@@ -154,6 +159,10 @@ describe("fronteira da Fase D", () => {
       const source = await readFile(file, "utf8");
       expect(runtimeV2Specifiers(file, source))
         .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
+    }
+    for (const file of [PUBLIC_D1_WEBHOOK, PUBLIC_D1_ANNOTATED_WEBHOOK]) {
+      const source = await readFile(file, "utf8");
+      expect(runtimeV2Specifiers(file, source)).toEqual([PUBLIC_D1_ROOT_GUARD]);
     }
     const publicEdit = await readFile(PUBLIC_D1_EDIT, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_EDIT, publicEdit))

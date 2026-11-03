@@ -18,6 +18,7 @@ import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { getAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePreference";
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
+import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import { requestWhatsappImageMealIdentityClarification } from "./modules/whatsapp/foodQuantityClarification";
@@ -932,6 +933,9 @@ async function tryHandleAnnotatedImageMessage(
       )
         ? activeNutritionLabelRequests[0].target
         : null;
+    // Annotated-image webhook must not bypass selected V2 via its own V1
+    // inference branch. Untrusted captions cannot classify package versus label.
+    assertUnmigratedFoodD1EntrypointsOff(["plate_image", "packaging", "nutrition_label"]);
     const processingOutcome = await processImageMealInputWithFallback({
       userId,
       prepared,

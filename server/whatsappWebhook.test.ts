@@ -423,6 +423,33 @@ describe("whatsappWebhook", () => {
     expect(originalImageMedia?.storageUrl).not.toContain("image-media-id");
   });
 
+  it("#1308 blocks selected native WhatsApp image before V1 meal inference", async () => {
+    const oldFlag = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelection = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "packaging";
+      const userId = 2001308;
+      await upsertUserWhatsappConnection({
+        userId, phoneNumber: "5511666130800", displayName: "D1 CI",
+      });
+      const req = { body: { entry: [{ changes: [{ value: { messages: [{
+        id: "d1-guard-image-1308", from: "5511666130800", type: "image",
+        image: { id: "image-media-id", mime_type: "image/jpeg" },
+      }] } }] }] } };
+      const res = createResponse();
+      await handleWhatsAppWebhook(req as never, res as never);
+      expect(processMealInputMock).not.toHaveBeenCalled();
+      expect((await listUserMeals(userId)).filter(meal => meal.source === "whatsapp"))
+        .toHaveLength(0);
+    } finally {
+      if (oldFlag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldFlag;
+      if (oldSelection === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelection;
+    }
+  });
+
   it("não registra refeição quando imagem retorna item sem identidade alimentar confiável", async () => {
     const imageOnlyUserId = 2000101;
     const phoneNumber = "5511777770101";
