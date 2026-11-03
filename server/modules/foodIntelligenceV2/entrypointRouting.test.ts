@@ -127,6 +127,8 @@ describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
       { ...request, source: "whatsapp" as const },
       { ...request, envelope: { ...request.envelope,
         effectiveTimeZone: "UTC" } },
+      { ...request, envelope: { ...request.envelope,
+        traceId: "forged-retry-trace" } },
     ];
     for (const invalid of poisoned) {
       await expect(routeFoodD1Operation({ ...invalid, enabled: false }))

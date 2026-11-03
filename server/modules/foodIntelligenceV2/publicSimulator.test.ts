@@ -17,14 +17,15 @@ const testInput = { text: "1,5 fatias de mortadela", messageId: "synthetic-messa
   receivedAt: new Date("2026-11-01T12:00:00Z"), userTimezone: "America/Sao_Paulo" };
 function setup(authorized: AuthorizedD1SimulationContext | null = allowed) {
   const readAuthorizedContext = vi.fn(async () => authorized);
+  const readActivePending = vi.fn(async (_userId: number, _now: Date) => false);
   const knowledge = {
     readLocal: vi.fn(async () => ({ kind: "miss" as const, reason: "not_found" as const })),
     readPendingEvidence: vi.fn(async () => null),
     stagePendingEvidence: vi.fn(async () => { throw new Error("simulator must not stage"); }),
   };
   const lexicon = { load: vi.fn(async () => []) };
-  return { simulator: createFoodD1PublicSimulator({ readAuthorizedContext, knowledge, lexicon }),
-    readAuthorizedContext, knowledge, lexicon };
+  return { simulator: createFoodD1PublicSimulator({ readAuthorizedContext, readActivePending, knowledge, lexicon }),
+    readAuthorizedContext, readActivePending, knowledge, lexicon };
 }
 afterEach(() => {
   if (originalFlag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
@@ -85,6 +86,28 @@ describe("#1308 public simulator D1 boundary (authenticated tRPC producer)", () 
     }
   });
 
+  it("blocks a durable pending interaction after restart before the V2 resolver", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+    const backend = setup();
+    backend.readActivePending.mockResolvedValue(true);
+    await expect(backend.simulator(7, testInput))
+      .rejects.toThrow("public-simulator-pending-context-unsupported");
+    expect(backend.readActivePending).toHaveBeenCalledWith(7, testInput.receivedAt);
+    expect(backend.knowledge.readLocal).not.toHaveBeenCalled();
+    expect(backend.lexicon.load).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when durable pending lookup is unavailable instead of assuming no pending", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+    const backend = setup();
+    backend.readActivePending.mockRejectedValue(new Error("db unavailable"));
+    await expect(backend.simulator(7, testInput))
+      .rejects.toThrow("public-simulator-pending-state-unavailable");
+    expect(backend.knowledge.readLocal).not.toHaveBeenCalled();
+  });
+
   it("uses the real D1 LCL + resolver on approved evidence, read-only and without V1 projection", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
@@ -95,6 +118,7 @@ describe("#1308 public simulator D1 boundary (authenticated tRPC producer)", () 
       committed: false, registeredCount: 0,
       operationKey: expect.any(String), items: expect.any(Array) });
     expect(first?.operationKey).toBe(second?.operationKey);
+    expect(first?.traceId).toBe(second?.traceId);
     expect(first?.items.length).toBeGreaterThan(0);
     expect(backend.knowledge.readLocal).toHaveBeenCalled();
     expect(backend.knowledge.stagePendingEvidence).not.toHaveBeenCalled();

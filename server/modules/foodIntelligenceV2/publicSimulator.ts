@@ -4,6 +4,9 @@
  * No production approval provider exists before the post-deploy Gate A (#1335).
  */
 import { createHash, randomUUID } from "node:crypto";
+import { and, eq, gt } from "drizzle-orm";
+import { whatsappPendingOperations } from "../../../drizzle/schema";
+import { getDb } from "../../db";
 import type { SimulateWhatsappInboundInput } from "../whatsapp/schemas";
 import { governedLinguisticLexiconStore } from "./linguisticLexiconRepository";
 import { createFoodV2KnowledgeRepository } from "./repository";
@@ -26,6 +29,8 @@ export type AuthorizedD1SimulationContext = {
 
 type D1SimulatorDependencies = {
   readAuthorizedContext: () => Promise<AuthorizedD1SimulationContext | null>;
+  /** Lookup is durable and user-scoped, not only the process-local conversation Map. */
+  readActivePending: (userId: number, now: Date) => Promise<boolean>;
   lexicon?: FoodD1Dependencies["lexicon"];
   knowledge?: FoodD1Dependencies["knowledge"];
 };
@@ -36,6 +41,17 @@ type D1SimulatorDependencies = {
  */
 const unavailableD1SimulatorContext: D1SimulatorDependencies = {
   readAuthorizedContext: async () => null,
+  readActivePending: async (userId, now) => {
+    const db = await getDb();
+    if (!db) throw new Error("food-d1-public-simulator-pending-store-unavailable");
+    const rows = await db.select({ id: whatsappPendingOperations.id })
+      .from(whatsappPendingOperations)
+      .where(and(eq(whatsappPendingOperations.userId, userId),
+        eq(whatsappPendingOperations.state, "active"),
+        gt(whatsappPendingOperations.expiresAt, now)))
+      .limit(1);
+    return rows.length !== 0;
+  },
 };
 
 function operationKey(ownerUserId: number, messageId: string | undefined): string {
@@ -77,6 +93,14 @@ export function createFoodD1PublicSimulator(deps: D1SimulatorDependencies) {
     if (!(now instanceof Date) || Number.isNaN(now.getTime())) {
       throw new Error("food-d1-public-simulator-invalid-time");
     }
+    // Fail closed on an active, durable V1 interaction even after a process restart.
+    // A DB read failure is not evidence that the conversation has no pending reply.
+    let hasPending = false;
+    try { hasPending = await deps.readActivePending(authenticatedUserId, now); }
+    catch { throw new Error("food-d1-public-simulator-pending-state-unavailable"); }
+    if (hasPending) {
+      throw new Error("food-d1-public-simulator-pending-context-unsupported");
+    }
     const key = operationKey(authenticatedUserId, input.messageId);
     const evidence = {
       kind: "surface" as const,
@@ -88,7 +112,8 @@ export function createFoodD1PublicSimulator(deps: D1SimulatorDependencies) {
       reason: "simulator_context_snapshot_unavailable", sourceRef: null };
     const envelope: FoodOperationEnvelope = {
       schemaVersion: 2,
-      traceId: randomUUID(),
+      // Retries of one external message must not create a different trace.
+      traceId: "d1-trace-" + key.slice("d1-simulator-".length),
       idempotencyKey: key,
       ownerUserId: authenticatedUserId,
       conversationRef: null,

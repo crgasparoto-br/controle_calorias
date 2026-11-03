@@ -28,6 +28,8 @@ export function hashFoodD1OperationScope(
 ): string {
   return createHash("sha256").update(JSON.stringify({
     ownerUserId: envelope.ownerUserId, operationKey: envelope.idempotencyKey,
+    // Continuation may change turnRef, but never its original decision trace.
+    traceId: envelope.traceId,
     source, effectiveTimeZone: envelope.effectiveTimeZone,
     mealOperation: envelope.mealOperation,
   })).digest("hex");
