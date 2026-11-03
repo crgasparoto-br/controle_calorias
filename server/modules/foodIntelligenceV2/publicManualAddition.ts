@@ -10,6 +10,7 @@ import { createFoodV2KnowledgeRepository } from "./repository";
 import type { FoodKnowledgeStore } from "./knowledgeRead";
 import { type FoodD1Request } from "./entrypointMigration";
 import { runFoodD1Migration } from "./entrypointRunner";
+import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 
@@ -19,6 +20,8 @@ export type PublicD1ManualDependencies = {
   lexicon?: LinguisticLexiconStore;
   knowledge?: FoodKnowledgeStore;
   run?: typeof runFoodD1Migration;
+  /** Exact persisted resolver owner, not a process-local cache. */
+  readPinnedResolver?: (ownerUserId: number, operationKey: string) => Promise<"v1" | "v2" | null>;
 };
 
 /** No production authority exists until #1335; a flag can never manufacture it. */
@@ -33,7 +36,20 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
     timeZone: string;
     source?: "web" | "whatsapp";
   }): Promise<number | null> {
-    if (!isFoodD1EntrypointCutoverRequested("addition")) return null;
+    // A client retry of a previously pinned V2 addition must not fall back
+    // to a new V1 meal merely because the rollout flag was disabled.
+    if (!isFoodD1EntrypointCutoverRequested("addition")) {
+      const opId = input.meal.d1OperationId;
+      if (opId) {
+        const key = "d1-manual-" + input.userId + ":" + opId;
+        const owner = await (deps.readPinnedResolver
+          ? deps.readPinnedResolver(input.userId, key)
+          : createFoodD1RouteDbStore().readPinnedRoute(key, input.userId)
+              .then(route => route?.resolver ?? null));
+        if (owner === "v2") throw new Error("food-d1-operation-paused-by-rollback");
+      }
+      return null;
+    }
     const ctx = await deps.readAuthorizedContext();
     if (!ctx || !isCurrentFoodD1GateApproval(ctx.approval, ctx.expectedAuditedBaseSha) ||
         ctx.revisions.code !== ctx.expectedAuditedBaseSha) {

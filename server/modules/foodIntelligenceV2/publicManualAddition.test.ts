@@ -32,12 +32,33 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
   it("preserves existing V1 with flags OFF, without reading Gate A or the lexicon", async () => {
     const load = vi.fn(async () => []);
     const readAuthorizedContext = vi.fn(async () => null);
+    const readPinnedResolver = vi.fn(async () => null);
     const bridge = createFoodD1PublicManualAddition({
-      readAuthorizedContext, lexicon: { load },
+      readAuthorizedContext, lexicon: { load }, readPinnedResolver,
     });
     expect(await bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" })).toBeNull();
     expect(load).not.toHaveBeenCalled();
     expect(readAuthorizedContext).not.toHaveBeenCalled();
+    expect(readPinnedResolver).toHaveBeenCalledWith(7, "d1-manual-7:manual-submission-1");
+  });
+  it("blocks a pinned V2 addition during rollback before executing legacy", async () => {
+    const readPinnedResolver = vi.fn(async () => "v2" as const);
+    const readAuthorizedContext = vi.fn(async () => null);
+    const bridge = createFoodD1PublicManualAddition({ readAuthorizedContext, readPinnedResolver });
+    await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
+      .rejects.toThrow("food-d1-operation-paused-by-rollback");
+    expect(readPinnedResolver).toHaveBeenCalledOnce();
+    expect(readAuthorizedContext).not.toHaveBeenCalled();
+  });
+  it("fails closed when durable route storage is unavailable during rollback", async () => {
+    const readPinnedResolver = vi.fn(async () => {
+      throw new Error("storage-unavailable");
+    });
+    const bridge = createFoodD1PublicManualAddition({
+      readAuthorizedContext: async () => null, readPinnedResolver,
+    });
+    await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
+      .rejects.toThrow("storage-unavailable");
   });
   it("fails closed on selected flag without independent authority", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
