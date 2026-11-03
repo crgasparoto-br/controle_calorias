@@ -98,16 +98,18 @@ export function createFoodD1PublicSimulator(deps: D1SimulatorDependencies) {
       },
       revisions: { ...context.revisions },
     };
+    const request = { authenticatedUserId, entrypoint: "simulator" as const,
+      envelope, evidence, now };
     const plan = await runFoodD1Migration({
-      request: { authenticatedUserId, entrypoint: "simulator", envelope,
-        evidence, now },
+      request,
       source: "whatsapp", occurredAt: now,
       dependencies: {
         lexicon: deps.lexicon ?? governedLinguisticLexiconStore,
         knowledge: deps.knowledge ?? createFoodV2KnowledgeRepository(),
         authorizeEvidence: async ({ ownerUserId, entrypoint, evidence: submitted }) =>
-          ownerUserId === authenticatedUserId && entrypoint === "simulator" &&
-          submitted.kind === "surface" && submitted.modality === "text" &&
+          ownerUserId === authenticatedUserId && entrypoint === request.entrypoint &&
+          submitted.kind === evidence.kind && "rawText" in submitted &&
+          "modality" in submitted && submitted.modality === evidence.modality &&
           submitted.sourceRef === evidence.sourceRef && submitted.rawText === evidence.rawText,
         authorizeExistingItem: async () => false,
       },

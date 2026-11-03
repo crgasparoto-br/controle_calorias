@@ -255,7 +255,7 @@ export function buildHistoricalFoodQualityForShadow(
   return calculateHistoricalQualityIndicators(meals, waterMl);
 }
 
-function collectFoodQualityLookupNames(mealsByDay: ReportRangeData["mealsByDay"]) {
+function gatherLegacyCatalogSearchTerms(mealsByDay: ReportRangeData["mealsByDay"]) {
   const names = new Set<string>();
 
   for (const meals of mealsByDay) {
@@ -311,7 +311,7 @@ function collectFoodLookupCatalogIds(mealsByDay: ReportRangeData["mealsByDay"]) 
 }
 
 async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
-  const lookupNames = collectFoodQualityLookupNames(mealsByDay);
+  const lookupNames = gatherLegacyCatalogSearchTerms(mealsByDay);
   const catalogIds = collectFoodLookupCatalogIds(mealsByDay);
   if (!lookupNames.length && !catalogIds.length) {
     return createFoodLookup([]);

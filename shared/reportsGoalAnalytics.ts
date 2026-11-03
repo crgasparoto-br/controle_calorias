@@ -308,7 +308,7 @@ function sortCategoryItems<T extends { totalCalories: number; occurrences: numbe
     .sort((first, second) => second.totalCalories - first.totalCalories || second.occurrences - first.occurrences || first.key.localeCompare(second.key));
 }
 
-function addUnclassifiedDiagnostic(
+function accumulateUnmappedDiagnostics(
   diagnostics: Map<string, FoodQualityUnclassifiedItemDiagnostic>,
   date: string,
   item: FoodQualityItem,
@@ -447,7 +447,7 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         const calories = Math.max(item.calories, 0);
 
         if (!item.isClassified) {
-          addUnclassifiedDiagnostic(acc.unclassifiedDiagnostics, day.date, item, calories);
+          accumulateUnmappedDiagnostics(acc.unclassifiedDiagnostics, day.date, item, calories);
           if (calories <= 0) continue;
           acc.totalCalories += calories;
           acc.unclassifiedCalories += calories;
