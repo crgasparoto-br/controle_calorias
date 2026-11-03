@@ -4,20 +4,19 @@ import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
- * Fase A1 (§21.1, item 1): nenhum entrypoint produtivo é migrado nesta entrega.
- *
- * Este controle trava imports/carregamentos reais do módulo V2 por código
- * produtivo sem confundir strings, comentários e ferramentas de auditoria
- * com consumidores do domínio alimentar.
+ * Fase D: allow only a specifically audited, gated simulator bridge.
+ * Other productive imports remain forbidden until each public entrypoint is
+ * migrated and proven by its own positive/negative golden flow.
  */
 const REPOSITORY_ROOT = resolve(__dirname, "../../..");
-// Only the two disposable TiDB integration scripts are exempt from the
-// no-production-consumer baseline. Production code must still fail this gate.
+// TiDB scripts are isolated fixtures, not productive routing consumers.
 const D1_ISOLATED_TIDB_TESTS = new Set([
   resolve(REPOSITORY_ROOT, "scripts/test-food-d1-runtime-tidb.ts"),
   resolve(REPOSITORY_ROOT, "scripts/test-food-d1-restart-tidb.ts"),
 ]);
 const MODULE_DIRECTORY = resolve(__dirname);
+const PUBLIC_D1_SIMULATOR = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/service.ts");
+const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
 const SCANNED_ROOTS = ["server", "client/src", "shared", "scripts"] as const;
 const V2_MODULE_PATH = /(?:^|[/\\])foodIntelligenceV2(?:[/\\]|$)/;
 const ISOLATED_TEST_FILE = /(?:^|[/\\])__tests__[/\\]|\.(?:test|spec)\.[cm]?[jt]sx?$/;
@@ -45,43 +44,50 @@ function isRuntimeExport(node: ts.ExportDeclaration): boolean {
     node.exportClause.elements.some(element => !element.isTypeOnly);
 }
 
-function importsV2AtRuntime(file: string, content: string): boolean {
-  if (!content.includes("foodIntelligenceV2")) return false;
+function runtimeV2Specifiers(file: string, content: string): string[] {
+  if (!content.includes("foodIntelligenceV2")) return [];
   const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX
     : file.endsWith(".jsx") ? ts.ScriptKind.JSX
     : /\.(?:js|mjs|cjs)$/.test(file) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
   const source = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, false, kind);
-  let found = false;
+  const imports: string[] = [];
 
-  const targetsV2 = (specifier: ts.Expression | undefined): boolean => {
-    if (!specifier) return false;
-    if (ts.isStringLiteralLike(specifier)) return V2_MODULE_PATH.test(specifier.text);
-    // A known directory in a dynamic template still loads V2 at runtime.
-    return ts.isTemplateExpression(specifier) && V2_MODULE_PATH.test(specifier.head.text);
+  const specifierText = (specifier: ts.Expression | undefined): string | null => {
+    if (!specifier) return null;
+    if (ts.isStringLiteralLike(specifier)) return specifier.text;
+    return ts.isTemplateExpression(specifier) ? specifier.head.text : null;
   };
-
+  const addTarget = (specifier: ts.Expression | undefined) => {
+    const text = specifierText(specifier);
+    if (text && V2_MODULE_PATH.test(text)) imports.push(text);
+  };
   const visit = (node: ts.Node): void => {
-    if (found) return;
-    if (ts.isImportDeclaration(node) &&
-        isRuntimeImport(node.importClause) && targetsV2(node.moduleSpecifier)) {
-      found = true;
-    } else if (ts.isExportDeclaration(node) &&
-        isRuntimeExport(node) && targetsV2(node.moduleSpecifier)) {
-      found = true;
+    if (ts.isImportDeclaration(node) && isRuntimeImport(node.importClause)) {
+      addTarget(node.moduleSpecifier);
+    } else if (ts.isExportDeclaration(node) && isRuntimeExport(node)) {
+      addTarget(node.moduleSpecifier);
     } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly &&
-        ts.isExternalModuleReference(node.moduleReference) &&
-        targetsV2(node.moduleReference.expression)) {
-      found = true;
+        ts.isExternalModuleReference(node.moduleReference)) {
+      addTarget(node.moduleReference.expression);
     } else if (ts.isCallExpression(node) &&
         (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-          (ts.isIdentifier(node.expression) && node.expression.text === "require")) &&
-        targetsV2(node.arguments[0])) {
-      found = true;
+          (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+      addTarget(node.arguments[0]);
     }
-    if (!found) ts.forEachChild(node, visit);
+    ts.forEachChild(node, visit);
   };
   visit(source);
-  return found;
+  return imports;
+}
+
+function importsV2AtRuntime(file: string, content: string): boolean {
+  return runtimeV2Specifiers(file, content).length > 0;
+}
+
+/** One exact productive import is allowed, without permission to load anything else. */
+function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[]): boolean {
+  return file === PUBLIC_D1_SIMULATOR && imports.length === 1 &&
+    imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE;
 }
 
 async function collectSourceFiles(directory: string): Promise<string[]> {
@@ -101,8 +107,8 @@ async function collectSourceFiles(directory: string): Promise<string[]> {
   return files;
 }
 
-describe("fronteira da Fase A1", () => {
-  it("não tem consumidor produtivo fora do próprio módulo", async () => {
+describe("fronteira da Fase D", () => {
+  it("permite só o consumidor de simulador autorizado e bloqueia outros imports produtivos", async () => {
     const offenders: string[] = [];
     for (const root of SCANNED_ROOTS) {
       const absoluteRoot = join(REPOSITORY_ROOT, root);
@@ -116,12 +122,30 @@ describe("fronteira da Fase A1", () => {
         if (file.startsWith(MODULE_DIRECTORY + sep)) continue;
         if (ISOLATED_TEST_FILE.test(file) || D1_ISOLATED_TIDB_TESTS.has(file)) continue;
         const content = await readFile(file, "utf8");
-        if (importsV2AtRuntime(file, content)) {
+        const imports = runtimeV2Specifiers(file, content);
+        if (imports.length > 0 && !isApprovedD1SimulatorConsumer(file, imports)) {
           offenders.push(relative(REPOSITORY_ROOT, file));
         }
       }
     }
     expect(offenders).toStrictEqual([]);
+    const publicSimulator = await readFile(PUBLIC_D1_SIMULATOR, "utf8");
+    expect(runtimeV2Specifiers(PUBLIC_D1_SIMULATOR, publicSimulator))
+      .toEqual([PUBLIC_D1_SIMULATOR_BRIDGE]);
+  });
+
+  it("não isenta outros handlers, imports dinâmicos nem segundos resolvers no simulador", () => {
+    const good = 'import { tryRunPublicFoodD1Simulation } from "../foodIntelligenceV2/publicSimulator";';
+    expect(isApprovedD1SimulatorConsumer(PUBLIC_D1_SIMULATOR,
+      runtimeV2Specifiers(PUBLIC_D1_SIMULATOR, good))).toBe(true);
+    for (const fileAndCode of [
+      [resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts"), good],
+      [PUBLIC_D1_SIMULATOR, good + '\nimport { resolveFoodObservation } from "../foodIntelligenceV2/resolver";'],
+      [PUBLIC_D1_SIMULATOR, 'const engine = await import("../foodIntelligenceV2/entrypointRunner");'],
+    ]) {
+      const [file, code] = fileAndCode;
+      expect(isApprovedD1SimulatorConsumer(file, runtimeV2Specifiers(file, code))).toBe(false);
+    }
   });
 
   it("ignora strings, comentários e imports exclusivamente de tipos", () => {

@@ -261,6 +261,9 @@ function collectFoodQualityLookupNames(mealsByDay: ReportRangeData["mealsByDay"]
   for (const meals of mealsByDay) {
     for (const meal of meals) {
       for (const item of meal.items) {
+        // An authenticated V2 physical snapshot is self-contained. Never
+        // consult today's mutable catalog for its immutable identity.
+        if (item.v2SnapshotVerified === true) continue;
         addFoodLookupName(names, item.canonicalName);
         addFoodLookupName(names, item.foodName);
         addFoodLookupName(names, item.portionText);
@@ -296,6 +299,7 @@ function collectFoodLookupCatalogIds(mealsByDay: ReportRangeData["mealsByDay"]) 
   for (const meals of mealsByDay) {
     for (const meal of meals) {
       for (const item of meal.items) {
+        if (item.v2SnapshotVerified === true) continue;
         if (item.foodCatalogId) {
           ids.add(item.foodCatalogId);
         }

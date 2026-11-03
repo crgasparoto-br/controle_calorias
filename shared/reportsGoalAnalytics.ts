@@ -106,6 +106,8 @@ export type FoodQualityCategoryItem = {
   canonicalName: string | null;
   portionText: string | null;
   foodCatalogId: number | null;
+  /** Immutable verified V2 reference; optional to preserve the V1 report contract. */
+  historicalRef?: string | null;
   totalCalories: number;
   occurrences: number;
   firstDate: string | null;
@@ -126,6 +128,8 @@ export type FoodQualityUnclassifiedItemDiagnostic = {
   canonicalName: string | null;
   portionText: string | null;
   foodCatalogId: number | null;
+  /** Immutable verified V2 reference; optional to preserve the V1 report contract. */
+  historicalRef?: string | null;
   totalCalories: number;
   occurrences: number;
   firstDate: string | null;
@@ -265,6 +269,7 @@ function mergeCategoryItemFields(existing: FoodQualityCategoryItem, item: FoodQu
   if (!existing.canonicalName && item.canonicalName) existing.canonicalName = item.canonicalName;
   if (!existing.portionText && item.portionText) existing.portionText = item.portionText;
   if (!existing.foodCatalogId && item.foodCatalogId) existing.foodCatalogId = item.foodCatalogId;
+  if (!existing.historicalRef && item.historicalRef) existing.historicalRef = item.historicalRef;
   if (!existing.firstDate || (date && date < existing.firstDate)) existing.firstDate = date;
   if (!existing.lastDate || (date && date > existing.lastDate)) existing.lastDate = date;
 }
@@ -285,6 +290,7 @@ function addCategoryItem(
       canonicalName: item.canonicalName ?? null,
       portionText: item.portionText ?? null,
       foodCatalogId: item.foodCatalogId ?? null,
+      ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
       totalCalories: calories,
       occurrences: 1,
       firstDate: date || null,
@@ -319,6 +325,7 @@ function addUnclassifiedDiagnostic(
       canonicalName: item.canonicalName ?? null,
       portionText: item.portionText ?? null,
       foodCatalogId: item.foodCatalogId ?? null,
+      ...(item.historicalRef ? { historicalRef: item.historicalRef } : {}),
       totalCalories: calories,
       occurrences: 1,
       firstDate: date || null,

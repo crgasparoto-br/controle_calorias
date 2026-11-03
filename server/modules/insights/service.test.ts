@@ -33,6 +33,14 @@ import { getPeriodReportBundle, getWeeklyReport, getWeeklyReportBundle } from ".
 
 type MealItemOverrides = Partial<{
   foodCatalogId: number | null;
+  historicalRef: string | null;
+  v2SnapshotVerified: true;
+  classification: {
+    processingLevel: FoodProcessingLevel;
+    isFruit: boolean;
+    isVegetable: boolean;
+    fiberGrams: number;
+  } | null;
   foodName: string;
   canonicalName: string;
   portionText: string;
@@ -215,6 +223,58 @@ describe("insights food quality report integration", () => {
         occurrences: 1,
       }),
     ]);
+  });
+
+  it("preserva variantes V2 verificadas sem pesquisar nomes ou IDs em catálogo atual", async () => {
+    dbMocks.listUserMeals.mockResolvedValue([meal([
+      mealItem({
+        foodName: "Iogurte histórico", canonicalName: "Iogurte histórico",
+        foodCatalogId: 501, historicalRef: "variant:101", v2SnapshotVerified: true,
+        classification: null, calories: 82,
+      }),
+      mealItem({
+        foodName: "Iogurte histórico", canonicalName: "Iogurte histórico",
+        foodCatalogId: 502, historicalRef: "variant:102", v2SnapshotVerified: true,
+        classification: null, calories: 120,
+      }),
+    ])]);
+    dbMocks.searchFoods.mockResolvedValue([foodSearchItem({
+      id: 501, name: "Iogurte histórico", processingLevel: "ultra_processed",
+    })]);
+
+    const report = await getPeriodReportBundle(77, {
+      startDate: "2026-06-01", endDate: "2026-06-01",
+    });
+    expect(dbMocks.searchFoods).not.toHaveBeenCalled();
+    expect(dbMocks.getFoodsByIds).not.toHaveBeenCalled();
+    expect(report.quality.foodQuality).toMatchObject({
+      totalCalories: 202, unclassifiedCalories: 202, classifiedCalories: 0,
+    });
+    expect(report.quality.foodQuality.unclassifiedItems).toEqual([
+      expect.objectContaining({ key: "snapshot:variant:102", historicalRef: "variant:102", totalCalories: 120 }),
+      expect.objectContaining({ key: "snapshot:variant:101", historicalRef: "variant:101", totalCalories: 82 }),
+    ]);
+  });
+
+  it("consulta catálogo apenas para V1 quando há refeição mista V1/V2", async () => {
+    dbMocks.listUserMeals.mockResolvedValue([meal([
+      mealItem({ foodName: "V2 não consultado", canonicalName: "V2 não consultado",
+        historicalRef: "variant:404", foodCatalogId: 404, v2SnapshotVerified: true,
+        classification: null, calories: 90 }),
+      mealItem({ foodCatalogId: 501, foodName: "V1 consultado", canonicalName: "V1 consultado",
+        calories: 60 }),
+    ])]);
+    dbMocks.searchFoods.mockResolvedValue([]);
+    dbMocks.getFoodsByIds.mockResolvedValue([foodSearchItem({ id: 501, name: "V1 consultado" })]);
+
+    const report = await getPeriodReportBundle(77, {
+      startDate: "2026-06-01", endDate: "2026-06-01",
+    });
+    expect(dbMocks.getFoodsByIds).toHaveBeenCalledWith(77, [501]);
+    expect(dbMocks.searchFoods).not.toHaveBeenCalledWith(77, "V2 não consultado", expect.any(Number));
+    expect(report.quality.foodQuality).toMatchObject({
+      totalCalories: 150, classifiedCalories: 60, unclassifiedCalories: 90,
+    });
   });
 
   it("mantém a classificação por ID mesmo quando o lookup nominal não encontra o alimento", async () => {
