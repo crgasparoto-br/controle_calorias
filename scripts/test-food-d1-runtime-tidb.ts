@@ -9,6 +9,7 @@ import { prepareFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/e
 import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/entrypointPersistenceRepository";
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
 import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
+import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligenceV2/publicSimulator";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
 import { listMeals } from "../server/modules/meals/service";
@@ -107,6 +108,38 @@ const commit = async (env: FoodOperationEnvelope,
   });
 
 try {
+  // Exercise the same persisted pending lookup used by the public simulator,
+  // in the disposable TiDB fixture, not a mocked repository or process Map.
+  const pendingCheckAt = new Date("2026-11-03T14:00:00Z");
+  assert.equal(await hasActiveWhatsappPendingInDb(userId, pendingCheckAt), false);
+  const pendingId = await insert(
+    "INSERT INTO whatsappPendingOperations (userId, type, target, origin, state, expiresAt) VALUES (?, 'food_clarification', '{}', 'ci-d1', 'active', '2030-01-01 00:00:00')",
+    [userId],
+  );
+  assert.equal(await hasActiveWhatsappPendingInDb(userId, pendingCheckAt), true,
+    "a durable pending survives the conversation process and prevents V2 reinterpretation");
+  const foreignPendingUserId = await insert(
+    "INSERT INTO users (openId, name, email) VALUES ('ci-d1-pending-owner', 'Other Pending Owner', 'ci-d1-pending-owner@example.invalid')",
+  );
+  const foreignPendingId = await insert(
+    "INSERT INTO whatsappPendingOperations (userId, type, target, origin, state, expiresAt) VALUES (?, 'food_clarification', '{}', 'ci-d1', 'active', '2030-01-01 00:00:00')",
+    [foreignPendingUserId],
+  );
+  assert.equal(await hasActiveWhatsappPendingInDb(foreignPendingUserId, pendingCheckAt), true);
+  await sql.query("UPDATE whatsappPendingOperations SET state='consumed' WHERE id=?", [pendingId]);
+  assert.equal(await hasActiveWhatsappPendingInDb(userId, pendingCheckAt), false,
+    "an active pending owned by another user cannot affect the current user");
+  assert.equal(await hasActiveWhatsappPendingInDb(foreignPendingUserId, pendingCheckAt), true,
+    "a different owner keeps its own durable pending");
+  const expiredPendingId = await insert(
+    "INSERT INTO whatsappPendingOperations (userId, type, target, origin, state, expiresAt) VALUES (?, 'food_clarification', '{}', 'ci-d1', 'active', '2025-01-01 00:00:00')",
+    [userId],
+  );
+  assert.equal(await hasActiveWhatsappPendingInDb(userId, pendingCheckAt), false,
+    "expired pending must not block a future new operation");
+  await sql.query("UPDATE whatsappPendingOperations SET state='consumed' WHERE id IN (?, ?)",
+    [foreignPendingId, expiredPendingId]);
+
   const env = makeEnvelope("ci-d1-native-add");
   const batch = result("addition", "ci-d1-obs-1");
   batch.items.push({ observationId: "ci-d1-missing", mealItemId: null,

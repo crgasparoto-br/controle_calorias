@@ -35,23 +35,26 @@ type D1SimulatorDependencies = {
   knowledge?: FoodD1Dependencies["knowledge"];
 };
 
+/** A persisted V1 pending operation may outlive the process-local conversation. */
+export async function hasActiveWhatsappPendingInDb(userId: number, now: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("food-d1-public-simulator-pending-store-unavailable");
+  const rows = await db.select({ id: whatsappPendingOperations.id })
+    .from(whatsappPendingOperations)
+    .where(and(eq(whatsappPendingOperations.userId, userId),
+      eq(whatsappPendingOperations.state, "active"),
+      gt(whatsappPendingOperations.expiresAt, now)))
+    .limit(1);
+  return rows.length !== 0;
+}
+
 /**
  * Until #1335 publishes an approved, versioned runtime authority, even a
  * misconfigured server flag must not run this simulated V2 path.
  */
 const unavailableD1SimulatorContext: D1SimulatorDependencies = {
   readAuthorizedContext: async () => null,
-  readActivePending: async (userId, now) => {
-    const db = await getDb();
-    if (!db) throw new Error("food-d1-public-simulator-pending-store-unavailable");
-    const rows = await db.select({ id: whatsappPendingOperations.id })
-      .from(whatsappPendingOperations)
-      .where(and(eq(whatsappPendingOperations.userId, userId),
-        eq(whatsappPendingOperations.state, "active"),
-        gt(whatsappPendingOperations.expiresAt, now)))
-      .limit(1);
-    return rows.length !== 0;
-  },
+  readActivePending: hasActiveWhatsappPendingInDb,
 };
 
 function operationKey(ownerUserId: number, messageId: string | undefined): string {
