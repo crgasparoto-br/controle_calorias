@@ -9,6 +9,8 @@ import { prepareFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/e
 import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/entrypointPersistenceRepository";
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
 import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
+import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
+import { getDb } from "../server/db";
 import type { FoodD1Result } from "../server/modules/foodIntelligenceV2/entrypointMigration";
 import type { FoodOperationEnvelope, FoodResolutionDecision } from "../server/modules/foodIntelligenceV2/schemas";
 
@@ -269,6 +271,39 @@ try {
     /source-revoked-or-unlicensed/);
   const [afterRevoke] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
   assert.equal(Number(afterRevoke.c), 2, "source revocation is checked in the write transaction");
+  // Public repository readback of a real D1 transaction, not just a mocked
+  // projection. Changing the CURRENT profile must never recompute history.
+  const publicReader = createDrizzleMealsRepository({
+    getDb,
+    onWarning: (scope, error) => {
+      throw new Error("food-d1-public-reader-failed:" + scope, { cause: error });
+    },
+  });
+  const beforeProfileChange = await publicReader.findConfirmedByUserId(userId, {
+    includeMedia: false,
+  });
+  const originalMeal = beforeProfileChange?.find(entry => entry.id === Number(created.mealId));
+  assert.ok(originalMeal, "D1 committed meal must be visible in the public reader");
+  assert.deepEqual(originalMeal.items.map(item => item.historicalRef), [
+    "variant:" + replacement.variantId, "variant:" + first.variantId,
+  ], "the reader must preserve both exact physical V2 variants");
+  assert.deepEqual(originalMeal.items.map(item => item.calories), [81, 81]);
+  // This modifies only the disposable CI fixture's current knowledge. No real
+  // data, production flags or licensed source records are touched.
+  await sql.query(
+    "UPDATE food_nutrition_profiles SET calories_kcal=910 WHERE id=?",
+    [first.profileId],
+  );
+  const afterProfileChange = await publicReader.findConfirmedByUserId(userId, {
+    includeMedia: false,
+  });
+  const unchangedMeal = afterProfileChange?.find(entry => entry.id === Number(created.mealId));
+  assert.ok(unchangedMeal);
+  assert.deepEqual(unchangedMeal.items, originalMeal.items,
+    "a current profile change must not rewrite historical identity or macros");
+  assert.equal(unchangedMeal.items[1].calories, 81,
+    "the historical macro must come from the persisted receipt");
+
   console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation", {
     userId, mealId: created.mealId, itemId,
   });
