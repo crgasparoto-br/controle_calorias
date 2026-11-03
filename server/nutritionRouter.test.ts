@@ -104,6 +104,45 @@ describe("nutrition router", () => {
     vi.useRealTimers();
   });
 
+  it("#1308 blocks public manual V2 addition without Gate A and never writes a V1 meal", async () => {
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const { processMealInput } = await import("./nutritionEngine");
+    const authenticated = appRouter.createCaller(createNutritionContext(13910));
+    const anonymous = appRouter.createCaller({
+      ...createNutritionContext(13911), user: null,
+    });
+    const input = {
+      mealLabel: "Almoço",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
+      d1OperationId: "manual-public-contract-1308",
+      items: [{
+        foodName: "Arroz", canonicalName: "Arroz", portionText: "100 g",
+        servings: 1, quantity: 100, unit: "g",
+        estimatedGrams: 100, calories: 9999, protein: 999,
+        carbs: 999, fat: 999, confidence: 1, source: "heuristic" as const,
+      }],
+    };
+    vi.mocked(processMealInput).mockClear();
+    try {
+      const before = await authenticated.nutrition.meals.list();
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
+      await expect(authenticated.nutrition.meals.createManual(input))
+        .rejects.toThrow("food-d1-public-addition-gate-unavailable");
+      await expect(anonymous.nutrition.meals.createManual(input))
+        .rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      const after = await authenticated.nutrition.meals.list();
+      expect(after).toEqual(before);
+      expect(processMealInput).not.toHaveBeenCalled();
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
   it("#1308 keeps the authenticated public WhatsApp simulator fail-closed without independent Gate A", async () => {
     const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
     const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
