@@ -5,6 +5,7 @@ import type { MealDraftItem } from "../nutritionEngine";
 import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { mergeConfirmedMealClassification, mergePreservingMealClassification, readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
 import { mergePreservingMealCommercialIdentity } from "../modules/meals/commercialIdentitySnapshot";
+import { hasBoundFoodV2Snapshot } from "../modules/meals/foodV2Snapshot";
 import { reconcileHistoricalMealItemSlots, discardUnverifiedCommercialReplacement, guardHistoricalMealItemUpdate, historyInPlaceEditIndices, retainConfirmedItemRows, preserveHistoricalMealValues, sameHistoricalMealFood } from "./mealItemHistoryReconciliation";
 import { requireFreshReplacementNutrition } from "./mealReplacementNutrition";
 
@@ -485,12 +486,15 @@ async function loadSavedMeals(
         const itemsByMealId = new Map<number, MealDraftItem[]>();
         for (const item of itemRows) {
           const list = itemsByMealId.get(item.mealId) ?? [];
+          // A verified V2 physical snapshot is a historical contract even in
+          // public reads. Ordinary V1 records retain their original DTO shape.
+          // Never promote an arbitrary legacy JSON note into V2 metadata.
+          const v2Historical = hasBoundFoodV2Snapshot(item);
           list.push({
             foodCatalogId: item.foodCatalogId ?? null,
-            // Preserve V1's public record shape until a separate cutover.
-            ...(options.shadowReadOnly ? {
-              // A-006: a persisted V2 variant outranks its family and legacy
-              // catalog identifier; never re-infer a missing variant by name.
+            ...(options.shadowReadOnly || v2Historical ? {
+              // A persisted variant outranks the family/legacy catalog ID;
+              // the classification is read only from this saved item snapshot.
               historicalRef: item.foodVariantId != null
                 ? "variant:" + item.foodVariantId
                 : item.foodId != null ? "food:" + item.foodId

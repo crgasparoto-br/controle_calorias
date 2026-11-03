@@ -266,6 +266,62 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
     const productive = await repo.findConfirmedByUserId(9, { includeMedia: false });
     expect(productive?.[0].items.every(item => item.historicalRef === undefined)).toBe(true);
   });
+  it("projects only verified V2 snapshots into the public historical reader without changing V1", async () => {
+    const meal = {
+      id: 45, userId: 9, source: "web", status: "confirmed",
+      mealLabel: "Lanche", occurredAt: new Date("2026-10-29T10:00:00Z"),
+      createdAt: new Date("2026-10-29T10:00:01Z"), confidence: 0.9,
+    };
+    const base = {
+      mealId: 45, foodId: 10, foodCatalogId: 500,
+      foodName: "Leite", canonicalName: "Leite", portionText: "1 copo",
+      quantity: 1, unit: "copo", servings: 1, estimatedGrams: 200,
+      protein: 7, carbs: 9, fat: 4, source: "catalog", sourceMediaStorageKey: null,
+    };
+    const v2 = (variantId: number, profileId: number) => JSON.stringify({
+      format: "food-v2", schemaVersion: 2,
+      identity: { foodEntityId: 10, variantId },
+      nutrition: { profileId, verified: true },
+    });
+    const rows = [
+      { ...base, id: 46, calories: 80, foodVariantId: 101,
+        nutritionProfileId: 201, foodSnapshotJson: v2(101, 201) },
+      { ...base, id: 47, calories: 120, foodVariantId: 102,
+        nutritionProfileId: 202, foodSnapshotJson: v2(102, 202) },
+      { ...base, id: 48, calories: 60, foodVariantId: 103,
+        nutritionProfileId: 203, foodSnapshotJson: JSON.stringify({
+          format: "legacy", note: v2(103, 203),
+        }) },
+    ];
+    const select = vi.fn(() => ({
+      from(table: unknown) {
+        return { where() { return this; },
+          async orderBy() { return table === meals ? [meal] : table === mealItems ? rows : []; },
+        };
+      },
+    }));
+    const repo = createDrizzleMealsRepository({
+      getDb: async () => ({ select }) as never, onWarning: vi.fn(),
+    });
+    const saved = await repo.findConfirmedByUserId(9, { includeMedia: false });
+    const items = saved?.[0].items ?? [];
+    expect(items.map(item => item.historicalRef)).toEqual([
+      "variant:101", "variant:102", undefined,
+    ]);
+    expect(items.map(item => item.calories)).toEqual([80, 120, 60]);
+    expect(items[0].classification).toBeNull();
+    expect(items[2].classification).toBeUndefined();
+    const historical = calculateHistoricalQualityIndicators([
+      { mealLabel: "Lanche", items },
+    ], 0);
+    const report = calculateFoodQualitySummary([
+      { date: "2026-10-29", items: historical.foodQualityItems },
+    ]);
+    expect(report.unclassifiedItems).toHaveLength(3);
+    expect(report.unclassifiedItems.map(item => item.totalCalories).sort((a, b) => a - b))
+      .toEqual([60, 80, 120]);
+    expect(select).toHaveBeenCalled();
+  });
 });
 /** A-030: exercise the real repository update/re-read boundary, not a pure projection. */
 describe("#1307 / A-030 — historical identity survives meal updates", () => {

@@ -52,7 +52,7 @@ O componente V2 `entrypointMigration.ts` é, neste recorte, um plano de decisõe
 
 `FOOD_V2_D1_ENABLED` permanece OFF por padrão; em produção `FOOD_V2_D1_ENTRYPOINTS` também precisa selecionar explicitamente os entrypoints D1 autorizados, sem nomes desconhecidos/duplicados. A ausência da seleção nunca abre V2. Não há conexão produtiva, fonte de aprovação #1335 nem autorização de rollout. Ausência/revogação de gates impede V2. Ao desligar a flag durante uma operação V2, a retomada é bloqueada explicitamente, sem replay da V1. A migração de todos os entrypoints públicos, a conexão do adaptador de persistência ao runtime, a validação E2E TiDB (incluindo restart, concorrência, rótulo e LGPD) e os gates reais pós-deploy continuam bloqueadores para concluir a issue #1308 e liberar homologação.
 
-### Contratos operacionais do Food Intelligence V2
+O leitor público de refeições agora reconhece exclusivamente snapshots V2 verificados e vinculados ao item físico para expor a referência histórica da variante, sem consultar o catálogo corrente. Registros V1 e notas legadas não ganham os novos campos; classificação ausente em V2 continua desconhecida. A migração restante dos leitores e dos entrypoints públicos continua dependente das provas e gates da Fase D.\n\n### Contratos operacionais do Food Intelligence V2
 
 Além da convergência funcional, o V2 deve ser validado como sistema operacionalmente seguro:
 
