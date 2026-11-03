@@ -324,6 +324,25 @@ try {
     [userId, matchingLabelEnv.idempotencyKey]);
   assert.equal(Number(matchingLabelReceipt.c), 1);
 
+  // A label update is a physical edit too: a different destination cannot
+  // silently relabel an otherwise verified item from this same user's meal.
+  const wrongLabelMealEnv = makeEnvelope("ci-d1-label-wrong-meal");
+  wrongLabelMealEnv.mealOperation = {
+    ...wrongLabelMealEnv.mealOperation!, targetMeal: "jantar",
+  };
+  const wrongLabelPlan = prepare(wrongLabelMealEnv,
+    result("nutrition_label", "ci-d1-label-wrong-meal-obs", replacement, itemId));
+  await assert.rejects(commit(wrongLabelMealEnv, "nutrition_label", wrongLabelPlan),
+    /target-meal-mismatch/);
+  const [afterWrongLabel] = await rows(
+    "SELECT foodVariantId FROM mealItems WHERE id=?", [itemId]);
+  assert.equal(Number(afterWrongLabel.foodVariantId), replacement.variantId);
+  const [afterWrongLabelReceipts] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, wrongLabelMealEnv.idempotencyKey]);
+  assert.equal(Number(afterWrongLabelReceipts.c), 0,
+    "wrong meal label update must not leave a receipt");
+
   const [total] = await rows("SELECT COUNT(*) AS c FROM meals WHERE userId=?", [userId]);
   assert.equal(Number(total.c), 1, "label and edit must not create another meal");
 
