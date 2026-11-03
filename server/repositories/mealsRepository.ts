@@ -501,6 +501,7 @@ async function loadSavedMeals(
                 : item.foodCatalogId != null ? "catalog:" + item.foodCatalogId : null,
               classification: readConfirmedMealClassification(item.foodSnapshotJson),
             } : {}),
+            ...(v2Historical ? { v2SnapshotVerified: true as const } : {}),
             foodName: item.foodName,
             canonicalName: item.canonicalName,
             portionText: item.portionText,

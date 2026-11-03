@@ -103,7 +103,7 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
     expect(calculateHistoricalQualityIndicators(historical!, 0)).toEqual(quality);
     const publicV1 = await repository.findConfirmedByUserId(9, { includeMedia: false });
     expect(publicV1?.[0].items.every(item => item.classification === undefined &&
-      item.historicalRef === undefined)).toBe(true);
+      item.historicalRef === undefined && item.v2SnapshotVerified === undefined)).toBe(true);
   });
 
   it("returns saved macros, identity and classification without a live catalog lookup", async () => {
@@ -308,6 +308,7 @@ describe("#1307 / Gate 19 — persisted meal reader invariants", () => {
     expect(items.map(item => item.historicalRef)).toEqual([
       "variant:101", "variant:102", undefined,
     ]);
+    expect(items.map(item => item.v2SnapshotVerified)).toEqual([true, true, undefined]);
     expect(items.map(item => item.calories)).toEqual([80, 120, 60]);
     expect(items[0].classification).toBeNull();
     expect(items[2].classification).toBeUndefined();

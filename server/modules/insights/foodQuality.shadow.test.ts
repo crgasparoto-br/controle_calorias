@@ -20,7 +20,7 @@ describe("#1307 / Gate 19 — historical shadow readers", () => {
   });
 
   it("does not reclassify a public V2 item using a live catalog homonym", () => {
-    const v2 = { ...persisted(), classification: null };
+    const v2 = { ...persisted(), v2SnapshotVerified: true as const, classification: null };
     const liveCatalog = createFoodLookup([{
       id: 500, name: "Pão", servingSize: 30, calories: 400,
       protein: 9, carbs: 10, fat: 5, fiber: 9,
@@ -36,9 +36,14 @@ describe("#1307 / Gate 19 — historical shadow readers", () => {
       unclassifiedReason: "unknown",
     }]);
     expect(snapshot.proteinGrams).toBe(3);
-    // V1 with no historical reference retains the current-catalog behavior.
+    // A V1 shadow historicalRef is not proof of a physically verified V2 snapshot.
+    const v1Shadow = calculateQualityIndicators([
+      { mealLabel: "Lanche", items: [{ ...v2, v2SnapshotVerified: undefined }] },
+    ], 0, liveCatalog);
+    expect(v1Shadow.foodQualityItems[0].processingLevel).toBe("ultra_processed");
+    // V1 without a historical reference also retains the current-catalog behavior.
     const legacy = calculateQualityIndicators([
-      { mealLabel: "Lanche", items: [{ ...v2, historicalRef: undefined }] },
+      { mealLabel: "Lanche", items: [{ ...v2, v2SnapshotVerified: undefined, historicalRef: undefined }] },
     ], 0, liveCatalog);
     expect(legacy.foodQualityItems[0].processingLevel).toBe("ultra_processed");
     expect(legacy.foodQualityItems[0].isClassified).toBe(true);
