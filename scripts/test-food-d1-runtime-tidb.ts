@@ -277,7 +277,13 @@ try {
   assert.equal(Number(afterWrongDateReceipts.c), 0);
 
   const editEnv = makeEnvelope("ci-d1-native-edit");
-  const editPlan = prepare(editEnv, result("edit", "ci-d1-obs-edit", replacement, itemId));
+  // A second interaction later on the SAME local day must still edit in place.
+  const editPlan = prepareFoodD1NativeWrite({
+    envelope: editEnv, authenticatedUserId: userId,
+    result: { ...result("edit", "ci-d1-obs-edit", replacement, itemId),
+      operationKey: editEnv.idempotencyKey },
+    source: "web", occurredAt: new Date("2026-10-05T18:30:00Z"),
+  });
   const edited = await commit(editEnv, "edit", editPlan);
   assert.deepEqual(edited.recordedItemIds, [itemId]);
   const [updated] = await rows("SELECT foodVariantId, calories FROM mealItems WHERE id=?", [itemId]);
