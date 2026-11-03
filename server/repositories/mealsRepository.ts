@@ -617,7 +617,7 @@ export function createDrizzleMealsRepository(deps: {
             let outcome: unknown;
             try { outcome = JSON.parse(receipt.outcomeJson); }
             catch { throw new Error("food-d1-legacy-receipt-corrupt"); }
-            const id = (outcome as { mealId?: unknown } | null)?.mealId;
+            const id = Number((outcome as { mealId?: unknown } | null)?.mealId);
             if (!Number.isSafeInteger(id) || (id as number) <= 0) {
               throw new Error("food-d1-legacy-receipt-corrupt");
             }
