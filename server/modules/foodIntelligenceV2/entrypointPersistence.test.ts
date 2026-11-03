@@ -34,6 +34,7 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
     expect(output.confidence).toBe(0.9);
     expect(output.requestHash).toMatch(/^[0-9a-f]{64}$/);
     expect(output.operationScopeHash).toBe(hashFoodD1OperationScope(envelope(), "whatsapp"));
+    expect(output.effectiveTimeZone).toBe(envelope().effectiveTimeZone);
     expect(output.items[0].values.foodSnapshotJson).not.toContain("rawInput");
   });
 
