@@ -1229,6 +1229,10 @@ export async function createUserManualMeal(input: {
     // in-process cache nor the habit counters may be advanced twice.
     const committed = (await loadMealsFromDb(input.userId))?.find(meal => meal.id === savedMeal.id);
     if (!committed) throw new Error("food-d1-legacy-receipt-meal-unavailable");
+    // If the original request committed the meal but failed during the
+    // subsequent derived-habit update, a retry must repair that projection.
+    // Rebuild is idempotent and must not increment a historical count twice.
+    await rebuildUserMealHabits(input.userId);
     return { ...committed, totals: sumMealItems(committed.items) };
   }
   mealStore.set(input.userId, [savedMeal, ...current.filter(meal => meal.id !== savedMeal.id)]);
