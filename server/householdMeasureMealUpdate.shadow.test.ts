@@ -21,6 +21,24 @@ describe("#1307 — read-only household shadow projection", () => {
     expect(values.map(i => i.foodCatalogId)).toEqual([10, null, 20]);
   });
 
+  it("preserves verified V2 variant identity without remapping a legacy catalog ID", () => {
+    const first = { ...item(10, "Iogurte"), historicalRef: "variant:101", v2SnapshotVerified: true as const };
+    const second = { ...item(10, "Iogurte"), historicalRef: "variant:202", v2SnapshotVerified: true as const };
+    const view = projectHistoricalHouseholdItemsForShadow([first, second]);
+    expect(view.map(entry => entry.historicalRef)).toEqual(["variant:101", "variant:202"]);
+    expect(view.map(entry => entry.foodCatalogId)).toEqual([null, null]);
+    expect(view.map(entry => entry.calories)).toEqual([20, 20]);
+  });
+
+  it("fails closed on a verified V2 marker without an immutable variant reference", () => {
+    const malformed = { ...item(10, "Iogurte"), v2SnapshotVerified: true as const };
+    expect(() => projectHistoricalHouseholdItemsForShadow([malformed]))
+      .toThrow("food-v2-historical-variant-reference-required");
+    expect(() => projectHistoricalHouseholdItemsForShadow([
+      { ...malformed, historicalRef: "catalog:10" },
+    ])).toThrow("food-v2-historical-variant-reference-required");
+  });
+
   it("does not mutate the confirmed V1 item while creating historical views", () => {
     const original = item(10, "Arroz");
     const view = projectHistoricalHouseholdItemsForShadow([original]);
