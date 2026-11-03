@@ -110,7 +110,6 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodAttributeMaterialityOverrides` | `food_attribute_materiality_overrides` | 11 | Requer atenção |
 | `foodSourceReadGrants` | `food_source_read_grants` | 15 | Baixa |
 | `foodPersonalReconciliationQuarantine` | `food_personal_reconciliation_quarantine` | 9 | Baixa |
-
 | `foodD1OperationRoutes` | `food_d1_user_operation_routes` | 6 | Requer atenção |
 | `foodD1OperationEffects` | `food_d1_user_operation_effects` | 6 | Requer atenção |
 
@@ -193,7 +192,6 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 - `user_food_aliases` via export `userFoodAliases`.
 - `user_food_lexicon_entries` via export `userFoodLexiconEntries`.
 - `food_attribute_materiality_overrides` via export `foodAttributeMaterialityOverrides`.
-
 - `food_d1_user_operation_routes` via export `foodD1OperationRoutes`.
 - `food_d1_user_operation_effects` via export `foodD1OperationEffects`.
 
@@ -276,7 +274,6 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `food_resolution_events` | `fallback_reason`, `clarification_reason`, `decision_json` |
 | `food_attributes` | `label` |
 | `food_personal_reconciliation_quarantine` | `reason` |
-
 | `food_d1_user_operation_routes` | `revisions_json` |
 | `food_d1_user_operation_effects` | `outcome_json` |
 
