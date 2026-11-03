@@ -3,7 +3,7 @@
  * This is never a second nutrition resolver, a new endpoint or a meal writer.
  * No production approval provider exists before the post-deploy Gate A (#1335).
  */
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { whatsappPendingOperations } from "../../../drizzle/schema";
 import { getDb } from "../../db";
@@ -58,9 +58,10 @@ const unavailableD1SimulatorContext: D1SimulatorDependencies = {
 };
 
 function operationKey(ownerUserId: number, messageId: string | undefined): string {
-  // A replay with an external message ID reproduces the same opaque key, not
-  // the message content. Without an ID, simulation has no durable operation.
-  const stableId = messageId ?? randomUUID();
+  // A replay must reproduce exactly the same opaque key after process restart.
+  // Creating a random key on missing ID would silently disable idempotency.
+  const stableId = messageId?.trim();
+  if (!stableId) throw new Error("food-d1-public-simulator-message-id-required");
   return "d1-simulator-" + createHash("sha256")
     .update(JSON.stringify({ ownerUserId, stableId }))
     .digest("hex");
