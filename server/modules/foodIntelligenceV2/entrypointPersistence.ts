@@ -34,6 +34,7 @@ export type FoodD1PreparedWrite = {
   confidence: number | null;
   mealLabel: string;
   occurredAt: Date;
+  effectiveTimeZone: string;
   requestHash: string;
   items: FoodD1PreparedItem[];
   skipped: Array<{ observationId: string; reasonCodes: readonly string[] }>;
@@ -163,5 +164,6 @@ export function prepareFoodD1NativeWrite(input: {
     revisions: { ...envelope.revisions },
     confidence: confidences.length ? Math.min(...confidences) : null,
     mealLabel: envelope.mealOperation!.targetMeal, occurredAt: input.occurredAt,
+    effectiveTimeZone: envelope.effectiveTimeZone,
     requestHash, items, skipped };
 }
