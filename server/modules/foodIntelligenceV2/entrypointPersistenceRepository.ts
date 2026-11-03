@@ -1,5 +1,6 @@
 /** #1308: native V2 item effects in a transaction, never projected through V1 DTOs. */
 import { createHash } from "node:crypto";
+import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { and, eq } from "drizzle-orm";
 import { foodD1OperationEffects, foodD1OperationRoutes, foodNutritionProfiles,
   foodSourceReadGrants, foodVariants, foodVariantSources } from "../../../drizzle/food-intelligence-v2-schema";
@@ -294,10 +295,11 @@ export async function commitFoodD1NativeWrite(input: {
         throw new Error("food-d1-native-target-stale-or-foreign");
       }
       // A physical item ID alone does not authorize changing a different
-      // meal of the same user. The canonical operation pins both destination
-      // and local-date-derived occurredAt before its V2 decision is committed.
+      // meal of the same user. Match the canonical local date, not the exact
+      // hour: a later edit on the same day must remain valid.
       if (existing.mealLabel !== plan.mealLabel ||
-          existing.occurredAt.getTime() !== plan.occurredAt.getTime()) {
+          getDateKeyInTimeZone(existing.occurredAt, plan.effectiveTimeZone) !==
+            getDateKeyInTimeZone(plan.occurredAt, plan.effectiveTimeZone)) {
         throw new Error("food-d1-native-target-meal-mismatch");
       }
       mealId = existing.mealId;
