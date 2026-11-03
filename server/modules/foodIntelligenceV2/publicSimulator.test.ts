@@ -108,6 +108,18 @@ describe("#1308 public simulator D1 boundary (authenticated tRPC producer)", () 
     expect(backend.knowledge.readLocal).not.toHaveBeenCalled();
   });
 
+  it("rejects missing or blank external message IDs rather than creating an unrepeatable nonce", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+    const backend = setup();
+    for (const messageId of [undefined, "  "]) {
+      await expect(backend.simulator(7, { ...testInput, messageId }))
+        .rejects.toThrow("food-d1-public-simulator-message-id-required");
+    }
+    expect(backend.knowledge.readLocal).not.toHaveBeenCalled();
+    expect(backend.lexicon.load).not.toHaveBeenCalled();
+  });
+
   it("uses the real D1 LCL + resolver on approved evidence, read-only and without V1 projection", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
