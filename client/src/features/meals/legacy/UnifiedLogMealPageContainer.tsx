@@ -23,6 +23,7 @@ import { ChevronDown, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles 
 import { toast } from "sonner";
 import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
 import { createEmptyItem, createManualMealState, fileToBase64, sumItems } from "../mealFormState";
+import { newFoodOperationSubmissionId } from "../operationSubmissionId";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
 import type { DraftState, MealItemState } from "../types";
 
@@ -113,6 +114,7 @@ export default function LogMealPage() {
   const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue(new Date(), userTimeZone));
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
   const [manualMeal, setManualMeal] = useState(() => createManualMealState(defaultMealLabel));
+  const manualSubmissionRef = React.useRef<{ fingerprint: string; id: string } | null>(null);
   const [exerciseForm, setExerciseForm] = useState(() => buildDefaultExerciseForm(userTimeZone));
   const [waterForm, setWaterForm] = useState(() => buildDefaultWaterForm(userTimeZone));
   const [weightValue, setWeightValue] = useState("");
@@ -331,10 +333,15 @@ export default function LogMealPage() {
     if (!dateTimeLocal) return;
     const payload = { mealLabel: manualMeal.mealLabel.trim(), dateTimeLocal, notes: manualMeal.notes.trim() || undefined, items };
     if (manualMeal.mealId) return updateMeal.mutate({ mealId: manualMeal.mealId, ...payload });
-    createManualMeal.mutate(payload);
+    const fingerprint = JSON.stringify(payload);
+    if (manualSubmissionRef.current?.fingerprint !== fingerprint) {
+      manualSubmissionRef.current = { fingerprint, id: newFoodOperationSubmissionId() };
+    }
+    createManualMeal.mutate({ ...payload, d1OperationId: manualSubmissionRef.current.id });
   };
 
   function resetManualMeal() {
+    manualSubmissionRef.current = null;
     const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
     setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
   }
