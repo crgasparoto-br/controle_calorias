@@ -104,6 +104,35 @@ describe("nutrition router", () => {
     vi.useRealTimers();
   });
 
+  it("#1308 keeps the authenticated public WhatsApp simulator fail-closed without independent Gate A", async () => {
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const { processMealInput } = await import("./nutritionEngine");
+    vi.mocked(processMealInput).mockClear();
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+      const authorizedCaller = appRouter.createCaller(createNutritionContext(13908));
+      await expect(authorizedCaller.nutrition.whatsapp.simulateInbound({
+        text: "150 g de frango", messageId: "ci-d1-auth-public-1308",
+      })).rejects.toThrow("food-d1-public-simulator-gate-unavailable");
+      expect(processMealInput).not.toHaveBeenCalled();
+
+      const anonymous = appRouter.createCaller({
+        ...createNutritionContext(13909), user: null,
+      });
+      await expect(anonymous.nutrition.whatsapp.simulateInbound({
+        text: "150 g de frango", messageId: "ci-d1-anon-public-1308",
+      })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      expect(processMealInput).not.toHaveBeenCalled();
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
   it("atualiza a meta padrão com exceções e reflete a regra efetiva no dashboard", async () => {
     const caller = appRouter.createCaller(createNutritionContext(501));
 
