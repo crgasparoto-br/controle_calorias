@@ -67,7 +67,7 @@ export function createFoodD1PublicWhatsAppRegistration(deps: RegistrationDepende
     // A V1 pending interaction belongs to its own versioned handler. This
     // query survives restart and cannot be replaced by an in-memory heuristic.
     let activePending = false;
-    try { activePending = await deps.readActivePending(input.userId, input.receivedAt); }
+    try { activePending = await deps.readActivePending(input.userId, new Date()); }
     catch { throw new Error("food-d1-whatsapp-public-pending-state-unavailable"); }
     if (activePending) throw new Error("food-d1-whatsapp-public-legacy-pending-active");
 
@@ -80,7 +80,7 @@ export function createFoodD1PublicWhatsAppRegistration(deps: RegistrationDepende
         !(operation.date instanceof Date) || !Number.isFinite(operation.date.getTime()) ||
         !operation.items.length || operation.missingFields.length ||
         operation.items.some(item => !item.foodName?.trim() ||
-          item.quantity === null || !Number.isFinite(item.quantity) ||
+          item.quantity === null || !Number.isFinite(item.quantity) || item.quantity <= 0 ||
           !item.unit?.trim())) {
       throw new Error("food-d1-whatsapp-public-meal-operation-unresolved");
     }
@@ -88,9 +88,15 @@ export function createFoodD1PublicWhatsAppRegistration(deps: RegistrationDepende
     // One idempotency key for an inbound message, independent of modality:
     // changing the modality on a retry must not create a second meal.
     const digest = createHash("sha256").update(JSON.stringify([
-      input.userId, input.externalMessageId,
+      input.userId, input.externalMessageId.trim(),
     ])).digest("hex");
     const key = "d1-whatsapp-" + digest;
+    // The external ID owns one immutable message payload. A replay with the
+    // same ID but altered text must change the operation scope, not silently
+    // return the receipt of an unrelated or rewritten food observation.
+    const traceDigest = createHash("sha256").update(JSON.stringify([
+      input.userId, input.externalMessageId.trim(), input.originalText,
+    ])).digest("hex");
     const evidence = {
       kind: "surface" as const,
       modality: input.modality,
@@ -103,7 +109,7 @@ export function createFoodD1PublicWhatsAppRegistration(deps: RegistrationDepende
       sourceRef: null,
     };
     const envelope: FoodOperationEnvelope = {
-      schemaVersion: 2, traceId: "d1-trace-" + digest,
+      schemaVersion: 2, traceId: "d1-trace-" + traceDigest,
       idempotencyKey: key, ownerUserId: input.userId,
       conversationRef: null, turnRef: null,
       effectiveTimeZone: input.timeZone,

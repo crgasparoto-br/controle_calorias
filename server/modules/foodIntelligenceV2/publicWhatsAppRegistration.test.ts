@@ -139,6 +139,31 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
       expect(secondKey).toBe(firstKey);
     },
   );
+  it("pins one external message ID while rejecting mutated text through changed trace scope", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
+    const captured: Array<{ key: string; trace: string }> = [];
+    const run = vi.fn(async (args: Parameters<typeof runFoodD1Migration>[0]) => {
+      captured.push({ key: args.request.envelope.idempotencyKey,
+        trace: args.request.envelope.traceId });
+      return { committed: true, mealId: 55, recordedItemIds: [501], skipped: [] };
+    });
+    const service = createFoodD1PublicWhatsAppRegistration({
+      readAuthorizedContext: async () => approval,
+      readActivePending: async () => false, parseOperation: () => parsed(),
+      readMeal: async () => meal() as never,
+      run: run as unknown as typeof runFoodD1Migration,
+    });
+    await service(createInput());
+    await service({ ...createInput(), externalMessageId: " wamid.original-004 " });
+    await service({ ...createInput(), originalText: "Adicionar ao almoço 99 g de arroz" });
+    expect(captured[0].key).toBe(captured[1].key);
+    expect(captured[1].trace).toBe(captured[0].trace);
+    expect(captured[2].key).toBe(captured[0].key);
+    expect(captured[2].trace).not.toBe(captured[0].trace);
+    // The real route rejects that changed hash under the same pinned key;
+    // this test proves the boundary supplies its discriminant.
+  });
   it("reports unresolved siblings explicitly and never commits a zero-ready batch", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
