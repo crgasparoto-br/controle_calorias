@@ -96,9 +96,8 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
     timeZone: string;
     source?: "web" | "whatsapp";
   }): Promise<number | null> {
-    // Preserve a durable V1 owner on rollback; never silently retry a pinned
-    // V2 operation through a V1 write. A selected V2 route needs real Gate A
-    // even to inspect or execute an operation.
+    // Preserve the durable V1 owner on rollback, even when Gate A is revoked.
+    // A new or pinned V2 route must not execute without independent approval.
     if (!isFoodD1EntrypointCutoverRequested("addition")) {
       if (input.meal.d1OperationId) {
         const candidate = buildLegacyManualRoute(input);
@@ -108,11 +107,6 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
         assertSameLegacyManualScope(pinned, candidate);
       }
       return null;
-    }
-    const ctx = await deps.readAuthorizedContext();
-    if (!ctx || !isCurrentFoodD1GateApproval(ctx.approval, ctx.expectedAuditedBaseSha) ||
-        ctx.revisions.code !== ctx.expectedAuditedBaseSha) {
-      throw new Error("food-d1-public-addition-gate-unavailable");
     }
     if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
         !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,79}$/.test(input.meal.d1OperationId ?? "") ||
@@ -130,6 +124,11 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
     if (pinned?.resolver === "v1") {
       assertSameLegacyManualScope(pinned, buildLegacyManualRoute(input));
       return null;
+    }
+    const ctx = await deps.readAuthorizedContext();
+    if (!ctx || !isCurrentFoodD1GateApproval(ctx.approval, ctx.expectedAuditedBaseSha) ||
+        ctx.revisions.code !== ctx.expectedAuditedBaseSha) {
+      throw new Error("food-d1-public-addition-gate-unavailable");
     }
     const timeZone = input.timeZone;
     const source = input.source ?? "web";
