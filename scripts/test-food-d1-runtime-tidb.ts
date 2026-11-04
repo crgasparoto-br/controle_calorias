@@ -466,6 +466,15 @@ try {
   );
   assert.equal(Number(concurrentCount.c), 1, "concurrent V1 operation must write exactly one receipt");
 
+  // The preceding negative test revoked the original synthetic source. A
+  // separate positive fixture must explicitly authorize its source again,
+  // without weakening the transaction's live-grant check.
+  await sql.query(
+    "UPDATE food_source_read_grants SET status='approved', revoked_at=NULL, allow_read=1 WHERE source_id=?",
+    [sourceId],
+  );
+  const publicVariant = await seedVariant("Mortadela public D1");
+
   // Public WhatsApp D1 boundary -> native route -> REAL TiDB transaction ->
   // confirmed meal readback -> reply, with synthetic verified decision injected.
   // This is deliberately NOT a Golden Corpus/real Gate A test (#1335).
@@ -492,7 +501,7 @@ try {
           assert.equal(args.request.entrypoint, modality);
           assert.equal(args.request.envelope.ownerUserId, userId);
           const env = args.request.envelope;
-          const syntheticBatch = result(modality, "ci-public-whatsapp-" + modality);
+          const syntheticBatch = result(modality, "ci-public-whatsapp-" + modality, publicVariant);
           syntheticBatch.operationKey = env.idempotencyKey;
           syntheticBatch.traceId = env.traceId;
           syntheticBatch.items[0].decision.traceId = env.traceId;
