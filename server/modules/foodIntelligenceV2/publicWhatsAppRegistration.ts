@@ -129,8 +129,19 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
         !("skipped" in response) || !Array.isArray(response.skipped)) {
       throw new Error("food-d1-whatsapp-public-commit-unavailable");
     }
-    const mealId = response.mealId;
-    const skipped = response.skipped as FoodD1CommitResult["skipped"];
+    // A committed flag alone cannot certify that the operation's complete
+    // observation manifest was persisted. A partial or corrupt receipt must
+    // never be presented as a complete registered meal.
+    const receipt = response as FoodD1CommitResult;
+    if (!Array.isArray(receipt.recordedItemIds) ||
+        receipt.recordedItemIds.length !== operation.itemCount ||
+        receipt.recordedItemIds.some(id => !Number.isSafeInteger(id) || id <= 0) ||
+        new Set(receipt.recordedItemIds).size !== operation.itemCount ||
+        receipt.skipped.length !== 0) {
+      throw new Error("food-d1-whatsapp-public-commit-incomplete");
+    }
+    const mealId = receipt.mealId!;
+    const skipped = receipt.skipped;
     const reply = await deps.renderCommittedMeal({
       userId: input.userId, mealId, registeredAt: operation.date,
       timeZone: input.timeZone, skipped,
