@@ -521,6 +521,34 @@ try {
     entrypoint: "text", ownerUserId: userId, mealLabel: "Almoço",
     occurredAt, timeZone: "UTC", revisions: webEnvelope.revisions,
   }), /operation-scope-changed/);
+  // Leave an independent pending review in the disposable TiDB so the
+  // separate Node process can prove rehydration without its in-memory caches.
+  const restartWebId = "ci-web-cross-process";
+  const restartWebKey = "d1-web-" + userId + ":" + restartWebId;
+  const restartRequest = { ...webOriginalRequest, d1OperationId: restartWebId };
+  const restartTrace = traceFoodD1WebSubmission({
+    operationKey: restartWebKey, entrypoint: "text",
+    request: restartRequest,
+  });
+  const restartEnvelope = {
+    ...webEnvelope, idempotencyKey: restartWebKey, traceId: restartTrace,
+  };
+  await createFoodD1RouteDbStore().bindPinnedRoute({
+    ownerUserId: userId, operationKey: restartWebKey,
+    resolver: "v2", originEntrypoint: "text",
+    operationScopeHash: hashFoodD1OperationScope(restartEnvelope, "web"),
+    versions: restartEnvelope.revisions,
+  });
+  await saveFoodD1WebDraft({
+    draftId: "ci-web-cross-process-draft", ownerUserId: userId,
+    operationKey: restartWebKey,
+    payload: {
+      ...webDraftPayload,
+      envelope: restartEnvelope,
+      draft: { ...webDraftPayload.draft, operationKey: restartWebKey },
+    },
+  });
+
   const confirmedReceipt = {
     draftId: webDraftId, operationKey: webKey,
     confirmationHash: "a".repeat(64),

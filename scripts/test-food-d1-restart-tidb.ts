@@ -5,6 +5,8 @@
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
 import { buildFoodOperationEnvelopeFixture, buildFoodResolutionDecisionFixture } from "../server/modules/foodIntelligenceV2/fixtures";
+import { getFoodD1WebDraftByOperationKey, saveFoodD1WebDraft } from "../server/modules/foodIntelligenceV2/publicWebDraftRepository";
+import { checkedFoodD1WebReplay, traceFoodD1WebSubmission } from "../server/modules/foodIntelligenceV2/publicWebDraftIdentity";
 import { prepareFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/entrypointPersistence";
 import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/entrypointPersistenceRepository";
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
@@ -39,6 +41,61 @@ try {
     "all original operation references must remain durable across process restart");
   const oldReceipt = JSON.parse(String(existing.outcome_json)) as { itemId: number; mealId: number };
   const userId = Number(owner.id);
+  const restartWebId = "ci-web-cross-process";
+  const restartWebKey = "d1-web-" + userId + ":" + restartWebId;
+  const restartRequest = {
+    source: "web" as const, d1OperationId: restartWebId,
+    mealLabel: "Almoço", occurredAt: "2026-10-05T12:00",
+    text: "30 g de mortadela",
+  };
+  const expectedWebTrace = traceFoodD1WebSubmission({
+    operationKey: restartWebKey, entrypoint: "text",
+    request: restartRequest,
+  });
+  const restartedWebDraft = await getFoodD1WebDraftByOperationKey({
+    operationKey: restartWebKey, ownerUserId: userId,
+  });
+  assert.equal(restartedWebDraft?.status, "pending",
+    "a separate process must recover the pending public V2 web review");
+  if (!restartedWebDraft || restartedWebDraft.status !== "pending") {
+    throw new Error("D1 cross-process web review was not persisted");
+  }
+  const pending = restartedWebDraft.payload;
+  assert.equal(checkedFoodD1WebReplay({
+    record: restartedWebDraft, operationKey: restartWebKey,
+    traceId: expectedWebTrace, entrypoint: "text",
+    ownerUserId: userId, mealLabel: restartRequest.mealLabel,
+    occurredAt: new Date("2026-10-05T12:00:00.000Z"),
+    timeZone: "UTC", revisions: pending.envelope.revisions,
+  }).draftId, "ci-web-cross-process-draft");
+  const raceReplay = await saveFoodD1WebDraft({
+    draftId: "ci-web-cross-process-replay", ownerUserId: userId,
+    operationKey: restartWebKey,
+    payload: {
+      envelope: pending.envelope, occurredAt: pending.occurredAt,
+      draft: {
+        resolver: pending.draft.resolver,
+        operationKey: pending.draft.operationKey,
+        entrypoint: pending.draft.entrypoint,
+        mealLabel: pending.draft.mealLabel,
+        occurredAt: pending.draft.occurredAt,
+        items: pending.draft.items,
+      },
+      observations: pending.observations,
+    },
+  });
+  assert.equal(raceReplay.status, "pending");
+  if (raceReplay.status !== "pending") {
+    throw new Error("D1 cross-process replay must remain a pending web review");
+  }
+  assert.equal(raceReplay.payload.draft.draftId, pending.draft.draftId,
+    "new process must reuse the original draft ID rather than re-create it");
+  const [draftRows] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_web_drafts WHERE owner_user_id=? AND operation_key=?",
+    [userId, restartWebKey],
+  );
+  assert.equal(Number(draftRows.c), 1,
+    "restart must preserve one web draft per stable owner/operation");
   const envelope = buildFoodOperationEnvelopeFixture({
     ownerUserId: userId, idempotencyKey: "ci-d1-native-add",
   }) as FoodOperationEnvelope;
