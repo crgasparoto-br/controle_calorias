@@ -264,6 +264,44 @@ export async function saveFoodD1WebDraft(input: {
   });
 }
 
+/** Rehydrate an already pinned operation after restart without re-invoking AI. */
+export async function getFoodD1WebDraftByOperationKey(input: {
+  ownerUserId: number;
+  operationKey: string;
+  now?: Date;
+}): Promise<FoodD1WebDraftRecord | null> {
+  const now = input.now ?? new Date();
+  if (!Number.isSafeInteger(input.ownerUserId) || input.ownerUserId <= 0 ||
+      !input.operationKey.trim() || input.operationKey.length > 200 ||
+      !Number.isFinite(now.getTime())) {
+    throw new Error("food-d1-web-draft-invalid-operation-lookup");
+  }
+  const db = await getDb();
+  if (!db) throw new Error("food-d1-web-draft-store-unavailable");
+  const [row] = await db.select().from(foodD1WebDrafts)
+    .where(and(eq(foodD1WebDrafts.ownerUserId, input.ownerUserId),
+      eq(foodD1WebDrafts.operationKey, input.operationKey))).limit(1);
+  if (!row || row.expiresAt.getTime() <= now.getTime()) return null;
+  if (isPendingDraftRow(row)) {
+    return {
+      status: "pending",
+      payload: decodePayload(row.payloadJson, row.draftId,
+        row.operationKey, row.expiresAt),
+    };
+  }
+  if (isConfirmedDraftRow(row)) {
+    return {
+      status: "confirmed",
+      draftId: row.draftId,
+      operationKey: row.operationKey,
+      expiresAt: row.expiresAt,
+      ...decodeConfirmation(row.confirmationJson, row.draftId,
+        row.operationKey, true),
+    };
+  }
+  throw new Error("food-d1-web-draft-corrupt-row");
+}
+
 export async function getFoodD1WebDraft(input: {
   draftId: string;
   ownerUserId: number;

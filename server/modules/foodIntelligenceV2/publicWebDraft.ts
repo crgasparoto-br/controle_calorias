@@ -29,12 +29,14 @@ import {
 } from "./entrypointRunner";
 import type { FoodObservation } from "./schemas";
 import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
+import { traceFoodD1WebSubmission, checkedFoodD1WebReplay } from "./publicWebDraftIdentity";
 import { extractD1VisualSurfaces, type FoodD1VisualSurfaces, type FoodD1VisualKind } from "./publicVisualSurfaces";
 import { buildEnvelope, buildDependencies, toReviewItem } from "./publicWebDraftSupport";
 import { foodD1WebCorrectionSourceRef, preserveFoodD1ReviewProvenance } from "./publicWebDraftProvenance";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import {
   getFoodD1WebDraft,
+  getFoodD1WebDraftByOperationKey,
   saveFoodD1WebDraft,
   type FoodD1WebDraftRecord,
 } from "./publicWebDraftRepository";
@@ -56,6 +58,7 @@ export type PublicD1WebDraftDependencies = {
   routeStore?: FoodD1RouteStore;
   saveDraft?: typeof saveFoodD1WebDraft;
   readDraft?: typeof getFoodD1WebDraft;
+  readDraftByOperationKey?: typeof getFoodD1WebDraftByOperationKey;
   run?: typeof runFoodD1Migration;
   transcribe?: typeof transcribeAudio;
   extractVisualSurfaces?: (input: {
@@ -213,6 +216,21 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     if (!Number.isFinite(occurredAt.getTime())) {
       throw new Error("food-d1-public-web-draft-invalid-time");
     }
+    const operationKeyValue = operationKey(input.userId, request.d1OperationId!);
+    const traceId = traceFoodD1WebSubmission({
+      operationKey: operationKeyValue, entrypoint, request,
+    });
+    // A bound V2 operation recovers its original server-side review. Missing
+    // storage is not permission to return V1 or silently regenerate facts.
+    const prior = await (deps.readDraftByOperationKey ?? getFoodD1WebDraftByOperationKey)({
+      ownerUserId: input.userId, operationKey: operationKeyValue,
+    });
+    if (prior) return checkedFoodD1WebReplay({
+      record: prior, operationKey: operationKeyValue, traceId,
+      entrypoint, ownerUserId: input.userId,
+      mealLabel: request.mealLabel.trim(), occurredAt,
+      timeZone: input.timeZone, revisions: context.revisions,
+    });
     let transcript: string | undefined;
     if (request.audio) {
       const transcription = await (deps.transcribe ?? transcribeAudio)({
@@ -229,7 +247,6 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       transcript = transcription.text;
     }
 
-    const operationKeyValue = operationKey(input.userId, request.d1OperationId!);
     const visual = hasImage && visualKind
       ? await (deps.extractVisualSurfaces ?? extractD1VisualSurfaces)({
         image: request.image!, kind: visualKind,
@@ -248,18 +265,6 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     if (transcript) {
       surfaces.push({ text: transcript, modality: "audio_transcript", source: "audio" });
     }
-    const sourceHashes = [
-      ...surfaces.map(surface => ({
-        modality: surface.modality,
-        digest: createHash("sha256").update(surface.text).digest("hex"),
-      })),
-      // The user-selected image role is material. Reusing the image bytes
-      // as another role must not reuse an earlier pinned resolution.
-      ...(visual ? [{ modality: visualKind!, digest: visual.contentDigest }] : []),
-    ];
-    const traceId = `d1-trace-${createHash("sha256").update(JSON.stringify({
-      operationKey: operationKeyValue, entrypoint, sourceHashes,
-    })).digest("hex")}`;
     const envelope = buildEnvelope({
       userId: input.userId,
       operationKey: operationKeyValue,

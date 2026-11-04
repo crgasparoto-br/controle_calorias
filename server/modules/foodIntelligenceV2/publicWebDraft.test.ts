@@ -29,6 +29,7 @@ import type {
 } from "./publicWebDraftRepository";
 import { saveFoodD1WebDraft } from "./publicWebDraftRepository";
 import { foodD1WebDraftSchema } from "../../../shared/foodD1WebDraft";
+import { traceFoodD1WebSubmission } from "./publicWebDraftIdentity";
 
 const userId = 7;
 const timeZone = "America/Sao_Paulo";
@@ -216,17 +217,24 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
       skippedCount: 0,
     } satisfies FoodD1Result;
   });
-  const saveDraft = vi.fn(async (draftInput: Parameters<typeof saveFoodD1WebDraft>[0]) => ({
-    status: "pending" as const,
-    payload: {
-      ...draftInput.payload,
-      draft: {
-        ...draftInput.payload.draft,
-        draftId: draftInput.draftId,
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+  const persistedDrafts = new Map<string, FoodD1WebDraftRecord>();
+  const saveDraft = vi.fn(async (draftInput: Parameters<typeof saveFoodD1WebDraft>[0]) => {
+    const record: FoodD1WebDraftRecord = {
+      status: "pending",
+      payload: {
+        ...draftInput.payload,
+        draft: {
+          ...draftInput.payload.draft,
+          draftId: draftInput.draftId,
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        },
       },
-    },
-  }));
+    };
+    persistedDrafts.set(draftInput.operationKey, record);
+    return record;
+  });
+  const readDraftByOperationKey = vi.fn(async (input: { operationKey: string; ownerUserId: number }) =>
+    persistedDrafts.get(input.operationKey) ?? null);
   const transcribe = vi.fn(async () => ({
     task: "transcribe" as const,
     text: "1,5 fatias de mortadela",
@@ -259,10 +267,11 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
     buildPlan,
     routeStore,
     saveDraft,
+    readDraftByOperationKey,
     transcribe,
     extractVisualSurfaces,
   });
-  return { service, comprehend, buildPlan, saveDraft, transcribe, extractVisualSurfaces, routeStore };
+  return { service, comprehend, buildPlan, saveDraft, readDraftByOperationKey, transcribe, extractVisualSurfaces, routeStore };
 }
 
 describe("public Food D1 web draft confirmation", () => {
@@ -409,6 +418,66 @@ describe("public Food D1 web draft confirmation", () => {
     })).rejects.toThrow("food-d1-public-web-image-role-required");
     expect(extractVisualSurfaces).not.toHaveBeenCalled();
     expect(buildPlan).not.toHaveBeenCalled();
+  });
+
+  it.each(["audio", "image"] as const)(
+    "recovers a pinned %s draft without rerunning provider or resolver", async kind => {
+      const { service, transcribe, extractVisualSurfaces, buildPlan, saveDraft } = webDraftDependencies();
+      vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "text,audio_transcript,multimodal,plate_image,packaging");
+      const request: ProcessMealDraftInput = {
+        source: "web", d1OperationId: "restart-safe-draft",
+        mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+        ...(kind === "audio"
+          ? { audio: { base64: "ZGF0YQ==", mimeType: "audio/webm" } }
+          : { image: { base64: "fixture-image", mimeType: "image/jpeg" }, imageKind: "plate_image" }),
+      };
+      const first = await service.tryRunFoodD1PublicWebDraft({ userId, timeZone, request });
+      const replay = await service.tryRunFoodD1PublicWebDraft({ userId, timeZone, request });
+      expect(replay).toEqual(first);
+      expect(buildPlan).toHaveBeenCalledTimes(1);
+      expect(saveDraft).toHaveBeenCalledTimes(1);
+      expect(transcribe).toHaveBeenCalledTimes(kind === "audio" ? 1 : 0);
+      expect(extractVisualSurfaces).toHaveBeenCalledTimes(kind === "image" ? 1 : 0);
+
+      const swapped = kind === "audio"
+        ? { ...request, audio: { ...request.audio!, base64: "b3RoZXI=" } }
+        : { ...request, image: { ...request.image!, base64: "other-image" } };
+      await expect(service.tryRunFoodD1PublicWebDraft({
+        userId, timeZone, request: swapped,
+      })).rejects.toThrow("food-d1-public-web-draft-operation-scope-changed");
+      expect(buildPlan).toHaveBeenCalledTimes(1);
+    });
+
+  it("rejects a change to the exact meal timestamp on a pinned retry", async () => {
+    const { service, transcribe } = webDraftDependencies();
+    const request: ProcessMealDraftInput = {
+      source: "web", d1OperationId: "same-day-new-time",
+      mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+      audio: { base64: "ZGF0YQ==", mimeType: "audio/webm" },
+    };
+    await service.tryRunFoodD1PublicWebDraft({ userId, timeZone, request });
+    await expect(service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone,
+      request: { ...request, occurredAt: "2026-11-02T13:00" },
+    })).rejects.toThrow("food-d1-public-web-draft-operation-scope-changed");
+    expect(transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("fingerprints raw voice bytes, visual role and typed text, not a model transcript", () => {
+    const base: ProcessMealDraftInput = {
+      source: "web", d1OperationId: "fingerprint-12345678",
+      mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+      text: "1 fatia de queijo",
+      audio: { base64: "ZGF0YQ==", mimeType: "audio/webm" },
+      image: { base64: "opaque-image", mimeType: "image/jpeg" },
+      imageKind: "plate_image",
+    };
+    const sign = (request: ProcessMealDraftInput) =>
+      traceFoodD1WebSubmission({ request, operationKey: "d1-web-7:fingerprint-12345678", entrypoint: "multimodal" });
+    expect(sign(base)).toBe(sign({ ...base }));
+    expect(sign(base)).not.toBe(sign({ ...base, imageKind: "packaging" }));
+    expect(sign(base)).not.toBe(sign({ ...base, text: "2 fatias de queijo" }));
+    expect(sign(base)).not.toBe(sign({ ...base, audio: { ...base.audio!, base64: "b3RoZXI=" } }));
   });
 
   it("pauses a V2-pinned web submission on rollback before V1 inference", async () => {
