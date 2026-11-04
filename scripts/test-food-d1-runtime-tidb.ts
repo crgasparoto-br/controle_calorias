@@ -795,7 +795,8 @@ try {
   const pendingDecision: FoodResolutionDecision = {
     ...makeDecision(pendingObservation.observationId),
     traceId: pendingEnvelope.traceId,
-    status: "unresolved", nextAction: "clarify",
+    status: "partially_resolved", nextAction: "clarify",
+    unresolvedFields: ["quantity"],
   };
   await routeFoodD1Operation({
     envelope: pendingEnvelope, authenticatedUserId: userId,
