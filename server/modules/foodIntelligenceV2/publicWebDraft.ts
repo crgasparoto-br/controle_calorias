@@ -28,7 +28,7 @@ import {
 import {
   runFoodD1Migration,
 } from "./entrypointRunner";
-import type { FoodOperationEnvelope, FoodObservation } from "./schemas";
+import { parseFoodObservation, type FoodOperationEnvelope, type FoodObservation } from "./schemas";
 import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
 import { extractD1VisualSurfaces, type FoodD1VisualSurfaces, type FoodD1VisualKind } from "./publicVisualSurfaces";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
@@ -210,6 +210,34 @@ function assertReviewMeasurement(
   if (current.quantity === null && current.unit !== originalUnit) {
     throw new Error("food-d1-public-web-draft-quantity-required-for-unit-change");
   }
+}
+
+/**
+ * A user's text correction changes a visual/voice observation, not its original
+ * evidence channel. Keep the old (unverified) source claims with distinct IDs
+ * so the canonical resolver can reconcile rather than silently losing them.
+ */
+export function preserveFoodD1ReviewProvenance(
+  corrected: FoodObservation, original: FoodObservation,
+): FoodObservation {
+  if (original.modality === "text") return corrected;
+  const oldEvidence = original.evidence.filter(item =>
+    !corrected.evidence.some(previous => previous === item));
+  const evidence = oldEvidence.map((item, index) => ({
+    ...item,
+    evidenceId: "prior-" + createHash("sha256").update(JSON.stringify([
+      corrected.observationId, original.observationId,
+      item.evidenceId, item.anchor.sourceRef, index,
+    ])).digest("hex").slice(0, 32),
+  }));
+  const combined: FoodObservation = {
+    ...corrected,
+    modality: "multimodal",
+    evidence: [...corrected.evidence, ...evidence],
+  };
+  const parsed = parseFoodObservation(combined);
+  if (!parsed.ok) throw new Error("food-d1-public-web-draft-invalid-correction-provenance");
+  return parsed.value;
 }
 
 function isNativeDraftNotPending(error: unknown): boolean {
@@ -504,7 +532,7 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       if (corrected.length !== 1) {
         throw new Error("food-d1-public-web-draft-correction-ambiguous");
       }
-      const correctedObservation = {
+      let correctedObservation = {
         ...corrected[0],
         observationId: item.observationId,
       };
@@ -518,6 +546,11 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
           ...originalObservation.evidence.filter(item => item.field === "quantity.unit"),
         ];
       }
+      // Corrections arrive as text but must not erase the original
+      // transcription or image. The server-owned draft supplies provenance.
+      correctedObservation = preserveFoodD1ReviewProvenance(
+        correctedObservation, originalObservation,
+      );
       resolvedObservations.push(correctedObservation);
     }
     if (submittedIds.size !== draft.items.length) {

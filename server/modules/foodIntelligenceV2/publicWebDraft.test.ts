@@ -7,6 +7,7 @@ import {
 import {
   createFoodD1PublicWebDraft,
   hashFoodD1WebDraftConfirmation,
+  preserveFoodD1ReviewProvenance,
 } from "./publicWebDraft";
 import type { LinguisticRequest } from "./linguisticComprehension";
 import {
@@ -507,6 +508,36 @@ describe("public Food D1 web draft confirmation", () => {
       draftConfirmationHash: confirmationHash,
     }));
     expect(readDraft).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves original audio and vision provenance after explicit text correction", () => {
+    const corrected = buildFoodObservationFixture({
+      observationId: "obs-1", modality: "text",
+      identityHints: { foodName: "mortadela corrigida" },
+    });
+    const original = buildFoodObservationFixture({
+      observationId: "obs-1", modality: "multimodal", rawInput: null, normalizedInput: null,
+      evidence: [{
+        evidenceId: "ev-photo", field: "identity.foodName",
+        origin: "vision", verified: false, value: "mortadela",
+        unit: null, confidence: null, sourceId: null,
+        anchor: { sourceRef: "image:1", span: null, region: null },
+      }, {
+        evidenceId: "ev-audio", field: "identity.foodName",
+        origin: "transcription", verified: false, value: "mortadela",
+        unit: null, confidence: null, sourceId: null,
+        anchor: { sourceRef: "audio:1", span: null, region: null },
+      }],
+    });
+    const resolved = preserveFoodD1ReviewProvenance(corrected, original);
+    expect(resolved.modality).toBe("multimodal");
+    expect(resolved.identityHints.foodName).toBe("mortadela corrigida");
+    expect(new Set(resolved.evidence.map(item => item.origin)))
+      .toEqual(new Set(["text", "vision", "transcription"]));
+    expect(new Set(resolved.evidence.map(item => item.anchor.sourceRef)))
+      .toEqual(new Set(["turn:1:text", "image:1", "audio:1"]));
+    expect(new Set(resolved.evidence.map(item => item.evidenceId)).size)
+      .toBe(resolved.evidence.length);
   });
 
   it("rejects changing a unit without supplying its quantity", async () => {
