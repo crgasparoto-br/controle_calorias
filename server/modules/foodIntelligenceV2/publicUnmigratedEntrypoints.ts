@@ -5,7 +5,9 @@ import type { ProcessMealDraftInput } from "../meals/schemas";
 import type { FoodD1Entrypoint } from "./entrypointMigration";
 import { isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 
-export const UNMIGRATED_FOOD_D1_PUBLIC_ENTRYPOINT = "food-d1-public-entrypoint-migration-incomplete";
+// Public boundary error code, never a food/identity knowledge constant.
+const D1_PUBLIC_MIGRATION_INCOMPLETE = "food-d1-public-entrypoint-migration-incomplete";
+export { D1_PUBLIC_MIGRATION_INCOMPLETE as UNMIGRATED_FOOD_D1_PUBLIC_ENTRYPOINT };
 
 /** A selected but unmigrated channel cannot silently continue through V1. */
 export function assertUnmigratedFoodD1EntrypointsOff(

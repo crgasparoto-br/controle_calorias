@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildFoodOperationEnvelopeFixture } from "./fixtures";
 import {
   routeFoodD1Operation, hashFoodD1OperationScope,
-  isFoodD1EntrypointCutoverRequested, type FoodD1PinnedRoute,
+  isFoodD1EntrypointCutoverRequested, isValidD1OperationId, type FoodD1PinnedRoute,
   type FoodD1RouteStore, type FoodD1GateApproval,
 } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
@@ -38,6 +38,19 @@ function scenario(s: FoodD1RouteStore) {
   return { envelope: envelope(), authenticatedUserId: 7, entrypoint: "text" as const,
     source: "web" as const, store: s, runV1, runV2, verifyGates, expectedAuditedBaseSha: "a".repeat(40) };
 }
+
+describe("#1308 D1 operation-key validation", () => {
+  it("accepts only the exact opaque key shape, never food-text or ambiguous whitespace", () => {
+    for (const value of ["manual-submission-1", "A1234567", "0.12345_:-", "z".repeat(80)]) {
+      expect(isValidD1OperationId(value), value).toBe(true);
+    }
+    for (const value of [undefined, null, 12345678, "", "a123456", "z".repeat(81),
+      "-a1234567", ".a1234567", " abcdefgh", "abcdefgh ", "abcdefgh/1",
+      "abc;defgh", "abcádefgh", "abcdefgh\n", "🍎12345678"]) {
+      expect(isValidD1OperationId(value), String(value)).toBe(false);
+    }
+  });
+});
 
 describe("#1308 D1 - exact-operation resolver routing and rollback", () => {
   it("pins legacy V1 on disabled flag and never upgrades it on a subsequent retry", async () => {

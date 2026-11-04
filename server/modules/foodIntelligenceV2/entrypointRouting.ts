@@ -10,6 +10,23 @@ import { createHash } from "node:crypto";
 import { parseFoodOperationEnvelope, type FoodOperationEnvelope } from "./schemas";
 import { FOOD_D1_ENTRYPOINTS, type FoodD1Entrypoint } from "./entrypointMigration";
 
+/** Exact opaque submission key syntax, independent of food identity and nutrition.
+ * Keep this check shared by public additions and edits to prevent rule drift.
+ */
+export function isValidD1OperationId(value: unknown): value is string {
+  if (typeof value !== "string" || value.length < 8 || value.length > 80) return false;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    const alphaNumeric = (code >= 48 && code <= 57) ||
+      (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+    if (alphaNumeric) continue;
+    if (index === 0 || (code !== 46 && code !== 95 && code !== 58 && code !== 45)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export type FoodD1PinnedRoute = {
   operationKey: string;
   ownerUserId: number;

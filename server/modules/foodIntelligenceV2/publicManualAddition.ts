@@ -14,7 +14,7 @@ import { runFoodD1Migration } from "./entrypointRunner";
 import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
 import { hashFoodD1OperationScope, type FoodD1PinnedRoute, type FoodD1RouteStore } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
-import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
+import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested, isValidD1OperationId } from "./entrypointRouting";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 
 type ApprovedContext = AuthorizedD1SimulationContext;
@@ -41,7 +41,7 @@ export function buildLegacyManualRoute(input: {
   const occurredAt = new Date(input.meal.occurredAt);
   if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
       !Number.isFinite(occurredAt.getTime()) ||
-      !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,79}$/.test(opId ?? "")) {
+      !isValidD1OperationId(opId ?? "")) {
     throw new Error("food-d1-public-addition-invalid-legacy-pin");
   }
   const key = "d1-manual-" + input.userId + ":" + opId;
@@ -115,7 +115,7 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
       throw new Error("food-d1-public-addition-gate-unavailable");
     }
     if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
-        !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,79}$/.test(input.meal.d1OperationId ?? "") ||
+        !isValidD1OperationId(input.meal.d1OperationId ?? "") ||
         !Array.isArray(input.meal.items) || !input.meal.items.length) {
       throw new Error("food-d1-public-addition-stable-operation-required");
     }

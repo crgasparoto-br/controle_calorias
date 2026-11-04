@@ -14,7 +14,7 @@ import { createFoodV2KnowledgeRepository } from "./repository";
 import type { FoodKnowledgeStore } from "./knowledgeRead";
 import type { FoodD1Request } from "./entrypointMigration";
 import { runFoodD1Migration } from "./entrypointRunner";
-import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
+import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested, isValidD1OperationId } from "./entrypointRouting";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 
 type EditTarget = { itemId: number; mealId: number; ownerUserId: number;
@@ -62,7 +62,7 @@ export function createFoodD1PublicEdit(deps: PublicEditDependencies) {
     if (!Number.isSafeInteger(userId) || userId <= 0 ||
         !Number.isSafeInteger(request.mealId) || request.mealId <= 0 ||
         !Number.isSafeInteger(request.itemIndex) || request.itemIndex < 0 ||
-        !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,79}$/.test(id ?? "")) {
+        !isValidD1OperationId(id ?? "")) {
       throw new Error("food-d1-public-edit-stable-operation-required");
     }
     const lookup = deps.readTarget ?? readPhysicalEditTarget;
