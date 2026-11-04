@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
 import { formatDateTimeInTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
-import { getDateKeyInTimeZone } from "@shared/timeZone";
 import {
   formatCalories,
   formatCountPtBr,
@@ -23,7 +22,7 @@ import { trpc } from "@/lib/trpc";
 import { ChevronDown, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
-import { createEmptyItem, createManualMealState, fileToBase64, resolveSubmittedImageKind, sumItems, type MealImageKind } from "../mealFormState";
+import { createEmptyItem, createManualMealState, fileToBase64, matchesPinnedD1MealDestination, resolveSubmittedImageKind, sumItems, type MealImageKind } from "../mealFormState";
 import { newFoodOperationSubmissionId } from "../operationSubmissionId";
 import { parsePositiveQuantityInput } from "../components/quantityInput";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
@@ -612,10 +611,10 @@ export default function LogMealPage() {
                 if (!dateTimeLocal) return;
                 if (isFoodD1WebDraft(draft)) {
                   const submittedDate = new Date(zonedDateTimeLocalToIso(dateTimeLocal, userTimeZone));
-                  if (mealLabel.trim() !== draft.mealLabel ||
-                      getDateKeyInTimeZone(submittedDate, userTimeZone) !==
-                        getDateKeyInTimeZone(new Date(draft.occurredAt), userTimeZone)) {
-                    return toast.error("O nome ou a data mudou. Clique em Registrar novamente para atualizar o rascunho V2.");
+                  if (!matchesPinnedD1MealDestination({
+                    mealLabel, occurredAt: submittedDate,
+                  }, draft)) {
+                    return toast.error("O nome, a data ou o horário mudou. Clique em Registrar novamente para atualizar o rascunho V2.");
                   }
                   const items = foodD1EditableItems.map(item => {
                     const quantity = parsePositiveQuantityInput(item.quantityInput);

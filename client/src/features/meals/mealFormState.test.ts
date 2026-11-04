@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMealItemForSubmit, recalculateMealItemQuantityUnit, resolveSubmittedImageKind } from "./mealFormState";
+import { matchesPinnedD1MealDestination, normalizeMealItemForSubmit, recalculateMealItemQuantityUnit, resolveSubmittedImageKind } from "./mealFormState";
 import type { MealItemState } from "./types";
 
 function buildItem(overrides: Partial<MealItemState> = {}): MealItemState {
@@ -32,6 +32,28 @@ describe("explicit image-role selection for D1 and legacy submissions", () => {
   it("cannot leak a previous image role into a text/audio-only submission", () => {
     expect(resolveSubmittedImageKind(false, "packaging")).toBeUndefined();
     expect(resolveSubmittedImageKind(false, null)).toBeUndefined();
+  });
+});
+
+describe("D1 web draft confirmation respects the original instant", () => {
+  const pinned = { mealLabel: "Almoço", occurredAt: "2026-11-04T15:00:00.000Z" };
+  it("permits identical destination and instant in a different ISO offset", () => {
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: " Almoço ", occurredAt: new Date("2026-11-04T12:00:00-03:00"),
+    }, pinned)).toBe(true);
+  });
+  it("blocks a different hour even when still on the same calendar day", () => {
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: "Almoço", occurredAt: new Date("2026-11-04T16:00:00.000Z"),
+    }, pinned)).toBe(false);
+  });
+  it("blocks changed meal name and invalid timestamps", () => {
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: "Jantar", occurredAt: new Date(pinned.occurredAt),
+    }, pinned)).toBe(false);
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: "Almoço", occurredAt: new Date("invalid"),
+    }, pinned)).toBe(false);
   });
 });
 
