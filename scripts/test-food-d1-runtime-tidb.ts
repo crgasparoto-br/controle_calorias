@@ -570,6 +570,34 @@ try {
     [userId, webKey],
   );
   assert.equal(redacted.payload_json, null);
+  // The receipt must outlive the short web-review TTL. Simulate retention
+  // cleanup after a native effect and ensure the old idempotency key cannot
+  // create another pending draft or start an expensive provider call.
+  await sql.query(
+    "INSERT INTO food_d1_user_operation_effects (owner_user_id, operation_key, observation_id, decision_hash, outcome_json) VALUES (?, ?, 'ci-web-obs-1', ?, ?)",
+    [userId, webKey, "d".repeat(64), JSON.stringify({
+      mealId: Number(created.mealId), itemId,
+    })],
+  );
+  await sql.query(
+    "DELETE FROM food_d1_web_drafts WHERE owner_user_id=? AND operation_key=?",
+    [userId, webKey],
+  );
+  await assert.rejects(getFoodD1WebDraftByOperationKey({
+    ownerUserId: userId, operationKey: webKey,
+  }), /food-d1-web-draft-operation-already-committed/,
+  "a committed operation must not invoke the provider again after review cleanup");
+  await assert.rejects(saveFoodD1WebDraft({
+    draftId: "ci-web-resurrection-attempt", ownerUserId: userId,
+    operationKey: webKey, payload: webDraftPayload,
+  }), /food-d1-web-draft-operation-already-committed/,
+  "a committed operation cannot recreate its pending review under the route lock");
+  const [resurrected] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_web_drafts WHERE owner_user_id=? AND operation_key=?",
+    [userId, webKey],
+  );
+  assert.equal(Number(resurrected.c), 0,
+    "receipt survives cleanup without recreating a new draft");
 
   // Run the REAL authenticated-web service boundary in an isolated TiDB:
   // the persistent V1 operation binding and receipt must survive retries,

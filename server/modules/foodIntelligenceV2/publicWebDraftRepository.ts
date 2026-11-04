@@ -6,7 +6,7 @@ import {
   foodD1WebDraftSchema,
   type FoodD1WebDraft,
 } from "../../../shared/foodD1WebDraft";
-import { foodD1OperationEffects, foodD1WebDrafts } from "../../../drizzle/food-intelligence-v2-schema";
+import { foodD1OperationEffects, foodD1OperationRoutes, foodD1WebDrafts } from "../../../drizzle/food-intelligence-v2-schema";
 import { getDb } from "../../db";
 import {
   parseFoodOperationEnvelope,
@@ -215,6 +215,23 @@ export async function saveFoodD1WebDraft(input: {
     throw new Error("food-d1-web-draft-store-unavailable");
   }
   return db.transaction(async tx => {
+    // Native writes serialize on the pinned route before creating effects.
+    // Lock that SAME row here so a recently committed operation cannot be
+    // resurrected after its short-lived review payload is purged.
+    const [pinned] = await tx.select({ resolver: foodD1OperationRoutes.resolver })
+      .from(foodD1OperationRoutes)
+      .where(and(eq(foodD1OperationRoutes.ownerUserId, input.ownerUserId),
+        eq(foodD1OperationRoutes.operationKey, input.operationKey)))
+      .for("update").limit(1);
+    if (!pinned || pinned.resolver !== "v2") {
+      throw new Error("food-d1-web-draft-pinned-v2-route-required");
+    }
+    const [committed] = await tx.select({ observationId: foodD1OperationEffects.observationId })
+      .from(foodD1OperationEffects)
+      .where(and(eq(foodD1OperationEffects.ownerUserId, input.ownerUserId),
+        eq(foodD1OperationEffects.operationKey, input.operationKey))).limit(1);
+    if (committed) throw new Error("food-d1-web-draft-operation-already-committed");
+
     await tx.insert(foodD1WebDrafts).values({
       draftId: input.draftId,
       ownerUserId: input.ownerUserId,
@@ -259,12 +276,6 @@ export async function saveFoodD1WebDraft(input: {
     await tx.delete(foodD1WebDrafts)
       .where(and(eq(foodD1WebDrafts.ownerUserId, input.ownerUserId),
         eq(foodD1WebDrafts.operationKey, input.operationKey)));
-    const [effects] = await tx.select({ observationId: foodD1OperationEffects.observationId })
-      .from(foodD1OperationEffects)
-      .where(and(eq(foodD1OperationEffects.ownerUserId, input.ownerUserId),
-        eq(foodD1OperationEffects.operationKey, input.operationKey)))
-      .limit(1);
-    if (effects) throw new Error("food-d1-web-draft-operation-already-committed");
     await tx.insert(foodD1WebDrafts).values({
       draftId: input.draftId,
       ownerUserId: input.ownerUserId,
@@ -306,7 +317,16 @@ export async function getFoodD1WebDraftByOperationKey(input: {
   const [row] = await db.select().from(foodD1WebDrafts)
     .where(and(eq(foodD1WebDrafts.ownerUserId, input.ownerUserId),
       eq(foodD1WebDrafts.operationKey, input.operationKey))).limit(1);
-  if (!row || row.expiresAt.getTime() <= now.getTime()) return null;
+  if (!row || row.expiresAt.getTime() <= now.getTime()) {
+    // A cleaned-up confirmed draft is not a new operation. The irreversible
+    // effect receipts outlive the review TTL and must block AI reprocessing.
+    const [committed] = await db.select({ observationId: foodD1OperationEffects.observationId })
+      .from(foodD1OperationEffects)
+      .where(and(eq(foodD1OperationEffects.ownerUserId, input.ownerUserId),
+        eq(foodD1OperationEffects.operationKey, input.operationKey))).limit(1);
+    if (committed) throw new Error("food-d1-web-draft-operation-already-committed");
+    return null;
+  }
   if (isPendingDraftRow(row)) {
     return {
       status: "pending",
