@@ -108,7 +108,10 @@ export async function readD1VerifiedNutritionLabelSource(input: {
     eq(foodEvidence.foodVariantId, input.variantId),
     eq(foodEvidence.evidenceType, "nutrition_label"),
     eq(foodEvidence.contentHash, input.imageDigest),
-  )).limit(20);
+  )).limit(100);
+  // A truncated evidence search cannot certify absence of another conflicting
+  // source/owner claim for the very same photo bytes.
+  if (evidences.length === 100) return null;
   const scoped = evidences.filter(evidence => evidence.sourceId &&
     (evidence.ownerUserId === null || evidence.ownerUserId === input.ownerUserId) &&
     (!evidence.retentionUntil || evidence.retentionUntil.getTime() > input.now.getTime()));

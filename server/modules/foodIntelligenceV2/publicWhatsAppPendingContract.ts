@@ -105,6 +105,10 @@ export function mergeD1WhatsAppReply(
        JSON.stringify(reply.identityHints.qualifiers) !== JSON.stringify(s.qualifiers))) {
     throw new Error("food-d1-whatsapp-continuation-ambiguous-attribute");
   }
+  if (stored.interpreterVersion !== null && reply.interpreterVersion !== null &&
+      stored.interpreterVersion !== reply.interpreterVersion) {
+    throw new Error("food-d1-whatsapp-continuation-interpreter-version-conflict");
+  }
   const evidence = reply.evidence.map((item, i) => ({
     ...item, evidenceId: turnRef + ":e:" + i,
   }));
@@ -122,6 +126,7 @@ export function mergeD1WhatsAppReply(
     },
     evidence: [...stored.evidence, ...evidence],
     normalizationPath: [...stored.normalizationPath, ...reply.normalizationPath],
+    interpreterVersion: stored.interpreterVersion ?? reply.interpreterVersion,
     rawInput: null, normalizedInput: null,
   };
   const checked = foodObservationSchema.safeParse(merged);
