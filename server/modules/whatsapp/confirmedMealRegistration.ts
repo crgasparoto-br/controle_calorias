@@ -17,7 +17,7 @@ import {
 import { splitFoodTextSegments } from "../../mealTextParsing";
 import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
-import { tryRunPublicFoodD1WhatsAppRegistration } from "../foodIntelligenceV2/publicWhatsAppRegistration";
+import { tryRunPublicFoodD1WhatsAppRegistration } from "./foodD1Registration";
 import { getCurrentWhatsappInboundContentType,
   getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 
@@ -84,15 +84,19 @@ export function createConfirmedMealRegistrationService(
     // Retain V1 ownership for an already materialized clarification/decision.
     // For new registrations, only messageLifecycle may tag text versus audio:
     // neither a transcript nor a user DTO is allowed to claim provenance.
-    if (!input.legacyV1Pending && !input.skipCountablePreflight &&
-        !input.resolvedSegments?.length) {
+    const currentInboundId = getCurrentWhatsappInboundExternalMessageId();
+    // A persisted V1 clarification targets its original, older inbound ID.
+    const priorV1 = Boolean(input.inboundMessageId && currentInboundId &&
+      input.inboundMessageId !== currentInboundId);
+    if (!input.legacyV1Pending && !priorV1 &&
+        !input.skipCountablePreflight && !input.resolvedSegments?.length) {
       const contentType = getCurrentWhatsappInboundContentType();
       const modality = contentType === "text" ? "text" as const :
         contentType === "audio" ? "audio_transcript" as const : null;
       if (modality) {
         const migrated = await deps.tryRunD1Registration({
           userId: input.userId, originalText: input.registrationText,
-          externalMessageId: getCurrentWhatsappInboundExternalMessageId(),
+          externalMessageId: currentInboundId,
           modality, receivedAt: input.occurredAt,
           timeZone: input.userTimezone,
         });

@@ -10,7 +10,7 @@ import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/en
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
 import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
 import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligenceV2/publicSimulator";
-import { createFoodD1PublicWhatsAppRegistration } from "../server/modules/foodIntelligenceV2/publicWhatsAppRegistration";
+import { createWhatsAppD1RegistrationService } from "../server/modules/whatsapp/foodD1Registration";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
 import { createManualMeal, listMeals } from "../server/modules/meals/service";
@@ -484,7 +484,7 @@ try {
   process.env.FOOD_V2_D1_ENTRYPOINTS = "text,audio_transcript";
   try {
     const makePublic = (modality: "text" | "audio_transcript") =>
-      createFoodD1PublicWhatsAppRegistration({
+      createWhatsAppD1RegistrationService({
         readAuthorizedContext: async () => ({
           approval, expectedAuditedBaseSha: expectedSha,
           revisions: { ...makeEnvelope("ci-public-whatsapp").revisions, code: expectedSha },

@@ -22,12 +22,12 @@ const PUBLIC_D1_EDIT_BRIDGE = "../foodIntelligenceV2/publicEdit";
 const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
 const PUBLIC_D1_UNMIGRATED_GUARD = "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 const PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE = "../foodIntelligenceV2/publicWhatsAppRegistration";
+const PUBLIC_D1_WHATSAPP_REGISTER_CONSUMER = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/foodD1Registration.ts");
 const PUBLIC_D1_WEB_PHOTO = resolve(REPOSITORY_ROOT, "server/modules/photoAnalysis/service.ts");
 const PUBLIC_D1_WHATSAPP_CONFIRMED = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts");
 const PUBLIC_D1_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappWebhookImplementation.ts");
 const PUBLIC_D1_ANNOTATED_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappAnnotatedImageWebhookImplementation.ts");
 const PUBLIC_D1_ROOT_GUARD = "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
-const PUBLIC_D1_ROOT_WHATSAPP_REGISTER = "./modules/foodIntelligenceV2/publicWhatsAppRegistration";
 const SCANNED_ROOTS = ["server", "client/src", "shared", "scripts"] as const;
 const V2_MODULE_PATH = /(?:^|[/\\])foodIntelligenceV2(?:[/\\]|$)/;
 const ISOLATED_TEST_FILE = /(?:^|[/\\])__tests__[/\\]|\.(?:test|spec)\.[cm]?[jt]sx?$/;
@@ -102,21 +102,18 @@ function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[])
       imports.includes(PUBLIC_D1_MANUAL_ADD_BRIDGE) &&
       imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
   }
-  if (file === PUBLIC_D1_WHATSAPP_CONFIRMED) {
+  if (file === PUBLIC_D1_WHATSAPP_REGISTER_CONSUMER) {
     return imports.length === 2 &&
-      imports.includes(PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE) &&
-      imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
-  }
-  if (file === PUBLIC_D1_WEBHOOK) {
-    return imports.length === 2 &&
-      imports.includes(PUBLIC_D1_ROOT_WHATSAPP_REGISTER) &&
-      imports.includes(PUBLIC_D1_ROOT_GUARD);
+      imports.includes(PUBLIC_D1_SIMULATOR_BRIDGE) &&
+      imports.includes(PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE);
   }
   return imports.length === 1 && (
     file === PUBLIC_D1_SIMULATOR && imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE ||
     file === PUBLIC_D1_EDIT && imports[0] === PUBLIC_D1_EDIT_BRIDGE ||
     file === PUBLIC_D1_WEB_PHOTO && imports[0] === PUBLIC_D1_UNMIGRATED_GUARD ||
-    file === PUBLIC_D1_ANNOTATED_WEBHOOK && imports[0] === PUBLIC_D1_ROOT_GUARD
+    file === PUBLIC_D1_WHATSAPP_CONFIRMED && imports[0] === PUBLIC_D1_UNMIGRATED_GUARD ||
+    (file === PUBLIC_D1_WEBHOOK || file === PUBLIC_D1_ANNOTATED_WEBHOOK) &&
+      imports[0] === PUBLIC_D1_ROOT_GUARD
   );
 }
 
@@ -170,10 +167,13 @@ describe("fronteira da Fase D", () => {
       .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
     const confirmed = await readFile(PUBLIC_D1_WHATSAPP_CONFIRMED, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_CONFIRMED, confirmed))
-      .toEqual([PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE]);
+      .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
+    const whatsappD1 = await readFile(PUBLIC_D1_WHATSAPP_REGISTER_CONSUMER, "utf8");
+    expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_REGISTER_CONSUMER, whatsappD1))
+      .toEqual([PUBLIC_D1_SIMULATOR_BRIDGE, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE]);
     const webhook = await readFile(PUBLIC_D1_WEBHOOK, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WEBHOOK, webhook))
-      .toEqual([PUBLIC_D1_ROOT_GUARD, PUBLIC_D1_ROOT_WHATSAPP_REGISTER]);
+      .toEqual([PUBLIC_D1_ROOT_GUARD]);
     const annotatedWebhook = await readFile(PUBLIC_D1_ANNOTATED_WEBHOOK, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_ANNOTATED_WEBHOOK, annotatedWebhook))
       .toEqual([PUBLIC_D1_ROOT_GUARD]);

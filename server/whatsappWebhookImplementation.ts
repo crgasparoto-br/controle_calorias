@@ -100,7 +100,7 @@ import {
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
-import { tryRunPublicFoodD1WhatsAppRegistration } from "./modules/foodIntelligenceV2/publicWhatsAppRegistration";
+import { tryRunPublicFoodD1WhatsAppRegistration } from "./modules/whatsapp/foodD1Registration";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,

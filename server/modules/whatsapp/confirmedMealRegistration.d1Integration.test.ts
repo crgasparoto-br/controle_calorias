@@ -76,6 +76,23 @@ describe("#1308 public confirmed WhatsApp provenance and owner", () => {
     expect(tryRunD1Registration).not.toHaveBeenCalled();
     expect(prepareCountableFoodRegistration).toHaveBeenCalledOnce();
   });
+  it("retains a prior V1 clarification by its original persisted inbound ID", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
+    const tryRunD1Registration = vi.fn(async () => migrated);
+    const prepareCountableFoodRegistration = vi.fn(async () => clarified);
+    const service = createConfirmedMealRegistrationService({
+      tryRunD1Registration,
+      prepareCountableFoodRegistration: prepareCountableFoodRegistration as never,
+    });
+    const result = await runWithWhatsappInboundCorrelationScope(async () => {
+      setCurrentWhatsappInboundExternalMessageId("wamid-new-reply");
+      setCurrentWhatsappInboundContentType("text");
+      return service({ ...input(), inboundMessageId: "wamid-original-operation" });
+    });
+    expect(result.status).toBe("clarification_requested");
+    expect(tryRunD1Registration).not.toHaveBeenCalled();
+  });
   it("does not invent a modality when the lifecycle provides no type", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "audio_transcript";

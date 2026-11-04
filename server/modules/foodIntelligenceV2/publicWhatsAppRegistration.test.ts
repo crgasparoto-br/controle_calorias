@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFoodD1PublicWhatsAppRegistration } from "./publicWhatsAppRegistration";
+import { createWhatsAppD1RegistrationService } from "../whatsapp/foodD1Registration";
 import type { runFoodD1Migration } from "./entrypointRunner";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 
@@ -43,7 +43,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     process.env.FOOD_V2_D1_ENABLED = "false";
     const readAuthorizedContext = vi.fn(async () => null);
     const readActivePending = vi.fn(async () => false);
-    const service = createFoodD1PublicWhatsAppRegistration({
+    const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext, readActivePending,
     });
     expect(await service(createInput())).toBeNull();
@@ -55,7 +55,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     const readActivePending = vi.fn(async () => false);
     const parseOperation = vi.fn(() => parsed());
-    const service = createFoodD1PublicWhatsAppRegistration({
+    const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => null, readActivePending, parseOperation,
     });
     await expect(service(createInput())).rejects
@@ -67,7 +67,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     const parseOperation = vi.fn(() => parsed());
-    const service = createFoodD1PublicWhatsAppRegistration({
+    const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,
       readActivePending: async () => true, parseOperation,
     });
@@ -81,7 +81,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     const runner = vi.fn();
-    const service = createFoodD1PublicWhatsAppRegistration({
+    const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false,
       parseOperation: () => ({ ...parsed(), mealType: null }),
@@ -115,7 +115,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
         return { committed: true, mealId: 55, operationKey: "key",
           recordedItemIds: [501], skipped: [] };
       });
-      const service = createFoodD1PublicWhatsAppRegistration({
+      const service = createWhatsAppD1RegistrationService({
         readAuthorizedContext: async () => approval,
         readActivePending: async () => false,
         parseOperation: () => parsed(),
@@ -148,7 +148,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
         trace: args.request.envelope.traceId });
       return { committed: true, mealId: 55, recordedItemIds: [501], skipped: [] };
     });
-    const service = createFoodD1PublicWhatsAppRegistration({
+    const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false, parseOperation: () => parsed(),
       readMeal: async () => meal() as never,
@@ -173,7 +173,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
       return { committed: true, mealId: 55, recordedItemIds: [501],
         skipped: [{ observationId: "pending-sibling" }] };
     });
-    const service = createFoodD1PublicWhatsAppRegistration({
+    const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false, parseOperation: () => parsed(),
       readMeal: async () => meal() as never,
@@ -188,7 +188,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
         readyCount: 0 } as never);
       throw new Error("unexpected-effect");
     });
-    const blockedService = createFoodD1PublicWhatsAppRegistration({
+    const blockedService = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false, parseOperation: () => parsed(),
       run: blocked as unknown as typeof runFoodD1Migration,
