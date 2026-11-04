@@ -23,6 +23,7 @@ import { createFoodD1PublicWhatsAppRegistration,
   type PublicD1WhatsAppDependencies } from "../foodIntelligenceV2/publicWhatsAppRegistration";
 import { createFoodD1PublicWhatsAppVisualRegistration,
   fromTrustedD1WhatsAppMediaDataUrl,
+  isAnyD1WhatsAppVisualEntrypointSelected,
   type PublicD1WhatsAppVisualDependencies } from "../foodIntelligenceV2/publicWhatsAppVisualRegistration";
 import { extractD1VisualSurfaces } from "../foodIntelligenceV2/publicVisualSurfaces";
 import { comprehendFoodLanguage } from "../foodIntelligenceV2/linguisticComprehension";
@@ -140,6 +141,7 @@ export async function tryRunPublicFoodD1WhatsAppVisualRegistration(input: {
   imageAnalysisUrl: string; caption: string | null | undefined;
   transcript?: string | null; receivedAt: Date; timeZone: string;
 }) {
+  if (!isAnyD1WhatsAppVisualEntrypointSelected()) return null;
   return visualRegistration({
     ...input, image: fromTrustedD1WhatsAppMediaDataUrl(input.imageAnalysisUrl),
   });

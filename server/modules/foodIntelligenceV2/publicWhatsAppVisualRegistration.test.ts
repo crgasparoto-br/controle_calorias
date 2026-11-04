@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFoodD1PublicWhatsAppVisualRegistration,
   parseExplicitD1WhatsAppVisualIntent,
-  fromTrustedD1WhatsAppMediaDataUrl } from "./publicWhatsAppVisualRegistration";
+  fromTrustedD1WhatsAppMediaDataUrl,
+  isAnyD1WhatsAppVisualEntrypointSelected } from "./publicWhatsAppVisualRegistration";
 import type { PublicD1WhatsAppVisualDependencies } from "./publicWhatsAppVisualRegistration";
 import { buildFoodObservationFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
 
@@ -86,6 +87,15 @@ describe("#1308 WhatsApp image -> canonical V2", () => {
       expect(() => fromTrustedD1WhatsAppMediaDataUrl(url))
         .toThrow("food-d1-whatsapp-visual-normalized-media-required");
     }
+  });
+  it("never requests image decoding for the V1 path with the global flag OFF", () => {
+    vi.stubEnv("FOOD_V2_D1_ENABLED", "false");
+    expect(isAnyD1WhatsAppVisualEntrypointSelected()).toBe(false);
+    vi.stubEnv("FOOD_V2_D1_ENABLED", "true");
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "text");
+    expect(isAnyD1WhatsAppVisualEntrypointSelected()).toBe(false);
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image");
+    expect(isAnyD1WhatsAppVisualEntrypointSelected()).toBe(true);
   });
   it("does not call gate or provider when V2 flag is OFF", async () => {
     vi.stubEnv("FOOD_V2_D1_ENABLED", "false");

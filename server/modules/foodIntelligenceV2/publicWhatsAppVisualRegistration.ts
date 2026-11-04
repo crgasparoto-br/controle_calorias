@@ -44,6 +44,12 @@ export function fromTrustedD1WhatsAppMediaDataUrl(dataUrl: string) {
   return { base64: match[2], mimeType: match[1] };
 }
 
+/** Used before decoding image media so V1 remains untouched when flags are OFF. */
+export function isAnyD1WhatsAppVisualEntrypointSelected(): boolean {
+  return (["plate_image", "packaging", "multimodal"] as const)
+    .some(isFoodD1EntrypointCutoverRequested);
+}
+
 export type PublicD1WhatsAppVisualInput = {
   userId: number;
   externalMessageId: string | null;
@@ -76,8 +82,7 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
   return async (input: PublicD1WhatsAppVisualInput): Promise<WhatsappIntentResult | null> => {
     // An unknown role is NOT permission to run legacy if any visual D1 mode
     // was selected. The channel must ask the user to declare a new operation.
-    const selected = (["plate_image", "packaging", "multimodal"] as const)
-      .some(isFoodD1EntrypointCutoverRequested);
+    const selected = isAnyD1WhatsAppVisualEntrypointSelected();
     if (!selected) return null;
     const selectedRole = parseExplicitD1WhatsAppVisualIntent(input.caption);
     if (!selectedRole ||
