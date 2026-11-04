@@ -272,7 +272,7 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     // Image role is explicitly chosen by the user, never guessed from a caption.
     // A nutrition-label continuation requires an existing physical item and
     // separately verified source evidence: a new web draft cannot authorize it.
-    const entrypoint: FoodD1Entrypoint | null = hasImage && visualKind
+    const entrypoint: FoodD1WebDraft["entrypoint"] | null = hasImage && visualKind
       ? hasText || hasAudio ? "multimodal" : visualKind
       : hasText && hasAudio
         ? "multimodal" : hasText ? "text" : hasAudio ? "audio_transcript" : null;

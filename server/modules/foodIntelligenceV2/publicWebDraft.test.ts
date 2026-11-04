@@ -15,7 +15,7 @@ import {
   parseFoodOperationEnvelope,
   type FoodOperationEnvelope,
 } from "./schemas";
-import type { ConfirmFoodD1WebDraftInput } from "../meals/schemas";
+import type { ConfirmFoodD1WebDraftInput, ProcessMealDraftInput } from "../meals/schemas";
 import type { FoodD1Request, FoodD1Result } from "./entrypointMigration";
 import type { FoodD1RouteStore } from "./entrypointRouting";
 import type {
