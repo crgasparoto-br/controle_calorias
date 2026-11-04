@@ -58,6 +58,60 @@ export function parseFoodD1WhatsAppPending(value: unknown): FoodD1WhatsAppPendin
   return parsed.data;
 }
 
+/**
+ * Repository-level provenance guard: a continuation may add missing material
+ * facts and append proof, but never replace earlier facts, anchors or source
+ * evidence. The service applies the same contract before calling the writer;
+ * the repository verifies again against the exact persisted revision.
+ */
+export function assertD1WhatsAppPendingFactsPreserved(
+  previous: FoodD1WhatsAppPending, next: FoodD1WhatsAppPending,
+): void {
+  if (previous.observations.length !== next.observations.length) {
+    throw new Error("food-d1-whatsapp-pending-observation-manifest-changed");
+  }
+  const same = (left: unknown, right: unknown) =>
+    JSON.stringify(left) === JSON.stringify(right);
+  const monotonic = (left: string | number | null, right: string | number | null) =>
+    left === null || left === right;
+  for (const [i, old] of previous.observations.entries()) {
+    const current = next.observations[i];
+    if (!current || current.observationId !== old.observationId ||
+        current.modality !== old.modality ||
+        current.lexiconRevision !== old.lexiconRevision ||
+        !same(current.surfaceSpan, old.surfaceSpan) ||
+        !same(current.locale, old.locale) ||
+        !same(current.identityHints.preparation, old.identityHints.preparation) ||
+        !same(current.identityHints.qualifiers, old.identityHints.qualifiers) ||
+        !same(current.alternatives, old.alternatives) ||
+        current.unresolvedReason !== old.unresolvedReason ||
+        old.rawInput !== null || current.rawInput !== null ||
+        old.normalizedInput !== null || current.normalizedInput !== null ||
+        !same(current.evidence.slice(0, old.evidence.length), old.evidence) ||
+        !same(current.normalizationPath.slice(0, old.normalizationPath.length),
+          old.normalizationPath) ||
+        (old.interpreterVersion !== null &&
+          current.interpreterVersion !== old.interpreterVersion)) {
+      throw new Error("food-d1-whatsapp-pending-provenance-mutation");
+    }
+    for (const field of ["foodName", "brand", "variant", "barcode"] as const) {
+      if (!monotonic(old.identityHints[field], current.identityHints[field])) {
+        throw new Error("food-d1-whatsapp-pending-material-fact-mutation");
+      }
+    }
+    for (const field of ["value", "unit", "servingText",
+      "visiblePackageQuantity", "visiblePackageUnit"] as const) {
+      if (!monotonic(old.quantityHints[field], current.quantityHints[field])) {
+        throw new Error("food-d1-whatsapp-pending-material-fact-mutation");
+      }
+    }
+    if (new Set(current.evidence.map(proof => proof.evidenceId)).size !==
+        current.evidence.length) {
+      throw new Error("food-d1-whatsapp-pending-duplicate-evidence");
+    }
+  }
+}
+
 /** Save facts, not conversational text or provider payloads. */
 export function sanitizeD1WhatsAppObservations(
   items: readonly FoodObservation[],

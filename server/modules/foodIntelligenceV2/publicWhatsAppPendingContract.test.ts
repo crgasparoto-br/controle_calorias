@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildFoodObservationFixture, buildFoodResolutionDecisionFixture,
   buildFoodOperationEnvelopeFixture } from "./fixtures";
-import { mergeD1WhatsAppReply, parseFoodD1WhatsAppPending,
+import { assertD1WhatsAppPendingFactsPreserved,
+  mergeD1WhatsAppReply, parseFoodD1WhatsAppPending,
   sanitizeD1WhatsAppObservations } from "./publicWhatsAppPendingContract";
 
 function pending() {
@@ -71,6 +72,51 @@ describe("#1308 durable V2 WhatsApp pending contract", () => {
     });
     expect(() => mergeD1WhatsAppReply(first, qtyReply, "d1-turn-00002"))
       .toThrow("food-d1-whatsapp-continuation-material-conflict");
+  });
+
+  it("also protects material facts and original evidence at the durable persistence boundary", () => {
+    const before = parseFoodD1WhatsAppPending({
+      ...pending(), observations: [buildFoodObservationFixture({
+        rawInput: null, normalizedInput: null,
+        quantityHints: { value: null, unit: null, servingText: null },
+      })],
+    });
+    const replacement = before.observations[0];
+    const accepted = parseFoodD1WhatsAppPending({
+      ...before, observations: [{
+        ...replacement,
+        quantityHints: { ...replacement.quantityHints,
+          value: 100, unit: "g", servingText: "100 g" },
+        evidence: [...replacement.evidence, {
+          ...replacement.evidence[0], evidenceId: "d1-new-unit-evidence",
+          field: "quantity.value", value: 100, unit: "g",
+        }],
+      }],
+    });
+    expect(() => assertD1WhatsAppPendingFactsPreserved(before, accepted))
+      .not.toThrow();
+    const overwrite = {
+      ...accepted, observations: accepted.observations.map(item => ({
+        ...item, identityHints: { ...item.identityHints,
+          foodName: "outro alimento" },
+      })),
+    };
+    expect(() => assertD1WhatsAppPendingFactsPreserved(before, overwrite))
+      .toThrow("food-d1-whatsapp-pending-material-fact-mutation");
+    const erasedProof = {
+      ...accepted, observations: accepted.observations.map(item => ({
+        ...item, evidence: item.evidence.slice(1),
+      })),
+    };
+    expect(() => assertD1WhatsAppPendingFactsPreserved(before, erasedProof))
+      .toThrow("food-d1-whatsapp-pending-provenance-mutation");
+    const overwrittenQuantity = {
+      ...accepted, observations: accepted.observations.map(item => ({
+        ...item, quantityHints: { ...item.quantityHints, value: null },
+      })),
+    };
+    expect(() => assertD1WhatsAppPendingFactsPreserved(accepted, overwrittenQuantity))
+      .toThrow("food-d1-whatsapp-pending-material-fact-mutation");
   });
 
   it("accepts previously missing facts while retaining original observation ID and provenance", () => {

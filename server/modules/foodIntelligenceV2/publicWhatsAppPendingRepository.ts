@@ -7,6 +7,7 @@ import { getDb } from "../../db";
 import { hashFoodD1OperationScope } from "./entrypointRouting";
 import { FOOD_D1_WHATSAPP_PENDING_TYPE, FOOD_D1_WHATSAPP_PENDING_ORIGIN,
   FOOD_D1_WHATSAPP_PENDING_TTL_MS, parseFoodD1WhatsAppPending,
+  assertD1WhatsAppPendingFactsPreserved,
   type FoodD1WhatsAppPending } from "./publicWhatsAppPendingContract";
 
 type Row = typeof whatsappPendingOperations.$inferSelect;
@@ -155,6 +156,7 @@ export async function updateFoodD1WhatsAppPending(
       proposed.envelope.ownerUserId !== ownerUserId) {
     throw new Error("food-d1-whatsapp-pending-attempted-operation-switch");
   }
+  assertD1WhatsAppPendingFactsPreserved(before.target, proposed);
   const db = await dbRequired();
   return db.transaction(async tx => {
     const [current] = await tx.select().from(whatsappPendingOperations)
@@ -169,6 +171,7 @@ export async function updateFoodD1WhatsAppPending(
     if (JSON.stringify(stored.target) !== JSON.stringify(before.target)) {
       throw new Error("food-d1-whatsapp-pending-stale-data");
     }
+    assertD1WhatsAppPendingFactsPreserved(stored.target, proposed);
     await tx.update(whatsappPendingOperations).set({
       target: proposed, version: current.version + 1,
     }).where(and(eq(whatsappPendingOperations.id, current.id),
