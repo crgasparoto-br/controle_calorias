@@ -6,7 +6,9 @@
 import { createHash } from "node:crypto";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type { WhatsappIntentResult } from "../whatsapp/intent/types";
-import type { FoodD1Request, FoodD1Dependencies } from "./entrypointMigration";
+import type { FoodD1Request, FoodD1Dependencies, FoodD1Result } from "./entrypointMigration";
+import { comprehendFoodLanguage } from "./linguisticComprehension";
+import { sanitizeD1WhatsAppObservations, type FoodD1WhatsAppPending } from "./publicWhatsAppPendingContract";
 import type { runFoodD1Migration } from "./entrypointRunner";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
@@ -31,6 +33,8 @@ export type PublicD1WhatsAppDependencies = {
   lexicon: FoodD1Dependencies["lexicon"];
   knowledge: FoodD1Dependencies["knowledge"];
   run: typeof runFoodD1Migration;
+  stagePending?: (data: FoodD1WhatsAppPending) => Promise<unknown>;
+  comprehend?: typeof comprehendFoodLanguage;
 };
 
 export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDependencies) {
@@ -98,7 +102,10 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
       authenticatedUserId: input.userId, entrypoint: input.modality,
       envelope, evidence, now: input.receivedAt,
     };
-    const response = await deps.run({
+    let incomplete: FoodD1Result | null = null;
+    let response: Awaited<ReturnType<typeof deps.run>>;
+    try {
+    response = await deps.run({
       request, source: "whatsapp", occurredAt: operation.date,
       dependencies: {
         lexicon: deps.lexicon,
@@ -113,9 +120,7 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
       expectedAuditedBaseSha: context.expectedAuditedBaseSha,
       verifyGates: async () => (await deps.readAuthorizedContext())?.approval ?? null,
       beforeCommit: plan => {
-        // The public WhatsApp confirmation has no durable D1 clarification
-        // ownership yet. Never commit only the ready siblings and discard the
-        // deferred ones: require an exact, fully ready batch before mutation.
+        incomplete = plan;
         if (plan.items.length !== operation.itemCount ||
             plan.readyCount !== operation.itemCount ||
             plan.items.some(item => item.disposition !== "ready")) {
@@ -123,6 +128,43 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
         }
       },
     });
+    } catch (error) {
+      if (!(error instanceof Error) ||
+          error.message !== "food-d1-whatsapp-public-needs-clarification" ||
+          !incomplete || !deps.stagePending) throw error;
+      const plan: FoodD1Result = incomplete;
+      if (plan.items.length !== operation.itemCount) {
+        throw new Error("food-d1-whatsapp-public-observation-manifest-mismatch");
+      }
+      const original = await (deps.comprehend ?? comprehendFoodLanguage)({
+        rawText: input.originalText, sourceRef: evidence.sourceRef,
+        modality: input.modality, ownerUserId: input.userId,
+        lexiconRevision: context.revisions.lexicon, locale: "pt-BR",
+        now: input.receivedAt,
+      }, deps.lexicon);
+      if (original.length !== plan.items.length ||
+          original.some((item, index) => item.observationId !== plan.items[index].observationId)) {
+        throw new Error("food-d1-whatsapp-public-observation-manifest-mismatch");
+      }
+      const unresolvedIds = plan.items.filter(item =>
+        item.disposition !== "ready").map(item => item.observationId);
+      if (!unresolvedIds.length) throw error;
+      await deps.stagePending({
+        schemaVersion: 2, envelope, originEntrypoint: input.modality,
+        occurredAt: operation.date.toISOString(),
+        observations: sanitizeD1WhatsAppObservations(original),
+        decisions: plan.items.map(item => item.decision), unresolvedIds,
+      });
+      const next = plan.items.find(item => item.observationId === unresolvedIds[0]);
+      const label = next?.decision.identity.canonicalName ?? "o alimento indicado";
+      return {
+        handled: true, action: "food_clarification_requested",
+        reply: `Preciso confirmar a identidade ou quantidade de ${label}. Responda nesta conversa com a informação faltante; a refeição só será registrada quando todos os itens estiverem resolvidos.`,
+        eventType: "whatsapp.food_d1.pending_created",
+        detail: "Lote V2 incompleto preservado em pendência transacional, sem registro parcial.",
+        data: { resolverVersion: "v2", pending: true },
+      };
+    }
     if (!response || typeof response !== "object" ||
         !("committed" in response) || response.committed !== true ||
         !("mealId" in response) || typeof response.mealId !== "number" ||

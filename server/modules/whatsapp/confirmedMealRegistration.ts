@@ -28,6 +28,7 @@ import { createFoodD1PublicWhatsAppVisualRegistration,
 import { extractD1VisualSurfaces } from "../foodIntelligenceV2/publicVisualSurfaces";
 import { comprehendFoodLanguage } from "../foodIntelligenceV2/linguisticComprehension";
 import { hasActiveWhatsappPendingInDb } from "../foodIntelligenceV2/publicSimulator";
+import { stageFoodD1WhatsAppPending } from "../foodIntelligenceV2/publicWhatsAppPendingRepository";
 import { governedLinguisticLexiconStore } from "../foodIntelligenceV2/linguisticLexiconRepository";
 import { createFoodV2KnowledgeRepository } from "../foodIntelligenceV2/repository";
 import { runFoodD1Migration } from "../foodIntelligenceV2/entrypointRunner";
@@ -69,6 +70,8 @@ export function createWhatsAppD1RegistrationService(
     lexicon: deps.lexicon ?? governedLinguisticLexiconStore,
     knowledge: deps.knowledge ?? createFoodV2KnowledgeRepository(),
     run: deps.run ?? runFoodD1Migration,
+    stagePending: deps.stagePending ?? (deps.run ? undefined : stageFoodD1WhatsAppPending),
+    comprehend: deps.comprehend,
     readCanonicalOperation: async (rawText, context) => {
       const operation = (deps.parseOperation ?? parseMealCommandFromWhatsApp)(
         rawText, context,
@@ -120,6 +123,7 @@ export function createWhatsAppD1VisualRegistrationService(
     lexicon: overrides.lexicon ?? governedLinguisticLexiconStore,
     knowledge: overrides.knowledge ?? createFoodV2KnowledgeRepository(),
     run: overrides.run ?? runFoodD1Migration,
+    stagePending: overrides.stagePending ?? (overrides.run ? undefined : stageFoodD1WhatsAppPending),
     renderCommittedMeal: overrides.renderCommittedMeal ?? (async ({
       userId, mealId, registeredAt, timeZone, recordedItemIds,
     }) => {

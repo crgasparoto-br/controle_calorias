@@ -14,6 +14,8 @@ import type { FoodD1Dependencies, FoodD1Request } from "./entrypointMigration";
 import type { runFoodD1Migration } from "./entrypointRunner";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import type { FoodD1CommitResult } from "./entrypointPersistenceRepository";
+import { sanitizeD1WhatsAppObservations, type FoodD1WhatsAppPending } from "./publicWhatsAppPendingContract";
+import type { FoodD1Result } from "./entrypointMigration";
 
 /** Command syntax is a user declaration of a ROLE, not a food classifier.
  * A free caption, OCR, inferred role or nutrition label never grants one.
@@ -69,6 +71,7 @@ export type PublicD1WhatsAppVisualDependencies = {
   lexicon: FoodD1Dependencies["lexicon"];
   knowledge: FoodD1Dependencies["knowledge"];
   run: typeof runFoodD1Migration;
+  stagePending?: (data: FoodD1WhatsAppPending) => Promise<unknown>;
   renderCommittedMeal: (input: {
     userId: number; mealId: number; registeredAt: Date; timeZone: string;
     skipped: FoodD1CommitResult["skipped"];
@@ -185,7 +188,10 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
       authenticatedUserId: input.userId, entrypoint, envelope,
       evidence, now: input.receivedAt,
     };
-    const response = await deps.run({
+    let incomplete: FoodD1Result | null = null;
+    let response: Awaited<ReturnType<typeof deps.run>>;
+    try {
+    response = await deps.run({
       request, source: "whatsapp", occurredAt: input.receivedAt,
       dependencies: {
         lexicon: deps.lexicon, knowledge: deps.knowledge,
@@ -199,6 +205,7 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
       expectedAuditedBaseSha: context.expectedAuditedBaseSha,
       verifyGates: async () => (await deps.readAuthorizedContext())?.approval ?? null,
       beforeCommit: plan => {
+        incomplete = plan;
         if (plan.items.length !== observations.length ||
             plan.readyCount !== observations.length ||
             plan.items.some(item => item.disposition !== "ready")) {
@@ -206,6 +213,34 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
         }
       },
     });
+    } catch (error) {
+      if (!(error instanceof Error) ||
+          error.message !== "food-d1-whatsapp-visual-needs-clarification" ||
+          !incomplete || !deps.stagePending) throw error;
+      const plan: FoodD1Result = incomplete;
+      if (plan.items.length !== observations.length ||
+          plan.items.some((item, index) => item.observationId !== observations[index].observationId)) {
+        throw new Error("food-d1-whatsapp-visual-observation-manifest-mismatch");
+      }
+      const unresolvedIds = plan.items.filter(item =>
+        item.disposition !== "ready").map(item => item.observationId);
+      if (!unresolvedIds.length) throw error;
+      await deps.stagePending({
+        schemaVersion: 2, envelope, originEntrypoint: entrypoint,
+        occurredAt: input.receivedAt.toISOString(),
+        observations: sanitizeD1WhatsAppObservations(observations),
+        decisions: plan.items.map(item => item.decision), unresolvedIds,
+      });
+      const next = plan.items.find(item => item.observationId === unresolvedIds[0]);
+      const label = next?.decision.identity.canonicalName ?? "o alimento da foto";
+      return {
+        handled: true, action: "food_clarification_requested",
+        reply: `Preciso confirmar quantidade ou identidade de ${label}. Responda com a informação faltante nesta conversa; nenhum alimento foi registrado parcialmente.`,
+        eventType: "whatsapp.food_d1.visual_pending_created",
+        detail: "Fotografia V2 em pendência durável sem qualquer mutação parcial.",
+        data: { resolverVersion: "v2", pending: true },
+      };
+    }
     if (!response || typeof response !== "object" ||
         !("committed" in response) || response.committed !== true ||
         !("mealId" in response) || typeof response.mealId !== "number" ||
