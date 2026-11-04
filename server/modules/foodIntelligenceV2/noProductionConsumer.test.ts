@@ -33,6 +33,7 @@ const PUBLIC_D1_PENDING_REPOSITORY = "../foodIntelligenceV2/publicWhatsAppPendin
 const PUBLIC_D1_WEB_PHOTO = resolve(REPOSITORY_ROOT, "server/modules/photoAnalysis/service.ts");
 const PUBLIC_D1_PUBLIC_PHOTO_ROUTER = resolve(REPOSITORY_ROOT, "server/nutritionRouter.ts");
 const PUBLIC_D1_PUBLIC_PHOTO_BRIDGE = "./modules/foodIntelligenceV2/publicPhotoRoute";
+const PUBLIC_D1_LABEL_BRIDGE = "./modules/foodIntelligenceV2/publicNutritionLabel";
 const PUBLIC_D1_WHATSAPP_CONFIRMED = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts");
 const PUBLIC_D1_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappWebhookImplementation.ts");
 const PUBLIC_D1_ANNOTATED_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappAnnotatedImageWebhookImplementation.ts");
@@ -126,12 +127,16 @@ function isApprovedD1RuntimeConsumer(file: string, imports: readonly string[]): 
         "../foodIntelligenceV2/repository",
         "../foodIntelligenceV2/entrypointRunner"].every(target => imports.includes(target));
   }
+  if (file === PUBLIC_D1_PUBLIC_PHOTO_ROUTER) {
+    return imports.length === 2 &&
+      imports.includes(PUBLIC_D1_PUBLIC_PHOTO_BRIDGE) &&
+      imports.includes(PUBLIC_D1_LABEL_BRIDGE);
+  }
   return imports.length === 1 && (
     file === PUBLIC_D1_SIMULATOR && imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE ||
     file === PUBLIC_D1_EDIT && imports[0] === PUBLIC_D1_EDIT_BRIDGE ||
     file === PUBLIC_D1_WEB_PHOTO && imports[0] === PUBLIC_D1_UNMIGRATED_GUARD ||
-    file === PUBLIC_D1_PUBLIC_PHOTO_ROUTER && imports[0] === PUBLIC_D1_PUBLIC_PHOTO_BRIDGE ||
-    (file === PUBLIC_D1_WEBHOOK || file === PUBLIC_D1_ANNOTATED_WEBHOOK) &&
+     (file === PUBLIC_D1_WEBHOOK || file === PUBLIC_D1_ANNOTATED_WEBHOOK) &&
       imports[0] === PUBLIC_D1_ROOT_GUARD
   );
 }
@@ -190,7 +195,7 @@ describe("fronteira da Fase D", () => {
       .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
     const photoRouter = await readFile(PUBLIC_D1_PUBLIC_PHOTO_ROUTER, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_PUBLIC_PHOTO_ROUTER, photoRouter))
-      .toEqual([PUBLIC_D1_PUBLIC_PHOTO_BRIDGE]);
+      .toEqual([PUBLIC_D1_PUBLIC_PHOTO_BRIDGE, PUBLIC_D1_LABEL_BRIDGE]);
     const confirmed = await readFile(PUBLIC_D1_WHATSAPP_CONFIRMED, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_CONFIRMED, confirmed))
       .toEqual([PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE,
@@ -218,7 +223,10 @@ describe("fronteira da Fase D", () => {
       runtimeV2Specifiers(PUBLIC_D1_SIMULATOR, good))).toBe(true);
     const photoOnly = 'import { tryRunPublicFoodD1PhotoAnalysis } from "./modules/foodIntelligenceV2/publicPhotoRoute";';
     expect(isApprovedD1RuntimeConsumer(PUBLIC_D1_PUBLIC_PHOTO_ROUTER,
-      runtimeV2Specifiers(PUBLIC_D1_PUBLIC_PHOTO_ROUTER, photoOnly))).toBe(true);
+      runtimeV2Specifiers(PUBLIC_D1_PUBLIC_PHOTO_ROUTER, photoOnly))).toBe(false);
+    expect(isApprovedD1RuntimeConsumer(PUBLIC_D1_PUBLIC_PHOTO_ROUTER,
+      runtimeV2Specifiers(PUBLIC_D1_PUBLIC_PHOTO_ROUTER,
+        photoOnly + '\nimport { tryRunFoodD1PublicNutritionLabel } from "./modules/foodIntelligenceV2/publicNutritionLabel";'))).toBe(true);
     for (const fileAndCode of [
       [resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts"), good],
       [PUBLIC_D1_SIMULATOR, good + '\nimport { resolveFoodObservation } from "../foodIntelligenceV2/resolver";'],

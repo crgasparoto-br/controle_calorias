@@ -132,6 +132,7 @@ export const applyFoodD1NutritionLabelSchema = z.object({
   mealItemId: z.number().int().positive(),
   image: mediaInputSchema.refine(Boolean, "Envie a foto do rótulo."),
 });
+export type ApplyFoodD1NutritionLabelInput = z.infer<typeof applyFoodD1NutritionLabelSchema>;
 
 export const confirmFoodD1WebDraftSchema = z.object({
   draftId: z.string().min(1).max(80),

@@ -17,6 +17,7 @@ import { exportUserPrivacyData, requestUserAccountDeletion } from "./db";
 import { generateFoodAssistantSuggestion } from "./modules/assistant/service";
 import { assistantRequestSchema } from "./modules/assistant/schemas";
 import { tryRunPublicFoodD1PhotoAnalysis } from "./modules/foodIntelligenceV2/publicPhotoRoute";
+import { tryRunFoodD1PublicNutritionLabel } from "./modules/foodIntelligenceV2/publicNutritionLabel";
 import {
   analyzeFoodPhoto,
   confirmFoodPhotoAnalysis,
@@ -171,6 +172,7 @@ import {
 import {
   confirmMealSchema,
   confirmFoodD1WebDraftSchema,
+  applyFoodD1NutritionLabelSchema,
   copyMealGroupSchema,
   copyMealSchema,
   dayTotalsSchema,
@@ -963,6 +965,18 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => {
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
         return processMealDraft(ctx.user.id, input, timeZone);
+      }),
+    applyD1NutritionLabel: protectedProcedure
+      .input(applyFoodD1NutritionLabelSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await tryRunFoodD1PublicNutritionLabel({
+          userId: ctx.user.id, request: input, timeZone, source: "web",
+        });
+        if (!result) throw new TRPCError({
+          code: "PRECONDITION_FAILED", message: "Rótulo V2 não está habilitado.",
+        });
+        return result;
       }),
     confirmFoodD1Draft: protectedProcedure
       .input(confirmFoodD1WebDraftSchema)

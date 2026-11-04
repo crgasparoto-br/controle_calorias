@@ -103,6 +103,9 @@ export function createFoodD1PublicNutritionLabel(
     }
     // Decode and verify media magic/MIME locally before any provider or
     // governed source access; only an exact existing independent proof counts.
+    if (!input.request.image) {
+      throw new Error("food-d1-label-photo-required");
+    }
     const media = prepareD1VisualMedia(input.request.image);
     const proof = await deps.readVerifiedSource({
       ownerUserId: input.userId, variantId: target.variantId,
