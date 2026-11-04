@@ -31,6 +31,12 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
     expect(output.items[0].values.foodCatalogId).toBeNull();
     expect(output.items[0].values.foodVariantId).toBe(102);
     expect(JSON.parse(output.items[0].values.foodSnapshotJson).nutrition.verified).toBe(true);
+    const structured = JSON.parse(output.items[0].values.foodSnapshotJson).structuredDecision;
+    expect(structured).toMatchObject({
+      ownerUserId: 7, traceId: "trace-1", revision: 1,
+      identity: { variantId: 102 },
+      nutrition: { verified: true },
+    });
     expect(output.confidence).toBe(0.9);
     expect(output.requestHash).toMatch(/^[0-9a-f]{64}$/);
     expect(output.operationScopeHash).toBe(hashFoodD1OperationScope(envelope(), "whatsapp"));

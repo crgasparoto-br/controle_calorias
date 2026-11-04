@@ -141,13 +141,24 @@ export function prepareFoodD1NativeWrite(input: {
       { value: quantity.grams, unit: "g" };
     const consumed = nutrition.consumed;
     // Snapshot contains no raw media, prompt, transcript or evidence payload.
+    // The subsequent label/clarification must consume a previously verified
+    // structured decision, not reverse-engineer a new one from display text.
+    // This is a bounded sanitized decision: no rawInput/media/transcript.
     const snapshot = JSON.stringify({ format: "food-v2", schemaVersion: 2,
       decisionId: item.decision.decisionId, revision: item.decision.revision,
+      structuredDecision: item.decision,
       identity: { foodEntityId: identity.foodEntityId, variantId: identity.variantId,
         canonicalName: identity.canonicalName },
       nutrition: { profileId: nutrition.profileId, sourceId: nutrition.sourceId,
         snapshotHash: nutrition.snapshotHash, verified: true, consumed },
       quantity: { value: units.value, unit: units.unit, grams: quantity.grams } });
+    // MySQL TEXT is limited to 64 KiB; do not truncate an evidence decision
+    // (which would silently corrupt the linked identity on later turns).
+    if (Buffer.byteLength(snapshot, "utf8") > 60000 ||
+        snapshot.includes('"rawInput"') ||
+        snapshot.includes('"normalizedInput"')) {
+      throw new Error("food-d1-native-structured-snapshot-unsafe");
+    }
     items.push({ observationId: item.observationId, targetItemId,
       foodEntityId: identity.foodEntityId, variantId: identity.variantId,
       profileId: nutrition.profileId, sourceId: nutrition.sourceId,
