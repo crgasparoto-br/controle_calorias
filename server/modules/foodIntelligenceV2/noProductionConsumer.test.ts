@@ -133,10 +133,11 @@ function isApprovedD1RuntimeConsumer(file: string, imports: readonly string[]): 
         "../foodIntelligenceV2/entrypointRunner"].every(target => imports.includes(target));
   }
   if (file === PUBLIC_D1_WHATSAPP_LABEL_HANDLER) {
-    return imports.length === 3 &&
+    return imports.length === 4 &&
       imports.includes(PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE) &&
       imports.includes(PUBLIC_D1_NUTRITION_LABEL_BRIDGE) &&
-      imports.includes(PUBLIC_D1_NUTRITION_LABEL_EVIDENCE);
+      imports.includes(PUBLIC_D1_NUTRITION_LABEL_EVIDENCE) &&
+      imports.includes("../foodIntelligenceV2/entrypointRunner");
   }
   if (file === PUBLIC_D1_PUBLIC_PHOTO_ROUTER) {
     return imports.length === 2 &&
@@ -210,7 +211,7 @@ describe("fronteira da Fase D", () => {
     const whatsappLabel = await readFile(PUBLIC_D1_WHATSAPP_LABEL_HANDLER, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_LABEL_HANDLER, whatsappLabel))
       .toEqual([PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_NUTRITION_LABEL_BRIDGE,
-        PUBLIC_D1_NUTRITION_LABEL_EVIDENCE]);
+        PUBLIC_D1_NUTRITION_LABEL_EVIDENCE, "../foodIntelligenceV2/entrypointRunner"]);
     const confirmed = await readFile(PUBLIC_D1_WHATSAPP_CONFIRMED, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_CONFIRMED, confirmed))
       .toEqual([PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE,

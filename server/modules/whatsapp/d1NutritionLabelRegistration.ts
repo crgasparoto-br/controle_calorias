@@ -7,6 +7,7 @@ import { fromTrustedD1WhatsAppMediaDataUrl } from "../foodIntelligenceV2/publicW
 import { isFoodD1NutritionLabelSelected, createFoodD1PublicNutritionLabel,
   type PublicD1NutritionLabelDependencies } from "../foodIntelligenceV2/publicNutritionLabel";
 import { readD1PhysicalNutritionLabelTarget, readD1VerifiedNutritionLabelSource } from "../foodIntelligenceV2/publicNutritionLabelEvidence";
+import { runFoodD1Migration } from "../foodIntelligenceV2/entrypointRunner";
 
 /** The label channel supplies only owner ID, selected physical target, and a
  * verified WhatsApp Media API download. No unreviewed OCR is trusted. */
