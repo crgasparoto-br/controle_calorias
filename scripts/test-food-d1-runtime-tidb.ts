@@ -12,6 +12,9 @@ import { hashFoodD1OperationScope, routeFoodD1Operation } from "../server/module
 import { getFoodD1WebDraftByOperationKey, saveFoodD1WebDraft } from "../server/modules/foodIntelligenceV2/publicWebDraftRepository";
 import { checkedFoodD1WebReplay, traceFoodD1WebSubmission } from "../server/modules/foodIntelligenceV2/publicWebDraftIdentity";
 import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligenceV2/publicSimulator";
+import { readActiveFoodD1WhatsAppPending, stageFoodD1WhatsAppPending,
+  updateFoodD1WhatsAppPending, consumeFoodD1WhatsAppPending } from "../server/modules/foodIntelligenceV2/publicWhatsAppPendingRepository";
+import { foodD1WhatsAppReplayFence } from "../server/modules/foodIntelligenceV2/publicWhatsAppReplayFence";
 import { createWhatsAppD1RegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
@@ -774,6 +777,87 @@ try {
     if (priorSelection === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
     else process.env.FOOD_V2_D1_ENTRYPOINTS = priorSelection;
   }
+
+  // A full durable continuation round-trip through the same real TiDB
+  // transaction adapter; exercises user lock, stable scope, readback,
+  // duplicate submission, optimistic version, replay fence and consumption.
+  // Still synthetic, never interpreted as post-deploy Gate A or user traffic.
+  const pendingEnvelope: FoodOperationEnvelope = {
+    ...makeEnvelope("ci-d1-whatsapp-pending"),
+    mealOperation: { action: "add", targetMeal: "Almoço", date: "2026-10-05" },
+    effectiveTimeZone: "UTC",
+  };
+  const pendingObservation = buildFoodObservationFixture({
+    observationId: "ci-d1-pending-original-observation",
+    lexiconRevision: pendingEnvelope.revisions.lexicon,
+    rawInput: null, normalizedInput: null,
+  });
+  const pendingDecision: FoodResolutionDecision = {
+    ...makeDecision(pendingObservation.observationId),
+    traceId: pendingEnvelope.traceId,
+    status: "unresolved", nextAction: "clarify",
+  };
+  await routeFoodD1Operation({
+    envelope: pendingEnvelope, authenticatedUserId: userId,
+    entrypoint: "text", source: "whatsapp",
+    store: createFoodD1RouteDbStore(), expectedAuditedBaseSha: expectedSha,
+    verifyGates: async () => approval, enabled: true,
+    runV1: async () => { throw new Error("cannot stage pending into V1"); },
+    runV2: async () => "synthetic-d1-pending-route-pinned",
+  });
+  const pendingPayload = {
+    schemaVersion: 2 as const, envelope: pendingEnvelope,
+    originEntrypoint: "text" as const, occurredAt: occurredAt.toISOString(),
+    observations: [pendingObservation], decisions: [pendingDecision],
+    unresolvedIds: [pendingObservation.observationId],
+  };
+  const firstPending = await stageFoodD1WhatsAppPending(pendingPayload);
+  const repeatedPending = await stageFoodD1WhatsAppPending(pendingPayload);
+  assert.equal(repeatedPending.id, firstPending.id,
+    "retry must return the same durable active pending with no second insert");
+  const reloadedPending = await readActiveFoodD1WhatsAppPending(userId);
+  assert.equal(reloadedPending?.id, firstPending.id);
+  assert.equal(reloadedPending?.target.envelope.idempotencyKey,
+    pendingEnvelope.idempotencyKey);
+  assert.equal(await readActiveFoodD1WhatsAppPending(foreignPendingUserId), null,
+    "one owner's V2 pending must not leak into another owner");
+  await assert.rejects(stageFoodD1WhatsAppPending({
+    ...pendingPayload, occurredAt: new Date("2026-10-06T12:00:00Z").toISOString(),
+  }), /food-d1-whatsapp-pending-payload-changed/,
+  "same original key cannot silently switch the event date");
+  await assert.rejects(stageFoodD1WhatsAppPending({
+    ...pendingPayload, envelope: {
+      ...pendingEnvelope, idempotencyKey: "ci-d1-other-whatsapp-pending",
+    },
+  }), /food-d1-whatsapp-pending-route-unavailable/,
+  "a new unpinned operation cannot steal an active original pending");
+  const changedPending = {
+    ...pendingPayload,
+    decisions: [{ ...pendingDecision, revision: pendingDecision.revision + 1 }],
+  };
+  const updatedPending = await updateFoodD1WhatsAppPending(
+    firstPending, changedPending, userId,
+  );
+  assert.equal(updatedPending.version, firstPending.version + 1);
+  await assert.rejects(updateFoodD1WhatsAppPending(
+    firstPending, pendingPayload, userId,
+  ), /food-d1-whatsapp-pending-stale-update/,
+  "an older context cannot overwrite an answered clarification");
+  const inboundId = "wamid-ci-d1-continuation-001";
+  await foodD1WhatsAppReplayFence.pinContinuationInbound({
+    ownerUserId: userId, externalMessageId: inboundId,
+    envelope: pendingEnvelope,
+  });
+  await assert.rejects(foodD1WhatsAppReplayFence.rejectPreviouslyV2OwnedInbound({
+    ownerUserId: userId, externalMessageId: inboundId,
+  }), /food-d1-whatsapp-inbound-already-v2-owned/,
+  "a duplicate continuation inbound cannot fall through to V1 after restart");
+  await consumeFoodD1WhatsAppPending(updatedPending, userId);
+  assert.equal(await readActiveFoodD1WhatsAppPending(userId), null,
+    "after final confirmation pending must be durably consumed");
+  await assert.rejects(consumeFoodD1WhatsAppPending(updatedPending, userId),
+    /food-d1-whatsapp-pending-consume-conflict/,
+  "a completed pending cannot be consumed twice or reopened");
 
   console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation and public V1 exactly-once", {
     userId, mealId: created.mealId, itemId,
