@@ -397,7 +397,7 @@ describe("public Food D1 web draft confirmation", () => {
       .resolves.toMatchObject({ entrypoint: "multimodal" });
     await expect(service.tryRunFoodD1PublicWebDraft({
       userId, timeZone, request: { ...base, imageKind: "packaging" },
-    })).rejects.toThrow("food-d1-operation-scope-changed");
+    })).rejects.toThrow("food-d1-public-web-draft-operation-scope-changed");
     expect(buildPlan).toHaveBeenCalledTimes(1);
     expect(saveDraft).toHaveBeenCalledTimes(1);
   });
