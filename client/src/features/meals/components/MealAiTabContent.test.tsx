@@ -56,6 +56,16 @@ describe("D1 visual-role selection on meal registration", () => {
     expect(submit.disabled).toBe(false);
   });
 
+  it("does not treat a nutrition label as a new meal or enable its registration", () => {
+    const input = props();
+    render(<MealAiTabContent {...input} imageKind="nutrition_label" />);
+    expect(screen.getByText(
+      "Uma tabela nutricional precisa ser associada a um alimento já registrado. Este formulário cria uma nova refeição.",
+    )).toBeTruthy();
+    const submit = screen.getByRole("button", { name: "Registrar" }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+  });
+
   it("keeps text/audio-only registration enabled without an image role", () => {
     render(<MealAiTabContent {...props()} imageFileName={undefined} />);
     expect(screen.queryByRole("combobox", { name: /Tipo de foto/i })).toBeNull();
