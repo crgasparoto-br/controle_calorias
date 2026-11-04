@@ -309,6 +309,11 @@ try {
   // #1308: the real TiDB migration gate must cover new operation bindings.
   const d1ForwardStatements = await applyFile("../drizzle/0057_food_d1_operation_binding.sql");
   assert.equal(d1ForwardStatements, 2);
+  const webDraftForwardStatements = await applyFile("../drizzle/0058_food_d1_web_drafts.sql");
+  assert.equal(webDraftForwardStatements, 1);
+  const [webDraftTable] = await queryRows(
+    "SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_d1_web_drafts'");
+  assert.equal(Number(webDraftTable.c), 1, "0058 web draft state must exist before D1 public runtime");
   const operation = "ci-d1-op";
   await connection.query(
     "INSERT INTO food_d1_user_operation_routes (owner_user_id, operation_key, origin_entrypoint, resolver, revisions_json) VALUES (?, ?, 'text', 'v2', ?)",
@@ -326,10 +331,40 @@ try {
     "INSERT INTO food_d1_user_operation_effects (owner_user_id, operation_key, observation_id, decision_hash, outcome_json) VALUES (?, ?, 'obs-1', ?, ?)",
     [fixture.userId, operation, "c".repeat(64), JSON.stringify({ mealId: 1, itemId: 2 })]
   ), "replaying the same observation cannot duplicate its receipt");
+  // D1 public web review must be transactionally tied to its owner and pinned route.
+  const draftId = "ci-d1-web-draft";
+  await connection.query(
+    "INSERT INTO food_d1_web_drafts (draft_id, owner_user_id, operation_key, payload_json, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))",
+    [draftId, fixture.userId, operation, JSON.stringify({ observationIds: ["obs-1"] })],
+  );
+  await mustReject(connection.query(
+    "INSERT INTO food_d1_web_drafts (draft_id, owner_user_id, operation_key, payload_json, expires_at) VALUES ('ci-duplicate-web', ?, ?, '{}', DATE_ADD(NOW(), INTERVAL 30 MINUTE))",
+    [fixture.userId, operation],
+  ), "one owner/operation may have only one active D1 web draft");
+  await mustReject(connection.query(
+    "INSERT INTO food_d1_web_drafts (draft_id, owner_user_id, operation_key, payload_json, expires_at) VALUES ('ci-wrong-owner', ?, ?, '{}', DATE_ADD(NOW(), INTERVAL 30 MINUTE))",
+    [fixture.userId + 10000000, operation],
+  ), "a foreign owner cannot bind a draft to another user's operation");
+  await mustReject(connection.query(
+    "UPDATE food_d1_web_drafts SET status='confirmed' WHERE draft_id=?",
+    [draftId],
+  ), "a confirmed draft must remove its pending payload before storing a receipt");
+  await connection.query(
+    "UPDATE food_d1_web_drafts SET status='confirmed', payload_json=NULL, confirmation_json=? WHERE draft_id=?",
+    [JSON.stringify({ committed: true, receiptId: "ci-receipt" }), draftId],
+  );
+  const [confirmedDraft] = await queryRows(
+    "SELECT status, payload_json, confirmation_json FROM food_d1_web_drafts WHERE draft_id=?", [draftId]);
+  assert.equal(confirmedDraft.status, "confirmed");
+  assert.equal(confirmedDraft.payload_json, null, "committed D1 draft must erase evidence payload");
+  assert.deepEqual(JSON.parse(confirmedDraft.confirmation_json), { committed: true, receiptId: "ci-receipt" });
   await connection.query(
     "DELETE FROM food_d1_user_operation_routes WHERE owner_user_id=? AND operation_key=?",
     [fixture.userId, operation]
   );
+  const [orphanDraft] = await queryRows(
+    "SELECT COUNT(*) AS c FROM food_d1_web_drafts WHERE draft_id=?", [draftId]);
+  assert.equal(Number(orphanDraft.c), 0, "deleting the owner operation must cascade to its D1 draft");
   const [orphan] = await queryRows(
     "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
     [fixture.userId, operation]
@@ -393,6 +428,11 @@ try {
   await assertLegacyWritesAfterMigration(fixture);
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
+    const webDraftReversed = await applyFile("../drizzle/rollback/0058_food_d1_web_drafts.sql");
+    assert.equal(webDraftReversed, 1);
+    const [webDraftsAfterRollback] = await queryRows(
+      "SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_d1_web_drafts'");
+    assert.equal(Number(webDraftsAfterRollback.c), 0, "0058 rollback must remove short-lived D1 draft state");
     await applyFile("../drizzle/rollback/0057_food_d1_operation_binding.sql");
     const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
     assert.equal(b2Reversed, 6);
