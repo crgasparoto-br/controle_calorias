@@ -164,25 +164,23 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     // The real route rejects that changed hash under the same pinned key;
     // this test proves the boundary supplies its discriminant.
   });
-  it("reports unresolved siblings explicitly and never commits a zero-ready batch", async () => {
+  it("rejects partial siblings and a zero-ready batch before any native commit", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     const run = vi.fn(async (args: Parameters<typeof runFoodD1Migration>[0]) => {
       args.beforeCommit?.({ items: [{ disposition: "ready" },
         { disposition: "deferred" }], readyCount: 1 } as never);
-      return { committed: true, mealId: 55, recordedItemIds: [501],
-        skipped: [{ observationId: "pending-sibling" }] };
+      throw new Error("unexpected-effect");
     });
+    const readMeal = vi.fn(async () => meal() as never);
     const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false, parseOperation: () => parsed(),
-      readMeal: async () => meal() as never,
-      run: run as unknown as typeof runFoodD1Migration,
+      readMeal, run: run as unknown as typeof runFoodD1Migration,
     });
-    const result = await service(createInput());
-    expect(result?.data?.skippedItemCount).toBe(1);
-    expect(result?.reply).toContain("Item não registrado");
-    expect(result?.reply).toContain("Item 1");
+    await expect(service(createInput())).rejects
+      .toThrow("food-d1-whatsapp-public-needs-clarification");
+    expect(readMeal).not.toHaveBeenCalled();
     const blocked = vi.fn(async (args: Parameters<typeof runFoodD1Migration>[0]) => {
       args.beforeCommit?.({ items: [{ disposition: "deferred" }],
         readyCount: 0 } as never);

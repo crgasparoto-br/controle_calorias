@@ -113,7 +113,12 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
       expectedAuditedBaseSha: context.expectedAuditedBaseSha,
       verifyGates: async () => (await deps.readAuthorizedContext())?.approval ?? null,
       beforeCommit: plan => {
-        if (!plan.items.length || plan.readyCount === 0) {
+        // The public WhatsApp confirmation has no durable D1 clarification
+        // ownership yet. Never commit only the ready siblings and discard the
+        // deferred ones: require an exact, fully ready batch before mutation.
+        if (plan.items.length !== operation.itemCount ||
+            plan.readyCount !== operation.itemCount ||
+            plan.items.some(item => item.disposition !== "ready")) {
           throw new Error("food-d1-whatsapp-public-needs-clarification");
         }
       },
