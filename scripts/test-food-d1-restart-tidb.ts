@@ -12,6 +12,9 @@ import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/en
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
 import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
 import { createManualMeal } from "../server/modules/meals/service";
+import { readActiveFoodD1WhatsAppPending,
+  consumeFoodD1WhatsAppPending } from "../server/modules/foodIntelligenceV2/publicWhatsAppPendingRepository";
+import { foodD1WhatsAppReplayFence } from "../server/modules/foodIntelligenceV2/publicWhatsAppReplayFence";
 import type { FoodD1Result } from "../server/modules/foodIntelligenceV2/entrypointMigration";
 import type { FoodOperationEnvelope, FoodResolutionDecision } from "../server/modules/foodIntelligenceV2/schemas";
 
@@ -41,6 +44,36 @@ try {
     "all original operation references must remain durable across process restart");
   const oldReceipt = JSON.parse(String(existing.outcome_json)) as { itemId: number; mealId: number };
   const userId = Number(owner.id);
+  // The first process staged a clarification with the original manifest.
+  // Rehydrate it without a local conversation Map, legacy text replay or
+  // a second inference call, then consume only the same authenticated owner.
+  const recoveredWhatsAppPending = await readActiveFoodD1WhatsAppPending(userId);
+  assert.ok(recoveredWhatsAppPending,
+    "the other Node process must recover the durable WhatsApp D1 clarification");
+  assert.equal(recoveredWhatsAppPending.target.envelope.idempotencyKey,
+    "ci-d1-whatsapp-restart-pending");
+  assert.equal(recoveredWhatsAppPending.target.observations.length, 1);
+  assert.equal(recoveredWhatsAppPending.target.unresolvedIds.length, 1);
+  const [otherOwner] = await rows("SELECT id FROM users WHERE openId='ci-d1-pending-owner'");
+  assert.ok(otherOwner);
+  assert.equal(await readActiveFoodD1WhatsAppPending(Number(otherOwner.id)), null,
+    "another tenant cannot discover the original owner's pending context");
+  await assert.rejects(consumeFoodD1WhatsAppPending(
+    recoveredWhatsAppPending, Number(otherOwner.id),
+  ), /food-d1-whatsapp-pending-consume-conflict/,
+  "another owner cannot acknowledge a pending clarification");
+  const continuedMessageId = "wamid-ci-d1-restarted-continuation";
+  await foodD1WhatsAppReplayFence.pinContinuationInbound({
+    ownerUserId: userId, externalMessageId: continuedMessageId,
+    envelope: recoveredWhatsAppPending.target.envelope,
+  });
+  await assert.rejects(foodD1WhatsAppReplayFence.rejectPreviouslyV2OwnedInbound({
+    ownerUserId: userId, externalMessageId: continuedMessageId,
+  }), /food-d1-whatsapp-inbound-already-v2-owned/,
+  "a resumed operation never becomes new V1 text after restart");
+  await consumeFoodD1WhatsAppPending(recoveredWhatsAppPending, userId);
+  assert.equal(await readActiveFoodD1WhatsAppPending(userId), null,
+    "the separate process consumes the existing pending without reopening it");
   const restartWebId = "ci-web-cross-process";
   const restartWebKey = "d1-web-" + userId + ":" + restartWebId;
   const restartRequest = {

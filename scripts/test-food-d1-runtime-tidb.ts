@@ -860,6 +860,25 @@ try {
     /food-d1-whatsapp-pending-consume-conflict/,
   "a completed pending cannot be consumed twice or reopened");
 
+  // Leave a DIFFERENT original operation pending at process exit. The
+  // subsequent test file runs in a new Node process and must recover it.
+  const restartEnvelope: FoodOperationEnvelope = {
+    ...pendingEnvelope, idempotencyKey: "ci-d1-whatsapp-restart-pending",
+  };
+  await routeFoodD1Operation({
+    envelope: restartEnvelope, authenticatedUserId: userId,
+    entrypoint: "text", source: "whatsapp",
+    store: createFoodD1RouteDbStore(), expectedAuditedBaseSha: expectedSha,
+    verifyGates: async () => approval, enabled: true,
+    runV1: async () => { throw new Error("cross-process pending must belong to V2"); },
+    runV2: async () => "synthetic-d1-pending-restart-route",
+  });
+  const restartPayload = {
+    ...pendingPayload, envelope: restartEnvelope,
+  };
+  const toRecover = await stageFoodD1WhatsAppPending(restartPayload);
+  assert.equal((await readActiveFoodD1WhatsAppPending(userId))?.id, toRecover.id,
+    "the final original V2 pending must remain durable for the next Node process");
   console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation and public V1 exactly-once", {
     userId, mealId: created.mealId, itemId,
   });
