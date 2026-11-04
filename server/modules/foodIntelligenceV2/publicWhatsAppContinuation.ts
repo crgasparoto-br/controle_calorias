@@ -167,7 +167,7 @@ export function createFoodD1WhatsAppContinuation(
         new Set(outcome.recordedItemIds).size !== current.observations.length ||
         !("skipped" in outcome) || !Array.isArray(outcome.skipped) ||
         outcome.skipped.length !== 0 ||
-        !("mealId" in outcome) || !Number.isSafeInteger(outcome.mealId)) {
+        !("mealId" in outcome) || (!Number.isSafeInteger(outcome.mealId) || outcome.mealId <= 0)) {
       throw new Error("food-d1-whatsapp-continuation-commit-incomplete");
     }
     const receipt = outcome as FoodD1CommitResult;

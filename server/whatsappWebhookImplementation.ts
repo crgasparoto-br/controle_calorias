@@ -101,7 +101,8 @@ import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { tryRunPublicFoodD1WhatsAppRegistration,
-  tryRunPublicFoodD1WhatsAppVisualRegistration } from "./modules/whatsapp/confirmedMealRegistration";
+  tryRunPublicFoodD1WhatsAppVisualRegistration,
+  tryRunPublicFoodD1WhatsAppContinuation } from "./modules/whatsapp/confirmedMealRegistration";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,
@@ -601,6 +602,27 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
     try {
       const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
       const userTimezone = timeZoneResolution.timeZone;
+
+      // Durable V2 clarification has precedence over fresh V1 interpretation,
+      // AI question handling or other pending stores. Rollback must not
+      // silently reclassify a reply as a new legacy food operation.
+      const d1Continuation = await tryRunPublicFoodD1WhatsAppContinuation({
+        userId, replyText: message.text?.body ?? null,
+        externalMessageId: message.id ?? null,
+        receivedAt: resolveWhatsAppMessageOccurredAt(message),
+        timeZone: userTimezone,
+      });
+      if (d1Continuation) {
+        const replyResult = await sendFinalText(d1Continuation.reply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId, origin: "whatsapp", status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: "Falha ao entregar resposta da continuação V2.",
+          });
+        }
+        continue;
+      }
 
       const aiQuestionResult = await executeWhatsappAiQuestionIntent(userId, {
         text: message.text?.body,

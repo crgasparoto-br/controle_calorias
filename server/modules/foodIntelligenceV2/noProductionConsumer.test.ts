@@ -26,6 +26,7 @@ const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
 const PUBLIC_D1_UNMIGRATED_GUARD = "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 const PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE = "../foodIntelligenceV2/publicWhatsAppRegistration";
 const PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE = "../foodIntelligenceV2/publicWhatsAppVisualRegistration";
+const PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE = "../foodIntelligenceV2/publicWhatsAppContinuation";
 const PUBLIC_D1_VISUAL_EXTRACTOR = "../foodIntelligenceV2/publicVisualSurfaces";
 const PUBLIC_D1_LINGUISTIC_COMPREHENSION = "../foodIntelligenceV2/linguisticComprehension";
 const PUBLIC_D1_PENDING_REPOSITORY = "../foodIntelligenceV2/publicWhatsAppPendingRepository";
@@ -115,9 +116,10 @@ function isApprovedD1RuntimeConsumer(file: string, imports: readonly string[]): 
       imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
   }
   if (file === PUBLIC_D1_WHATSAPP_CONFIRMED) {
-    return imports.length === 10 &&
+    return imports.length === 11 &&
       [PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE,
-        PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_VISUAL_EXTRACTOR,
+        PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE,
+        PUBLIC_D1_VISUAL_EXTRACTOR,
         PUBLIC_D1_LINGUISTIC_COMPREHENSION, PUBLIC_D1_PENDING_REPOSITORY,
         PUBLIC_D1_SIMULATOR_BRIDGE,
         "../foodIntelligenceV2/linguisticLexiconRepository",
@@ -192,7 +194,8 @@ describe("fronteira da Fase D", () => {
     const confirmed = await readFile(PUBLIC_D1_WHATSAPP_CONFIRMED, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_CONFIRMED, confirmed))
       .toEqual([PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE,
-        PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_VISUAL_EXTRACTOR,
+        PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE,
+        PUBLIC_D1_VISUAL_EXTRACTOR,
         PUBLIC_D1_LINGUISTIC_COMPREHENSION, PUBLIC_D1_PENDING_REPOSITORY,
         PUBLIC_D1_SIMULATOR_BRIDGE,
         "../foodIntelligenceV2/linguisticLexiconRepository",

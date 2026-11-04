@@ -28,7 +28,10 @@ import { createFoodD1PublicWhatsAppVisualRegistration,
 import { extractD1VisualSurfaces } from "../foodIntelligenceV2/publicVisualSurfaces";
 import { comprehendFoodLanguage } from "../foodIntelligenceV2/linguisticComprehension";
 import { hasActiveWhatsappPendingInDb } from "../foodIntelligenceV2/publicSimulator";
-import { stageFoodD1WhatsAppPending } from "../foodIntelligenceV2/publicWhatsAppPendingRepository";
+import { stageFoodD1WhatsAppPending, readActiveFoodD1WhatsAppPending,
+  updateFoodD1WhatsAppPending, consumeFoodD1WhatsAppPending } from "../foodIntelligenceV2/publicWhatsAppPendingRepository";
+import { createFoodD1WhatsAppContinuation,
+  type FoodD1WhatsAppContinuationDependencies } from "../foodIntelligenceV2/publicWhatsAppContinuation";
 import { governedLinguisticLexiconStore } from "../foodIntelligenceV2/linguisticLexiconRepository";
 import { createFoodV2KnowledgeRepository } from "../foodIntelligenceV2/repository";
 import { runFoodD1Migration } from "../foodIntelligenceV2/entrypointRunner";
@@ -150,6 +153,37 @@ export async function tryRunPublicFoodD1WhatsAppVisualRegistration(input: {
     ...input, image: fromTrustedD1WhatsAppMediaDataUrl(input.imageAnalysisUrl),
   });
 }
+
+/** Continuation ownership is loaded from the durable V2 pending record,
+ * never guessed from the reply text or an in-process conversation. */
+export function createWhatsAppD1ContinuationService(
+  overrides: Partial<FoodD1WhatsAppContinuationDependencies> = {},
+) {
+  return createFoodD1WhatsAppContinuation({
+    readPending: overrides.readPending ?? readActiveFoodD1WhatsAppPending,
+    updatePending: overrides.updatePending ?? updateFoodD1WhatsAppPending,
+    consumePending: overrides.consumePending ?? consumeFoodD1WhatsAppPending,
+    readAuthorizedContext: overrides.readAuthorizedContext ?? (async () => null),
+    comprehend: overrides.comprehend ?? comprehendFoodLanguage,
+    lexicon: overrides.lexicon ?? governedLinguisticLexiconStore,
+    knowledge: overrides.knowledge ?? createFoodV2KnowledgeRepository(),
+    run: overrides.run ?? runFoodD1Migration,
+    renderCommittedMeal: overrides.renderCommittedMeal ?? (async ({
+      userId, mealId, registeredAt, timeZone, recordedItemIds,
+    }) => {
+      const meal = (await dbRuntime.listUserMeals(userId)).find(entry =>
+        entry.id === mealId && entry.userId === userId);
+      if (!meal || !meal.items || meal.items.length < recordedItemIds.length) {
+        throw new Error("food-d1-whatsapp-continuation-committed-meal-unavailable");
+      }
+      return buildWhatsAppRegisteredPersistedMealReplyMessage(meal, {
+        registeredAt, timeZone,
+      });
+    }),
+  });
+}
+export const tryRunPublicFoodD1WhatsAppContinuation =
+  createWhatsAppD1ContinuationService();
 
 const defaultDependencies: ConfirmedMealRegistrationDependencies = {
   processMeal: input => nutritionRuntime.processMealInput(input),
