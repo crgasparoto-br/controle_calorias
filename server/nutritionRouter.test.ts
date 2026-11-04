@@ -138,7 +138,6 @@ describe("nutrition router", () => {
         mealLabel: "almoço", occurredAt: "2026-04-22T12:00",
       })).rejects.toThrow();
       expect(processMealInput).not.toHaveBeenCalled();
-      expect(processMealInput).not.toHaveBeenCalled();
       expect(await caller.nutrition.meals.list()).toEqual(before);
     } finally {
       if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;

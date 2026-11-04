@@ -137,6 +137,16 @@ describe("#1308 existing foodPhotoAnalysis.analyze public V2 bridge", () => {
     })));
     await expect(forgedTarget(original))
       .rejects.toThrow("food-d1-public-photo-draft-unavailable");
+    const forgedTime = createFoodD1PublicPhotoAnalysis(vi.fn(async () => ({
+      ...draft, occurredAt: "2026-11-04T16:00:00.000Z",
+    })));
+    await expect(forgedTime(original))
+      .rejects.toThrow("food-d1-public-photo-draft-unavailable");
+    const duplicatedObservation = createFoodD1PublicPhotoAnalysis(vi.fn(async () => ({
+      ...draft, items: [draft.items[0], { ...draft.items[0] }],
+    })));
+    await expect(duplicatedObservation(original))
+      .rejects.toThrow("food-d1-public-photo-draft-unavailable");
   });
 
   it("does not run the V1 photo route after V2 returns no or mismatched draft", async () => {

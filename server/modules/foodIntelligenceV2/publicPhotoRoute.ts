@@ -1,5 +1,6 @@
 /** #1308: existing authenticated photo-analyze endpoint -> one V2 draft resolver. */
 import { foodD1WebDraftSchema, type FoodD1WebDraft } from "../../../shared/foodD1WebDraft";
+import { zonedDateTimeLocalToIso } from "../../../shared/timeZone";
 import type { AnalyzeFoodPhotoInput } from "../photoAnalysis/schemas";
 import { isFoodD1EntrypointCutoverRequested, isValidD1OperationId } from "./entrypointRouting";
 import { assertNewMealLabelHasExistingTarget } from "./publicUnmigratedEntrypoints";
@@ -64,10 +65,15 @@ export function createFoodD1PublicPhotoAnalysis(
       return null;
     }
     const expectedKey = `d1-web-${input.userId}:${input.input.d1OperationId}`;
+    const expectedOccurredAt = new Date(zonedDateTimeLocalToIso(
+      input.input.occurredAt!, timeZone,
+    )).toISOString();
     const parsed = foodD1WebDraftSchema.safeParse(draft);
     if (!parsed.success || parsed.data.entrypoint !== input.input.imageKind ||
         parsed.data.operationKey !== expectedKey ||
-        parsed.data.mealLabel !== input.input.mealLabel) {
+        parsed.data.mealLabel !== input.input.mealLabel ||
+        parsed.data.occurredAt !== expectedOccurredAt ||
+        new Set(parsed.data.items.map(item => item.observationId)).size !== parsed.data.items.length) {
       // The authenticated photo endpoint must never return a review owned by
       // another operation, user or destination, nor silently fall back to V1.
       throw new Error("food-d1-public-photo-draft-unavailable");
