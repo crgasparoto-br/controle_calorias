@@ -112,6 +112,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodPersonalReconciliationQuarantine` | `food_personal_reconciliation_quarantine` | 9 | Baixa |
 | `foodD1OperationRoutes` | `food_d1_user_operation_routes` | 6 | Requer atenção |
 | `foodD1OperationEffects` | `food_d1_user_operation_effects` | 6 | Requer atenção |
+| `foodD1WebDrafts` | `food_d1_web_drafts` | 9 | Baixa |
 
 ## Tabelas sensíveis conhecidas
 
@@ -276,6 +277,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `food_personal_reconciliation_quarantine` | `reason` |
 | `food_d1_user_operation_routes` | `revisions_json` |
 | `food_d1_user_operation_effects` | `outcome_json` |
+| `food_d1_web_drafts` | `payload_json`, `confirmation_json` |
 
 ## Relações críticas
 

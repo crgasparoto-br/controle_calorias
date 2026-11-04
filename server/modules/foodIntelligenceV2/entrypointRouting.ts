@@ -8,7 +8,7 @@
  */
 import { createHash } from "node:crypto";
 import { parseFoodOperationEnvelope, type FoodOperationEnvelope } from "./schemas";
-import { FOOD_D1_ENTRYPOINTS, type FoodD1Entrypoint } from "./entrypointMigration";
+import { D1_ENTRYPOINT_IDS, type FoodD1Entrypoint } from "./entrypointMigration";
 
 /** Exact opaque submission key syntax, independent of food identity and nutrition.
  * Keep this check shared by public additions and edits to prevent rule drift.
@@ -76,12 +76,12 @@ export function isFoodD1CutoverRequested(): boolean {
  * global switch is mistakenly enabled. Tests may exercise the global switch.
  */
 export function isFoodD1EntrypointCutoverRequested(entrypoint: FoodD1Entrypoint): boolean {
-  if (!isFoodD1CutoverRequested() || !FOOD_D1_ENTRYPOINTS.includes(entrypoint)) return false;
+  if (!isFoodD1CutoverRequested() || !D1_ENTRYPOINT_IDS.includes(entrypoint)) return false;
   const configured = process.env.FOOD_V2_D1_ENTRYPOINTS;
   if (configured === undefined) return process.env.NODE_ENV === "test";
   const selected = configured.split(",").map(value => value.trim());
   if (!selected.length || selected.some(value =>
-      !value || !FOOD_D1_ENTRYPOINTS.includes(value as FoodD1Entrypoint)) ||
+      !value || !D1_ENTRYPOINT_IDS.includes(value as FoodD1Entrypoint)) ||
       new Set(selected).size !== selected.length) return false;
   return selected.includes(entrypoint);
 }

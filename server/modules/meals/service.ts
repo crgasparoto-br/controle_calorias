@@ -23,6 +23,11 @@ import {
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
 import { buildLegacyManualRoute, tryRunFoodD1PublicManualAddition } from "../foodIntelligenceV2/publicManualAddition";
 import { assertUnmigratedFoodD1DraftOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
+import {
+  confirmFoodD1PublicWebDraft,
+  FoodD1WebDraftNotFoundError,
+  tryRunFoodD1PublicWebDraft,
+} from "../foodIntelligenceV2/publicWebDraft";
 import { associateMealItemsWithSourceMedia, clearMealItemSourceMedia } from "../../mealItemImageProvenance";
 import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "../../householdMeasureResolutionPersistence";
 import { updateMealAndHouseholdMeasureLearning } from "../../householdMeasureMealUpdate";
@@ -33,6 +38,7 @@ import { runWithAiUsageScope } from "../../_core/ai/usageContext";
 import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import {
   ConfirmMealInput,
+  ConfirmFoodD1WebDraftInput,
   CopyMealInput,
   ManualMealInput,
   MediaInput,
@@ -55,6 +61,8 @@ export class MealDraftNotFoundError extends Error {
     this.name = "MealDraftNotFoundError";
   }
 }
+
+export { FoodD1WebDraftNotFoundError };
 
 type MealItemQuantityUnit = {
   quantity: number;
@@ -555,12 +563,41 @@ export async function processMealDraft(
   input: ProcessMealDraftInput,
   timeZone = DEFAULT_APP_TIME_ZONE,
 ) {
+  const d1Draft = await runWithAiUsageScope(
+    { userId },
+    () => tryRunFoodD1PublicWebDraft({
+      userId,
+      request: input,
+      timeZone,
+    }),
+  );
+  if (d1Draft) return d1Draft;
   // A selected but unmigrated entrypoint may not fall back to V1; this guard
   // precedes uploads, transcription, inference and pending-draft creation.
   assertUnmigratedFoodD1DraftOff(input);
   return runWithAiUsageScope(
     { userId },
     () => processMealDraftAttributed(userId, input, timeZone),
+  );
+}
+
+export async function confirmFoodD1Draft(
+  userId: number,
+  input: ConfirmFoodD1WebDraftInput,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  const occurredAt = new Date(zonedDateTimeLocalToIso(input.occurredAt, timeZone));
+  if (!Number.isFinite(occurredAt.getTime())) {
+    throw new Error("food-d1-public-web-draft-invalid-time");
+  }
+  return runWithAiUsageScope(
+    { userId },
+    () => confirmFoodD1PublicWebDraft({
+      userId,
+      request: input,
+      timeZone,
+      occurredAt,
+    }),
   );
 }
 

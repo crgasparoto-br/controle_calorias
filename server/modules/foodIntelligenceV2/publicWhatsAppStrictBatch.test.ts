@@ -32,7 +32,7 @@ function fixture(
       items: dispositions.map(disposition => ({ disposition })),
       readyCount: dispositions.filter(item => item === "ready").length,
     } as never);
-    return { committed: true, mealId: 101, operationKey: "fixed",
+    return { committed: true, replayed: false, mealId: 101, operationKey: "fixed",
       recordedItemIds: [501, 502], skipped: [], ...receiptOverride };
   });
   const service = createFoodD1PublicWhatsAppRegistration({

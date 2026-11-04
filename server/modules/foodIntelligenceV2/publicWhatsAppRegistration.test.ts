@@ -112,7 +112,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
         args.beforeCommit?.({ items: [{ disposition: "ready" }], readyCount: 1 } as never);
         await expect(args.legacy()).rejects
           .toThrow("food-d1-whatsapp-public-cannot-replay-v1");
-        return { committed: true, mealId: 55, operationKey: "key",
+        return { committed: true, replayed: false, mealId: 55, operationKey: "key",
           recordedItemIds: [501], skipped: [] };
       });
       const service = createWhatsAppD1RegistrationService({
@@ -146,7 +146,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
       args.beforeCommit?.({ items: [
         { disposition: "ready" }, { disposition: "ready" },
       ], readyCount: 2 } as never);
-      return { committed: true, mealId: 55, recordedItemIds: [501, 502],
+      return { committed: true, replayed: false, mealId: 55, recordedItemIds: [501, 502],
         skipped: [], operationKey: "stable" };
     });
     const service = createWhatsAppD1RegistrationService({
@@ -171,7 +171,7 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     const run = vi.fn(async (args: Parameters<typeof runFoodD1Migration>[0]) => {
       captured.push({ key: args.request.envelope.idempotencyKey,
         trace: args.request.envelope.traceId });
-      return { committed: true, mealId: 55, recordedItemIds: [501], skipped: [] };
+      return { committed: true, replayed: false, mealId: 55, recordedItemIds: [501], skipped: [] };
     });
     const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,

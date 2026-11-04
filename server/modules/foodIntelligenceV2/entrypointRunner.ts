@@ -19,6 +19,9 @@ export async function runFoodD1Migration<T>(input: {
   request: FoodD1Request;
   source: "web" | "whatsapp";
   occurredAt: Date;
+  notes?: string;
+  draftId?: string;
+  draftConfirmationHash?: string;
   dependencies: FoodD1Dependencies;
   legacy: () => Promise<T>;
   verifyGates: () => Promise<FoodD1GateApproval | null>;
@@ -59,6 +62,8 @@ export async function runFoodD1Migration<T>(input: {
         envelope: input.request.envelope, result,
         authenticatedUserId: input.request.authenticatedUserId,
         source: input.source, occurredAt: input.occurredAt,
+        notes: input.notes, draftId: input.draftId,
+        draftConfirmationHash: input.draftConfirmationHash,
       });
       return commitFoodD1NativeWrite({
         plan,

@@ -5,7 +5,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { foodD1OperationRoutes } from "../../../drizzle/food-intelligence-v2-schema";
 import { getDb } from "../../db";
-import { FOOD_D1_ENTRYPOINTS } from "./entrypointMigration";
+import { D1_ENTRYPOINT_IDS } from "./entrypointMigration";
 import type { FoodD1PinnedRoute, FoodD1RouteStore } from "./entrypointRouting";
 
 const REVISION_KEYS = ["code", "knowledge", "lexicon", "policy", "resolver"] as const;
@@ -19,7 +19,7 @@ function decodeRoute(row: typeof foodD1OperationRoutes.$inferSelect): FoodD1Pinn
         !(revisions as Record<string, string>)[key].trim())) {
     throw new Error("food-d1-corrupt-pinned-revisions");
   }
-  if (!FOOD_D1_ENTRYPOINTS.some(candidate => candidate === row.originEntrypoint) ||
+  if (!D1_ENTRYPOINT_IDS.some(candidate => candidate === row.originEntrypoint) ||
       (row.resolver !== "v1" && row.resolver !== "v2")) {
     throw new Error("food-d1-corrupt-pinned-owner");
   }
@@ -40,7 +40,7 @@ function decodeRoute(row: typeof foodD1OperationRoutes.$inferSelect): FoodD1Pinn
 function assertCandidate(candidate: FoodD1PinnedRoute): void {
   if (!candidate || !Number.isSafeInteger(candidate.ownerUserId) || candidate.ownerUserId <= 0 ||
       !candidate.operationKey || candidate.operationKey.length > 200 ||
-      !FOOD_D1_ENTRYPOINTS.includes(candidate.originEntrypoint) ||
+      !D1_ENTRYPOINT_IDS.includes(candidate.originEntrypoint) ||
       (candidate.resolver !== "v1" && candidate.resolver !== "v2") ||
       !/^[a-f0-9]{64}$/.test(candidate.operationScopeHash) ||
       !candidate.versions || REVISION_KEYS.some(key =>

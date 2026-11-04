@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { and, eq } from "drizzle-orm";
 import { foodD1OperationEffects, foodD1OperationRoutes, foodNutritionProfiles,
-  foodSourceReadGrants, foodVariants, foodVariantSources } from "../../../drizzle/food-intelligence-v2-schema";
+  foodD1WebDrafts, foodSourceReadGrants, foodVariants, foodVariantSources } from "../../../drizzle/food-intelligence-v2-schema";
 import { foods, mealItems, meals } from "../../../drizzle/schema";
 import { isGovernedFamilyVisible } from "./knowledgeEligibility";
 import { getDb } from "../../db";
@@ -11,16 +11,74 @@ import { canReadFoodSource } from "./sourceGrants";
 import { isFoodD1CutoverRequested, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { FoodD1PreparedItem, FoodD1PreparedWrite } from "./entrypointPersistence";
 import { hasBoundFoodV2Snapshot } from "../meals/foodV2Snapshot";
+import { z } from "zod";
+import { foodD1WebDraftSchema } from "../../../shared/foodD1WebDraft";
+import { foodObservationSchema } from "./observationSchemas";
+import { foodOperationEnvelopeSchema } from "./schemas";
 export { hasBoundFoodV2Snapshot } from "../meals/foodV2Snapshot";
 
 export type FoodD1CommitResult = {
   committed: boolean;
+  replayed: boolean;
   operationKey: string;
   mealId: number | null;
   recordedItemIds: number[];
   skipped: FoodD1PreparedWrite["skipped"];
 };
 type ItemEffect = { mealId: number; itemId: number };
+
+const webDraftPayloadSchema = z.strictObject({
+  draft: foodD1WebDraftSchema.omit({ draftId: true, expiresAt: true }),
+  envelope: foodOperationEnvelopeSchema,
+  occurredAt: z.string().datetime({ offset: true }),
+  observations: z.array(foodObservationSchema.refine(
+    observation => observation.rawInput === null && observation.normalizedInput === null,
+  )).min(1).max(80),
+});
+
+function assertDraftTransactionBinding(input: {
+  payloadJson: string;
+  ownerUserId: number;
+  operationKey: string;
+  draftId: string;
+  plan: FoodD1PreparedWrite;
+}): void {
+  let value: unknown;
+  try { value = JSON.parse(input.payloadJson); }
+  catch { throw new Error("food-d1-native-corrupt-web-draft"); }
+  const parsed = webDraftPayloadSchema.safeParse(value);
+  if (!parsed.success) throw new Error("food-d1-native-corrupt-web-draft");
+  const payload = parsed.data;
+  const operation = payload.envelope.mealOperation;
+  const observationIds = payload.observations.map(item => item.observationId);
+  const writeIds = [
+    ...input.plan.items.map(item => item.observationId),
+    ...input.plan.skipped.map(item => item.observationId),
+  ];
+  if (input.plan.ownerUserId !== input.ownerUserId ||
+      input.plan.operationKey !== input.operationKey ||
+      input.plan.draftId !== input.draftId ||
+      payload.draft.operationKey !== input.operationKey ||
+      payload.draft.entrypoint !== input.plan.entrypoint ||
+      payload.draft.items.length !== observationIds.length ||
+      payload.draft.items.some((item, index) => item.observationId !== observationIds[index]) ||
+      new Set(observationIds).size !== observationIds.length ||
+      writeIds.length !== observationIds.length ||
+      new Set(writeIds).size !== writeIds.length ||
+      writeIds.some(id => !observationIds.includes(id)) ||
+      payload.envelope.ownerUserId !== input.ownerUserId ||
+      payload.envelope.idempotencyKey !== input.operationKey ||
+      payload.envelope.traceId !== input.plan.traceId ||
+      !operation || operation.action !== "add" ||
+      operation.targetMeal !== input.plan.mealLabel ||
+      operation.date !== getDateKeyInTimeZone(input.plan.occurredAt, input.plan.effectiveTimeZone) ||
+      payload.envelope.effectiveTimeZone !== input.plan.effectiveTimeZone ||
+      !Number.isFinite(Date.parse(payload.draft.occurredAt)) ||
+      getDateKeyInTimeZone(new Date(payload.draft.occurredAt),
+        payload.envelope.effectiveTimeZone) !== operation.date) {
+    throw new Error("food-d1-native-web-draft-scope-mismatch");
+  }
+}
 
 function itemFingerprint(item: FoodD1PreparedItem): string {
   const v = item.values;
@@ -112,6 +170,28 @@ export async function commitFoodD1NativeWrite(input: {
         pinnedRevisions.policy !== plan.revisions.policy ||
         pinnedRevisions.resolver !== plan.revisions.resolver) {
       throw new Error("food-d1-native-pinned-revisions-mismatch");
+    }
+    if (plan.draftId) {
+      if (!plan.draftConfirmationHash ||
+          !/^[a-f0-9]{64}$/.test(plan.draftConfirmationHash)) {
+        throw new Error("food-d1-native-web-draft-confirmation-hash-required");
+      }
+      const [draft] = await tx.select().from(foodD1WebDrafts)
+        .where(and(eq(foodD1WebDrafts.draftId, plan.draftId),
+          eq(foodD1WebDrafts.ownerUserId, plan.ownerUserId),
+          eq(foodD1WebDrafts.operationKey, plan.operationKey)))
+        .for("update").limit(1);
+      if (!draft || draft.status !== "pending" || !draft.payloadJson ||
+          draft.expiresAt.getTime() <= Date.now()) {
+        throw new Error("food-d1-native-web-draft-not-pending");
+      }
+      assertDraftTransactionBinding({
+        payloadJson: draft.payloadJson,
+        ownerUserId: plan.ownerUserId,
+        operationKey: plan.operationKey,
+        draftId: plan.draftId,
+        plan,
+      });
     }
     const rows = await tx.select().from(foodD1OperationEffects)
       .where(and(eq(foodD1OperationEffects.ownerUserId, plan.ownerUserId),
@@ -246,7 +326,7 @@ export async function commitFoodD1NativeWrite(input: {
         }
         const created = await tx.insert(meals).values({
           userId: plan.ownerUserId, source: plan.source, status: "draft",
-          mealLabel: plan.mealLabel, sourceText: null,
+          mealLabel: plan.mealLabel, notes: plan.notes ?? null, sourceText: null,
           confidence: plan.confidence, occurredAt: plan.occurredAt,
         });
         mealId = requireInsertId(created);
@@ -313,7 +393,36 @@ export async function commitFoodD1NativeWrite(input: {
         outcomeJson: JSON.stringify({ mealId, itemId }),
       });
     }
-    return { committed: recordedItemIds.length > 0, operationKey: plan.operationKey,
-      mealId, recordedItemIds, skipped: plan.skipped };
+    const result: FoodD1CommitResult = {
+      committed: recordedItemIds.length > 0,
+      replayed: rows.length > 0 && newItems.length === 0,
+      operationKey: plan.operationKey,
+      mealId,
+      recordedItemIds,
+      skipped: plan.skipped,
+    };
+    if (plan.draftId) {
+      if (!result.committed || !result.mealId) {
+        throw new Error("food-d1-native-web-draft-empty-commit");
+      }
+      await tx.update(foodD1WebDrafts).set({
+        status: "confirmed",
+        payloadJson: null,
+        confirmationJson: JSON.stringify({
+          committed: result.committed,
+          replayed: result.replayed,
+          operationKey: result.operationKey,
+          mealId: result.mealId,
+          recordedItemIds: result.recordedItemIds,
+          skipped: result.skipped,
+          draftId: plan.draftId,
+          confirmationHash: plan.draftConfirmationHash,
+        }),
+      }).where(and(eq(foodD1WebDrafts.draftId, plan.draftId),
+        eq(foodD1WebDrafts.ownerUserId, plan.ownerUserId),
+        eq(foodD1WebDrafts.operationKey, plan.operationKey),
+        eq(foodD1WebDrafts.status, "pending")));
+    }
+    return result;
   });
 }

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
 import { formatDateTimeInTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { getDateKeyInTimeZone } from "@shared/timeZone";
 import {
   formatCalories,
   formatCountPtBr,
@@ -24,8 +25,9 @@ import { toast } from "sonner";
 import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
 import { createEmptyItem, createManualMealState, fileToBase64, sumItems } from "../mealFormState";
 import { newFoodOperationSubmissionId } from "../operationSubmissionId";
+import { parsePositiveQuantityInput } from "../components/quantityInput";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
-import type { DraftState, MealItemState } from "../types";
+import { isFoodD1WebDraft, type DraftState, type FoodD1EditableItemState, type MealItemState } from "../types";
 
 type MealScheduleState = {
   mealLabel: string;
@@ -113,8 +115,10 @@ export default function LogMealPage() {
   const [notes, setNotes] = useState("");
   const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue(new Date(), userTimeZone));
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
+  const [foodD1EditableItems, setFoodD1EditableItems] = useState<FoodD1EditableItemState[]>([]);
   const [manualMeal, setManualMeal] = useState(() => createManualMealState(defaultMealLabel));
   const manualSubmissionRef = React.useRef<{ fingerprint: string; id: string } | null>(null);
+  const draftSubmissionRef = React.useRef<{ fingerprint: string; id: string } | null>(null);
   const [exerciseForm, setExerciseForm] = useState(() => buildDefaultExerciseForm(userTimeZone));
   const [waterForm, setWaterForm] = useState(() => buildDefaultWaterForm(userTimeZone));
   const [weightValue, setWeightValue] = useState("");
@@ -171,13 +175,30 @@ export default function LogMealPage() {
 
   const processDraft = trpc.nutrition.meals.processDraft.useMutation({
     onSuccess: result => {
+      if (isFoodD1WebDraft(result)) {
+        setDraft(result);
+        setOccurredAt(toDateTimeLocalValue(new Date(result.occurredAt), userTimeZone));
+        setMealLabel(result.mealLabel);
+        setEditableItems([]);
+        setFoodD1EditableItems(result.items.map(item => ({
+          ...item,
+          quantityInput: item.quantity === null ? "" : formatDecimalInputPtBr(item.quantity, 3),
+        })));
+        toast.success("Rascunho V2 preparado. Revise os itens antes de salvar.");
+        return;
+      }
+      if (!("processed" in result)) {
+        toast.error("O servidor retornou um rascunho inválido.");
+        return;
+      }
       const nextOccurredAt = result.suggestedOccurredAt
         ? toDateTimeLocalValue(new Date(result.suggestedOccurredAt), userTimeZone)
         : occurredAt;
-      setDraft(result as DraftState);
+      setDraft(result);
       setOccurredAt(nextOccurredAt);
       setMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? result.processed.detectedMealLabel);
       setEditableItems(result.processed.items);
+      setFoodD1EditableItems([]);
       toast.success("Registro preparado. Revise e ajuste antes de salvar.");
     },
     onError: error => toast.error(error.message || "Não foi possível processar a refeição."),
@@ -192,11 +213,31 @@ export default function LogMealPage() {
       setAudioFile(null);
       setDraft(null);
       setEditableItems([]);
+      setFoodD1EditableItems([]);
+      draftSubmissionRef.current = null;
       setMealLabel("");
       setNotes("");
       setOccurredAt(toDateTimeLocalValue(undefined, userTimeZone));
     },
     onError: error => toast.error(error.message || "Não foi possível salvar a refeição."),
+  });
+
+  const confirmFoodD1Draft = trpc.nutrition.meals.confirmFoodD1Draft.useMutation({
+    onSuccess: async () => {
+      await invalidateViews();
+      toast.success("Refeição registrada com o resolvedor V2.");
+      setDescription("");
+      setImageFile(null);
+      setAudioFile(null);
+      setDraft(null);
+      setEditableItems([]);
+      setFoodD1EditableItems([]);
+      draftSubmissionRef.current = null;
+      setMealLabel("");
+      setNotes("");
+      setOccurredAt(toDateTimeLocalValue(undefined, userTimeZone));
+    },
+    onError: error => toast.error(error.message || "Não foi possível salvar a refeição V2."),
   });
 
   const createManualMeal = trpc.nutrition.meals.createManual.useMutation({
@@ -254,11 +295,30 @@ export default function LogMealPage() {
       toast.error("Informe pelo menos texto, imagem ou áudio.");
       return;
     }
-    processDraft.mutate({
-      source: "web",
+    const image = imageFile
+      ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name }
+      : undefined;
+    const audio = audioFile
+      ? { base64: await fileToBase64(audioFile), mimeType: audioFile.type, fileName: audioFile.name }
+      : undefined;
+    const request = {
+      source: "web" as const,
       text: trimmedDescription || undefined,
-      image: imageFile ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name } : undefined,
-      audio: audioFile ? { base64: await fileToBase64(audioFile), mimeType: audioFile.type, fileName: audioFile.name } : undefined,
+      image,
+      audio,
+      mealLabel: (mealLabel || suggestedDraftMealLabel || defaultMealLabel).trim(),
+      occurredAt,
+    };
+    const fingerprint = JSON.stringify(request);
+    if (draftSubmissionRef.current?.fingerprint !== fingerprint) {
+      draftSubmissionRef.current = {
+        fingerprint,
+        id: newFoodOperationSubmissionId(),
+      };
+    }
+    processDraft.mutate({
+      ...request,
+      d1OperationId: draftSubmissionRef.current.id,
     });
   };
 
@@ -323,6 +383,27 @@ export default function LogMealPage() {
 
   const updateManualItem = <K extends keyof MealItemState>(index: number, key: K, value: MealItemState[K]) => {
     setManualMeal(current => ({ ...current, items: current.items.map((item, currentIndex) => (currentIndex === index ? { ...item, [key]: value } : item)) }));
+  };
+
+  const updateFoodD1Item = (
+    index: number,
+    key: "foodName" | "quantityInput" | "unit",
+    value: string,
+  ) => {
+    setFoodD1EditableItems(current => current.map((item, currentIndex) =>
+      currentIndex === index ? {
+        ...item,
+        [key]: value,
+        disposition: "deferred",
+        reasonCodes: [],
+        nutrition: {
+          verified: false,
+          calories: null,
+          protein: null,
+          carbs: null,
+          fat: null,
+        },
+      } : item));
   };
 
   const handleSubmitManualMeal = () => {
@@ -510,14 +591,48 @@ export default function LogMealPage() {
               onNotesChange={setNotes}
               editableItems={editableItems}
               onEditableItemChange={(index, key, value) => updateItem(setEditableItems, index, key, value)}
+              foodD1EditableItems={foodD1EditableItems}
+              onFoodD1ItemChange={updateFoodD1Item}
               previewTotals={previewTotals}
               onConfirm={() => {
                 if (!draft?.draftId) return toast.error("Clique em Registrar antes de salvar a refeição.");
                 const dateTimeLocal = resolveOwnerDateTime(occurredAt);
                 if (!dateTimeLocal) return;
+                if (isFoodD1WebDraft(draft)) {
+                  const submittedDate = new Date(zonedDateTimeLocalToIso(dateTimeLocal, userTimeZone));
+                  if (mealLabel.trim() !== draft.mealLabel ||
+                      getDateKeyInTimeZone(submittedDate, userTimeZone) !==
+                        getDateKeyInTimeZone(new Date(draft.occurredAt), userTimeZone)) {
+                    return toast.error("O nome ou a data mudou. Clique em Registrar novamente para atualizar o rascunho V2.");
+                  }
+                  const items = foodD1EditableItems.map(item => {
+                    const quantity = parsePositiveQuantityInput(item.quantityInput);
+                    return {
+                      observationId: item.observationId,
+                      foodName: item.foodName.trim(),
+                      quantity,
+                      unit: item.unit?.trim() || null,
+                    };
+                  });
+                  if (foodD1EditableItems.some(item =>
+                    item.quantityInput.trim() && parsePositiveQuantityInput(item.quantityInput) === null)) {
+                    return toast.error("Informe uma quantidade positiva válida ou deixe o campo vazio.");
+                  }
+                  if (items.some(item => item.quantity !== null && item.unit === null)) {
+                    return toast.error("Informe a unidade da quantidade.");
+                  }
+                  confirmFoodD1Draft.mutate({
+                    draftId: draft.draftId,
+                    mealLabel: mealLabel.trim(),
+                    occurredAt: dateTimeLocal,
+                    notes: notes.trim() || undefined,
+                    items,
+                  });
+                  return;
+                }
                 confirmMeal.mutate({ draftId: draft.draftId, mealLabel: (mealLabel || draft.processed.detectedMealLabel || "").trim(), dateTimeLocal, notes: notes || undefined, items: editableItems });
               }}
-              isConfirmPending={confirmMeal.isPending}
+              isConfirmPending={confirmMeal.isPending || confirmFoodD1Draft.isPending}
             />
           </TabsContent>
 

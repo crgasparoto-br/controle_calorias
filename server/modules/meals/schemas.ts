@@ -114,9 +114,26 @@ export const manualMealSchema = z.object({
 
 export const processMealDraftSchema = z.object({
   source: z.enum(["web", "whatsapp"]).default("web"),
+  /** Stable per-submit key; mandatory only when a public D1 draft is selected. */
+  d1OperationId: z.string().trim().min(8).max(80).optional(),
+  mealLabel: mealLabelSchema.optional(),
+  occurredAt: z.string().min(1).optional(),
   text: z.string().optional(),
   image: mediaInputSchema,
   audio: mediaInputSchema,
+});
+
+export const confirmFoodD1WebDraftSchema = z.object({
+  draftId: z.string().min(1).max(80),
+  mealLabel: mealLabelSchema,
+  occurredAt: z.string().min(1),
+  notes: z.string().max(500).optional(),
+  items: z.array(z.object({
+    observationId: z.string().min(1).max(200),
+    foodName: z.string().trim().min(1).max(255),
+    quantity: z.number().finite().positive().nullable(),
+    unit: z.string().trim().min(1).max(40).nullable(),
+  }).strict()).min(1).max(80),
 });
 
 export const confirmMealSchema = z.object({
@@ -192,6 +209,7 @@ export type MediaInput = z.infer<typeof mediaInputSchema>;
 export type MealItemInput = z.infer<typeof mealItemSchema>;
 export type ManualMealInput = z.infer<typeof manualMealSchema>;
 export type ProcessMealDraftInput = z.infer<typeof processMealDraftSchema>;
+export type ConfirmFoodD1WebDraftInput = z.infer<typeof confirmFoodD1WebDraftSchema>;
 export type ConfirmMealInput = z.infer<typeof confirmMealSchema>;
 export type UpdateMealInput = z.infer<typeof updateMealSchema>;
 export type UpdateMealItemInput = z.infer<typeof updateMealItemSchema>;

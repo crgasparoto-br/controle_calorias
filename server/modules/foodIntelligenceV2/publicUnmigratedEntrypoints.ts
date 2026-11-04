@@ -23,8 +23,12 @@ export function assertUnmigratedFoodD1DraftOff(
   input: Pick<ProcessMealDraftInput, "text" | "audio" | "image">,
 ): void {
   const entrypoints: FoodD1Entrypoint[] = [];
-  if (input.text?.trim()) entrypoints.push("text");
-  if (input.audio) entrypoints.push("audio_transcript");
+  if (input.text?.trim() && input.audio) {
+    entrypoints.push("text", "audio_transcript", "multimodal");
+  } else {
+    if (input.text?.trim()) entrypoints.push("text");
+    if (input.audio) entrypoints.push("audio_transcript");
+  }
   if (input.image) entrypoints.push("plate_image", "packaging", "nutrition_label");
   assertUnmigratedFoodD1EntrypointsOff(entrypoints);
 }

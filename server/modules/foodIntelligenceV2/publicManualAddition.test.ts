@@ -151,7 +151,7 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
         items: [{ disposition: "ready" }],
       } as FoodD1Result;
       args.beforeCommit?.(plan);
-      return { committed: true, operationKey: args.request.envelope.idempotencyKey,
+      return { committed: true, replayed: false, operationKey: args.request.envelope.idempotencyKey,
         mealId: 123, recordedItemIds: [456], skipped: [] } satisfies FoodD1CommitResult;
     });
     const bridge = createFoodD1PublicManualAddition({

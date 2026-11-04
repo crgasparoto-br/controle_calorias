@@ -153,6 +153,8 @@ import {
 } from "./modules/meals/groupOperations";
 import {
   confirmMeal,
+  confirmFoodD1Draft,
+  FoodD1WebDraftNotFoundError,
   copyMeal,
   createManualMeal,
   getDayTotals,
@@ -167,6 +169,7 @@ import {
 } from "./modules/meals/service";
 import {
   confirmMealSchema,
+  confirmFoodD1WebDraftSchema,
   copyMealGroupSchema,
   copyMealSchema,
   dayTotalsSchema,
@@ -950,6 +953,36 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => {
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
         return processMealDraft(ctx.user.id, input, timeZone);
+      }),
+    confirmFoodD1Draft: protectedProcedure
+      .input(confirmFoodD1WebDraftSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+          const occurredAt = toOwnerOccurredAt(input.occurredAt, timeZone);
+          const result = await confirmFoodD1Draft(ctx.user.id, input, timeZone);
+          if (!result.replayed) {
+            void analyticsService.track("meal_created", {
+              source: "ai_draft",
+              meal_label_category: mealLabelCategory(input.mealLabel),
+              item_count: input.items.length,
+              has_notes: Boolean(input.notes?.trim()),
+              scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
+            });
+            void analyticsService.track("meal_item_added", {
+              source: "ai_draft",
+              item_count: input.items.length,
+              item_type: "food",
+            });
+          }
+          return result;
+        } catch (error) {
+          if (!(error instanceof FoodD1WebDraftNotFoundError)) throw error;
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Rascunho V2 não encontrado ou expirado.",
+          });
+        }
       }),
     confirm: protectedProcedure
       .input(confirmMealMutationSchema)

@@ -2,7 +2,10 @@
   "status": "updated",
   "paths": [
     "docs/product-specs/meal-registration.md",
-    "docs/product-specs/whatsapp-flow.md"
+    "docs/product-specs/whatsapp-flow.md",
+    "docs/design-docs/adr-food-intelligence-resolver-v2.md",
+    "docs/generated/db-schema.md",
+    "docs/generated/trpc-routes.md"
   ],
-  "reason": "Durable multi-item and persistent ownership behavior is documented in the existing canonical product specifications."
+  "reason": "Canonical product specifications and ADR record the gated draft lifecycle, privacy/TTL, retries, and remaining rollout blockers; generated database and tRPC references are refreshed."
 }

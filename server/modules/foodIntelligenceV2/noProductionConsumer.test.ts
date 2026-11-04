@@ -4,8 +4,8 @@ import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
- * Fase D: allow only audited D1 bridges and the inert preflight for unmigrated
- * public channels. Other imports remain blocked until public golden flows pass.
+ * Fase D: allow only audited D1 bridges, the web-draft cleanup worker and the
+ * inert preflight for unmigrated public channels.
  */
 const REPOSITORY_ROOT = resolve(__dirname, "../../..");
 // TiDB scripts are isolated fixtures, not productive routing consumers.
@@ -17,6 +17,9 @@ const MODULE_DIRECTORY = resolve(__dirname);
 const PUBLIC_D1_SIMULATOR = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/service.ts");
 const PUBLIC_D1_MANUAL_ADD = resolve(REPOSITORY_ROOT, "server/modules/meals/service.ts");
 const PUBLIC_D1_MANUAL_ADD_BRIDGE = "../foodIntelligenceV2/publicManualAddition";
+const PUBLIC_D1_WEB_DRAFT_BRIDGE = "../foodIntelligenceV2/publicWebDraft";
+const WEB_DRAFT_RETENTION_STARTUP = resolve(REPOSITORY_ROOT, "server/_core/index.ts");
+const WEB_DRAFT_RETENTION_SCHEDULER = "../modules/foodIntelligenceV2/webDraftRetentionScheduler";
 const PUBLIC_D1_EDIT = resolve(REPOSITORY_ROOT, "server/modules/meals/groupOperations.ts");
 const PUBLIC_D1_EDIT_BRIDGE = "../foodIntelligenceV2/publicEdit";
 const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
@@ -95,10 +98,14 @@ function importsV2AtRuntime(file: string, content: string): boolean {
 }
 
 /** One exact productive import is allowed, without permission to load anything else. */
-function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[]): boolean {
+function isApprovedD1RuntimeConsumer(file: string, imports: readonly string[]): boolean {
+  if (file === WEB_DRAFT_RETENTION_STARTUP) {
+    return imports.length === 1 && imports[0] === WEB_DRAFT_RETENTION_SCHEDULER;
+  }
   if (file === PUBLIC_D1_MANUAL_ADD) {
-    return imports.length === 2 &&
+    return imports.length === 3 &&
       imports.includes(PUBLIC_D1_MANUAL_ADD_BRIDGE) &&
+      imports.includes(PUBLIC_D1_WEB_DRAFT_BRIDGE) &&
       imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
   }
   if (file === PUBLIC_D1_WHATSAPP_CONFIRMED) {
@@ -151,7 +158,7 @@ describe("fronteira da Fase D", () => {
         if (ISOLATED_TEST_FILE.test(file) || D1_ISOLATED_TIDB_TESTS.has(file)) continue;
         const content = await readFile(file, "utf8");
         const imports = runtimeV2Specifiers(file, content);
-        if (imports.length > 0 && !isApprovedD1SimulatorConsumer(file, imports)) {
+        if (imports.length > 0 && !isApprovedD1RuntimeConsumer(file, imports)) {
           offenders.push(relative(REPOSITORY_ROOT, file));
         }
       }
@@ -162,7 +169,11 @@ describe("fronteira da Fase D", () => {
       .toEqual([PUBLIC_D1_SIMULATOR_BRIDGE]);
     const publicManual = await readFile(PUBLIC_D1_MANUAL_ADD, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_MANUAL_ADD, publicManual))
-      .toEqual([PUBLIC_D1_MANUAL_ADD_BRIDGE, PUBLIC_D1_UNMIGRATED_GUARD]);
+      .toEqual([
+        PUBLIC_D1_MANUAL_ADD_BRIDGE,
+        PUBLIC_D1_UNMIGRATED_GUARD,
+        PUBLIC_D1_WEB_DRAFT_BRIDGE,
+      ]);
     const webPhoto = await readFile(PUBLIC_D1_WEB_PHOTO, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WEB_PHOTO, webPhoto))
       .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
@@ -186,7 +197,7 @@ describe("fronteira da Fase D", () => {
 
   it("não isenta outros handlers, imports dinâmicos nem segundos resolvers no simulador", () => {
     const good = 'import { tryRunPublicFoodD1Simulation } from "../foodIntelligenceV2/publicSimulator";';
-    expect(isApprovedD1SimulatorConsumer(PUBLIC_D1_SIMULATOR,
+    expect(isApprovedD1RuntimeConsumer(PUBLIC_D1_SIMULATOR,
       runtimeV2Specifiers(PUBLIC_D1_SIMULATOR, good))).toBe(true);
     for (const fileAndCode of [
       [resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts"), good],
@@ -194,7 +205,7 @@ describe("fronteira da Fase D", () => {
       [PUBLIC_D1_SIMULATOR, 'const engine = await import("../foodIntelligenceV2/entrypointRunner");'],
     ]) {
       const [file, code] = fileAndCode;
-      expect(isApprovedD1SimulatorConsumer(file, runtimeV2Specifiers(file, code))).toBe(false);
+      expect(isApprovedD1RuntimeConsumer(file, runtimeV2Specifiers(file, code))).toBe(false);
     }
   });
 

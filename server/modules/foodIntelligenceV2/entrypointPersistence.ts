@@ -26,6 +26,8 @@ export type FoodD1PreparedItem = {
 export type FoodD1PreparedWrite = {
   ownerUserId: number;
   operationKey: string;
+  draftId?: string;
+  draftConfirmationHash?: string;
   operationScopeHash: string;
   traceId: string;
   entrypoint: FoodD1Result["entrypoint"];
@@ -33,6 +35,7 @@ export type FoodD1PreparedWrite = {
   revisions: FoodOperationEnvelope["revisions"];
   confidence: number | null;
   mealLabel: string;
+  notes?: string;
   occurredAt: Date;
   effectiveTimeZone: string;
   requestHash: string;
@@ -47,13 +50,24 @@ export function prepareFoodD1NativeWrite(input: {
   authenticatedUserId: number;
   source: "web" | "whatsapp";
   occurredAt: Date;
+  notes?: string;
+  draftId?: string;
+  draftConfirmationHash?: string;
 }): FoodD1PreparedWrite {
   const parsed = parseFoodOperationEnvelope(input.envelope);
+  const confirmationHash = input.draftConfirmationHash ?? "";
+  const hasValidConfirmationHash = confirmationHash.length === 64 &&
+    Buffer.from(confirmationHash, "hex").toString("hex") === confirmationHash.toLowerCase();
   if (!parsed.ok || parsed.value.ownerUserId !== input.authenticatedUserId ||
       !parsed.value.mealOperation ||
       !(input.occurredAt instanceof Date) || !Number.isFinite(input.occurredAt.getTime()) ||
       getDateKeyInTimeZone(input.occurredAt, parsed.value.effectiveTimeZone) !== parsed.value.mealOperation.date ||
-      (input.source !== "web" && input.source !== "whatsapp")) {
+      (input.source !== "web" && input.source !== "whatsapp") ||
+      (input.draftId !== undefined && (!input.draftId.trim() || input.draftId.length > 80)) ||
+      (input.draftId === undefined && input.draftConfirmationHash !== undefined) ||
+      (input.draftId !== undefined &&
+        !hasValidConfirmationHash) ||
+      (input.notes !== undefined && (typeof input.notes !== "string" || input.notes.length > 500))) {
     throw new Error("food-d1-invalid-native-meal-operation");
   }
   const envelope = parsed.value, result = input.result;
@@ -153,17 +167,25 @@ export function prepareFoodD1NativeWrite(input: {
   const requestHash = createHash("sha256").update(JSON.stringify({
     envelope, entrypoint: result.entrypoint, source: input.source,
     occurredAt: input.occurredAt.toISOString(),
+    notes: input.notes?.trim() || null,
+    draftId: input.draftId ?? null,
     items: items.map(item => [item.observationId, item.targetItemId,
       item.variantId, item.profileId, item.values.quantity, item.values.unit,
       item.values.calories, item.values.protein, item.values.carbs, item.values.fat]),
     skipped,
   })).digest("hex");
   return { ownerUserId: envelope.ownerUserId, operationKey: envelope.idempotencyKey,
+    ...(input.draftId ? { draftId: input.draftId } : {}),
+    ...(input.draftConfirmationHash
+      ? { draftConfirmationHash: input.draftConfirmationHash.toLowerCase() }
+      : {}),
     operationScopeHash: hashFoodD1OperationScope(envelope, input.source),
     traceId: envelope.traceId, entrypoint: result.entrypoint, source: input.source,
     revisions: { ...envelope.revisions },
     confidence: confidences.length ? Math.min(...confidences) : null,
-    mealLabel: envelope.mealOperation!.targetMeal, occurredAt: input.occurredAt,
+    mealLabel: envelope.mealOperation!.targetMeal,
+    ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}),
+    occurredAt: input.occurredAt,
     effectiveTimeZone: envelope.effectiveTimeZone,
     requestHash, items, skipped };
 }

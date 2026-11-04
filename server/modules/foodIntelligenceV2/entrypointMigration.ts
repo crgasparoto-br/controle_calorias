@@ -15,11 +15,11 @@ import {
   type FoodObservation, type FoodOperationEnvelope, type FoodResolutionDecision,
 } from "./schemas";
 
-export const FOOD_D1_ENTRYPOINTS = [
-  "text", "audio_transcript", "addition", "edit", "plate_image",
+export const D1_ENTRYPOINT_IDS = [
+  "text", "audio_transcript", "multimodal", "addition", "edit", "plate_image",
   "packaging", "nutrition_label", "continuation", "simulator",
 ] as const;
-export type FoodD1Entrypoint = (typeof FOOD_D1_ENTRYPOINTS)[number];
+export type FoodD1Entrypoint = (typeof D1_ENTRYPOINT_IDS)[number];
 
 /** Only an authorised transcription/OCR boundary may supply source text. */
 export type FoodD1Evidence =
@@ -99,7 +99,7 @@ function validateEnvelope(request: FoodD1Request): FoodOperationEnvelope {
       parsed.value.ownerUserId !== request.authenticatedUserId) {
     throw new Error("food-d1-owner-mismatch");
   }
-  if (!FOOD_D1_ENTRYPOINTS.includes(request.entrypoint)) {
+  if (!D1_ENTRYPOINT_IDS.includes(request.entrypoint)) {
     throw new Error("unsupported-food-d1-entrypoint");
   }
   if (request.now && Number.isNaN(request.now.getTime())) {
@@ -113,7 +113,7 @@ async function readObservations(
 ): Promise<FoodObservation[]> {
   if (request.evidence.kind === "structured") {
     const ids = new Set<string>();
-    return request.evidence.observations.map(item => {
+    const observations = request.evidence.observations.map(item => {
       const parsed = parseFoodObservation(item);
       if (!parsed.ok) throw new Error("invalid-food-d1-observation:" + parsed.code);
       if (ids.has(parsed.value.observationId)) throw new Error("duplicate-food-d1-observation");
@@ -123,8 +123,16 @@ async function readObservations(
       }
       return parsed.value;
     });
+    if (request.entrypoint === "multimodal") {
+      const modalities = new Set(observations.map(item => item.modality));
+      if (modalities.size < 2) throw new Error("food-d1-multimodal-evidence-required");
+    }
+    return observations;
   }
 
+  if (request.entrypoint === "multimodal") {
+    throw new Error("food-d1-multimodal-requires-structured-evidence");
+  }
   // Multi-modal fusion must happen as structured, provenance-preserving
   // observations; selecting the first transcript/label would lose evidence.
   if (CONTINUATIONS.has(request.entrypoint)) {

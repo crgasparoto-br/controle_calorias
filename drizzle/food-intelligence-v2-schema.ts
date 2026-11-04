@@ -480,3 +480,32 @@ export const foodD1OperationEffects = mysqlTable("food_d1_user_operation_effects
     foreignColumns: [foodD1OperationRoutes.ownerUserId, foodD1OperationRoutes.operationKey],
   }).onDelete("cascade"),
 }));
+
+/** Web review state contains structured decisions only and expires quickly. */
+export const foodD1WebDrafts = mysqlTable("food_d1_web_drafts", {
+  draftId: varchar("draft_id", { length: 80 }).primaryKey(),
+  ownerUserId: int("owner_user_id").notNull(),
+  operationKey: varchar("operation_key", { length: 200 }).notNull(),
+  status: mysqlEnum("status", ["pending", "confirmed"]).notNull().default("pending"),
+  payloadJson: text("payload_json"),
+  confirmationJson: text("confirmation_json"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+}, table => ({
+  uniqueDraft: uniqueIndex("food_d1_web_drafts_u0").on(table.draftId),
+  uniqueOperation: uniqueIndex("food_d1_web_drafts_u1").on(table.ownerUserId, table.operationKey),
+  ownerExpiry: index("food_d1_web_drafts_i0").on(table.ownerUserId, table.expiresAt),
+  expiry: index("food_d1_web_drafts_i1").on(table.expiresAt),
+  pendingPayload: check("food_d1_web_drafts_ck0",
+    sql`(status='pending' AND payload_json IS NOT NULL AND confirmation_json IS NULL) OR (status='confirmed' AND payload_json IS NULL AND confirmation_json IS NOT NULL)`),
+  ownerFk: foreignKey({
+    name: "food_d1_web_drafts_user_fk",
+    columns: [table.ownerUserId], foreignColumns: [users.id],
+  }).onDelete("cascade"),
+  routeFk: foreignKey({
+    name: "food_d1_web_drafts_route_fk",
+    columns: [table.ownerUserId, table.operationKey],
+    foreignColumns: [foodD1OperationRoutes.ownerUserId, foodD1OperationRoutes.operationKey],
+  }).onDelete("cascade"),
+}));
