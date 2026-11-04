@@ -21,6 +21,10 @@ import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceC
 import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { createFoodD1PublicWhatsAppRegistration,
   type PublicD1WhatsAppDependencies } from "../foodIntelligenceV2/publicWhatsAppRegistration";
+import { createFoodD1PublicWhatsAppVisualRegistration,
+  type PublicD1WhatsAppVisualDependencies } from "../foodIntelligenceV2/publicWhatsAppVisualRegistration";
+import { extractD1VisualSurfaces } from "../foodIntelligenceV2/publicVisualSurfaces";
+import { comprehendFoodLanguage } from "../foodIntelligenceV2/linguisticComprehension";
 import { hasActiveWhatsappPendingInDb } from "../foodIntelligenceV2/publicSimulator";
 import { governedLinguisticLexiconStore } from "../foodIntelligenceV2/linguisticLexiconRepository";
 import { createFoodV2KnowledgeRepository } from "../foodIntelligenceV2/repository";
@@ -101,6 +105,35 @@ export function createWhatsAppD1RegistrationService(
 }
 export const tryRunPublicFoodD1WhatsAppRegistration =
   createWhatsAppD1RegistrationService();
+
+/** Uses the exact same readback and logical reply as text/transcription. */
+export function createWhatsAppD1VisualRegistrationService(
+  overrides: Partial<PublicD1WhatsAppVisualDependencies> = {},
+) {
+  return createFoodD1PublicWhatsAppVisualRegistration({
+    readAuthorizedContext: overrides.readAuthorizedContext ?? (async () => null),
+    readActivePending: overrides.readActivePending ?? hasActiveWhatsappPendingInDb,
+    extract: overrides.extract ?? extractD1VisualSurfaces,
+    comprehend: overrides.comprehend ?? comprehendFoodLanguage,
+    lexicon: overrides.lexicon ?? governedLinguisticLexiconStore,
+    knowledge: overrides.knowledge ?? createFoodV2KnowledgeRepository(),
+    run: overrides.run ?? runFoodD1Migration,
+    renderCommittedMeal: overrides.renderCommittedMeal ?? (async ({
+      userId, mealId, registeredAt, timeZone, recordedItemIds,
+    }) => {
+      const meal = (await dbRuntime.listUserMeals(userId)).find(entry =>
+        entry.id === mealId && entry.userId === userId);
+      if (!meal || !meal.items || meal.items.length < recordedItemIds.length) {
+        throw new Error("food-d1-whatsapp-visual-committed-meal-unavailable");
+      }
+      return buildWhatsAppRegisteredPersistedMealReplyMessage(meal, {
+        registeredAt, timeZone,
+      });
+    }),
+  });
+}
+export const tryRunPublicFoodD1WhatsAppVisualRegistration =
+  createWhatsAppD1VisualRegistrationService();
 
 const defaultDependencies: ConfirmedMealRegistrationDependencies = {
   processMeal: input => nutritionRuntime.processMealInput(input),
