@@ -157,6 +157,7 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     const bridge = createFoodD1PublicManualAddition({
       readAuthorizedContext: async () => approved,
       lexicon: { load: async () => [] },
+      readPinnedRoute: async () => null,
       run: run as unknown as typeof runFoodD1Migration,
     });
     expect(await bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" })).toBe(123);
@@ -174,6 +175,7 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     });
     const bridge = createFoodD1PublicManualAddition({
       readAuthorizedContext: async () => approved, lexicon: { load: async () => [] },
+      readPinnedRoute: async () => null,
       run: runner as unknown as typeof runFoodD1Migration,
     });
     const two = meal();
