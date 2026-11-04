@@ -4,11 +4,13 @@
  */
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
-import { buildFoodOperationEnvelopeFixture, buildFoodResolutionDecisionFixture } from "../server/modules/foodIntelligenceV2/fixtures";
+import { buildFoodObservationFixture, buildFoodOperationEnvelopeFixture, buildFoodResolutionDecisionFixture } from "../server/modules/foodIntelligenceV2/fixtures";
 import { prepareFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/entrypointPersistence";
 import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/entrypointPersistenceRepository";
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
-import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
+import { hashFoodD1OperationScope, routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
+import { getFoodD1WebDraftByOperationKey, saveFoodD1WebDraft } from "../server/modules/foodIntelligenceV2/publicWebDraftRepository";
+import { checkedFoodD1WebReplay, traceFoodD1WebSubmission } from "../server/modules/foodIntelligenceV2/publicWebDraftIdentity";
 import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligenceV2/publicSimulator";
 import { createWhatsAppD1RegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
@@ -417,6 +419,105 @@ try {
     "a current profile change must not rewrite historical identity or macros");
   assert.equal(unchangedMeal.items[1].calories, 81,
     "the historical macro must come from the persisted receipt");
+
+  // Durable D1 web review lookup: real TiDB owner isolation, stable request
+  // identity, replay after a new service call and evidence-erasing confirmation.
+  const webKey = "d1-web-" + userId + ":ci-web-tidb-replay";
+  const webOriginalRequest = {
+    source: "web" as const, d1OperationId: "ci-web-tidb-replay",
+    mealLabel: "Almoço", occurredAt: "2026-10-05T12:00",
+    text: "30 g de mortadela",
+  };
+  const webTrace = traceFoodD1WebSubmission({
+    operationKey: webKey, entrypoint: "text", request: webOriginalRequest,
+  });
+  const webEnvelope = buildFoodOperationEnvelopeFixture({
+    ownerUserId: userId, idempotencyKey: webKey, traceId: webTrace,
+    effectiveTimeZone: "UTC",
+    mealOperation: { action: "add", targetMeal: "Almoço", date: "2026-10-05" },
+    revisions: { code: expectedSha },
+  });
+  const webObservation = buildFoodObservationFixture({
+    observationId: "ci-web-obs-1", rawInput: null, normalizedInput: null,
+    lexiconRevision: webEnvelope.revisions.lexicon,
+  });
+  await createFoodD1RouteDbStore().bindPinnedRoute({
+    ownerUserId: userId, operationKey: webKey,
+    resolver: "v2", originEntrypoint: "text",
+    operationScopeHash: hashFoodD1OperationScope(webEnvelope, "web"),
+    versions: webEnvelope.revisions,
+  });
+  const webDraftId = "ci-web-tidb-draft-01";
+  const webDraftPayload = {
+    draft: {
+      resolver: "food-v2" as const, operationKey: webKey,
+      entrypoint: "text" as const, mealLabel: "Almoço",
+      occurredAt: occurredAt.toISOString(),
+      items: [{
+        observationId: webObservation.observationId,
+        foodName: "Mortadela", quantity: 30, unit: "g",
+        disposition: "ready" as const, reasonCodes: [],
+        nutrition: { verified: true, calories: 81,
+          protein: 3.6, carbs: 0.9, fat: 6.9 },
+      }],
+    },
+    envelope: webEnvelope, occurredAt, observations: [webObservation],
+  };
+  await saveFoodD1WebDraft({
+    draftId: webDraftId, ownerUserId: userId,
+    operationKey: webKey, payload: webDraftPayload,
+  });
+  const recoveredWeb = await getFoodD1WebDraftByOperationKey({
+    ownerUserId: userId, operationKey: webKey,
+  });
+  assert.equal(recoveredWeb?.status, "pending");
+  if (!recoveredWeb || recoveredWeb.status !== "pending") {
+    throw new Error("D1 TiDB web draft must be rehydrated as pending");
+  }
+  assert.equal(checkedFoodD1WebReplay({
+    record: recoveredWeb, operationKey: webKey, traceId: webTrace,
+    entrypoint: "text", ownerUserId: userId, mealLabel: "Almoço",
+    occurredAt, timeZone: "UTC", revisions: webEnvelope.revisions,
+  }).draftId, webDraftId);
+  assert.deepEqual(recoveredWeb.payload.observations.map(o => o.observationId),
+    [webObservation.observationId]);
+  assert.equal(await getFoodD1WebDraftByOperationKey({
+    ownerUserId: otherUser, operationKey: webKey,
+  }), null, "other users must not read another owner's draft");
+  assert.equal(await getFoodD1WebDraftByOperationKey({
+    ownerUserId: userId, operationKey: webKey,
+    now: new Date(Date.now() + 31 * 60_000),
+  }), null, "expired web drafts cannot be rehydrated");
+  await assert.rejects(async () => checkedFoodD1WebReplay({
+    record: recoveredWeb, operationKey: webKey,
+    traceId: traceFoodD1WebSubmission({
+      operationKey: webKey, entrypoint: "text",
+      request: { ...webOriginalRequest, text: "40 g de mortadela" },
+    }),
+    entrypoint: "text", ownerUserId: userId, mealLabel: "Almoço",
+    occurredAt, timeZone: "UTC", revisions: webEnvelope.revisions,
+  }), /operation-scope-changed/);
+  const confirmedReceipt = {
+    draftId: webDraftId, operationKey: webKey,
+    confirmationHash: "a".repeat(64),
+    committed: true, replayed: false, mealId: Number(created.mealId),
+    recordedItemIds: [itemId], skipped: [],
+  };
+  await sql.query(
+    "UPDATE food_d1_web_drafts SET status='confirmed', payload_json=NULL, confirmation_json=? WHERE owner_user_id=? AND operation_key=?",
+    [JSON.stringify(confirmedReceipt), userId, webKey],
+  );
+  const recoveredConfirmed = await getFoodD1WebDraftByOperationKey({
+    ownerUserId: userId, operationKey: webKey,
+  });
+  assert.equal(recoveredConfirmed?.status, "confirmed");
+  assert.ok(recoveredConfirmed && !("payload" in recoveredConfirmed),
+    "confirmed operation must erase rehydratable evidence");
+  const [redacted] = await rows(
+    "SELECT payload_json FROM food_d1_web_drafts WHERE owner_user_id=? AND operation_key=?",
+    [userId, webKey],
+  );
+  assert.equal(redacted.payload_json, null);
 
   // Run the REAL authenticated-web service boundary in an isolated TiDB:
   // the persistent V1 operation binding and receipt must survive retries,
