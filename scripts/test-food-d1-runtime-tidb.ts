@@ -10,6 +10,7 @@ import { commitFoodD1NativeWrite } from "../server/modules/foodIntelligenceV2/en
 import { createFoodD1RouteDbStore } from "../server/modules/foodIntelligenceV2/entrypointRouteRepository";
 import { routeFoodD1Operation } from "../server/modules/foodIntelligenceV2/entrypointRouting";
 import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligenceV2/publicSimulator";
+import { createFoodD1PublicWhatsAppRegistration } from "../server/modules/foodIntelligenceV2/publicWhatsAppRegistration";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
 import { createManualMeal, listMeals } from "../server/modules/meals/service";
@@ -464,6 +465,89 @@ try {
     [userId, "d1-manual-" + userId + ":" + concurrentId],
   );
   assert.equal(Number(concurrentCount.c), 1, "concurrent V1 operation must write exactly one receipt");
+
+  // Public WhatsApp D1 boundary -> native route -> REAL TiDB transaction ->
+  // confirmed meal readback -> reply, with synthetic verified decision injected.
+  // This is deliberately NOT a Golden Corpus/real Gate A test (#1335).
+  const priorEnabled = process.env.FOOD_V2_D1_ENABLED;
+  const priorSelection = process.env.FOOD_V2_D1_ENTRYPOINTS;
+  process.env.FOOD_V2_D1_ENABLED = "true";
+  process.env.FOOD_V2_D1_ENTRYPOINTS = "text,audio_transcript";
+  try {
+    const makePublic = (modality: "text" | "audio_transcript") =>
+      createFoodD1PublicWhatsAppRegistration({
+        readAuthorizedContext: async () => ({
+          approval, expectedAuditedBaseSha: expectedSha,
+          revisions: { ...makeEnvelope("ci-public-whatsapp").revisions, code: expectedSha },
+        }),
+        readActivePending: hasActiveWhatsappPendingInDb,
+        parseOperation: () => ({
+          intent: "add_items_to_meal" as const,
+          mealType: "Almoço", date: occurredAt,
+          items: [{ foodName: "Mortadela", brand: null, quantity: 30, unit: "g",
+            confidence: 1, missingFields: [] }],
+          confidence: 1, missingFields: [],
+        }),
+        run: async args => {
+          assert.equal(args.request.entrypoint, modality);
+          assert.equal(args.request.envelope.ownerUserId, userId);
+          const env = args.request.envelope;
+          const syntheticBatch = result(modality, "ci-public-whatsapp-" + modality);
+          syntheticBatch.operationKey = env.idempotencyKey;
+          syntheticBatch.traceId = env.traceId;
+          syntheticBatch.items[0].decision.traceId = env.traceId;
+          const plan = prepareFoodD1NativeWrite({
+            envelope: env, result: syntheticBatch,
+            authenticatedUserId: userId, source: "whatsapp", occurredAt,
+          });
+          args.beforeCommit?.(syntheticBatch);
+          return routeFoodD1Operation({
+            envelope: env, authenticatedUserId: userId, entrypoint: modality,
+            source: "whatsapp", store: createFoodD1RouteDbStore(),
+            expectedAuditedBaseSha: expectedSha, verifyGates: async () => approval,
+            enabled: true, runV1: args.legacy,
+            runV2: () => commitFoodD1NativeWrite({
+              plan, testEnabled: true, verifyCurrentGate: async () => true,
+            }),
+          });
+        },
+      });
+    const publicInput = (modality: "text" | "audio_transcript", externalMessageId: string) => ({
+      userId, originalText: "Adicionar ao almoço 30 g de mortadela",
+      externalMessageId, modality, receivedAt: occurredAt, timeZone: "UTC",
+    });
+    const textBridge = makePublic("text");
+    const firstPublic = await textBridge(publicInput("text", "wamid-ci-d1-public-text-001"));
+    const replayedPublic = await textBridge(publicInput("text", "wamid-ci-d1-public-text-001"));
+    assert.equal(firstPublic?.action, "meal_item_added");
+    assert.equal(replayedPublic?.data?.mealId, firstPublic?.data?.mealId,
+      "public text replay on a fresh route store must preserve native meal identity");
+    assert.ok(firstPublic?.reply.includes("Mortadela"),
+      "public reply must be built from the persisted native V2 meal");
+    const audioBridge = makePublic("audio_transcript");
+    const firstAudio = await audioBridge(publicInput("audio_transcript", "wamid-ci-d1-public-audio-001"));
+    assert.equal(firstAudio?.action, "meal_item_added");
+    await assert.rejects(
+      audioBridge(publicInput("audio_transcript", "wamid-ci-d1-public-text-001")),
+      /food-d1-entrypoint-changed-during-operation/,
+      "one external message cannot switch text to audio and create another meal");
+    await assert.rejects(
+      textBridge({ ...publicInput("text", "wamid-ci-d1-public-text-001"),
+        originalText: "Adicionar ao almoço 29 g de mortadela" }),
+      /food-d1-operation-scope-changed/,
+      "same external ID with altered payload must not claim an old receipt");
+    const [publicEffects] = await rows(
+      "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key LIKE 'd1-whatsapp-%'",
+      [userId],
+    );
+    assert.equal(Number(publicEffects.c), 2,
+      "only the two distinct authorized public operations may create effects");
+  } finally {
+    if (priorEnabled === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+    else process.env.FOOD_V2_D1_ENABLED = priorEnabled;
+    if (priorSelection === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+    else process.env.FOOD_V2_D1_ENTRYPOINTS = priorSelection;
+  }
 
   console.log("PASS: D1 TiDB native transaction/retry/scope/edit/label/source revocation and public V1 exactly-once", {
     userId, mealId: created.mealId, itemId,
