@@ -23,7 +23,7 @@ import { trpc } from "@/lib/trpc";
 import { ChevronDown, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
-import { createEmptyItem, createManualMealState, fileToBase64, sumItems } from "../mealFormState";
+import { createEmptyItem, createManualMealState, fileToBase64, resolveSubmittedImageKind, sumItems, type MealImageKind } from "../mealFormState";
 import { newFoodOperationSubmissionId } from "../operationSubmissionId";
 import { parsePositiveQuantityInput } from "../components/quantityInput";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
@@ -109,7 +109,7 @@ export default function LogMealPage() {
   const [activeTab, setActiveTab] = useState<MealTab>("registro");
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imageKind, setImageKind] = useState<"plate_image" | "packaging" | "nutrition_label">("plate_image");
+  const [imageKind, setImageKind] = useState<MealImageKind | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [mealLabel, setMealLabel] = useState("");
@@ -296,6 +296,11 @@ export default function LogMealPage() {
       toast.error("Informe pelo menos texto, imagem ou áudio.");
       return;
     }
+    const explicitImageKind = resolveSubmittedImageKind(Boolean(imageFile), imageKind);
+    if (explicitImageKind === null) {
+      toast.error("Selecione o tipo de foto antes de registrar a refeição.");
+      return;
+    }
     const image = imageFile
       ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name }
       : undefined;
@@ -306,7 +311,7 @@ export default function LogMealPage() {
       source: "web" as const,
       text: trimmedDescription || undefined,
       image,
-      imageKind: image ? imageKind : undefined,
+      imageKind: explicitImageKind,
       audio,
       mealLabel: (mealLabel || suggestedDraftMealLabel || defaultMealLabel).trim(),
       occurredAt,
@@ -581,7 +586,10 @@ export default function LogMealPage() {
               imageKind={imageKind}
               onImageKindChange={setImageKind}
               audioFileName={audioFile?.name}
-              onImageChange={event => setImageFile(event.target.files?.[0] ?? null)}
+              onImageChange={event => {
+                setImageFile(event.target.files?.[0] ?? null);
+                setImageKind(null);
+              }}
               onAudioChange={event => setAudioFile(event.target.files?.[0] ?? null)}
               onProcess={handleProcess}
               isProcessing={processDraft.isPending}

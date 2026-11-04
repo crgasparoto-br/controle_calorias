@@ -15,13 +15,14 @@ import { MealLabelInput } from "./MealLabelInput";
 import { MealTotalsBlock } from "./MealTotalsBlock";
 import { MealUploadField } from "./MealUploadField";
 import { isFoodD1WebDraft, type DraftState, type FoodD1EditableItemState, type MealItemState } from "../types";
+import type { MealImageKind } from "../mealFormState";
 
 type MealAiTabContentProps = {
   description: string;
   onDescriptionChange: (value: string) => void;
   imageFileName?: string;
-  imageKind: "plate_image" | "packaging" | "nutrition_label";
-  onImageKindChange: (kind: "plate_image" | "packaging" | "nutrition_label") => void;
+  imageKind: MealImageKind | null;
+  onImageKindChange: (kind: MealImageKind) => void;
   audioFileName?: string;
   onImageChange: React.ChangeEventHandler<HTMLInputElement>;
   onAudioChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -112,10 +113,11 @@ export function MealAiTabContent({
           </div>
           {imageFileName ? (
             <div className="space-y-2">
-              <Label htmlFor="meal-image-kind">Tipo de foto</Label>
-              <Select value={imageKind} onValueChange={value =>
-                onImageKindChange(value as "plate_image" | "packaging" | "nutrition_label")}>
-                <SelectTrigger id="meal-image-kind" className="w-full rounded-xl">
+              <Label htmlFor="meal-image-kind">Tipo de foto (obrigatório)</Label>
+              <Select value={imageKind ?? undefined} onValueChange={value =>
+                onImageKindChange(value as MealImageKind)}>
+                <SelectTrigger id="meal-image-kind" aria-required="true"
+                  aria-describedby="meal-image-kind-help" className="w-full rounded-xl">
                   <SelectValue placeholder="Selecione o conteúdo da foto" />
                 </SelectTrigger>
                 <SelectContent>
@@ -124,13 +126,14 @@ export function MealAiTabContent({
                   <SelectItem value="nutrition_label">Tabela nutricional / rótulo</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                O tipo orienta a leitura da imagem; só o resolvedor valida alimentos e nutrientes.
+              <p id="meal-image-kind-help" className="text-xs text-muted-foreground">
+                Selecione o tipo de foto para habilitar o registro. O tipo orienta a leitura; só o resolvedor valida alimentos e nutrientes.
               </p>
             </div>
           ) : null}
           <div className="flex flex-wrap items-center gap-3">
-            <Button className="rounded-full" onClick={onProcess} disabled={isProcessing}>
+            <Button className="rounded-full" onClick={onProcess}
+              disabled={isProcessing || (Boolean(imageFileName) && imageKind === null)}>
               <BrainCircuit className="mr-2 h-4 w-4" />
               {isProcessing ? "Processando..." : "Registrar"}
             </Button>
