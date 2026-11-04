@@ -75,6 +75,10 @@ function makeLabelObservation(
   return parsed.data;
 }
 
+export function isFoodD1NutritionLabelSelected(): boolean {
+  return isFoodD1EntrypointCutoverRequested("nutrition_label");
+}
+
 export function createFoodD1PublicNutritionLabel(
   deps: PublicD1NutritionLabelDependencies,
 ) {

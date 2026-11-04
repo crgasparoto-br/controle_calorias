@@ -102,7 +102,8 @@ import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { tryRunPublicFoodD1WhatsAppRegistration,
   tryRunPublicFoodD1WhatsAppVisualRegistration,
-  tryRunPublicFoodD1WhatsAppContinuation } from "./modules/whatsapp/confirmedMealRegistration";
+  tryRunPublicFoodD1WhatsAppContinuation,
+  tryRunPublicFoodD1WhatsAppNutritionLabel } from "./modules/whatsapp/confirmedMealRegistration";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,
@@ -951,6 +952,19 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           }
         }
         if (message.image?.id && prepared.imageAnalysisUrl) {
+          const verifiedLabel = await tryRunPublicFoodD1WhatsAppNutritionLabel({
+            userId, externalMessageId: message.id ?? null,
+            imageAnalysisUrl: prepared.imageAnalysisUrl,
+            caption: message.image.caption ?? null, timeZone: userTimezone,
+          });
+          if (verifiedLabel) {
+            await acknowledgement?.beforeFinalReply();
+            await sendInterpretedTextIntentReply({
+              userId, sourcePhone, interpreted: verifiedLabel, lifecycleHandle,
+              replyText: composeFinalReply(verifiedLabel.reply), response: res,
+            });
+            continue;
+          }
           let selectedVisual: Awaited<ReturnType<typeof tryRunPublicFoodD1WhatsAppVisualRegistration>> = null;
           try {
             selectedVisual = await tryRunPublicFoodD1WhatsAppVisualRegistration({

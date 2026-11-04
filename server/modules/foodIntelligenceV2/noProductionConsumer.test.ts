@@ -30,6 +30,8 @@ const PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE = "../foodIntelligenceV2/publicWhat
 const PUBLIC_D1_VISUAL_EXTRACTOR = "../foodIntelligenceV2/publicVisualSurfaces";
 const PUBLIC_D1_LINGUISTIC_COMPREHENSION = "../foodIntelligenceV2/linguisticComprehension";
 const PUBLIC_D1_PENDING_REPOSITORY = "../foodIntelligenceV2/publicWhatsAppPendingRepository";
+const PUBLIC_D1_NUTRITION_LABEL_BRIDGE = "../foodIntelligenceV2/publicNutritionLabel";
+const PUBLIC_D1_NUTRITION_LABEL_EVIDENCE = "../foodIntelligenceV2/publicNutritionLabelEvidence";
 const PUBLIC_D1_WEB_PHOTO = resolve(REPOSITORY_ROOT, "server/modules/photoAnalysis/service.ts");
 const PUBLIC_D1_PUBLIC_PHOTO_ROUTER = resolve(REPOSITORY_ROOT, "server/nutritionRouter.ts");
 const PUBLIC_D1_PUBLIC_PHOTO_BRIDGE = "./modules/foodIntelligenceV2/publicPhotoRoute";
@@ -117,11 +119,12 @@ function isApprovedD1RuntimeConsumer(file: string, imports: readonly string[]): 
       imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
   }
   if (file === PUBLIC_D1_WHATSAPP_CONFIRMED) {
-    return imports.length === 11 &&
+    return imports.length === 13 &&
       [PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE,
         PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE,
         PUBLIC_D1_VISUAL_EXTRACTOR,
         PUBLIC_D1_LINGUISTIC_COMPREHENSION, PUBLIC_D1_PENDING_REPOSITORY,
+        PUBLIC_D1_NUTRITION_LABEL_BRIDGE, PUBLIC_D1_NUTRITION_LABEL_EVIDENCE,
         PUBLIC_D1_SIMULATOR_BRIDGE,
         "../foodIntelligenceV2/linguisticLexiconRepository",
         "../foodIntelligenceV2/repository",
@@ -202,6 +205,7 @@ describe("fronteira da Fase D", () => {
         PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE,
         PUBLIC_D1_VISUAL_EXTRACTOR,
         PUBLIC_D1_LINGUISTIC_COMPREHENSION, PUBLIC_D1_PENDING_REPOSITORY,
+        PUBLIC_D1_NUTRITION_LABEL_BRIDGE, PUBLIC_D1_NUTRITION_LABEL_EVIDENCE,
         PUBLIC_D1_SIMULATOR_BRIDGE,
         "../foodIntelligenceV2/linguisticLexiconRepository",
         "../foodIntelligenceV2/repository",

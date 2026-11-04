@@ -19,7 +19,8 @@ import { getAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePr
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
-import { tryRunPublicFoodD1WhatsAppVisualRegistration } from "./modules/whatsapp/confirmedMealRegistration";
+import { tryRunPublicFoodD1WhatsAppVisualRegistration,
+  tryRunPublicFoodD1WhatsAppNutritionLabel } from "./modules/whatsapp/confirmedMealRegistration";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import { requestWhatsappImageMealIdentityClarification } from "./modules/whatsapp/foodQuantityClarification";
@@ -939,6 +940,21 @@ async function tryHandleAnnotatedImageMessage(
     // A persisted V1 label request is owned by its original pending workflow,
     // so flag changes cannot steal or abort that in-flight clarification.
     if (!nutritionLabelIdentityContext) {
+      const verifiedLabel = await tryRunPublicFoodD1WhatsAppNutritionLabel({
+        userId, externalMessageId: message.id ?? null,
+        imageAnalysisUrl: prepared.imageAnalysisUrl,
+        caption: message.image?.caption ?? null, timeZone: userTimezone,
+      });
+      if (verifiedLabel) {
+        await sendAnnotatedImageFallbackText({
+          userId, sourcePhone, reply: verifiedLabel.reply,
+          mealId: typeof verifiedLabel.data?.mealId === "number"
+            ? verifiedLabel.data.mealId : null,
+          lifecycleHandle, response: res, acknowledgement,
+        });
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
       let migrated: Awaited<ReturnType<typeof tryRunPublicFoodD1WhatsAppVisualRegistration>> = null;
       try {
         migrated = await tryRunPublicFoodD1WhatsAppVisualRegistration({
