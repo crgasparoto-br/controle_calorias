@@ -21,7 +21,11 @@ afterEach(() => {
   else process.env.FOOD_V2_D1_ENTRYPOINTS = originalEntrypoints;
 });
 
-function fixture(dispositions: Array<"ready" | "deferred">, declaredCount: number) {
+function fixture(
+  dispositions: Array<"ready" | "deferred">,
+  declaredCount: number,
+  receiptOverride: Record<string, unknown> = {},
+) {
   const renderCommittedMeal = vi.fn(async () => "Almoço salvo");
   const run = vi.fn(async (args: Parameters<typeof runFoodD1Migration>[0]) => {
     args.beforeCommit?.({
@@ -29,7 +33,7 @@ function fixture(dispositions: Array<"ready" | "deferred">, declaredCount: numbe
       readyCount: dispositions.filter(item => item === "ready").length,
     } as never);
     return { committed: true, mealId: 101, operationKey: "fixed",
-      recordedItemIds: [501, 502], skipped: [] };
+      recordedItemIds: [501, 502], skipped: [], ...receiptOverride };
   });
   const service = createFoodD1PublicWhatsAppRegistration({
     readAuthorizedContext: async () => context,
@@ -63,6 +67,21 @@ describe("#1308 public WhatsApp complete-batch write boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     const { invoke, renderCommittedMeal } = fixture([...dispositions], declaredCount);
     await expect(invoke()).rejects.toThrow("food-d1-whatsapp-public-needs-clarification");
+    expect(renderCommittedMeal).not.toHaveBeenCalled();
+  });
+  it.each([
+    { title: "one missing receipt item", recordedItemIds: [501], skipped: [] },
+    { title: "duplicate receipt IDs", recordedItemIds: [501, 501], skipped: [] },
+    { title: "invalid receipt ID", recordedItemIds: [501, -2], skipped: [] },
+    { title: "one skipped sibling", recordedItemIds: [501, 502],
+      skipped: [{ observationId: "deferred", reasonCodes: ["needs-confirmation"] }] },
+    { title: "receipt without physical IDs", recordedItemIds: null, skipped: [] },
+  ])("does not claim success after an incomplete $title", async ({ recordedItemIds, skipped }) => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
+    const { invoke, renderCommittedMeal } = fixture(["ready", "ready"], 2,
+      { recordedItemIds, skipped });
+    await expect(invoke()).rejects.toThrow("food-d1-whatsapp-public-commit-incomplete");
     expect(renderCommittedMeal).not.toHaveBeenCalled();
   });
   it("allows a fully ready batch with exactly two original observations", async () => {
