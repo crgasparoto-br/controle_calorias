@@ -80,6 +80,17 @@ export function mergeD1WhatsAppReply(
     next === null || before === null || before === next;
   const s = stored.identityHints, r = reply.identityHints;
   const q = stored.quantityHints, p = reply.quantityHints;
+  // The reply is not a fresh observation: it may supply a missing field,
+  // but it cannot erase material qualifiers, preparation, packaging or
+  // previously verified provenance of the original physical food.
+  if (JSON.stringify(r.preparation) !== JSON.stringify(s.preparation) &&
+      r.preparation.length > 0 ||
+      JSON.stringify(r.qualifiers) !== JSON.stringify(s.qualifiers) &&
+      r.qualifiers.length > 0 ||
+      !sameOrMissing(q.visiblePackageQuantity, p.visiblePackageQuantity) ||
+      !sameOrMissing(q.visiblePackageUnit, p.visiblePackageUnit)) {
+    throw new Error("food-d1-whatsapp-continuation-material-conflict");
+  }
   if (!sameOrMissing(s.foodName, r.foodName) ||
       !sameOrMissing(s.brand, r.brand) ||
       !sameOrMissing(s.variant, r.variant) ||

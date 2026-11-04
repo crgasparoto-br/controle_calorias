@@ -61,7 +61,8 @@ const input = () => ({
 });
 function dependencies() {
   const readPending = vi.fn(async () => current);
-  const updatePending = vi.fn(async (_before, next: FoodD1WhatsAppPending) =>
+  const updatePending = vi.fn(async (_before: FoodD1WhatsAppPendingRecord,
+    next: FoodD1WhatsAppPending) =>
     ({ ...current, version: 2, target: next }));
   const consumePending = vi.fn(async () => undefined);
   const run = vi.fn(async (args: Parameters<typeof runFoodD1Migration>[0]) => {
