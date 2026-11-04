@@ -378,6 +378,24 @@ export function buildWhatsAppMealCalculationReplyMessage(processed: MealProcessi
   });
 }
 
+/** A native V2 confirmation reuses the public reply presentation from its
+ * persisted physical items. Never reconstruct a V1 semantic inference.
+ */
+export function buildWhatsAppRegisteredPersistedMealReplyMessage(
+  meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {},
+) {
+  const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
+  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  return buildMealReplyBody({
+    title: buildMealTitle(meal.mealLabel, registeredAt, false, timeZone),
+    contextLine: buildWhatsAppMealContextLine(meal.mealLabel, registeredAt, timeZone),
+    items: meal.items,
+    totals: sumReplyItems(meal.items),
+    goalLines: buildMealGoalProgressLines(options.goalProgress, registeredAt, timeZone),
+    nutritionLabelContinuationAvailable: options.nutritionLabelContinuationAvailable,
+  });
+}
+
 export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
   const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
