@@ -175,7 +175,12 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     const readMeal = vi.fn(async () => meal() as never);
     const service = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => approval,
-      readActivePending: async () => false, parseOperation: () => parsed(),
+      readActivePending: async () => false,
+      parseOperation: () => ({ ...parsed(), items: [
+        ...parsed().items,
+        { foodName: "feijão", brand: null, quantity: 50, unit: "g",
+          confidence: 1, missingFields: [] },
+      ] }),
       readMeal, run: run as unknown as typeof runFoodD1Migration,
     });
     await expect(service(createInput())).rejects
