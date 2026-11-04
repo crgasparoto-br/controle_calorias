@@ -139,6 +139,31 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
       expect(secondKey).toBe(firstKey);
     },
   );
+  it("does not present an incomplete stored meal as a complete two-item receipt", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
+    const run = vi.fn(async (args: Parameters<typeof runFoodD1Migration>[0]) => {
+      args.beforeCommit?.({ items: [
+        { disposition: "ready" }, { disposition: "ready" },
+      ], readyCount: 2 } as never);
+      return { committed: true, mealId: 55, recordedItemIds: [501, 502],
+        skipped: [], operationKey: "stable" };
+    });
+    const service = createWhatsAppD1RegistrationService({
+      readAuthorizedContext: async () => approval,
+      readActivePending: async () => false,
+      parseOperation: () => ({ ...parsed(), items: [
+        ...parsed().items, { foodName: "feijão", brand: null, quantity: 50, unit: "g",
+          confidence: 1, missingFields: [] },
+      ] }),
+      // Simulates a stale/incomplete post-commit reader containing one item.
+      readMeal: async () => meal() as never,
+      run: run as unknown as typeof runFoodD1Migration,
+    });
+    await expect(service(createInput())).rejects
+      .toThrow("food-d1-whatsapp-public-committed-meal-unavailable");
+    expect(run).toHaveBeenCalledOnce();
+  });
   it("pins one external message ID while rejecting mutated text through changed trace scope", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
