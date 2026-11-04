@@ -100,6 +100,7 @@ import {
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
+import { tryRunPublicFoodD1WhatsAppRegistration } from "./modules/foodIntelligenceV2/publicWhatsAppRegistration";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,
@@ -850,6 +851,21 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       if (canInterpretAudioTranscriptIntent(message, prepared)) {
+        // This is the trusted, server-transcribed audio boundary. If selected,
+        // V2 must execute (or fail closed) before any legacy food intent may write.
+        const migrated = await tryRunPublicFoodD1WhatsAppRegistration({
+          userId, originalText: prepared.transcript!,
+          externalMessageId: message.id, modality: "audio_transcript",
+          receivedAt: resolveWhatsAppMessageOccurredAt(message), timeZone: userTimezone,
+        });
+        if (migrated) {
+          await acknowledgement?.beforeFinalReply();
+          await sendInterpretedTextIntentReply({
+            userId, sourcePhone, interpreted: migrated, lifecycleHandle,
+            replyText: composeFinalReply(migrated.reply), response: res,
+          });
+          continue;
+        }
         const interpreted = await executeWhatsappTextIntent(userId, {
           text: prepared.transcript,
           receivedAt: resolveWhatsAppMessageOccurredAt(message),
@@ -893,6 +909,24 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       // Persisted V1 pending items and verified legacy label targets retain V1
       // ownership across a flag change; an unrelated new item never inherits it.
       if (resolvedSegments.length === 0 && !nutritionLabelProcessingContext) {
+        // Fresh, authenticated text can now go straight to native V2, keeping
+        // the same lifecycle receipt and logical WhatsApp reply as the V1 path.
+        // V1 pending continuations and labels are deliberately excluded.
+        if (!message.image?.id && !message.audio?.id && prepared.text?.trim()) {
+          const migrated = await tryRunPublicFoodD1WhatsAppRegistration({
+            userId, originalText: prepared.text,
+            externalMessageId: message.id, modality: "text",
+            receivedAt: occurredAt, timeZone: userTimezone,
+          });
+          if (migrated) {
+            await acknowledgement?.beforeFinalReply();
+            await sendInterpretedTextIntentReply({
+              userId, sourcePhone, interpreted: migrated, lifecycleHandle,
+              replyText: composeFinalReply(migrated.reply), response: res,
+            });
+            continue;
+          }
+        }
         assertUnmigratedFoodD1EntrypointsOff([
           ...(message.image?.id ? ["plate_image", "packaging", "nutrition_label"] as const : []),
           ...(message.audio?.id ? ["audio_transcript"] as const : []),
