@@ -103,7 +103,8 @@ import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligence
 import { tryRunPublicFoodD1WhatsAppRegistration,
   tryRunPublicFoodD1WhatsAppVisualRegistration,
   tryRunPublicFoodD1WhatsAppContinuation,
-  tryRunPublicFoodD1WhatsAppNutritionLabel } from "./modules/whatsapp/confirmedMealRegistration";
+  tryRunPublicFoodD1WhatsAppNutritionLabel,
+  assertWhatsAppInboundNotPreviouslyD1Owned } from "./modules/whatsapp/confirmedMealRegistration";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,
@@ -624,6 +625,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         }
         continue;
       }
+      await assertWhatsAppInboundNotPreviouslyD1Owned(userId, message.id);
 
       const aiQuestionResult = await executeWhatsappAiQuestionIntent(userId, {
         text: message.text?.body,

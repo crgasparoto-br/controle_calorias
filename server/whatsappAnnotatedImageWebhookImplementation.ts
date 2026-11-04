@@ -20,7 +20,8 @@ import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressServ
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { tryRunPublicFoodD1WhatsAppVisualRegistration,
-  tryRunPublicFoodD1WhatsAppNutritionLabel } from "./modules/whatsapp/confirmedMealRegistration";
+  tryRunPublicFoodD1WhatsAppNutritionLabel,
+  assertWhatsAppInboundNotPreviouslyD1Owned } from "./modules/whatsapp/confirmedMealRegistration";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import { requestWhatsappImageMealIdentityClarification } from "./modules/whatsapp/foodQuantityClarification";
@@ -834,6 +835,7 @@ async function tryHandleAnnotatedImageMessage(
 
     const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
     const userTimezone = timeZoneResolution.timeZone;
+    await assertWhatsAppInboundNotPreviouslyD1Owned(userId, message.id);
 
     const readResult = await markWhatsAppMessageAsRead(message.id);
     if (!readResult.ok) {

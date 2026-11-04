@@ -36,6 +36,7 @@ import { createFoodD1WhatsAppContinuation,
 import { isFoodD1NutritionLabelSelected, createFoodD1PublicNutritionLabel,
   type PublicD1NutritionLabelDependencies } from "../foodIntelligenceV2/publicNutritionLabel";
 import { readD1PhysicalNutritionLabelTarget, readD1VerifiedNutritionLabelSource } from "../foodIntelligenceV2/publicNutritionLabelEvidence";
+import { foodD1WhatsAppReplayFence } from "../foodIntelligenceV2/publicWhatsAppReplayFence";
 import { governedLinguisticLexiconStore } from "../foodIntelligenceV2/linguisticLexiconRepository";
 import { createFoodV2KnowledgeRepository } from "../foodIntelligenceV2/repository";
 import { runFoodD1Migration } from "../foodIntelligenceV2/entrypointRunner";
@@ -172,6 +173,8 @@ export function createWhatsAppD1ContinuationService(
     lexicon: overrides.lexicon ?? governedLinguisticLexiconStore,
     knowledge: overrides.knowledge ?? createFoodV2KnowledgeRepository(),
     run: overrides.run ?? runFoodD1Migration,
+    pinInbound: overrides.pinInbound ?? (overrides.run
+      ? undefined : input => foodD1WhatsAppReplayFence.pinContinuationInbound(input)),
     renderCommittedMeal: overrides.renderCommittedMeal ?? (async ({
       userId, mealId, registeredAt, timeZone, recordedItemIds,
     }) => {
@@ -188,6 +191,15 @@ export function createWhatsAppD1ContinuationService(
 }
 export const tryRunPublicFoodD1WhatsAppContinuation =
   createWhatsAppD1ContinuationService();
+
+/** The external inbound key must never change V2->V1 after an effect. */
+export async function assertWhatsAppInboundNotPreviouslyD1Owned(
+  userId: number, externalMessageId: string | null | undefined,
+) {
+  return foodD1WhatsAppReplayFence.rejectPreviouslyV2OwnedInbound({
+    ownerUserId: userId, externalMessageId,
+  });
+}
 
 /** The label channel supplies only owner ID, selected physical target, and a
  * verified WhatsApp Media API download. No unreviewed OCR is trusted. */

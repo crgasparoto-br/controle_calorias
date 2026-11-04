@@ -22,6 +22,10 @@ export type FoodD1WhatsAppContinuationDependencies = {
   lexicon: FoodD1Dependencies["lexicon"];
   knowledge: FoodD1Dependencies["knowledge"];
   run: typeof runFoodD1Migration;
+  /** Pin this inbound message before a new physical item effect. */
+  pinInbound?: (input: {
+    ownerUserId: number; externalMessageId: string; envelope: FoodD1WhatsAppPending["envelope"];
+  }) => Promise<void>;
   renderCommittedMeal: (input: {
     userId: number; mealId: number; registeredAt: Date; timeZone: string;
     skipped: FoodD1CommitResult["skipped"];
@@ -103,6 +107,13 @@ export function createFoodD1WhatsAppContinuation(
       })),
       now: input.receivedAt,
     };
+    // Fenced even if the final reply fails to reach the user: a redelivery
+    // cannot become a second legacy meal after the original D1 batch commits.
+    await deps.pinInbound?.({
+      ownerUserId: input.userId,
+      externalMessageId: input.externalMessageId.trim(),
+      envelope: env,
+    });
     let incomplete: FoodD1Result | null = null;
     let outcome: Awaited<ReturnType<typeof deps.run>>;
     try {
