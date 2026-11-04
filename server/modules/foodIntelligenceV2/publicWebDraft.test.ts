@@ -7,9 +7,11 @@ import {
 import {
   createFoodD1PublicWebDraft,
   hashFoodD1WebDraftConfirmation,
+} from "./publicWebDraft";
+import {
   preserveFoodD1ReviewProvenance,
   foodD1WebCorrectionSourceRef,
-} from "./publicWebDraft";
+} from "./publicWebDraftProvenance";
 import type { LinguisticRequest } from "./linguisticComprehension";
 import {
   parseFoodOperationEnvelope,

@@ -1,7 +1,7 @@
 /** #1308: gated text/audio web review flow with short-lived structured state. */
 import { createHash, randomUUID } from "node:crypto";
 import { getDateKeyInTimeZone, zonedDateTimeLocalToIso } from "../../../shared/timeZone";
-import type { FoodD1WebDraft, FoodD1WebDraftItem } from "../../../shared/foodD1WebDraft";
+import type { FoodD1WebDraft } from "../../../shared/foodD1WebDraft";
 import type { ProcessMealDraftInput, ConfirmFoodD1WebDraftInput } from "../meals/schemas";
 import { transcribeAudio } from "../../_core/voiceTranscription";
 import { createFoodV2KnowledgeRepository } from "./repository";
@@ -10,7 +10,6 @@ import { comprehendFoodLanguage, type LinguisticLexiconStore } from "./linguisti
 import {
   buildD1OperationPlan,
   type FoodD1Dependencies,
-  type FoodD1Entrypoint,
   type FoodD1Request,
   type FoodD1Result,
 } from "./entrypointMigration";
@@ -28,9 +27,11 @@ import {
 import {
   runFoodD1Migration,
 } from "./entrypointRunner";
-import { parseFoodObservation, type FoodOperationEnvelope, type FoodObservation } from "./schemas";
+import type { FoodObservation } from "./schemas";
 import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
 import { extractD1VisualSurfaces, type FoodD1VisualSurfaces, type FoodD1VisualKind } from "./publicVisualSurfaces";
+import { buildEnvelope, buildDependencies, toReviewItem } from "./publicWebDraftSupport";
+import { foodD1WebCorrectionSourceRef, preserveFoodD1ReviewProvenance } from "./publicWebDraftProvenance";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import {
   getFoodD1WebDraft,
@@ -98,86 +99,6 @@ function operationKey(userId: number, operationId: string): string {
   return `d1-web-${userId}:${operationId}`;
 }
 
-/** Fixed-size source reference: nested operation and observation IDs can be long. */
-export function foodD1WebCorrectionSourceRef(operationKey: string, observationId: string): string {
-  return "d1-review:" + createHash("sha256")
-    .update(JSON.stringify([operationKey, observationId]))
-    .digest("hex");
-}
-
-function buildEnvelope(input: {
-  userId: number;
-  operationKey: string;
-  traceId: string;
-  mealLabel: string;
-  occurredAt: Date;
-  timeZone: string;
-  entrypoint: FoodD1Entrypoint;
-  revisions: FoodOperationEnvelope["revisions"];
-}): FoodOperationEnvelope {
-  const unavailable = (reason: string) => ({
-    status: "unavailable" as const, reason, sourceRef: null,
-  });
-  return {
-    schemaVersion: 2,
-    traceId: input.traceId,
-    idempotencyKey: input.operationKey,
-    ownerUserId: input.userId,
-    conversationRef: null,
-    turnRef: null,
-    effectiveTimeZone: input.timeZone,
-    mealOperation: {
-      action: "add",
-      targetMeal: input.mealLabel,
-      date: getDateKeyInTimeZone(input.occurredAt, input.timeZone),
-    },
-    contextSources: {
-      previousMessage: unavailable("web_draft_has_no_conversation_snapshot"),
-      preferences: unavailable("web_draft_has_no_authorized_preference_snapshot"),
-      recentHistory: unavailable("web_draft_has_no_authorized_history_snapshot"),
-    },
-    revisions: { ...input.revisions },
-  };
-}
-
-function toReviewItem(item: FoodD1Result["items"][number]): FoodD1WebDraftItem {
-  const decision = item.decision;
-  const consumed = decision.nutrition.verified ? decision.nutrition.consumed : null;
-  return {
-    observationId: item.observationId,
-    foodName: decision.identity.canonicalName ?? decision.alternatives[0]?.name ?? "",
-    quantity: decision.quantity.value,
-    unit: decision.quantity.unit,
-    disposition: item.disposition,
-    reasonCodes: [...item.reasonCodes],
-    nutrition: {
-      verified: consumed !== null,
-      calories: consumed?.calories ?? null,
-      protein: consumed?.protein ?? null,
-      carbs: consumed?.carbs ?? null,
-      fat: consumed?.fat ?? null,
-    },
-  };
-}
-
-function buildDependencies(input: {
-  userId: number;
-  entrypoint: FoodD1Entrypoint;
-  evidence: FoodD1Request["evidence"];
-  lexicon: LinguisticLexiconStore;
-  knowledge: FoodD1Dependencies["knowledge"];
-}): FoodD1Dependencies {
-  return {
-    lexicon: input.lexicon,
-    knowledge: input.knowledge,
-    authorizeEvidence: async request =>
-      request.ownerUserId === input.userId &&
-      request.entrypoint === input.entrypoint &&
-      request.evidence === input.evidence,
-    authorizeExistingItem: async () => false,
-  };
-}
-
 function isD1WebDraftResult(value: unknown): value is FoodD1Result {
   return Boolean(value && typeof value === "object" &&
     "schemaVersion" in value && value.schemaVersion === 2 &&
@@ -217,34 +138,6 @@ function assertReviewMeasurement(
   if (current.quantity === null && current.unit !== originalUnit) {
     throw new Error("food-d1-public-web-draft-quantity-required-for-unit-change");
   }
-}
-
-/**
- * A user's text correction changes a visual/voice observation, not its original
- * evidence channel. Keep the old (unverified) source claims with distinct IDs
- * so the canonical resolver can reconcile rather than silently losing them.
- */
-export function preserveFoodD1ReviewProvenance(
-  corrected: FoodObservation, original: FoodObservation,
-): FoodObservation {
-  if (original.modality === "text") return corrected;
-  const oldEvidence = original.evidence.filter(item =>
-    !corrected.evidence.some(previous => previous === item));
-  const evidence = oldEvidence.map((item, index) => ({
-    ...item,
-    evidenceId: "prior-" + createHash("sha256").update(JSON.stringify([
-      corrected.observationId, original.observationId,
-      item.evidenceId, item.anchor.sourceRef, index,
-    ])).digest("hex").slice(0, 32),
-  }));
-  const combined: FoodObservation = {
-    ...corrected,
-    modality: "multimodal",
-    evidence: [...corrected.evidence, ...evidence],
-  };
-  const parsed = parseFoodObservation(combined);
-  if (!parsed.ok) throw new Error("food-d1-public-web-draft-invalid-correction-provenance");
-  return parsed.value;
 }
 
 function isNativeDraftNotPending(error: unknown): boolean {
