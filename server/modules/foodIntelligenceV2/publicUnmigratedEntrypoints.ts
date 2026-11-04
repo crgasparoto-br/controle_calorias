@@ -14,7 +14,7 @@ export function assertUnmigratedFoodD1EntrypointsOff(
   entrypoints: readonly FoodD1Entrypoint[],
 ): void {
   if (entrypoints.some(isFoodD1EntrypointCutoverRequested)) {
-    throw new Error(UNMIGRATED_FOOD_D1_PUBLIC_ENTRYPOINT);
+    throw new Error(D1_PUBLIC_MIGRATION_INCOMPLETE);
   }
 }
 
