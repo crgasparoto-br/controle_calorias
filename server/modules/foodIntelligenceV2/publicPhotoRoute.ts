@@ -1,5 +1,5 @@
 /** #1308: existing authenticated photo-analyze endpoint -> one V2 draft resolver. */
-import type { FoodD1WebDraft } from "../../../shared/foodD1WebDraft";
+import { foodD1WebDraftSchema, type FoodD1WebDraft } from "../../../shared/foodD1WebDraft";
 import type { AnalyzeFoodPhotoInput } from "../photoAnalysis/schemas";
 import { isFoodD1EntrypointCutoverRequested, isValidD1OperationId } from "./entrypointRouting";
 import { assertNewMealLabelHasExistingTarget } from "./publicUnmigratedEntrypoints";
@@ -57,12 +57,22 @@ export function createFoodD1PublicPhotoAnalysis(
         occurredAt: input.input.occurredAt,
       },
     });
-    if (!anyVisualSelected) return null;
-    if (!draft || draft.entrypoint !== input.input.imageKind) {
-      // A selected V2 photo must never return to the legacy photo writer.
+    if (!anyVisualSelected) {
+      // Even a future delegated implementation must not return a committed
+      // V2 draft and then let the public route process it again using V1.
+      if (draft) throw new Error("food-d1-operation-paused-by-rollback");
+      return null;
+    }
+    const expectedKey = `d1-web-${input.userId}:${input.input.d1OperationId}`;
+    const parsed = foodD1WebDraftSchema.safeParse(draft);
+    if (!parsed.success || parsed.data.entrypoint !== input.input.imageKind ||
+        parsed.data.operationKey !== expectedKey ||
+        parsed.data.mealLabel !== input.input.mealLabel) {
+      // The authenticated photo endpoint must never return a review owned by
+      // another operation, user or destination, nor silently fall back to V1.
       throw new Error("food-d1-public-photo-draft-unavailable");
     }
-    return draft;
+    return parsed.data;
   };
 }
 

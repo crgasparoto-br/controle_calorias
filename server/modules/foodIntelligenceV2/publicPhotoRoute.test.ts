@@ -116,6 +116,29 @@ describe("#1308 existing foodPhotoAnalysis.analyze public V2 bridge", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  it("treats unexpected V2 output after rollback as a conflict, not permission for V1", async () => {
+    vi.stubEnv("FOOD_V2_D1_ENABLED", "false");
+    const run = vi.fn(async () => draft);
+    await expect(createFoodD1PublicPhotoAnalysis(run)(original))
+      .rejects.toThrow("food-d1-operation-paused-by-rollback");
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a cross-operation or cross-user draft before disclosing its review", async () => {
+    vi.stubEnv("FOOD_V2_D1_ENABLED", "true");
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image");
+    const forgedOperation = createFoodD1PublicPhotoAnalysis(vi.fn(async () => ({
+      ...draft, operationKey: "d1-web-8:submission-00001234",
+    })));
+    await expect(forgedOperation(original))
+      .rejects.toThrow("food-d1-public-photo-draft-unavailable");
+    const forgedTarget = createFoodD1PublicPhotoAnalysis(vi.fn(async () => ({
+      ...draft, mealLabel: "jantar",
+    })));
+    await expect(forgedTarget(original))
+      .rejects.toThrow("food-d1-public-photo-draft-unavailable");
+  });
+
   it("does not run the V1 photo route after V2 returns no or mismatched draft", async () => {
     vi.stubEnv("FOOD_V2_D1_ENABLED", "true");
     vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image");
