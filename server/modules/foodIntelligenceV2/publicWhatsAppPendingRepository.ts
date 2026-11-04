@@ -75,18 +75,20 @@ export async function stageFoodD1WhatsAppPending(
   submitted: FoodD1WhatsAppPending, now = new Date(),
 ): Promise<FoodD1WhatsAppPendingRecord> {
   const pending = parseFoodD1WhatsAppPending(submitted);
-  const owner = pending.envelope.ownerUserId;
+  const ownerUserId = pending.envelope.ownerUserId;
   const db = await dbRequired();
   return db.transaction(async tx => {
     // Different original D1 routes do not share a route lock. Serialize
     // creation against the same user's physical row so two simultaneous
     // operations cannot both observe an empty active-pending set.
-    const [owner] = await tx.select({ id: users.id }).from(users)
+    const [lockedOwner] = await tx.select({ id: users.id }).from(users)
       .where(eq(users.id, pending.envelope.ownerUserId))
       .for("update").limit(1);
-    if (!owner) throw new Error("food-d1-whatsapp-pending-owner-unavailable");
+    if (!lockedOwner || lockedOwner.id !== ownerUserId) {
+      throw new Error("food-d1-whatsapp-pending-owner-unavailable");
+    }
     const [route] = await tx.select().from(foodD1OperationRoutes).where(and(
-      eq(foodD1OperationRoutes.ownerUserId, owner),
+      eq(foodD1OperationRoutes.ownerUserId, ownerUserId),
       eq(foodD1OperationRoutes.operationKey, pending.envelope.idempotencyKey),
     )).for("update").limit(1);
     if (!route || route.resolver !== "v2" ||
@@ -108,7 +110,7 @@ export async function stageFoodD1WhatsAppPending(
       throw new Error("food-d1-whatsapp-pending-manifest-conflict");
     }
     const rows = await tx.select().from(whatsappPendingOperations).where(and(
-      eq(whatsappPendingOperations.userId, owner),
+      eq(whatsappPendingOperations.userId, ownerUserId),
       eq(whatsappPendingOperations.type, FOOD_D1_WHATSAPP_PENDING_TYPE),
       eq(whatsappPendingOperations.state, "active"),
       gt(whatsappPendingOperations.expiresAt, now),
@@ -117,7 +119,7 @@ export async function stageFoodD1WhatsAppPending(
       throw new Error("food-d1-whatsapp-pending-other-operation-active");
     }
     if (rows.length === 1) {
-      const found = checkedRow(rows[0], owner, now);
+      const found = checkedRow(rows[0], ownerUserId, now);
       if (!sameImmutableOperation(found.target, pending) ||
           JSON.stringify(found.target) !== JSON.stringify(pending)) {
         throw new Error("food-d1-whatsapp-pending-payload-changed");
@@ -127,12 +129,12 @@ export async function stageFoodD1WhatsAppPending(
     if (priorIds === undefined) {
       await tx.update(foodD1OperationRoutes).set({
         revisionsJson: JSON.stringify({ ...revisions, observationIds: ids }),
-      }).where(and(eq(foodD1OperationRoutes.ownerUserId, owner),
+      }).where(and(eq(foodD1OperationRoutes.ownerUserId, ownerUserId),
         eq(foodD1OperationRoutes.operationKey, pending.envelope.idempotencyKey)));
     }
     const expiresAt = new Date(now.getTime() + FOOD_D1_WHATSAPP_PENDING_TTL_MS);
     await tx.insert(whatsappPendingOperations).values({
-      userId: owner, type: FOOD_D1_WHATSAPP_PENDING_TYPE,
+      userId: ownerUserId, type: FOOD_D1_WHATSAPP_PENDING_TYPE,
       origin: FOOD_D1_WHATSAPP_PENDING_ORIGIN,
       state: "active", version: 1, target: pending,
       dedupeKey: key(pending), expiresAt,
@@ -140,7 +142,7 @@ export async function stageFoodD1WhatsAppPending(
     const [saved] = await tx.select().from(whatsappPendingOperations).where(
       eq(whatsappPendingOperations.dedupeKey, key(pending))).limit(1);
     if (!saved) throw new Error("food-d1-whatsapp-pending-insert-not-visible");
-    return checkedRow(saved, owner, now);
+    return checkedRow(saved, ownerUserId, now);
   });
 }
 
