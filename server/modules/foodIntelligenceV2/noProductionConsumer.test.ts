@@ -38,6 +38,7 @@ const PUBLIC_D1_PUBLIC_PHOTO_ROUTER = resolve(REPOSITORY_ROOT, "server/nutrition
 const PUBLIC_D1_PUBLIC_PHOTO_BRIDGE = "./modules/foodIntelligenceV2/publicPhotoRoute";
 const PUBLIC_D1_LABEL_BRIDGE = "./modules/foodIntelligenceV2/publicNutritionLabel";
 const PUBLIC_D1_WHATSAPP_CONFIRMED = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts");
+const PUBLIC_D1_WHATSAPP_LABEL_HANDLER = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/d1NutritionLabelRegistration.ts");
 const PUBLIC_D1_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappWebhookImplementation.ts");
 const PUBLIC_D1_ANNOTATED_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappAnnotatedImageWebhookImplementation.ts");
 const PUBLIC_D1_ROOT_GUARD = "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
@@ -120,17 +121,22 @@ function isApprovedD1RuntimeConsumer(file: string, imports: readonly string[]): 
       imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
   }
   if (file === PUBLIC_D1_WHATSAPP_CONFIRMED) {
-    return imports.length === 14 &&
+    return imports.length === 12 &&
       [PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE,
         PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE,
         PUBLIC_D1_VISUAL_EXTRACTOR,
         PUBLIC_D1_LINGUISTIC_COMPREHENSION, PUBLIC_D1_PENDING_REPOSITORY,
-        PUBLIC_D1_NUTRITION_LABEL_BRIDGE, PUBLIC_D1_NUTRITION_LABEL_EVIDENCE,
         PUBLIC_D1_WHATSAPP_FENCE,
         PUBLIC_D1_SIMULATOR_BRIDGE,
         "../foodIntelligenceV2/linguisticLexiconRepository",
         "../foodIntelligenceV2/repository",
         "../foodIntelligenceV2/entrypointRunner"].every(target => imports.includes(target));
+  }
+  if (file === PUBLIC_D1_WHATSAPP_LABEL_HANDLER) {
+    return imports.length === 3 &&
+      imports.includes(PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE) &&
+      imports.includes(PUBLIC_D1_NUTRITION_LABEL_BRIDGE) &&
+      imports.includes(PUBLIC_D1_NUTRITION_LABEL_EVIDENCE);
   }
   if (file === PUBLIC_D1_PUBLIC_PHOTO_ROUTER) {
     return imports.length === 2 &&
@@ -201,13 +207,16 @@ describe("fronteira da Fase D", () => {
     const photoRouter = await readFile(PUBLIC_D1_PUBLIC_PHOTO_ROUTER, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_PUBLIC_PHOTO_ROUTER, photoRouter))
       .toEqual([PUBLIC_D1_PUBLIC_PHOTO_BRIDGE, PUBLIC_D1_LABEL_BRIDGE]);
+    const whatsappLabel = await readFile(PUBLIC_D1_WHATSAPP_LABEL_HANDLER, "utf8");
+    expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_LABEL_HANDLER, whatsappLabel))
+      .toEqual([PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_NUTRITION_LABEL_BRIDGE,
+        PUBLIC_D1_NUTRITION_LABEL_EVIDENCE]);
     const confirmed = await readFile(PUBLIC_D1_WHATSAPP_CONFIRMED, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_CONFIRMED, confirmed))
       .toEqual([PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE,
         PUBLIC_D1_WHATSAPP_VISUAL_BRIDGE, PUBLIC_D1_WHATSAPP_CONTINUATION_BRIDGE,
         PUBLIC_D1_VISUAL_EXTRACTOR,
         PUBLIC_D1_LINGUISTIC_COMPREHENSION, PUBLIC_D1_PENDING_REPOSITORY,
-        PUBLIC_D1_NUTRITION_LABEL_BRIDGE, PUBLIC_D1_NUTRITION_LABEL_EVIDENCE,
         PUBLIC_D1_WHATSAPP_FENCE,
         PUBLIC_D1_SIMULATOR_BRIDGE,
         "../foodIntelligenceV2/linguisticLexiconRepository",
@@ -228,6 +237,9 @@ describe("fronteira da Fase D", () => {
     const good = 'import { tryRunPublicFoodD1Simulation } from "../foodIntelligenceV2/publicSimulator";';
     expect(isApprovedD1RuntimeConsumer(PUBLIC_D1_SIMULATOR,
       runtimeV2Specifiers(PUBLIC_D1_SIMULATOR, good))).toBe(true);
+    expect(isApprovedD1RuntimeConsumer(PUBLIC_D1_WHATSAPP_LABEL_HANDLER,
+      runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_LABEL_HANDLER,
+        'import { resolveFoodObservation } from "../foodIntelligenceV2/resolver";'))).toBe(false);
     const photoOnly = 'import { tryRunPublicFoodD1PhotoAnalysis } from "./modules/foodIntelligenceV2/publicPhotoRoute";';
     expect(isApprovedD1RuntimeConsumer(PUBLIC_D1_PUBLIC_PHOTO_ROUTER,
       runtimeV2Specifiers(PUBLIC_D1_PUBLIC_PHOTO_ROUTER, photoOnly))).toBe(false);
