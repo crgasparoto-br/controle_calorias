@@ -158,6 +158,9 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
       modality: request.modality,
       rawInput: request.rawText,
       normalizedInput: request.rawText,
+      ...(request.modality === "image" ? {
+        quantityHints: { value: null, unit: null, servingText: null },
+      } : {}),
       surfaceSpan: {
         sourceRef: request.sourceRef,
         span: { start: 0, end: request.rawText.length },
@@ -166,7 +169,9 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
     });
     return [{
       ...item,
-      evidence: item.evidence.map(evidence => ({
+      evidence: item.evidence.filter(evidence =>
+        request.modality !== "image" || !evidence.field.startsWith("quantity."),
+      ).map(evidence => ({
         ...evidence,
         origin: request.modality === "audio_transcript" ? "transcription" as const
           : request.modality === "image"

@@ -49,9 +49,13 @@ function compatibleMaterialFacts(
 function enrichEquivalentObservation(
   primary: FoodObservation, secondary: FoodObservation,
 ): FoodObservation {
-  const mergeNullables = <T extends Record<string, unknown>>(a: T, b: T): T =>
-    Object.fromEntries(Object.entries(a).map(([key, value]) =>
-      [key, value === null ? b[key] : value])) as T;
+  const mergeNullables = <T extends object>(a: T, b: T): T => {
+    const merged = { ...a };
+    for (const key of Object.keys(a) as Array<keyof T>) {
+      if (a[key] === null) merged[key] = b[key];
+    }
+    return merged;
+  };
   return {
     ...primary,
     identityHints: mergeNullables(primary.identityHints, secondary.identityHints),
