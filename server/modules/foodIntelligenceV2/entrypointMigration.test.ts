@@ -8,6 +8,7 @@ import {
 } from "./entrypointMigration";
 import type { FoodKnowledgeLocalResult, FoodKnowledgeStore, GovernedFoodMatch } from "./knowledgeRead";
 import type { FoodOperationEnvelope, FoodObservation } from "./schemas";
+import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
 
 const envelope = () => buildFoodOperationEnvelopeFixture() as FoodOperationEnvelope;
 const match: GovernedFoodMatch = {
@@ -86,6 +87,46 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
     expect(decisions[1].evidence.some(e => e.origin === "transcription")).toBe(true);
     expect(decisions[2].evidence.some(e => e.origin === "ocr")).toBe(true);
     expect(connections.knowledge.stagePendingEvidence).not.toHaveBeenCalled();
+  });
+
+  it("accepts provenance-backed fused text/audio evidence and rejects a forged single source", async () => {
+    const original = buildFoodObservationFixture({
+      observationId: "obs-typed",
+      surfaceSpan: { sourceRef: "source:typed" },
+    });
+    const audio = buildFoodObservationFixture({
+      observationId: "obs-spoken",
+      modality: "audio_transcript",
+      surfaceSpan: { sourceRef: "source:spoken" },
+    });
+    const transcript = {
+      ...audio,
+      evidence: audio.evidence.map(item => ({
+        ...item,
+        origin: "transcription" as const,
+        anchor: { ...item.anchor, sourceRef: "source:spoken" },
+      })),
+    };
+    const fused = coalesceEquivalentMultimodalEvidence([original], [transcript]);
+    expect(fused).toHaveLength(1);
+    const request: FoodD1Request = {
+      authenticatedUserId: 7, entrypoint: "multimodal", envelope: envelope(),
+      evidence: { kind: "structured", observations: fused },
+      now: new Date("2026-11-01T12:00:00Z"),
+    };
+    const accepted = await buildD1OperationPlan(request, deps());
+    expect(accepted.items).toHaveLength(1);
+    expect(accepted.items[0].decision.evidence.some(item =>
+      item.origin === "transcription")).toBe(true);
+    const untrusted = {
+      ...fused[0],
+      evidence: fused[0].evidence.filter(item => item.origin !== "transcription"),
+    };
+    const deniedProviders = deps();
+    await expect(buildD1OperationPlan({
+      ...request, evidence: { kind: "structured", observations: [untrusted] },
+    }, deniedProviders)).rejects.toThrow("multimodal-evidence-required");
+    expect(deniedProviders.knowledge.readLocal).not.toHaveBeenCalled();
   });
 
   it("preserves an unresolved sibling as deferred without writing the resolved item", async () => {
