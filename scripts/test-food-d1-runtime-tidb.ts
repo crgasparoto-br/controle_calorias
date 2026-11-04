@@ -832,6 +832,18 @@ try {
     },
   }), /food-d1-whatsapp-pending-route-unavailable/,
   "a new unpinned operation cannot steal an active original pending");
+  const maliciousPendingUpdate = {
+    ...pendingPayload,
+    observations: [{
+      ...pendingObservation, identityHints: {
+        ...pendingObservation.identityHints, foodName: "changed after confirmation",
+      },
+    }],
+  };
+  await assert.rejects(updateFoodD1WhatsAppPending(
+    firstPending, maliciousPendingUpdate, userId,
+  ), /food-d1-whatsapp-pending-material-fact-mutation/,
+  "durable clarification cannot replace the original material food identity");
   const changedPending = {
     ...pendingPayload,
     decisions: [{ ...pendingDecision, revision: pendingDecision.revision + 1 }],

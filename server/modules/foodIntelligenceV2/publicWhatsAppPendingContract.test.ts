@@ -79,6 +79,7 @@ describe("#1308 durable V2 WhatsApp pending contract", () => {
       ...pending(), observations: [buildFoodObservationFixture({
         rawInput: null, normalizedInput: null,
         quantityHints: { value: null, unit: null, servingText: null },
+        evidence: [buildFoodObservationFixture().evidence[0]],
       })],
     });
     const replacement = before.observations[0];
