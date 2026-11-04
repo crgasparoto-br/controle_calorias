@@ -382,6 +382,17 @@ export async function commitFoodD1NativeWrite(input: {
             getDateKeyInTimeZone(plan.occurredAt, plan.effectiveTimeZone)) {
         throw new Error("food-d1-native-target-meal-mismatch");
       }
+      // A later nutrition label may replace verified nutrition for this exact
+      // item, but it is not an authorized quantity/portion edit. Preserve the
+      // amount the user actually registered; a change requires explicit D1
+      // edit authorization, not an OCR-derived serving size.
+      if (plan.entrypoint === "nutrition_label" &&
+          (Number(existing.item.quantity) !== item.values.quantity ||
+           existing.item.unit !== item.values.unit ||
+           Number(existing.item.grams) !== item.values.grams ||
+           Number(existing.item.estimatedGrams) !== item.values.estimatedGrams)) {
+        throw new Error("food-d1-native-label-quantity-changed");
+      }
       mealId = existing.mealId;
       await tx.update(mealItems).set(item.values)
         .where(and(eq(mealItems.id, itemId), eq(mealItems.mealId, mealId)));

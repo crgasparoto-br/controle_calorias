@@ -327,6 +327,42 @@ try {
     [userId, matchingLabelEnv.idempotencyKey]);
   assert.equal(Number(matchingLabelReceipt.c), 1);
 
+  // Verified labels may revise the profile but cannot silently change the
+  // quantity a user previously logged: mass/portion edits need a separate
+  // explicitly authorized operation. The denial must leave no effect receipt.
+  const driftEnv = makeEnvelope("ci-d1-label-quantity-drift");
+  const driftBatch = result("nutrition_label", "ci-d1-label-drift-observation", replacement, itemId);
+  const driftDecision = driftBatch.items[0].decision;
+  driftDecision.quantity = {
+    ...driftDecision.quantity, value: 3, grams: 60,
+  };
+  if (!driftDecision.nutrition.consumed) {
+    throw new Error("CI verified label fixture requires consumed nutrition");
+  }
+  driftDecision.nutrition = {
+    ...driftDecision.nutrition,
+    consumed: {
+      ...driftDecision.nutrition.consumed,
+      calories: 162, protein: 7.2, carbs: 1.8, fat: 13.8,
+    },
+  };
+  await assert.rejects(
+    commit(driftEnv, "nutrition_label", prepare(driftEnv, driftBatch)),
+    /food-d1-native-label-quantity-changed/,
+    "label OCR must not overwrite the quantity recorded with a confirmed item",
+  );
+  const [afterQuantityDrift] = await rows(
+    "SELECT quantity, grams, estimatedGrams FROM mealItems WHERE id=?", [itemId],
+  );
+  assert.equal(Number(afterQuantityDrift.quantity), 1.5);
+  assert.equal(Number(afterQuantityDrift.grams), 30);
+  const [driftReceipts] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+    [userId, driftEnv.idempotencyKey],
+  );
+  assert.equal(Number(driftReceipts.c), 0,
+    "rejected nutrition label drift must not generate a durable effect");
+
   // A label update is a physical edit too: a different destination cannot
   // silently relabel an otherwise verified item from this same user's meal.
   const wrongLabelMealEnv = makeEnvelope("ci-d1-label-wrong-meal");
