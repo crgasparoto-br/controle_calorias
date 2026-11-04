@@ -325,7 +325,9 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
         modality: surface.modality,
         digest: createHash("sha256").update(surface.text).digest("hex"),
       })),
-      ...(visual ? [{ modality: "image", digest: visual.contentDigest }] : []),
+      // The user-selected image role is material. Reusing the image bytes
+      // as another role must not reuse an earlier pinned resolution.
+      ...(visual ? [{ modality: visualKind!, digest: visual.contentDigest }] : []),
     ];
     const traceId = `d1-trace-${createHash("sha256").update(JSON.stringify({
       operationKey: operationKeyValue, entrypoint, sourceHashes,

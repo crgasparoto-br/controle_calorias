@@ -347,6 +347,25 @@ describe("public Food D1 web draft confirmation", () => {
     expect(buildPlan).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects a changed visual role under the same pinned multimodal operation", async () => {
+    const { service, buildPlan, saveDraft } = webDraftDependencies();
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "text,multimodal,plate_image,packaging");
+    const base: ProcessMealDraftInput = {
+      source: "web", d1OperationId: "role-pinned-123456",
+      mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+      text: "1,5 fatias de mortadela",
+      image: { base64: "fixture-image", mimeType: "image/jpeg" },
+      imageKind: "plate_image",
+    };
+    await expect(service.tryRunFoodD1PublicWebDraft({ userId, timeZone, request: base }))
+      .resolves.toMatchObject({ entrypoint: "multimodal" });
+    await expect(service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone, request: { ...base, imageKind: "packaging" },
+    })).rejects.toThrow("food-d1-operation-scope-changed");
+    expect(buildPlan).toHaveBeenCalledTimes(1);
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+  });
+
   it("never runs visual extraction when the approval is missing or label lacks an existing item", async () => {
     const { service, extractVisualSurfaces, buildPlan } = webDraftDependencies({ withApproval: false });
     vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image,packaging,nutrition_label,multimodal");
