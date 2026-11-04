@@ -21,7 +21,6 @@ import {
   isFoodD1EntrypointCutoverRequested,
   isValidD1OperationId,
   routeFoodD1Operation,
-  type FoodD1GateApproval,
   type FoodD1RouteStore,
 } from "./entrypointRouting";
 import type { runFoodD1Migration } from "./entrypointRunner";
