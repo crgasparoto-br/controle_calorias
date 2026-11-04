@@ -467,6 +467,30 @@ try {
     draftId: webDraftId, ownerUserId: userId,
     operationKey: webKey, payload: webDraftPayload,
   });
+  const secondSameWeb = await saveFoodD1WebDraft({
+    draftId: "ci-web-tidb-racing-02", ownerUserId: userId,
+    operationKey: webKey, payload: webDraftPayload,
+  });
+  assert.equal(secondSameWeb.status, "pending");
+  if (secondSameWeb.status !== "pending") {
+    throw new Error("Concurrent D1 web draft must retain its first owner");
+  }
+  assert.equal(secondSameWeb.payload.draft.draftId, webDraftId,
+    "a same-operation racing insert must reuse the original public draft ID");
+  await assert.rejects(saveFoodD1WebDraft({
+    draftId: "ci-web-tidb-conflict-03", ownerUserId: userId,
+    operationKey: webKey,
+    payload: {
+      ...webDraftPayload,
+      envelope: { ...webEnvelope, traceId: "d1-trace-changed-media" },
+    },
+  }), /food-d1-public-web-draft-operation-scope-changed/,
+  "a racing conflicting source may not adopt the winning review");
+  const [uniqueWeb] = await rows(
+    "SELECT COUNT(*) AS c FROM food_d1_web_drafts WHERE owner_user_id=? AND operation_key=?",
+    [userId, webKey],
+  );
+  assert.equal(Number(uniqueWeb.c), 1);
   const recoveredWeb = await getFoodD1WebDraftByOperationKey({
     ownerUserId: userId, operationKey: webKey,
   });

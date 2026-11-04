@@ -166,6 +166,28 @@ function assertPayloadScope(input: {
   }
 }
 
+/** Reject a racing submission reusing the operation key with different intent. */
+function assertMatchingConcurrentWebDraft(
+  existing: FoodD1WebDraftPayload,
+  incoming: Omit<FoodD1WebDraftPayload, "draft"> & {
+    draft: Omit<FoodD1WebDraft, "draftId" | "expiresAt">;
+  },
+): void {
+  const a = existing.envelope, b = incoming.envelope;
+  if (existing.draft.operationKey !== incoming.draft.operationKey ||
+      existing.draft.entrypoint !== incoming.draft.entrypoint ||
+      existing.draft.mealLabel !== incoming.draft.mealLabel ||
+      existing.occurredAt.getTime() !== incoming.occurredAt.getTime() ||
+      a.ownerUserId !== b.ownerUserId ||
+      a.traceId !== b.traceId ||
+      a.effectiveTimeZone !== b.effectiveTimeZone ||
+      JSON.stringify(a.mealOperation) !== JSON.stringify(b.mealOperation) ||
+      (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
+        .some(key => a.revisions[key] !== b.revisions[key])) {
+    throw new Error("food-d1-public-web-draft-operation-scope-changed");
+  }
+}
+
 export async function saveFoodD1WebDraft(input: {
   draftId: string;
   ownerUserId: number;
@@ -222,11 +244,14 @@ export async function saveFoodD1WebDraft(input: {
         };
       }
       if (isPendingDraftRow(existing)) {
-        return {
-          status: "pending",
-          payload: decodePayload(existing.payloadJson, existing.draftId,
-            existing.operationKey, existing.expiresAt),
-        };
+        const stored = decodePayload(existing.payloadJson, existing.draftId,
+          existing.operationKey, existing.expiresAt);
+        // A second caller may have seen no draft before it was inserted.
+        // Return the winning draft only when both callers have the same
+        // immutable operation identity. Different provider observations for
+        // the same input do not permit a second physical meal.
+        assertMatchingConcurrentWebDraft(stored, input.payload);
+        return { status: "pending", payload: stored };
       }
       throw new Error("food-d1-web-draft-corrupt-row");
     }
