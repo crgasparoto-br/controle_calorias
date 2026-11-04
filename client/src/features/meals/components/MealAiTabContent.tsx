@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { BrainCircuit, ImagePlus, Mic, Save, WandSparkles } from "lucide-react";
@@ -19,6 +20,8 @@ type MealAiTabContentProps = {
   description: string;
   onDescriptionChange: (value: string) => void;
   imageFileName?: string;
+  imageKind: "plate_image" | "packaging" | "nutrition_label";
+  onImageKindChange: (kind: "plate_image" | "packaging" | "nutrition_label") => void;
   audioFileName?: string;
   onImageChange: React.ChangeEventHandler<HTMLInputElement>;
   onAudioChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -45,6 +48,8 @@ export function MealAiTabContent({
   description,
   onDescriptionChange,
   imageFileName,
+  imageKind,
+  onImageKindChange,
   audioFileName,
   onImageChange,
   onAudioChange,
@@ -105,6 +110,25 @@ export function MealAiTabContent({
               onChange={onAudioChange}
             />
           </div>
+          {imageFileName ? (
+            <div className="space-y-2">
+              <Label htmlFor="meal-image-kind">Tipo de foto</Label>
+              <Select value={imageKind} onValueChange={value =>
+                onImageKindChange(value as "plate_image" | "packaging" | "nutrition_label")}>
+                <SelectTrigger id="meal-image-kind" className="w-full rounded-xl">
+                  <SelectValue placeholder="Selecione o conteúdo da foto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="plate_image">Prato ou alimento servido</SelectItem>
+                  <SelectItem value="packaging">Frente da embalagem</SelectItem>
+                  <SelectItem value="nutrition_label">Tabela nutricional / rótulo</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                O tipo orienta a leitura da imagem; só o resolvedor valida alimentos e nutrientes.
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-3">
             <Button className="rounded-full" onClick={onProcess} disabled={isProcessing}>
               <BrainCircuit className="mr-2 h-4 w-4" />

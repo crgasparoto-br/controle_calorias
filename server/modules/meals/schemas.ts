@@ -120,6 +120,8 @@ export const processMealDraftSchema = z.object({
   occurredAt: z.string().min(1).optional(),
   text: z.string().optional(),
   image: mediaInputSchema,
+  /** User-selected image intent; never proof that a label or identity is verified. */
+  imageKind: z.enum(["plate_image", "packaging", "nutrition_label"]).optional(),
   audio: mediaInputSchema,
 });
 

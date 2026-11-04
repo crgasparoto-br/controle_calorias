@@ -168,7 +168,10 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
       ...item,
       evidence: item.evidence.map(evidence => ({
         ...evidence,
-        origin: request.modality === "audio_transcript" ? "transcription" as const : "text" as const,
+        origin: request.modality === "audio_transcript" ? "transcription" as const
+          : request.modality === "image"
+            ? request.imageRegionRole === "caption" ? "vision" as const : "ocr" as const
+            : "text" as const,
         anchor: { ...evidence.anchor, sourceRef: request.sourceRef },
       })),
     }];
@@ -221,6 +224,10 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
     model: "test-transcription",
     execution: { source: "primary" as const, attempts: 1, usedFallback: false },
   }));
+  const extractVisualSurfaces = vi.fn(async () => ({
+    surfaces: ["1,5 fatias de mortadela"],
+    contentDigest: "b".repeat(64),
+  }));
   const service = createFoodD1PublicWebDraft({
     readAuthorizedContext: async () => input.withApproval === false ? null : ({
       approval: {
@@ -243,8 +250,9 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
     routeStore,
     saveDraft,
     transcribe,
+    extractVisualSurfaces,
   });
-  return { service, comprehend, buildPlan, saveDraft, transcribe, routeStore };
+  return { service, comprehend, buildPlan, saveDraft, transcribe, extractVisualSurfaces, routeStore };
 }
 
 describe("public Food D1 web draft confirmation", () => {
@@ -284,6 +292,72 @@ describe("public Food D1 web draft confirmation", () => {
     expect(stored?.payload.observations.every(observation =>
       observation.rawInput === null && observation.normalizedInput === null)).toBe(true);
     expect(JSON.stringify(stored?.payload)).not.toContain("dGVzdA==");
+  });
+
+  it.each([
+    ["plate_image", "vision"],
+    ["packaging", "ocr"],
+  ] as const)("routes a genuine %s image to the canonical V2 draft with %s provenance", async (imageKind, origin) => {
+    const { service, buildPlan, saveDraft, extractVisualSurfaces } = webDraftDependencies();
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "text,audio_transcript,multimodal,plate_image,packaging");
+    const draft = await service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone,
+      request: {
+        source: "web", d1OperationId: "visual-sample-12345678",
+        mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+        image: { base64: "fixture-image", mimeType: "image/jpeg" }, imageKind,
+      },
+    });
+    expect(draft?.entrypoint).toBe(imageKind);
+    expect(draft?.items).toHaveLength(1);
+    expect(extractVisualSurfaces).toHaveBeenCalledWith(expect.objectContaining({ kind: imageKind }));
+    expect(buildPlan).toHaveBeenCalledTimes(1);
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    const obs = saveDraft.mock.calls[0]?.[0]?.payload.observations[0];
+    expect(obs?.modality).toBe("image");
+    expect(obs?.evidence.some(item => item.origin === origin)).toBe(true);
+    expect(obs?.rawInput).toBeNull();
+  });
+
+  it("coalesces independent image and text evidence before a single meal draft", async () => {
+    const { service, saveDraft, buildPlan } = webDraftDependencies();
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "text,audio_transcript,multimodal,plate_image");
+    const draft = await service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone,
+      request: {
+        source: "web", d1OperationId: "mixed-visual-sample",
+        mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+        text: "1,5 fatias de mortadela",
+        image: { base64: "fixture-image", mimeType: "image/jpeg" },
+        imageKind: "plate_image",
+      },
+    });
+    expect(draft?.entrypoint).toBe("multimodal");
+    expect(draft?.items).toHaveLength(1);
+    const stored = saveDraft.mock.calls[0]?.[0]?.payload.observations;
+    expect(stored).toHaveLength(1);
+    expect(stored?.[0]?.modality).toBe("multimodal");
+    expect(new Set(stored?.[0]?.evidence.map(item => item.origin)))
+      .toEqual(new Set(["text", "vision"]));
+    expect(buildPlan).toHaveBeenCalledTimes(1);
+  });
+
+  it("never runs visual extraction when the approval is missing or label lacks an existing item", async () => {
+    const { service, extractVisualSurfaces, buildPlan } = webDraftDependencies({ withApproval: false });
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image,packaging,nutrition_label,multimodal");
+    const base = {
+      source: "web" as const, d1OperationId: "image-not-approved",
+      mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+      image: { base64: "fixture-image", mimeType: "image/jpeg" },
+    };
+    await expect(service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone, request: { ...base, imageKind: "plate_image" },
+    })).rejects.toThrow("food-d1-public-web-draft-gate-unavailable");
+    await expect(service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone, request: { ...base, imageKind: "nutrition_label" },
+    })).rejects.toThrow("food-d1-public-web-image-role-required");
+    expect(extractVisualSurfaces).not.toHaveBeenCalled();
+    expect(buildPlan).not.toHaveBeenCalled();
   });
 
   it("pauses a V2-pinned web submission on rollback before V1 inference", async () => {

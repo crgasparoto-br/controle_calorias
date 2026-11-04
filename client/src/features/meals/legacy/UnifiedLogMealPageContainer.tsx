@@ -109,6 +109,7 @@ export default function LogMealPage() {
   const [activeTab, setActiveTab] = useState<MealTab>("registro");
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageKind, setImageKind] = useState<"plate_image" | "packaging" | "nutrition_label">("plate_image");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [mealLabel, setMealLabel] = useState("");
@@ -305,6 +306,7 @@ export default function LogMealPage() {
       source: "web" as const,
       text: trimmedDescription || undefined,
       image,
+      imageKind: image ? imageKind : undefined,
       audio,
       mealLabel: (mealLabel || suggestedDraftMealLabel || defaultMealLabel).trim(),
       occurredAt,
@@ -576,6 +578,8 @@ export default function LogMealPage() {
               description={description}
               onDescriptionChange={setDescription}
               imageFileName={imageFile?.name}
+              imageKind={imageKind}
+              onImageKindChange={setImageKind}
               audioFileName={audioFile?.name}
               onImageChange={event => setImageFile(event.target.files?.[0] ?? null)}
               onAudioChange={event => setAudioFile(event.target.files?.[0] ?? null)}

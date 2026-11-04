@@ -30,6 +30,7 @@ import {
 } from "./entrypointRunner";
 import type { FoodOperationEnvelope, FoodObservation } from "./schemas";
 import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
+import { extractD1VisualSurfaces, type FoodD1VisualSurfaces, type FoodD1VisualKind } from "./publicVisualSurfaces";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import {
   getFoodD1WebDraft,
@@ -56,6 +57,10 @@ export type PublicD1WebDraftDependencies = {
   readDraft?: typeof getFoodD1WebDraft;
   run?: typeof runFoodD1Migration;
   transcribe?: typeof transcribeAudio;
+  extractVisualSurfaces?: (input: {
+    image: NonNullable<ProcessMealDraftInput["image"]>;
+    kind: FoodD1VisualKind;
+  }) => Promise<FoodD1VisualSurfaces>;
 };
 
 export function hashFoodD1WebDraftConfirmation(input: {
@@ -225,9 +230,17 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     if (request.source !== "web") return null;
     const hasText = Boolean(request.text?.trim());
     const hasAudio = Boolean(request.audio);
-    const entrypoint: Extract<FoodD1Entrypoint, "text" | "audio_transcript" | "multimodal"> | null = hasText && hasAudio
-      ? "multimodal"
-      : hasText ? "text" : hasAudio ? "audio_transcript" : null;
+    const hasImage = Boolean(request.image);
+    const visualKind: FoodD1VisualKind | null =
+      hasImage && (request.imageKind === "plate_image" || request.imageKind === "packaging")
+        ? request.imageKind : null;
+    // Image role is explicitly chosen by the user, never guessed from a caption.
+    // A nutrition-label continuation requires an existing physical item and
+    // separately verified source evidence: a new web draft cannot authorize it.
+    const entrypoint: FoodD1Entrypoint | null = hasImage && visualKind
+      ? hasText || hasAudio ? "multimodal" : visualKind
+      : hasText && hasAudio
+        ? "multimodal" : hasText ? "text" : hasAudio ? "audio_transcript" : null;
     // A stable web submission already owned by V2 must never be reinterpreted
     // by V1 after the flag is disabled or the user changes modality. Check the
     // durable route before returning null to the public V1 draft handler.
@@ -246,8 +259,14 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       if (pinned?.resolver === "v1") return null;
     }
     if (!entrypoint || !isFoodD1EntrypointCutoverRequested(entrypoint)) return null;
-    if (request.image) {
-      throw new Error("food-d1-public-web-image-entrypoint-incomplete");
+    if (hasImage && !visualKind) {
+      throw new Error("food-d1-public-web-image-role-required");
+    }
+    if (hasImage && visualKind &&
+        (!isFoodD1EntrypointCutoverRequested(visualKind) ||
+        (entrypoint === "multimodal" &&
+          !isFoodD1EntrypointCutoverRequested("multimodal")))) {
+      throw new Error("food-d1-public-web-image-rollout-incomplete");
     }
     if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
         !isValidD1OperationId(request.d1OperationId ?? "") ||
@@ -283,6 +302,17 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     }
 
     const operationKeyValue = operationKey(input.userId, request.d1OperationId!);
+    const visual = hasImage && visualKind
+      ? await (deps.extractVisualSurfaces ?? extractD1VisualSurfaces)({
+        image: request.image!, kind: visualKind,
+      }) : null;
+    if (visual && (!/^[a-f0-9]{64}$/u.test(visual.contentDigest) ||
+        !Array.isArray(visual.surfaces) || visual.surfaces.length === 0 ||
+        visual.surfaces.length > 30 ||
+        visual.surfaces.some(surface => typeof surface !== "string" ||
+          !surface.trim() || surface.length > 240))) {
+      throw new Error("food-d1-public-web-visual-evidence-invalid");
+    }
     const surfaces: Array<{ text: string; modality: "text" | "audio_transcript"; source: string }> = [];
     if (hasText) {
       surfaces.push({ text: request.text!.trim(), modality: "text", source: "text" });
@@ -290,10 +320,13 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     if (transcript) {
       surfaces.push({ text: transcript, modality: "audio_transcript", source: "audio" });
     }
-    const sourceHashes = surfaces.map(surface => ({
-      modality: surface.modality,
-      digest: createHash("sha256").update(surface.text).digest("hex"),
-    }));
+    const sourceHashes = [
+      ...surfaces.map(surface => ({
+        modality: surface.modality,
+        digest: createHash("sha256").update(surface.text).digest("hex"),
+      })),
+      ...(visual ? [{ modality: "image", digest: visual.contentDigest }] : []),
+    ];
     const traceId = `d1-trace-${createHash("sha256").update(JSON.stringify({
       operationKey: operationKeyValue, entrypoint, sourceHashes,
     })).digest("hex")}`;
@@ -324,9 +357,30 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       if (surface.modality === "text") textObservations.push(...parsed);
       else transcriptObservations.push(...parsed);
     }
-    const observations = entrypoint === "multimodal"
-      ? coalesceEquivalentMultimodalEvidence(textObservations, transcriptObservations)
-      : [...textObservations, ...transcriptObservations];
+    const imageObservations: FoodObservation[] = [];
+    if (visual && visualKind) {
+      for (const [index, surface] of visual.surfaces.entries()) {
+        imageObservations.push(...await comprehend({
+          rawText: surface,
+          sourceRef: `${operationKeyValue}:image:${index}`,
+          modality: "image",
+          imageRegionRole: visualKind === "plate_image" ? "caption" : "front_identity",
+          ownerUserId: input.userId,
+          lexiconRevision: context.revisions.lexicon,
+          locale: "pt-BR",
+          now,
+        }, lexicon));
+      }
+    }
+    let observations: FoodObservation[] = [...textObservations, ...transcriptObservations, ...imageObservations];
+    if (entrypoint === "multimodal") {
+      const pairedTextAudio = textObservations.length && transcriptObservations.length
+        ? coalesceEquivalentMultimodalEvidence(textObservations, transcriptObservations)
+        : [...textObservations, ...transcriptObservations];
+      observations = imageObservations.length
+        ? coalesceEquivalentMultimodalEvidence(pairedTextAudio, imageObservations)
+        : pairedTextAudio;
+    }
     if (!observations.length) throw new Error("food-d1-public-web-draft-no-observations");
     const evidence = { kind: "structured" as const, observations };
     const d1Request: FoodD1Request = {
