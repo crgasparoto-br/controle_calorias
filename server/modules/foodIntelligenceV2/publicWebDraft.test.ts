@@ -546,6 +546,31 @@ describe("public Food D1 web draft confirmation", () => {
     expect(saveDraft).not.toHaveBeenCalled();
   });
 
+  it("rejects changed time or timezone on pending review before any D1 resolver/write", async () => {
+    const readDraft = vi.fn(async () => buildPendingRecord());
+    const { run, service } = createService(readDraft);
+    const request = confirmationRequest();
+    await expect(service.confirmFoodD1PublicWebDraft({
+      userId, request, timeZone,
+      occurredAt: new Date("2026-11-02T16:00:00.000Z"),
+    })).rejects.toThrow("food-d1-public-web-draft-operation-scope-changed");
+    await expect(service.confirmFoodD1PublicWebDraft({
+      userId, request, timeZone: "UTC", occurredAt,
+    })).rejects.toThrow("food-d1-public-web-draft-operation-scope-changed");
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("rejects a corrupted stored draft timestamp even with the original user timestamp", async () => {
+    const corrupted = buildPendingRecord();
+    if (corrupted.status !== "pending") throw new Error("invalid test fixture");
+    corrupted.payload.draft.occurredAt = new Date("2026-11-02T16:00:00.000Z").toISOString();
+    const { run, service } = createService(vi.fn(async () => corrupted));
+    await expect(service.confirmFoodD1PublicWebDraft({
+      userId, request: confirmationRequest(), timeZone, occurredAt,
+    })).rejects.toThrow("food-d1-public-web-draft-operation-scope-changed");
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("binds idempotent retries to the exact confirmed review", async () => {
     const request = confirmationRequest();
     const confirmationHash = hashFoodD1WebDraftConfirmation({

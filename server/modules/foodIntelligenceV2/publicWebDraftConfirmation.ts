@@ -97,9 +97,15 @@ export function createFoodD1PublicWebDraftConfirmation(deps: PublicD1WebDraftDep
       }
       return record.result;
     }
-    const { draft, envelope, observations } = record.payload;
+    const { draft, envelope, observations, occurredAt: pinnedOccurredAt } = record.payload;
+    // The review and its authorized operation are anchored to the original
+    // instant/timezone, not merely the same civil day. A changed hour or
+    // timezone would silently move the committed meal on a reused draft ID.
     if (draft.mealLabel !== input.request.mealLabel ||
-        getDateKeyInTimeZone(input.occurredAt, input.timeZone) !==
+        input.timeZone !== envelope.effectiveTimeZone ||
+        input.occurredAt.getTime() !== pinnedOccurredAt.getTime() ||
+        draft.occurredAt !== pinnedOccurredAt.toISOString() ||
+        getDateKeyInTimeZone(input.occurredAt, envelope.effectiveTimeZone) !==
           envelope.mealOperation?.date) {
       throw new Error("food-d1-public-web-draft-operation-scope-changed");
     }
