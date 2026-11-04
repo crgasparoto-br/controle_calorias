@@ -35,6 +35,15 @@ export function parseExplicitD1WhatsAppVisualIntent(caption: string | null | und
   };
 }
 
+/** A WhatsApp Media API download is already normalized to a data URL.
+ * Derive the actual MIME from the trusted normalized bytes, never the caption.
+ */
+export function fromTrustedD1WhatsAppMediaDataUrl(dataUrl: string) {
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/u.exec(dataUrl);
+  if (!match) throw new Error("food-d1-whatsapp-visual-normalized-media-required");
+  return { base64: match[2], mimeType: match[1] };
+}
+
 export type PublicD1WhatsAppVisualInput = {
   userId: number;
   externalMessageId: string | null;

@@ -22,6 +22,7 @@ import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publ
 import { createFoodD1PublicWhatsAppRegistration,
   type PublicD1WhatsAppDependencies } from "../foodIntelligenceV2/publicWhatsAppRegistration";
 import { createFoodD1PublicWhatsAppVisualRegistration,
+  fromTrustedD1WhatsAppMediaDataUrl,
   type PublicD1WhatsAppVisualDependencies } from "../foodIntelligenceV2/publicWhatsAppVisualRegistration";
 import { extractD1VisualSurfaces } from "../foodIntelligenceV2/publicVisualSurfaces";
 import { comprehendFoodLanguage } from "../foodIntelligenceV2/linguisticComprehension";
@@ -132,8 +133,17 @@ export function createWhatsAppD1VisualRegistrationService(
     }),
   });
 }
-export const tryRunPublicFoodD1WhatsAppVisualRegistration =
-  createWhatsAppD1VisualRegistrationService();
+const visualRegistration = createWhatsAppD1VisualRegistrationService();
+/** Transport owner supplies only its Media API download and user-submitted intent. */
+export async function tryRunPublicFoodD1WhatsAppVisualRegistration(input: {
+  userId: number; externalMessageId: string | null;
+  imageAnalysisUrl: string; caption: string | null | undefined;
+  transcript?: string | null; receivedAt: Date; timeZone: string;
+}) {
+  return visualRegistration({
+    ...input, image: fromTrustedD1WhatsAppMediaDataUrl(input.imageAnalysisUrl),
+  });
+}
 
 const defaultDependencies: ConfirmedMealRegistrationDependencies = {
   processMeal: input => nutritionRuntime.processMealInput(input),

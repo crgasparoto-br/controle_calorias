@@ -100,7 +100,8 @@ import {
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
-import { tryRunPublicFoodD1WhatsAppRegistration } from "./modules/whatsapp/confirmedMealRegistration";
+import { tryRunPublicFoodD1WhatsAppRegistration,
+  tryRunPublicFoodD1WhatsAppVisualRegistration } from "./modules/whatsapp/confirmedMealRegistration";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,
@@ -923,6 +924,38 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             await sendInterpretedTextIntentReply({
               userId, sourcePhone, interpreted: migrated, lifecycleHandle,
               replyText: composeFinalReply(migrated.reply), response: res,
+            });
+            continue;
+          }
+        }
+        if (message.image?.id && prepared.imageAnalysisUrl) {
+          let selectedVisual: Awaited<ReturnType<typeof tryRunPublicFoodD1WhatsAppVisualRegistration>> = null;
+          try {
+            selectedVisual = await tryRunPublicFoodD1WhatsAppVisualRegistration({
+              userId, externalMessageId: message.id ?? null,
+              imageAnalysisUrl: prepared.imageAnalysisUrl,
+              caption: message.image.caption ?? null,
+              transcript: prepared.transcript ?? null,
+              receivedAt: occurredAt, timeZone: userTimezone,
+            });
+          } catch (error) {
+            if (error instanceof Error &&
+                error.message === "food-d1-whatsapp-visual-explicit-role-required") {
+              const reply = await sendFinalText(
+                "Para registrar esta foto na versão nova, reenvie-a com a legenda \`#prato @almoco\` ou \`#embalagem @jantar\` (escolha a refeição correta). Uma foto de rótulo exige um alimento já registrado."
+              );
+              if (!reply.ok) logInferenceEvent({ userId, origin: "whatsapp",
+                status: "warning", eventType: "whatsapp.reply_failed",
+                detail: "Falha ao entregar orientação de papel visual V2." });
+              continue;
+            }
+            throw error;
+          }
+          if (selectedVisual) {
+            await acknowledgement?.beforeFinalReply();
+            await sendInterpretedTextIntentReply({
+              userId, sourcePhone, interpreted: selectedVisual, lifecycleHandle,
+              replyText: composeFinalReply(selectedVisual.reply), response: res,
             });
             continue;
           }

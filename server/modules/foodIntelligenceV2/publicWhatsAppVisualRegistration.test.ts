@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFoodD1PublicWhatsAppVisualRegistration,
-  parseExplicitD1WhatsAppVisualIntent } from "./publicWhatsAppVisualRegistration";
+  parseExplicitD1WhatsAppVisualIntent,
+  fromTrustedD1WhatsAppMediaDataUrl } from "./publicWhatsAppVisualRegistration";
 import type { PublicD1WhatsAppVisualDependencies } from "./publicWhatsAppVisualRegistration";
 import { buildFoodObservationFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
 
@@ -74,6 +75,16 @@ describe("#1308 WhatsApp image -> canonical V2", () => {
     for (const value of ["almoço", "foto de prato", "#rotulo @almoco",
       "#embalagem", "#prato @almoco\n".repeat(410)]) {
       expect(parseExplicitD1WhatsAppVisualIntent(value)).toBeNull();
+    }
+  });
+  it("derives MIME from trusted normalized data URL and rejects non-image resources", () => {
+    expect(fromTrustedD1WhatsAppMediaDataUrl("data:image/png;base64,YWJj")).toEqual({
+      base64: "YWJj", mimeType: "image/png",
+    });
+    for (const url of ["https://example.invalid/photo", "data:text/html;base64,YWJj",
+      "data:image/png;base64,#", "data:image/svg+xml;base64,YWJj"]) {
+      expect(() => fromTrustedD1WhatsAppMediaDataUrl(url))
+        .toThrow("food-d1-whatsapp-visual-normalized-media-required");
     }
   });
   it("does not call gate or provider when V2 flag is OFF", async () => {
