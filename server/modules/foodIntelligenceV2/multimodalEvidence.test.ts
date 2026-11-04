@@ -74,6 +74,47 @@ describe("multimodal evidence coalescing at the web public boundary", () => {
     expect(parseFoodObservation(result[0]).ok).toBe(true);
   });
 
+  it("rejects unmatched repeated photo/text count instead of silently registering a duplicate", () => {
+    const typed = [observed("text", "typed-1"), observed("text", "typed-2")];
+    const visual = [observed("audio_transcript", "image-1")];
+    expect(() => coalesceEquivalentMultimodalEvidence(typed, visual))
+      .toThrow("food-d1-multimodal-sibling-cardinality-conflict");
+    expect(() => coalesceEquivalentMultimodalEvidence(
+      [typed[0]], [visual[0], observed("audio_transcript", "image-2")],
+    )).toThrow("food-d1-multimodal-sibling-cardinality-conflict");
+    const allowed = coalesceEquivalentMultimodalEvidence(
+      typed, [visual[0], observed("audio_transcript", "image-2")],
+    );
+    expect(allowed).toHaveLength(2);
+    expect(allowed.map(item => item.observationId)).toEqual(["typed-1", "typed-2"]);
+  });
+
+  it("rejects ambiguous pairing of materially distinct repeated servings", () => {
+    const typed = [
+      observed("text", "first", { quantity: 1 }),
+      observed("text", "second", { quantity: 2 }),
+    ];
+    const visual = [
+      observed("audio_transcript", "photo-1"),
+      observed("audio_transcript", "photo-2"),
+    ].map(item => ({
+      ...item,
+      quantityHints: { ...item.quantityHints,
+        value: null, unit: null, servingText: null,
+      },
+    }));
+    expect(() => coalesceEquivalentMultimodalEvidence(typed, visual))
+      .toThrow("food-d1-multimodal-ambiguous-sibling-match");
+    // Explicitly observed quantities remove the ambiguity without merging
+    // siblings from a single channel or inventing more registrations.
+    const grounded = coalesceEquivalentMultimodalEvidence(typed, [
+      observed("audio_transcript", "voice-first", { quantity: 1 }),
+      observed("audio_transcript", "voice-second", { quantity: 2 }),
+    ]);
+    expect(grounded).toHaveLength(2);
+    expect(grounded.map(item => item.quantityHints.value)).toEqual([1, 2]);
+  });
+
   it("keeps separate foods but rejects conflicting claims for the same food", () => {
     const unrelated = coalesceEquivalentMultimodalEvidence(
       [observed("text", "typed")],

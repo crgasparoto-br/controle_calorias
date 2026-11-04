@@ -64,6 +64,38 @@ function enrichEquivalentObservation(
 }
 
 /**
+ * Do not infer one-to-one correspondence from only a shared food name.
+ * A photo with two indistinguishable servings and a text message with one
+ * serving (or with two materially distinct portions) has no safe pairing.
+ * Reject before any canonical resolver can register a duplicate or silently
+ * attach a visual region to the wrong physical item.
+ */
+function assertUnambiguousCrossModalSiblings(
+  primary: readonly FoodObservation[],
+  secondary: readonly FoodObservation[],
+): void {
+  const identities = new Set(primary.map(observedIdentity).filter(
+    (identity): identity is string => identity !== null,
+  ));
+  for (const identity of identities) {
+    const p = primary.filter(item => observedIdentity(item) === identity);
+    const s = secondary.filter(item => observedIdentity(item) === identity);
+    if (!s.length) continue;
+    if (p.length !== s.length) {
+      throw new Error("food-d1-multimodal-sibling-cardinality-conflict");
+    }
+    if (p.length <= 1) continue;
+    const ambiguous = p.some(item => s.filter(other =>
+      compatibleMaterialFacts(item, other)).length > 1);
+    const distinct = new Set(p.map(observedAttributes)).size > 1 ||
+      new Set(s.map(observedAttributes)).size > 1;
+    if (ambiguous && distinct) {
+      throw new Error("food-d1-multimodal-ambiguous-sibling-match");
+    }
+  }
+}
+
+/**
  * Pair equivalent evidence across channels, never dedupe siblings inside one.
  * Missing image quantity may enrich a typed amount but conflicting non-null
  * claims always fail closed. All anchors remain tied to their original source.
@@ -72,6 +104,7 @@ export function coalesceEquivalentMultimodalEvidence(
   text: readonly FoodObservation[],
   transcript: readonly FoodObservation[],
 ): FoodObservation[] {
+  assertUnambiguousCrossModalSiblings(text, transcript);
   const usedTranscript = new Set<number>();
   const combined: FoodObservation[] = [];
   for (const primary of text) {

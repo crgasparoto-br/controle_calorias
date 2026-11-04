@@ -50,7 +50,9 @@ describe("#1308 existing foodPhotoAnalysis.analyze public V2 bridge", () => {
     async kind => {
       vi.stubEnv("FOOD_V2_D1_ENABLED", "true");
       vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", kind);
-      const run = vi.fn(async () => ({ ...draft, entrypoint: kind }));
+      const run = vi.fn(async (_request: Parameters<typeof tryRunFoodD1PublicWebDraft>[0]) => ({
+        ...draft, entrypoint: kind,
+      }));
       const service = createFoodD1PublicPhotoAnalysis(run);
       const first = await service({ ...original, input: { ...original.input, imageKind: kind } });
       const second = await service({ ...original, input: { ...original.input, imageKind: kind } });
