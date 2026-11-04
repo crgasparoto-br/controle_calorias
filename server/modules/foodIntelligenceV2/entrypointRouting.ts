@@ -47,6 +47,9 @@ export function hashFoodD1OperationScope(
     ownerUserId: envelope.ownerUserId, operationKey: envelope.idempotencyKey,
     // Continuation may change turnRef, but never its original decision trace.
     traceId: envelope.traceId,
+    // Original conversation resource is immutable across turns; for a
+    // verified label this binds a route to exact approved photo bytes.
+    conversationRef: envelope.conversationRef,
     source, effectiveTimeZone: envelope.effectiveTimeZone,
     mealOperation: envelope.mealOperation,
   })).digest("hex");

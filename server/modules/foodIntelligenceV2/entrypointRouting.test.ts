@@ -40,6 +40,20 @@ function scenario(s: FoodD1RouteStore) {
 }
 
 describe("#1308 D1 operation-key validation", () => {
+  it("pins the original conversation and label bytes but not the next turn", () => {
+    const original = buildFoodOperationEnvelopeFixture({
+      ownerUserId: 7, idempotencyKey: "d1-label-7:12345678",
+      traceId: "original-decision-trace",
+      conversationRef: "d1-label-image:" + "a".repeat(64),
+    }) as FoodOperationEnvelope;
+    const scope = hashFoodD1OperationScope(original, "web");
+    expect(hashFoodD1OperationScope({
+      ...original, turnRef: "later-turn",
+    }, "web")).toBe(scope);
+    expect(hashFoodD1OperationScope({
+      ...original, conversationRef: "d1-label-image:" + "b".repeat(64),
+    }, "web")).not.toBe(scope);
+  });
   it("accepts only the exact opaque key shape, never food-text or ambiguous whitespace", () => {
     for (const value of ["manual-submission-1", "A1234567", "0.12345_:-", "z".repeat(80)]) {
       expect(isValidD1OperationId(value), value).toBe(true);

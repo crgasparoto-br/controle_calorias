@@ -127,7 +127,9 @@ export function createFoodD1PublicNutritionLabel(
       envelope: {
         schemaVersion: 2, traceId: target.decision.traceId,
         idempotencyKey: operationKey, ownerUserId: input.userId,
-        conversationRef: null, turnRef: null,
+        // A reused ID with another label photo is an idempotency conflict.
+        conversationRef: "d1-label-image:" + media.contentDigest,
+        turnRef: null,
         effectiveTimeZone: input.timeZone,
         mealOperation: { action: "edit", targetMeal: target.mealLabel,
           date: getDateKeyInTimeZone(target.occurredAt, input.timeZone) },
