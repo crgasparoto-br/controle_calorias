@@ -6,10 +6,8 @@
 import { createHash } from "node:crypto";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type { WhatsappIntentResult } from "../whatsapp/intent/types";
-import { governedLinguisticLexiconStore } from "./linguisticLexiconRepository";
-import { createFoodV2KnowledgeRepository } from "./repository";
 import type { FoodD1Request, FoodD1Dependencies } from "./entrypointMigration";
-import { runFoodD1Migration } from "./entrypointRunner";
+import type { runFoodD1Migration } from "./entrypointRunner";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
@@ -28,9 +26,10 @@ export type PublicD1WhatsAppDependencies = {
     userId: number; mealId: number; registeredAt: Date; timeZone: string;
     skipped: FoodD1CommitResult["skipped"];
   }) => Promise<string>;
-  lexicon?: FoodD1Dependencies["lexicon"];
-  knowledge?: FoodD1Dependencies["knowledge"];
-  run?: typeof runFoodD1Migration;
+  /** Trusted transport owner supplies providers; never import V1 or DB here. */
+  lexicon: FoodD1Dependencies["lexicon"];
+  knowledge: FoodD1Dependencies["knowledge"];
+  run: typeof runFoodD1Migration;
 };
 
 export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDependencies) {
@@ -98,11 +97,11 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
       authenticatedUserId: input.userId, entrypoint: input.modality,
       envelope, evidence, now: input.receivedAt,
     };
-    const response = await (deps.run ?? runFoodD1Migration)({
+    const response = await deps.run({
       request, source: "whatsapp", occurredAt: operation.date,
       dependencies: {
-        lexicon: deps.lexicon ?? governedLinguisticLexiconStore,
-        knowledge: deps.knowledge ?? createFoodV2KnowledgeRepository(),
+        lexicon: deps.lexicon,
+        knowledge: deps.knowledge,
         authorizeEvidence: async candidate => candidate.ownerUserId === input.userId &&
           candidate.entrypoint === input.modality && candidate.evidence === evidence,
         authorizeExistingItem: async () => false,

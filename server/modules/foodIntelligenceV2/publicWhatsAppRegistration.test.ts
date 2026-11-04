@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createWhatsAppD1RegistrationService } from "../whatsapp/foodD1Registration";
+import { createWhatsAppD1RegistrationService } from "../whatsapp/confirmedMealRegistration";
 import type { runFoodD1Migration } from "./entrypointRunner";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 
