@@ -130,7 +130,14 @@ describe("nutrition router", () => {
       process.env.FOOD_V2_D1_ENTRYPOINTS = "plate_image";
       vi.mocked(processMealInput).mockClear();
       await expect(caller.nutrition.foodPhotoAnalysis.analyze({ image }))
-        .rejects.toThrow("food-d1-public-entrypoint-migration-incomplete");
+        .rejects.toThrow("food-d1-public-photo-explicit-kind-required");
+      // With an explicit visual role and operation, the existing public photo
+      // endpoint must still never reach V1 if the external Gate A is absent.
+      await expect(caller.nutrition.foodPhotoAnalysis.analyze({
+        image, imageKind: "plate_image", d1OperationId: "public-photo-d1-001",
+        mealLabel: "almoço", occurredAt: "2026-04-22T12:00",
+      })).rejects.toThrow();
+      expect(processMealInput).not.toHaveBeenCalled();
       expect(processMealInput).not.toHaveBeenCalled();
       expect(await caller.nutrition.meals.list()).toEqual(before);
     } finally {
@@ -996,6 +1003,7 @@ describe("nutrition router", () => {
       },
     });
     const afterAnalysis = await caller.nutrition.meals.list();
+    if ("resolver" in analysis) throw new Error("legacy photo test unexpectedly entered V2");
 
     expect(analysis.status).toBe("analyzed");
     expect(analysis.suggestedItems.length).toBeGreaterThan(0);
@@ -1040,6 +1048,7 @@ describe("nutrition router", () => {
         mimeType: "image/png",
       },
     });
+    if ("resolver" in analysis) throw new Error("legacy photo test unexpectedly entered V2");
     const rejected = await caller.nutrition.foodPhotoAnalysis.reject({ analysisId: analysis.id });
     const afterReject = await caller.nutrition.meals.list();
 
