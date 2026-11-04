@@ -279,6 +279,41 @@ describe("issue #997 atomic mixed increment plan", () => {
     expect(mocks.updateBatch).not.toHaveBeenCalled();
   });
 
+  it("rejects a physical V2 target before V1 portion lookup or batch mutation", async () => {
+    const protectedItem = {
+      ...item("Presunto", 20, 101),
+      v2SnapshotVerified: true as const,
+      historicalRef: "variant:201",
+    };
+    mocks.listMeals.mockResolvedValue([meal([protectedItem])]);
+    const result = await continueMixedMealItemIncrementPlan(42, {
+      ...basePlan,
+      operations: [{ targetFood: "presunto", quantity: 1, unit: "fatia" }],
+    });
+    expect(result.eventType).toBe("whatsapp.intent.meal_item_increment_requires_v2");
+    expect(mocks.getFood).not.toHaveBeenCalled();
+    expect(mocks.convert).not.toHaveBeenCalled();
+    expect(mocks.updateBatch).not.toHaveBeenCalled();
+    expect(mocks.requestQuantity).not.toHaveBeenCalled();
+  });
+
+  it("blocks V2 ownership appearing between plan selection and final readback", async () => {
+    const legacyItem = item("Presunto", 20, 101);
+    const protectedItem = {
+      ...legacyItem, v2SnapshotVerified: true as const,
+      historicalRef: "variant:201",
+    };
+    const initial = meal([legacyItem]);
+    mocks.listMeals.mockResolvedValueOnce([initial])
+      .mockResolvedValueOnce([meal([protectedItem])]);
+    const result = await continueMixedMealItemIncrementPlan(42, {
+      ...basePlan,
+      operations: [{ targetFood: "presunto", quantity: 10, unit: "g" }],
+    });
+    expect(result.eventType).toBe("whatsapp.intent.meal_item_increment_requires_v2");
+    expect(mocks.updateBatch).not.toHaveBeenCalled();
+  });
+
   it("pré-valida todos os alvos antes de aplicar duas operações ao mesmo item", async () => {
     const initial = meal([item("Requeijão Catupiry Light", 45, 1)]);
     mocks.listMeals.mockResolvedValue([initial]);

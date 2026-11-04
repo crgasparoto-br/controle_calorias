@@ -191,6 +191,24 @@ function snapshot(meal: MutableMeal | MealRecord) {
   };
 }
 
+function isProtectedV2IncrementTarget(item: MealItemInput): boolean {
+  // This marker came from the authenticated, physical meal readback, not from
+  // an inbound WhatsApp payload or a user-controlled product label.
+  return "v2SnapshotVerified" in item && item.v2SnapshotVerified === true;
+}
+
+function protectedV2IncrementResult(): WhatsappIntentResult {
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: buildWhatsAppClarificationReplyMessage(
+      "Este alimento foi registrado pela versão V2. Não é possível alterar sua quantidade por esse comando antigo; use uma edição V2 autorizada.",
+    ),
+    eventType: "whatsapp.intent.meal_item_increment_requires_v2",
+    detail: "Item físico V2 protegido antes de consulta ao catálogo V1 e de qualquer alteração em lote.",
+  };
+}
+
 function stalePlanResult(): WhatsappIntentResult {
   return {
     handled: true,
@@ -233,6 +251,7 @@ async function applyReadyPlan(
 
     const resolved = targetStillValid(currentMeals, operation.target);
     if (!resolved) return stalePlanResult();
+    if (isProtectedV2IncrementTarget(resolved.item)) return protectedV2IncrementResult();
 
     resolvedOperations.push({
       operation,
@@ -406,6 +425,10 @@ export async function continueMixedMealItemIncrementPlan(
         detail: "Plano misto bloqueado por alvo ausente antes de qualquer mutação.",
       };
     }
+    const targetItem = (target.meal as MutableMeal).items[target.index];
+    if (targetItem && isProtectedV2IncrementTarget(targetItem)) {
+      return protectedV2IncrementResult();
+    }
     operation.target = toTarget(target.meal as MutableMeal, target.index);
   }
 
@@ -425,6 +448,7 @@ export async function continueMixedMealItemIncrementPlan(
     if (!operation.target) continue;
     const current = targetStillValid(meals, operation.target);
     if (!current) return stalePlanResult();
+    if (isProtectedV2IncrementTarget(current.item)) return protectedV2IncrementResult();
 
     const countableUnit = operation.unit ? normalizeCountableUnit(operation.unit) : null;
     if (countableUnit) {
