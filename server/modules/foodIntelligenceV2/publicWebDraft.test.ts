@@ -8,6 +8,7 @@ import {
   createFoodD1PublicWebDraft,
   hashFoodD1WebDraftConfirmation,
   preserveFoodD1ReviewProvenance,
+  foodD1WebCorrectionSourceRef,
 } from "./publicWebDraft";
 import type { LinguisticRequest } from "./linguisticComprehension";
 import {
@@ -508,6 +509,15 @@ describe("public Food D1 web draft confirmation", () => {
       draftConfirmationHash: confirmationHash,
     }));
     expect(readDraft).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds correction source refs independently of long operation and observation IDs", () => {
+    const a = foodD1WebCorrectionSourceRef("o".repeat(190), "x".repeat(200));
+    const b = foodD1WebCorrectionSourceRef("o".repeat(190), "y".repeat(200));
+    expect(a).toMatch(/^d1-review:[a-f0-9]{64}$/u);
+    expect(a.length).toBeLessThan(145);
+    expect(a).not.toBe(b);
+    expect(foodD1WebCorrectionSourceRef("o".repeat(190), "x".repeat(200))).toBe(a);
   });
 
   it("preserves original audio and vision provenance after explicit text correction", () => {

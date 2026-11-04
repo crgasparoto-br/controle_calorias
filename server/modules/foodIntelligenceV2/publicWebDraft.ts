@@ -98,6 +98,13 @@ function operationKey(userId: number, operationId: string): string {
   return `d1-web-${userId}:${operationId}`;
 }
 
+/** Fixed-size source reference: nested operation and observation IDs can be long. */
+export function foodD1WebCorrectionSourceRef(operationKey: string, observationId: string): string {
+  return "d1-review:" + createHash("sha256")
+    .update(JSON.stringify([operationKey, observationId]))
+    .digest("hex");
+}
+
 function buildEnvelope(input: {
   userId: number;
   operationKey: string;
@@ -522,7 +529,7 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       const surface = `${quantitySurface}${item.foodName}`.trim();
       const corrected = await comprehend({
         rawText: surface,
-        sourceRef: `${draft.operationKey}:correction:${item.observationId}`,
+        sourceRef: foodD1WebCorrectionSourceRef(draft.operationKey, item.observationId),
         modality: "text",
         ownerUserId: input.userId,
         lexiconRevision: envelope.revisions.lexicon,
