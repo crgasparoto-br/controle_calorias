@@ -26,6 +26,7 @@ import type {
   FoodD1WebDraftRecord,
 } from "./publicWebDraftRepository";
 import { saveFoodD1WebDraft } from "./publicWebDraftRepository";
+import { foodD1WebDraftSchema } from "../../../shared/foodD1WebDraft";
 
 const userId = 7;
 const timeZone = "America/Sao_Paulo";
@@ -317,6 +318,7 @@ describe("public Food D1 web draft confirmation", () => {
     });
     expect(draft?.entrypoint).toBe(imageKind);
     expect(draft?.items).toHaveLength(1);
+    expect(foodD1WebDraftSchema.safeParse(draft).success).toBe(true);
     expect(extractVisualSurfaces).toHaveBeenCalledWith(expect.objectContaining({ kind: imageKind }));
     expect(buildPlan).toHaveBeenCalledTimes(1);
     expect(saveDraft).toHaveBeenCalledTimes(1);
@@ -327,6 +329,24 @@ describe("public Food D1 web draft confirmation", () => {
     expect(obs?.rawInput).toBeNull();
     expect(JSON.stringify(saveDraft.mock.calls[0]?.[0]?.payload))
       .not.toContain("fixture-image");
+  });
+
+  it("disallows a standalone label or continuation masquerading as a new-meal draft", async () => {
+    const { service } = webDraftDependencies();
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image,packaging");
+    const draft = await service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone,
+      request: {
+        source: "web", d1OperationId: "plain-photo-sample",
+        mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+        image: { base64: "fixture-image", mimeType: "image/png" },
+        imageKind: "plate_image",
+      },
+    });
+    expect(foodD1WebDraftSchema.safeParse({ ...draft, entrypoint: "nutrition_label" }).success)
+      .toBe(false);
+    expect(foodD1WebDraftSchema.safeParse({ ...draft, entrypoint: "continuation" }).success)
+      .toBe(false);
   });
 
   it("coalesces independent image and text evidence before a single meal draft", async () => {

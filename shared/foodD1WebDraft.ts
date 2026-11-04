@@ -20,7 +20,8 @@ export const foodD1WebDraftSchema = z.strictObject({
   resolver: z.literal("food-v2"),
   draftId: z.string().min(1).max(80),
   operationKey: z.string().min(1).max(200),
-  entrypoint: z.enum(["text", "audio_transcript", "multimodal"]),
+  // Only independent new-meal drafts; label/continuation need a pinned physical item.
+  entrypoint: z.enum(["text", "audio_transcript", "multimodal", "plate_image", "packaging"]),
   mealLabel: z.string().min(1).max(80),
   occurredAt: z.string().datetime({ offset: true }),
   expiresAt: z.string().datetime({ offset: true }),
