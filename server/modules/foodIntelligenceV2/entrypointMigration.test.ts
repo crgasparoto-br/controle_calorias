@@ -129,6 +129,103 @@ describe("#1308 D1 - one linguistic and food resolver contract", () => {
     expect(deniedProviders.knowledge.readLocal).not.toHaveBeenCalled();
   });
 
+  it("converges two independent servings across text, audio and photo without losing a sibling", async () => {
+    const observed = (
+      observationId: string,
+      modality: "text" | "audio_transcript" | "image",
+      sourceRef: string,
+      overrides: { quantity?: number | null; foodName?: string } = {},
+    ): FoodObservation => {
+      const quantity = overrides.quantity === undefined ? 1.5 : overrides.quantity;
+      const original = buildFoodObservationFixture({
+        observationId, modality,
+        rawInput: null, normalizedInput: null,
+        identityHints: { foodName: overrides.foodName ?? "mortadela" },
+        surfaceSpan: { sourceRef },
+        quantityHints: {
+          value: quantity,
+          unit: quantity === null ? null : "fatia",
+          servingText: quantity === null ? null : "1,5 fatias",
+        },
+      });
+      const origin = modality === "audio_transcript" ? "transcription" as const
+        : modality === "image" ? "vision" as const : "text" as const;
+      return {
+        ...original,
+        evidence: original.evidence
+          .filter(item => quantity !== null || !item.field.startsWith("quantity."))
+          .map(item => ({
+            ...item, origin,
+            verified: modality === "image" ? false : item.verified,
+            anchor: { ...item.anchor, sourceRef },
+          })),
+        normalizationPath: original.normalizationPath.map(step => ({
+          ...step, anchor: { ...step.anchor, sourceRef },
+        })),
+      };
+    };
+    const typed = [
+      observed("typed-1", "text", "typed:1"),
+      observed("typed-2", "text", "typed:2"),
+    ];
+    const spoken = [
+      observed("spoken-1", "audio_transcript", "voice:1"),
+      observed("spoken-2", "audio_transcript", "voice:2"),
+    ];
+    const visual = [
+      observed("photo-1", "image", "image:1", { quantity: null }),
+      observed("photo-2", "image", "image:2", { quantity: null }),
+    ];
+    const textAudio = coalesceEquivalentMultimodalEvidence(typed, spoken);
+    const fused = coalesceEquivalentMultimodalEvidence(textAudio, visual);
+    expect(fused).toHaveLength(2);
+    expect(fused.map(item => item.observationId)).toEqual(["typed-1", "typed-2"]);
+    expect(fused.every(item => item.modality === "multimodal")).toBe(true);
+    for (const item of fused) {
+      expect(item.quantityHints).toEqual(expect.objectContaining({
+        value: 1.5, unit: "fatia",
+      }));
+      expect(new Set(item.evidence.map(proof => proof.origin)))
+        .toEqual(new Set(["text", "transcription", "vision"]));
+      expect(new Set(item.evidence.map(proof => proof.anchor.sourceRef)).size).toBe(3);
+    }
+    const request: FoodD1Request = {
+      authenticatedUserId: 7, entrypoint: "multimodal", envelope: envelope(),
+      evidence: { kind: "structured", observations: fused },
+      now: new Date("2026-11-01T12:00:00Z"),
+    };
+    const connections = deps();
+    const plan = await buildD1OperationPlan(request, connections);
+    expect(plan.items).toHaveLength(2);
+    expect(plan.items.map(item => item.observationId)).toEqual(["typed-1", "typed-2"]);
+    expect(plan.items.every(item => item.disposition === "ready")).toBe(true);
+    expect(plan.items.map(item => item.decision.identity.variantId)).toEqual([102, 102]);
+    expect(plan.items.map(item => item.decision.nutrition.consumed?.calories)).toEqual([81, 81]);
+    expect(plan.registeredCount).toBe(0);
+    expect(plan.committed).toBe(false);
+    expect(connections.knowledge.stagePendingEvidence).not.toHaveBeenCalled();
+
+    // Forged independent modalities with only one physical source may
+    // not authorize a V2 multimodal decision.
+    const forged = fused.map(item => ({
+      ...item,
+      evidence: item.evidence.map(proof => ({
+        ...proof, anchor: { ...proof.anchor, sourceRef: "single-untrusted-surface" },
+      })),
+    }));
+    const denied = deps();
+    await expect(buildD1OperationPlan({
+      ...request, evidence: { kind: "structured", observations: forged },
+    }, denied)).rejects.toThrow("food-d1-multimodal-evidence-required");
+    expect(denied.knowledge.readLocal).not.toHaveBeenCalled();
+
+    // A visible contradictory quantity cannot be silently registered as a
+    // second serving of the same food.
+    expect(() => coalesceEquivalentMultimodalEvidence(
+      [typed[0]], [observed("photo-conflict", "image", "image:conflict", { quantity: 2 })],
+    )).toThrow("food-d1-multimodal-material-evidence-conflict");
+  });
+
   it("preserves an unresolved sibling as deferred without writing the resolved item", async () => {
     const connections = deps();
     const known = buildFoodObservationFixture({ observationId: "obs-known" });
