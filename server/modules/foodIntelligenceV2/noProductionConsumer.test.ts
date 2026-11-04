@@ -21,6 +21,7 @@ const PUBLIC_D1_EDIT = resolve(REPOSITORY_ROOT, "server/modules/meals/groupOpera
 const PUBLIC_D1_EDIT_BRIDGE = "../foodIntelligenceV2/publicEdit";
 const PUBLIC_D1_SIMULATOR_BRIDGE = "../foodIntelligenceV2/publicSimulator";
 const PUBLIC_D1_UNMIGRATED_GUARD = "../foodIntelligenceV2/publicUnmigratedEntrypoints";
+const PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE = "../foodIntelligenceV2/publicWhatsAppRegistration";
 const PUBLIC_D1_WEB_PHOTO = resolve(REPOSITORY_ROOT, "server/modules/photoAnalysis/service.ts");
 const PUBLIC_D1_WHATSAPP_CONFIRMED = resolve(REPOSITORY_ROOT, "server/modules/whatsapp/confirmedMealRegistration.ts");
 const PUBLIC_D1_WEBHOOK = resolve(REPOSITORY_ROOT, "server/whatsappWebhookImplementation.ts");
@@ -100,11 +101,15 @@ function isApprovedD1SimulatorConsumer(file: string, imports: readonly string[])
       imports.includes(PUBLIC_D1_MANUAL_ADD_BRIDGE) &&
       imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
   }
+  if (file === PUBLIC_D1_WHATSAPP_CONFIRMED) {
+    return imports.length === 2 &&
+      imports.includes(PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE) &&
+      imports.includes(PUBLIC_D1_UNMIGRATED_GUARD);
+  }
   return imports.length === 1 && (
     file === PUBLIC_D1_SIMULATOR && imports[0] === PUBLIC_D1_SIMULATOR_BRIDGE ||
     file === PUBLIC_D1_EDIT && imports[0] === PUBLIC_D1_EDIT_BRIDGE ||
-    (file === PUBLIC_D1_WEB_PHOTO || file === PUBLIC_D1_WHATSAPP_CONFIRMED) &&
-      imports[0] === PUBLIC_D1_UNMIGRATED_GUARD ||
+    file === PUBLIC_D1_WEB_PHOTO && imports[0] === PUBLIC_D1_UNMIGRATED_GUARD ||
     (file === PUBLIC_D1_WEBHOOK || file === PUBLIC_D1_ANNOTATED_WEBHOOK) &&
       imports[0] === PUBLIC_D1_ROOT_GUARD
   );
@@ -155,11 +160,12 @@ describe("fronteira da Fase D", () => {
     const publicManual = await readFile(PUBLIC_D1_MANUAL_ADD, "utf8");
     expect(runtimeV2Specifiers(PUBLIC_D1_MANUAL_ADD, publicManual))
       .toEqual([PUBLIC_D1_MANUAL_ADD_BRIDGE, PUBLIC_D1_UNMIGRATED_GUARD]);
-    for (const file of [PUBLIC_D1_WEB_PHOTO, PUBLIC_D1_WHATSAPP_CONFIRMED]) {
-      const source = await readFile(file, "utf8");
-      expect(runtimeV2Specifiers(file, source))
-        .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
-    }
+    const webPhoto = await readFile(PUBLIC_D1_WEB_PHOTO, "utf8");
+    expect(runtimeV2Specifiers(PUBLIC_D1_WEB_PHOTO, webPhoto))
+      .toEqual([PUBLIC_D1_UNMIGRATED_GUARD]);
+    const confirmed = await readFile(PUBLIC_D1_WHATSAPP_CONFIRMED, "utf8");
+    expect(runtimeV2Specifiers(PUBLIC_D1_WHATSAPP_CONFIRMED, confirmed))
+      .toEqual([PUBLIC_D1_UNMIGRATED_GUARD, PUBLIC_D1_WHATSAPP_REGISTER_BRIDGE]);
     for (const file of [PUBLIC_D1_WEBHOOK, PUBLIC_D1_ANNOTATED_WEBHOOK]) {
       const source = await readFile(file, "utf8");
       expect(runtimeV2Specifiers(file, source)).toEqual([PUBLIC_D1_ROOT_GUARD]);

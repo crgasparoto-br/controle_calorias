@@ -17,6 +17,9 @@ import {
 import { splitFoodTextSegments } from "../../mealTextParsing";
 import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
+import { tryRunPublicFoodD1WhatsAppRegistration } from "../foodIntelligenceV2/publicWhatsAppRegistration";
+import { getCurrentWhatsappInboundContentType,
+  getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 
 export type ConfirmedMealRegistrationOutcome =
   | { status: "registered"; result: WhatsappIntentResult }
@@ -33,6 +36,7 @@ type ConfirmedMealRegistrationDependencies = {
   consolidateMeal: typeof consolidationRuntime.consolidateWhatsAppMealAfterSave;
   getGoalProgress: typeof goalProgressRuntime.getWhatsAppMealGoalProgress;
   prepareCountableFoodRegistration: typeof prepareWhatsappCountableFoodRegistration;
+  tryRunD1Registration: typeof tryRunPublicFoodD1WhatsAppRegistration;
 };
 
 const defaultDependencies: ConfirmedMealRegistrationDependencies = {
@@ -46,6 +50,7 @@ const defaultDependencies: ConfirmedMealRegistrationDependencies = {
   getGoalProgress: (userId, occurredAt, timeZone) =>
     goalProgressRuntime.getWhatsAppMealGoalProgress(userId, occurredAt, timeZone),
   prepareCountableFoodRegistration: input => prepareWhatsappCountableFoodRegistration(input),
+  tryRunD1Registration: input => tryRunPublicFoodD1WhatsAppRegistration(input),
 };
 
 function safeClarificationPrompt(error: unknown) {
@@ -71,15 +76,32 @@ export function createConfirmedMealRegistrationService(
     occurredAt: Date;
     userTimezone: string;
     inboundMessageId?: string | null;
+    /** Only a validated, previously persisted V1 pending owner may set this. */
+    legacyV1Pending?: boolean;
     skipCountablePreflight?: boolean;
     resolvedSegments?: ResolvedRegistrationSegment[];
   }): Promise<ConfirmedMealRegistrationOutcome> {
-    // This V1 consumer has no trusted text-vs-transcript tag yet. Stop both
-    // selected modes before countable preflight or any irreversible effect.
-    // An already materialized V1 clarification retains its original owner;
-    // only fresh D1-selected registrations are barred from V1 inference.
-    if (!input.skipCountablePreflight && !input.resolvedSegments?.length) {
-      assertUnmigratedFoodD1EntrypointsOff(["text", "audio_transcript"]);
+    // Retain V1 ownership for an already materialized clarification/decision.
+    // For new registrations, only messageLifecycle may tag text versus audio:
+    // neither a transcript nor a user DTO is allowed to claim provenance.
+    if (!input.legacyV1Pending && !input.skipCountablePreflight &&
+        !input.resolvedSegments?.length) {
+      const contentType = getCurrentWhatsappInboundContentType();
+      const modality = contentType === "text" ? "text" as const :
+        contentType === "audio" ? "audio_transcript" as const : null;
+      if (modality) {
+        const migrated = await deps.tryRunD1Registration({
+          userId: input.userId, originalText: input.registrationText,
+          externalMessageId: getCurrentWhatsappInboundExternalMessageId(),
+          modality, receivedAt: input.occurredAt,
+          timeZone: input.userTimezone,
+        });
+        if (migrated) return { status: "registered", result: migrated };
+        assertUnmigratedFoodD1EntrypointsOff([modality]);
+      } else {
+        // Unknown, image or mixed-media sources cannot silently choose text.
+        assertUnmigratedFoodD1EntrypointsOff(["text", "audio_transcript"]);
+      }
     }
     let mutationMayHaveStarted = false;
 

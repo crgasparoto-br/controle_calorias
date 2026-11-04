@@ -407,6 +407,7 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
       context?.userTimezone || input.userTimezone || DEFAULT_APP_TIME_ZONE,
     resolvedSegments: context?.resolvedSegments,
     inboundMessageId: target.inboundMessageId,
+    legacyV1Pending: true,
   });
 
   if (outcome.status === "clarification_requested") return outcome.result;
