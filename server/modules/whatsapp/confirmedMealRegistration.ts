@@ -78,11 +78,12 @@ export function createWhatsAppD1RegistrationService(
       return { mealType: operation.mealType, date: operation.date,
         itemCount: operation.items.length };
     },
-    renderCommittedMeal: async ({ userId, mealId, registeredAt, timeZone, skipped }) => {
+    renderCommittedMeal: async ({ userId, mealId, registeredAt, timeZone, skipped, recordedItemIds }) => {
       const meal = await (deps.readMeal ??
         (async (ownerUserId, id) => (await dbRuntime.listUserMeals(ownerUserId)).find(entry =>
           entry.id === id && entry.userId === ownerUserId) ?? null))(userId, mealId);
-      if (!meal || meal.userId !== userId || meal.id !== mealId || !meal.items?.length) {
+      if (!meal || meal.userId !== userId || meal.id !== mealId ||
+          !meal.items || meal.items.length < recordedItemIds.length) {
         throw new Error("food-d1-whatsapp-public-committed-meal-unavailable");
       }
       const rendered = buildWhatsAppRegisteredPersistedMealReplyMessage(meal, {
