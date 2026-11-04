@@ -25,6 +25,7 @@ export type PublicD1WhatsAppDependencies = {
   renderCommittedMeal: (input: {
     userId: number; mealId: number; registeredAt: Date; timeZone: string;
     skipped: FoodD1CommitResult["skipped"];
+    recordedItemIds: readonly number[];
   }) => Promise<string>;
   /** Trusted transport owner supplies providers; never import V1 or DB here. */
   lexicon: FoodD1Dependencies["lexicon"];
@@ -145,6 +146,7 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
     const reply = await deps.renderCommittedMeal({
       userId: input.userId, mealId, registeredAt: operation.date,
       timeZone: input.timeZone, skipped,
+      recordedItemIds: receipt.recordedItemIds,
     });
     if (!reply?.trim()) throw new Error("food-d1-whatsapp-public-committed-meal-unavailable");
     return {
