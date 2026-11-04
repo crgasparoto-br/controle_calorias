@@ -399,7 +399,9 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       for (const [index, surface] of visual.surfaces.entries()) {
         imageObservations.push(...await comprehend({
           rawText: surface,
-          sourceRef: `${operationKeyValue}:image:${index}`,
+          // Preserve a verifiable media fingerprint without any image bytes,
+          // signed URL, original filename, or user-supplied caption.
+          sourceRef: `d1-image:${visual.contentDigest}:${index}`,
           modality: "image",
           imageRegionRole: visualKind === "plate_image" ? "caption" : "front_identity",
           ownerUserId: input.userId,

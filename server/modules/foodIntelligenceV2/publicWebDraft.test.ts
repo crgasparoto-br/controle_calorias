@@ -323,7 +323,10 @@ describe("public Food D1 web draft confirmation", () => {
     const obs = saveDraft.mock.calls[0]?.[0]?.payload.observations[0];
     expect(obs?.modality).toBe("image");
     expect(obs?.evidence.some(item => item.origin === origin)).toBe(true);
+    expect(obs?.surfaceSpan.sourceRef).toBe(`d1-image:${"b".repeat(64)}:0`);
     expect(obs?.rawInput).toBeNull();
+    expect(JSON.stringify(saveDraft.mock.calls[0]?.[0]?.payload))
+      .not.toContain("fixture-image");
   });
 
   it("coalesces independent image and text evidence before a single meal draft", async () => {
