@@ -127,13 +127,16 @@ export function MealAiTabContent({
                 </SelectContent>
               </Select>
               <p id="meal-image-kind-help" className="text-xs text-muted-foreground">
-                Selecione o tipo de foto para habilitar o registro. O tipo orienta a leitura; só o resolvedor valida alimentos e nutrientes.
+                {imageKind === "nutrition_label"
+                  ? "Uma tabela nutricional precisa ser associada a um alimento já registrado. Este formulário cria uma nova refeição."
+                  : "Selecione o tipo de foto para habilitar o registro. O tipo orienta a leitura; só o resolvedor valida alimentos e nutrientes."}
               </p>
             </div>
           ) : null}
           <div className="flex flex-wrap items-center gap-3">
             <Button className="rounded-full" onClick={onProcess}
-              disabled={isProcessing || (Boolean(imageFileName) && imageKind === null)}>
+              disabled={isProcessing || (Boolean(imageFileName) &&
+                (imageKind === null || imageKind === "nutrition_label"))}>
               <BrainCircuit className="mr-2 h-4 w-4" />
               {isProcessing ? "Processando..." : "Registrar"}
             </Button>

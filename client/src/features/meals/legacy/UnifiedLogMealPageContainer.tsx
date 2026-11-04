@@ -300,6 +300,10 @@ export default function LogMealPage() {
       toast.error("Selecione o tipo de foto antes de registrar a refeição.");
       return;
     }
+    if (explicitImageKind === "nutrition_label") {
+      toast.error("Uma tabela nutricional deve ser associada a um alimento existente; não é um novo registro de refeição.");
+      return;
+    }
     const image = imageFile
       ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name }
       : undefined;

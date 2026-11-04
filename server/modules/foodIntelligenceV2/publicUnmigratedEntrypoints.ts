@@ -18,6 +18,19 @@ export function assertUnmigratedFoodD1EntrypointsOff(
   }
 }
 
+/**
+ * New meal creation has no physical item to which a nutrition label can bind.
+ * Even when D1 flags are OFF, do not send an explicitly selected label into
+ * legacy meal inference where it could be mistaken for an additional food.
+ */
+export function assertNewMealLabelHasExistingTarget(
+  input: Pick<ProcessMealDraftInput, "image" | "imageKind">,
+): void {
+  if (input.image && input.imageKind === "nutrition_label") {
+    throw new Error("food-d1-new-meal-label-requires-existing-item");
+  }
+}
+
 /** Web draft has no trusted distinction among plate, packaging and label OCR. */
 export function assertUnmigratedFoodD1DraftOff(
   input: Pick<ProcessMealDraftInput, "text" | "audio" | "image">,

@@ -22,7 +22,7 @@ import {
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
 import { buildLegacyManualRoute, tryRunFoodD1PublicManualAddition } from "../foodIntelligenceV2/publicManualAddition";
-import { assertUnmigratedFoodD1DraftOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
+import { assertNewMealLabelHasExistingTarget, assertUnmigratedFoodD1DraftOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 import {
   confirmFoodD1PublicWebDraft,
   FoodD1WebDraftNotFoundError,
@@ -563,6 +563,9 @@ export async function processMealDraft(
   input: ProcessMealDraftInput,
   timeZone = DEFAULT_APP_TIME_ZONE,
 ) {
+  // A label for an existing item is a scoped update, not a new meal draft.
+  // Refuse this path before V1 inference, V2 providers or persistence.
+  assertNewMealLabelHasExistingTarget(input);
   const d1Draft = await runWithAiUsageScope(
     { userId },
     () => tryRunFoodD1PublicWebDraft({

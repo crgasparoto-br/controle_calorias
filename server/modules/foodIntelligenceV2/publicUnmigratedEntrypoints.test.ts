@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  assertNewMealLabelHasExistingTarget,
   assertUnmigratedFoodD1DraftOff,
   assertUnmigratedFoodD1EntrypointsOff,
   UNMIGRATED_FOOD_D1_PUBLIC_ENTRYPOINT,
@@ -15,6 +16,24 @@ afterEach(() => {
 });
 
 describe("#1308 fail-closed unmigrated D1 public boundaries", () => {
+  it("refuses explicitly marked nutrition-label photos without a physical item even with rollout OFF", () => {
+    const image = { base64: "YQ==", mimeType: "image/jpeg" };
+    process.env.FOOD_V2_D1_ENABLED = "false";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "";
+    expect(() => assertNewMealLabelHasExistingTarget({
+      image, imageKind: "nutrition_label",
+    })).toThrow("food-d1-new-meal-label-requires-existing-item");
+    expect(() => assertNewMealLabelHasExistingTarget({
+      image, imageKind: "plate_image",
+    })).not.toThrow();
+    expect(() => assertNewMealLabelHasExistingTarget({
+      image, imageKind: "packaging",
+    })).not.toThrow();
+    expect(() => assertNewMealLabelHasExistingTarget({
+      image: undefined, imageKind: "nutrition_label",
+    })).not.toThrow();
+  });
+
   it("preserves V1 while rollout is disabled", () => {
     process.env.FOOD_V2_D1_ENABLED = "false";
     process.env.FOOD_V2_D1_ENTRYPOINTS =
