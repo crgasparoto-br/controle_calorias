@@ -3,6 +3,13 @@ import { createHash } from "node:crypto";
 import { parseFoodObservation, type FoodObservation } from "./schemas";
 
 /** A strict, occurrence-preserving comparison; different material facts stay separate. */
+function observedIdentity(item: FoodObservation): string | null {
+  return item.identityHints.foodName === null || item.locale.effective === null
+    ? null : JSON.stringify([
+      item.locale.effective, item.lexiconRevision, item.identityHints.foodName,
+    ]);
+}
+
 function observedAttributes(item: FoodObservation): string | null {
   if (item.identityHints.foodName === null ||
       item.locale.effective === null || item.alternatives.length ||
@@ -29,6 +36,13 @@ export function coalesceEquivalentMultimodalEvidence(
     const match = key === null ? -1 : transcript.findIndex((item, index) =>
       !usedTranscript.has(index) && observedAttributes(item) === key);
     if (match < 0) {
+      // A repeated food with conflicting quantity, brand or qualification
+      // must not become two registered servings merely because it was voiced.
+      const identity = observedIdentity(primary);
+      if (identity !== null && transcript.some((item, index) =>
+        !usedTranscript.has(index) && observedIdentity(item) === identity)) {
+        throw new Error("food-d1-multimodal-material-evidence-conflict");
+      }
       combined.push(primary);
       continue;
     }

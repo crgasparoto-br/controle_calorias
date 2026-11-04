@@ -46,7 +46,7 @@ Para mudanças de resolução alimentar, catálogo, memória, rótulo ou multimo
 
 ### Preparação D1 de entrypoints multimodais (#1308)
 
-No rascunho web D1 com texto e transcrição, observações com atributos materiais equivalentes são vinculadas por ocorrência, mantendo as âncoras e origens independentes de evidência em uma única observação `multimodal` do resolvedor canônico. Ocorrências repetidas dentro de um canal não são deduplicadas; evidências divergentes continuam separadas e exigem verificação do usuário antes da confirmação. O comportamento permanece inacessível sem Gate A e seleção D1.
+No rascunho web D1 com texto e transcrição, observações com atributos materiais equivalentes são vinculadas por ocorrência, mantendo as âncoras e origens independentes de evidência em uma única observação `multimodal` do resolvedor canônico. Ocorrências repetidas dentro de um canal não são deduplicadas; evidências de alimentos distintos continuam separadas; conflito material entre canais para o mesmo alimento bloqueia o rascunho antes de qualquer commit. O comportamento permanece inacessível sem Gate A e seleção D1.
 
 
 O contrato de entrada exige um autorizador de evidência do canal e um autorizador de propriedade do item físico antes de processar texto/transcrição/OCR ou retomar edição/rótulo. Ausência ou falha de qualquer prova exigida bloqueia o processamento. Rótulo sem nova evidência nutricional verificada ou com alteração de identidade é explicitamente adiado; não reutilizar macros antigos como se o novo rótulo tivesse sido aplicado. O roteamento V2 compara o SHA da aprovação independente ao material do build confiável (`expectedAuditedBaseSha`); o ambiente, o usuário e uma string de status não são prova suficiente.

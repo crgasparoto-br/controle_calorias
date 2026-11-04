@@ -54,18 +54,16 @@ describe("multimodal evidence coalescing at the web public boundary", () => {
     expect(result.every(item => item.modality === "multimodal")).toBe(true);
   });
 
-  it("preserves independent foods and contradictory quantities as separate observations", () => {
+  it("keeps separate foods but rejects conflicting claims for the same food", () => {
     const unrelated = coalesceEquivalentMultimodalEvidence(
       [observed("text", "typed")],
       [observed("audio_transcript", "spoken", { foodName: "queijo" })],
     );
-    const conflicting = coalesceEquivalentMultimodalEvidence(
+    expect(unrelated).toHaveLength(2);
+    expect(unrelated.map(item => item.modality)).toEqual(["text", "audio_transcript"]);
+    expect(() => coalesceEquivalentMultimodalEvidence(
       [observed("text", "typed")],
       [observed("audio_transcript", "spoken", { quantity: 2 })],
-    );
-    for (const batch of [unrelated, conflicting]) {
-      expect(batch).toHaveLength(2);
-      expect(batch.map(item => item.modality)).toEqual(["text", "audio_transcript"]);
-    }
+    )).toThrow("food-d1-multimodal-material-evidence-conflict");
   });
 });
