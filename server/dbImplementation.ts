@@ -9,7 +9,7 @@ import { assertLegacyMealProjectionSafe } from "./modules/meals/foodV2Snapshot";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, getUtcRangeForInclusiveLocalDateRange, getUtcRangeForLocalDate, getWeekDateKeys } from "../shared/timeZone";
-import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
+import type { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
 import { createDrizzleAccountRepository } from "./repositories/accountRepository";
 import { createDrizzleAppSecretsRepository } from "./repositories/appSecretsRepository";
 import { createDrizzleExercisesRepository } from "./repositories/exercisesRepository";
