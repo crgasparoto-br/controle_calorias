@@ -228,6 +228,23 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     const entrypoint: Extract<FoodD1Entrypoint, "text" | "audio_transcript" | "multimodal"> | null = hasText && hasAudio
       ? "multimodal"
       : hasText ? "text" : hasAudio ? "audio_transcript" : null;
+    // A stable web submission already owned by V2 must never be reinterpreted
+    // by V1 after the flag is disabled or the user changes modality. Check the
+    // durable route before returning null to the public V1 draft handler.
+    if (Number.isSafeInteger(input.userId) && input.userId > 0 &&
+        isValidD1OperationId(request.d1OperationId ?? "")) {
+      const pinned = await (deps.routeStore ?? createFoodD1RouteDbStore())
+        .readPinnedRoute(operationKey(input.userId, request.d1OperationId!), input.userId);
+      if (pinned?.resolver === "v2") {
+        if (!entrypoint || pinned.originEntrypoint !== entrypoint) {
+          throw new Error("food-d1-entrypoint-changed-during-operation");
+        }
+        if (!isFoodD1EntrypointCutoverRequested(pinned.originEntrypoint)) {
+          throw new Error("food-d1-operation-paused-by-rollback");
+        }
+      }
+      if (pinned?.resolver === "v1") return null;
+    }
     if (!entrypoint || !isFoodD1EntrypointCutoverRequested(entrypoint)) return null;
     if (request.image) {
       throw new Error("food-d1-public-web-image-entrypoint-incomplete");

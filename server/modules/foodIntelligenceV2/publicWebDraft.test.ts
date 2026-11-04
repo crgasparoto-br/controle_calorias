@@ -244,7 +244,7 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
     saveDraft,
     transcribe,
   });
-  return { service, comprehend, buildPlan, saveDraft, transcribe };
+  return { service, comprehend, buildPlan, saveDraft, transcribe, routeStore };
 }
 
 describe("public Food D1 web draft confirmation", () => {
@@ -284,6 +284,51 @@ describe("public Food D1 web draft confirmation", () => {
     expect(stored?.payload.observations.every(observation =>
       observation.rawInput === null && observation.normalizedInput === null)).toBe(true);
     expect(JSON.stringify(stored?.payload)).not.toContain("dGVzdA==");
+  });
+
+  it("pauses a V2-pinned web submission on rollback before V1 inference", async () => {
+    const { service, buildPlan, saveDraft, routeStore } = webDraftDependencies();
+    const request: ProcessMealDraftInput = {
+      source: "web", d1OperationId: "rollback-submission",
+      mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+      text: "1,5 fatias de mortadela",
+    };
+    await service.tryRunFoodD1PublicWebDraft({ userId, timeZone, request });
+    expect(await routeStore.readPinnedRoute(
+      `d1-web-${userId}:rollback-submission`, userId,
+    )).toMatchObject({ resolver: "v2", originEntrypoint: "text" });
+
+    vi.stubEnv("FOOD_V2_D1_ENABLED", "false");
+    await expect(service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone, request,
+    })).rejects.toThrow("food-d1-operation-paused-by-rollback");
+    expect(buildPlan).toHaveBeenCalledTimes(1);
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+
+    // A new, unrelated legacy submission remains on the ordinary V1 path.
+    await expect(service.tryRunFoodD1PublicWebDraft({
+      userId, timeZone,
+      request: { ...request, d1OperationId: "another-submission" },
+    })).resolves.toBeNull();
+  });
+
+  it("refuses switching a V2-pinned web operation to image or audio", async () => {
+    const { service, buildPlan } = webDraftDependencies();
+    const original: ProcessMealDraftInput = {
+      source: "web", d1OperationId: "modality-submission",
+      mealLabel: "jantar", occurredAt: "2026-11-02T12:00",
+      text: "1,5 fatias de mortadela",
+    };
+    await service.tryRunFoodD1PublicWebDraft({ userId, timeZone, request: original });
+    for (const conflicting of [
+      { ...original, text: undefined, audio: { base64: "dGVzdA==", mimeType: "audio/webm" } },
+      { ...original, text: undefined, image: { base64: "dGVzdA==", mimeType: "image/jpeg" } },
+    ]) {
+      await expect(service.tryRunFoodD1PublicWebDraft({
+        userId, timeZone, request: conflicting,
+      })).rejects.toThrow("food-d1-entrypoint-changed-during-operation");
+    }
+    expect(buildPlan).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed before transcription or persistence when approval is unavailable", async () => {
