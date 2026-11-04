@@ -855,7 +855,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         // V2 must execute (or fail closed) before any legacy food intent may write.
         const migrated = await tryRunPublicFoodD1WhatsAppRegistration({
           userId, originalText: prepared.transcript!,
-          externalMessageId: message.id, modality: "audio_transcript",
+          externalMessageId: message.id ?? null, modality: "audio_transcript",
           receivedAt: resolveWhatsAppMessageOccurredAt(message), timeZone: userTimezone,
         });
         if (migrated) {
@@ -915,7 +915,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         if (!message.image?.id && !message.audio?.id && prepared.text?.trim()) {
           const migrated = await tryRunPublicFoodD1WhatsAppRegistration({
             userId, originalText: prepared.text,
-            externalMessageId: message.id, modality: "text",
+            externalMessageId: message.id ?? null, modality: "text",
             receivedAt: occurredAt, timeZone: userTimezone,
           });
           if (migrated) {
