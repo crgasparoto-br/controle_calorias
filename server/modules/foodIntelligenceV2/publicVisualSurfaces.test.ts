@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prepareD1VisualMedia } from "./publicVisualSurfaces";
+import { parseD1VisualSurfaces, prepareD1VisualMedia } from "./publicVisualSurfaces";
 
 const png = Buffer.concat([
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
@@ -21,6 +21,15 @@ describe("D1 visual media pre-network validation", () => {
     expect(prepareD1VisualMedia({
       mimeType: "image/jpeg", base64: jpeg.toString("base64"),
     }).contentDigest).not.toBe(a.contentDigest);
+  });
+
+  it("accepts a no-food response without forcing a fabricated item", () => {
+    expect(() => parseD1VisualSurfaces({ surfaces: [] }))
+      .toThrow("food-d1-visual-no-observable-food");
+    expect(() => parseD1VisualSurfaces({ surfaces: ["arroz"], calories: 123 }))
+      .toThrow("food-d1-visual-invalid-provider-evidence");
+    expect(parseD1VisualSurfaces({ surfaces: ["prato com arroz"] }))
+      .toEqual(["prato com arroz"]);
   });
 
   it.each([

@@ -21,14 +21,14 @@ export type FoodD1VisualSurfaces = {
 
 const MAX_D1_IMAGE_BYTES = 8 * 1024 * 1024;
 const visualResultSchema = z.strictObject({
-  surfaces: z.array(z.string().trim().min(1).max(240)).min(1).max(30),
+  surfaces: z.array(z.string().trim().min(1).max(240)).max(30),
 });
 const visualResultJsonSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
     surfaces: {
-      type: "array", minItems: 1, maxItems: 30,
+      type: "array", minItems: 0, maxItems: 30,
       items: { type: "string", minLength: 1, maxLength: 240 },
     },
   },
@@ -80,6 +80,14 @@ export function prepareD1VisualMedia(image: FoodD1VisualInput["image"]) {
   };
 }
 
+/** A scene with no observable food is a valid model answer, not a meal. */
+export function parseD1VisualSurfaces(raw: unknown): string[] {
+  const parsed = visualResultSchema.safeParse(raw);
+  if (!parsed.success) throw new Error("food-d1-visual-invalid-provider-evidence");
+  if (parsed.data.surfaces.length === 0) throw new Error("food-d1-visual-no-observable-food");
+  return parsed.data.surfaces;
+}
+
 /**
  * The only output of MEAL_VISION is a set of observations for the governed
  * linguistic comprehension layer. No food entity, brand policy, calories or
@@ -121,11 +129,7 @@ export async function extractD1VisualSurfaces(
         strict: true,
       },
     }, { signal: context.signal });
-    const parsed = visualResultSchema.safeParse(parseJsonOutput(result));
-    if (!parsed.success) {
-      throw new Error("food-d1-visual-invalid-provider-evidence");
-    }
-    return parsed.data.surfaces;
+    return parseD1VisualSurfaces(parseJsonOutput(result));
   }, {
     observability: { origin: "web", flow: "meal_vision_extraction" },
   });

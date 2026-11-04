@@ -20,10 +20,49 @@ function observedAttributes(item: FoodObservation): string | null {
   ]);
 }
 
+function compatibleMaterialFacts(
+  left: FoodObservation, right: FoodObservation,
+): boolean {
+  if (observedIdentity(left) === null ||
+      observedIdentity(left) !== observedIdentity(right) ||
+      left.interpreterVersion !== null || right.interpreterVersion !== null ||
+      left.alternatives.length > 0 || right.alternatives.length > 0 ||
+      left.unresolvedReason !== right.unresolvedReason) return false;
+  const equivalent = (a: string | number | null, b: string | number | null) =>
+    a === null || b === null || a === b;
+  const a = left.identityHints;
+  const b = right.identityHints;
+  const q = left.quantityHints;
+  const p = right.quantityHints;
+  return equivalent(a.brand, b.brand) &&
+    equivalent(a.variant, b.variant) &&
+    equivalent(a.barcode, b.barcode) &&
+    JSON.stringify(a.preparation) === JSON.stringify(b.preparation) &&
+    JSON.stringify(a.qualifiers) === JSON.stringify(b.qualifiers) &&
+    equivalent(q.value, p.value) &&
+    equivalent(q.unit, p.unit) &&
+    equivalent(q.servingText, p.servingText) &&
+    equivalent(q.visiblePackageQuantity, p.visiblePackageQuantity) &&
+    equivalent(q.visiblePackageUnit, p.visiblePackageUnit);
+}
+
+function enrichEquivalentObservation(
+  primary: FoodObservation, secondary: FoodObservation,
+): FoodObservation {
+  const mergeNullables = <T extends Record<string, unknown>>(a: T, b: T): T =>
+    Object.fromEntries(Object.entries(a).map(([key, value]) =>
+      [key, value === null ? b[key] : value])) as T;
+  return {
+    ...primary,
+    identityHints: mergeNullables(primary.identityHints, secondary.identityHints),
+    quantityHints: mergeNullables(primary.quantityHints, secondary.quantityHints),
+  };
+}
+
 /**
- * One typed item may carry text and transcribed-audio evidence for the same
- * occurrence. Pair across channels only; never dedupe siblings inside a channel.
- * Each evidence retains its original anchor and origin for the canonical V2 resolver.
+ * Pair equivalent evidence across channels, never dedupe siblings inside one.
+ * Missing image quantity may enrich a typed amount but conflicting non-null
+ * claims always fail closed. All anchors remain tied to their original source.
  */
 export function coalesceEquivalentMultimodalEvidence(
   text: readonly FoodObservation[],
@@ -33,8 +72,10 @@ export function coalesceEquivalentMultimodalEvidence(
   const combined: FoodObservation[] = [];
   for (const primary of text) {
     const key = observedAttributes(primary);
-    const match = key === null ? -1 : transcript.findIndex((item, index) =>
+    const exactMatch = key === null ? -1 : transcript.findIndex((item, index) =>
       !usedTranscript.has(index) && observedAttributes(item) === key);
+    const match = exactMatch >= 0 ? exactMatch : transcript.findIndex((item, index) =>
+      !usedTranscript.has(index) && compatibleMaterialFacts(primary, item));
     if (match < 0) {
       // A repeated food with conflicting quantity, brand or qualification
       // must not become two registered servings merely because it was voiced.
@@ -54,7 +95,7 @@ export function coalesceEquivalentMultimodalEvidence(
       ])).digest("hex").slice(0,32),
     }));
     const merged: FoodObservation = {
-      ...primary,
+      ...enrichEquivalentObservation(primary, secondary),
       modality: "multimodal",
       evidence: [...primary.evidence, ...evidence],
       normalizationPath: [...primary.normalizationPath, ...secondary.normalizationPath],

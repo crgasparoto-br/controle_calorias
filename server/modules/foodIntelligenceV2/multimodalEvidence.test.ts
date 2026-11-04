@@ -54,6 +54,26 @@ describe("multimodal evidence coalescing at the web public boundary", () => {
     expect(result.every(item => item.modality === "multimodal")).toBe(true);
   });
 
+  it("enriches missing visual or voice quantity without inventing a second serving", () => {
+    const primary = observed("text", "typed");
+    const second = observed("audio_transcript", "spoken");
+    const missingQuantity: FoodObservation = {
+      ...second,
+      quantityHints: {
+        ...second.quantityHints,
+        value: null, unit: null, servingText: null,
+      },
+      evidence: second.evidence.filter(item => !item.field.startsWith("quantity.")),
+    };
+    const result = coalesceEquivalentMultimodalEvidence([primary], [missingQuantity]);
+    expect(result).toHaveLength(1);
+    expect(result[0].modality).toBe("multimodal");
+    expect(result[0].quantityHints.value).toBe(1.5);
+    expect(result[0].quantityHints.unit).toBe("fatia");
+    expect(result[0].evidence.some(item => item.origin === "transcription")).toBe(true);
+    expect(parseFoodObservation(result[0]).ok).toBe(true);
+  });
+
   it("keeps separate foods but rejects conflicting claims for the same food", () => {
     const unrelated = coalesceEquivalentMultimodalEvidence(
       [observed("text", "typed")],
