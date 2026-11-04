@@ -153,7 +153,7 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
   const observations: string[] = [];
   const comprehend = vi.fn(async (request: LinguisticRequest) => {
     observations.push(request.rawText);
-    return [buildFoodObservationFixture({
+    const item = buildFoodObservationFixture({
       observationId: `obs-${observations.length}`,
       modality: request.modality,
       rawInput: request.rawText,
@@ -163,7 +163,15 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
         span: { start: 0, end: request.rawText.length },
         region: null,
       },
-    })];
+    });
+    return [{
+      ...item,
+      evidence: item.evidence.map(evidence => ({
+        ...evidence,
+        origin: request.modality === "audio_transcript" ? "transcription" as const : "text" as const,
+        anchor: { ...evidence.anchor, sourceRef: request.sourceRef },
+      })),
+    }];
   });
   const buildPlan = vi.fn(async (request: FoodD1Request) => {
     const items = request.evidence.kind === "structured"
@@ -246,7 +254,7 @@ describe("public Food D1 web draft confirmation", () => {
     ["combined", {
       text: "1,5 fatias de mortadela",
       audio: { base64: "dGVzdA==", mimeType: "audio/webm" },
-    }, "multimodal", 2],
+    }, "multimodal", 1],
   ] as const)("creates a short-lived %s review without retaining raw inputs", async (_name, media, entrypoint, expectedItems) => {
     const { service, comprehend, buildPlan, saveDraft, transcribe } = webDraftDependencies();
     const draft = await service.tryRunFoodD1PublicWebDraft({
@@ -266,8 +274,13 @@ describe("public Food D1 web draft confirmation", () => {
     expect(buildPlan).toHaveBeenCalledTimes(1);
     expect(saveDraft).toHaveBeenCalledTimes(1);
     expect(transcribe).toHaveBeenCalledTimes(entrypoint === "text" ? 0 : 1);
-    expect(comprehend).toHaveBeenCalledTimes(expectedItems);
+    expect(comprehend).toHaveBeenCalledTimes(entrypoint === "multimodal" ? 2 : expectedItems);
     const stored = saveDraft.mock.calls[0]?.[0];
+    if (entrypoint === "multimodal") {
+      expect(stored?.payload.observations[0]?.modality).toBe("multimodal");
+      expect(new Set(stored?.payload.observations[0]?.evidence.map(item => item.origin)))
+        .toEqual(new Set(["text", "transcription"]));
+    }
     expect(stored?.payload.observations.every(observation =>
       observation.rawInput === null && observation.normalizedInput === null)).toBe(true);
     expect(JSON.stringify(stored?.payload)).not.toContain("dGVzdA==");

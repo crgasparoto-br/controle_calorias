@@ -1,0 +1,71 @@
+import { describe, expect, it } from "vitest";
+import { buildFoodObservationFixture } from "./fixtures";
+import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
+import { parseFoodObservation, type FoodObservation } from "./schemas";
+
+function observed(
+  modality: "text" | "audio_transcript",
+  id: string,
+  overrides: { foodName?: string; quantity?: number } = {},
+): FoodObservation {
+  const item = buildFoodObservationFixture({
+    observationId: id, modality,
+    surfaceSpan: { sourceRef: "source:" + id },
+    identityHints: { foodName: overrides.foodName ?? "mortadela" },
+    quantityHints: { value: overrides.quantity ?? 1.5 },
+  });
+  return {
+    ...item,
+    evidence: item.evidence.map(evidence => ({
+      ...evidence,
+      origin: modality === "text" ? "text" as const : "transcription" as const,
+      anchor: { ...evidence.anchor, sourceRef: "source:" + id },
+    })),
+    normalizationPath: item.normalizationPath.map(step => ({
+      ...step, anchor: { ...step.anchor, sourceRef: "source:" + id },
+    })),
+  };
+}
+
+describe("multimodal evidence coalescing at the web public boundary", () => {
+  it("pairs equivalent text and transcript without duplicating the meal item", () => {
+    const result = coalesceEquivalentMultimodalEvidence(
+      [observed("text", "typed")], [observed("audio_transcript", "spoken")],
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].modality).toBe("multimodal");
+    expect(result[0].observationId).toBe("typed");
+    expect(new Set(result[0].evidence.map(item => item.origin)))
+      .toEqual(new Set(["text", "transcription"]));
+    expect(new Set(result[0].evidence.map(item => item.anchor.sourceRef)))
+      .toEqual(new Set(["source:typed", "source:spoken"]));
+    expect(new Set(result[0].evidence.map(item => item.evidenceId)).size)
+      .toBe(result[0].evidence.length);
+    expect(parseFoodObservation(result[0]).ok).toBe(true);
+  });
+
+  it("never conflates repeated siblings within the same channel", () => {
+    const result = coalesceEquivalentMultimodalEvidence(
+      [observed("text", "typed-1"), observed("text", "typed-2")],
+      [observed("audio_transcript", "spoken-1"), observed("audio_transcript", "spoken-2")],
+    );
+    expect(result).toHaveLength(2);
+    expect(result.map(item => item.observationId)).toEqual(["typed-1", "typed-2"]);
+    expect(result.every(item => item.modality === "multimodal")).toBe(true);
+  });
+
+  it("preserves independent foods and contradictory quantities as separate observations", () => {
+    const unrelated = coalesceEquivalentMultimodalEvidence(
+      [observed("text", "typed")],
+      [observed("audio_transcript", "spoken", { foodName: "queijo" })],
+    );
+    const conflicting = coalesceEquivalentMultimodalEvidence(
+      [observed("text", "typed")],
+      [observed("audio_transcript", "spoken", { quantity: 2 })],
+    );
+    for (const batch of [unrelated, conflicting]) {
+      expect(batch).toHaveLength(2);
+      expect(batch.map(item => item.modality)).toEqual(["text", "audio_transcript"]);
+    }
+  });
+});

@@ -29,6 +29,7 @@ import {
   runFoodD1Migration,
 } from "./entrypointRunner";
 import type { FoodOperationEnvelope, FoodObservation } from "./schemas";
+import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import {
   getFoodD1WebDraft,
@@ -291,9 +292,10 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     });
 
     const lexicon = deps.lexicon ?? governedLinguisticLexiconStore;
-    const observations: FoodObservation[] = [];
+    const textObservations: FoodObservation[] = [];
+    const transcriptObservations: FoodObservation[] = [];
     for (const surface of surfaces) {
-      observations.push(...await comprehend({
+      const parsed = await comprehend({
         rawText: surface.text,
         sourceRef: `${operationKeyValue}:${surface.source}`,
         modality: surface.modality,
@@ -301,8 +303,13 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
         lexiconRevision: context.revisions.lexicon,
         locale: "pt-BR",
         now,
-      }, lexicon));
+      }, lexicon);
+      if (surface.modality === "text") textObservations.push(...parsed);
+      else transcriptObservations.push(...parsed);
     }
+    const observations = entrypoint === "multimodal"
+      ? coalesceEquivalentMultimodalEvidence(textObservations, transcriptObservations)
+      : [...textObservations, ...transcriptObservations];
     if (!observations.length) throw new Error("food-d1-public-web-draft-no-observations");
     const evidence = { kind: "structured" as const, observations };
     const d1Request: FoodD1Request = {

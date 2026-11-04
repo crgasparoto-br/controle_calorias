@@ -124,8 +124,23 @@ async function readObservations(
       return parsed.value;
     });
     if (request.entrypoint === "multimodal") {
-      const modalities = new Set(observations.map(item => item.modality));
-      if (modalities.size < 2) throw new Error("food-d1-multimodal-evidence-required");
+      const sourceKinds = new Set<string>();
+      for (const observation of observations) {
+        if (observation.modality !== "multimodal") {
+          sourceKinds.add(observation.modality);
+          continue;
+        }
+        // A fused observation must carry two independently anchored media origins.
+        const proofs = observation.evidence.filter(item =>
+          ["text", "transcription", "ocr", "vision"].includes(item.origin));
+        const origins = new Set(proofs.map(item => item.origin));
+        const sources = new Set(proofs.map(item => item.anchor.sourceRef));
+        if (origins.size < 2 || sources.size < 2) {
+          throw new Error("food-d1-multimodal-evidence-required");
+        }
+        origins.forEach(origin => sourceKinds.add(origin));
+      }
+      if (sourceKinds.size < 2) throw new Error("food-d1-multimodal-evidence-required");
     }
     return observations;
   }
