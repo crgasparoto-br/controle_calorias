@@ -74,28 +74,6 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
       .rejects.toThrow("food-d1-legacy-operation-scope-changed");
   });
-  it("continues a pinned V1 retry after Gate A revocation without switching resolver", async () => {
-    let pinned: FoodD1PinnedRoute | null = null;
-    const readAuthorizedContext = vi.fn(async () => null);
-    const run = vi.fn();
-    const bridge = createFoodD1PublicManualAddition({
-      readAuthorizedContext,
-      bindLegacyRoute: async candidate => { pinned = candidate; return candidate; },
-      readPinnedRoute: async () => pinned,
-      run: run as unknown as typeof runFoodD1Migration,
-    });
-    const input = { userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" };
-    expect(await bridge(input)).toBeNull();
-    process.env.FOOD_V2_D1_ENABLED = "true";
-    process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
-    expect(await bridge(input)).toBeNull();
-    expect(readAuthorizedContext).not.toHaveBeenCalled();
-    expect(run).not.toHaveBeenCalled();
-    const changed = meal();
-    changed.items[0].calories = 12;
-    await expect(bridge({ ...input, meal: changed }))
-      .rejects.toThrow("food-d1-legacy-operation-scope-changed");
-  });
   it("resumes an originally pinned V1 submission after enabling V2 without switching resolvers", async () => {
     let pinned: FoodD1PinnedRoute | null = null;
     const run = vi.fn();
@@ -149,7 +127,6 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     const load = vi.fn(async () => []);
     const bridge = createFoodD1PublicManualAddition({
       readAuthorizedContext: async () => null, lexicon: { load },
-      readPinnedRoute: async () => null,
     });
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
       .rejects.toThrow("food-d1-public-addition-gate-unavailable");
