@@ -16,6 +16,7 @@ import { analyticsService } from "./analyticsService";
 import { exportUserPrivacyData, requestUserAccountDeletion } from "./db";
 import { generateFoodAssistantSuggestion } from "./modules/assistant/service";
 import { assistantRequestSchema } from "./modules/assistant/schemas";
+import { tryRunPublicFoodD1PhotoAnalysis } from "./modules/foodIntelligenceV2/publicPhotoRoute";
 import {
   analyzeFoodPhoto,
   confirmFoodPhotoAnalysis,
@@ -353,6 +354,15 @@ export const nutritionRouter = router({
     analyze: protectedProcedure
       .input(analyzeFoodPhotoSchema)
       .mutation(async ({ ctx, input }) => {
+        // Same public analyze endpoint and stable operation key after restart.
+        // V2 uses the durable web draft and its existing confirmFoodD1Draft
+        // mutation, never the legacy in-memory photo confirmation store.
+        const v2 = await tryRunPublicFoodD1PhotoAnalysis({
+          userId: ctx.user.id,
+          input,
+          readTimeZone: () => getEffectiveUserTimeZone(ctx.user.id),
+        });
+        if (v2) return v2;
         const analysis = await analyzeFoodPhoto(ctx.user.id, input);
         return {
           ...analysis,
