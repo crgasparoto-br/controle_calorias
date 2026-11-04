@@ -36,6 +36,8 @@ describe("#1308 fail-closed unmigrated D1 public boundaries", () => {
       { selector: "packaging", draft: { image } },
       { selector: "nutrition_label", draft: { image } },
       { selector: "nutrition_label", draft: { text: "rótulo", image } },
+      { selector: "multimodal", draft: { text: "1 prato", image } },
+      { selector: "multimodal", draft: { audio, image } },
     ]) {
       process.env.FOOD_V2_D1_ENTRYPOINTS = selector;
       expect(() => assertUnmigratedFoodD1DraftOff(draft), selector)

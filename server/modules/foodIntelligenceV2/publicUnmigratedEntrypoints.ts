@@ -29,6 +29,9 @@ export function assertUnmigratedFoodD1DraftOff(
     if (input.text?.trim()) entrypoints.push("text");
     if (input.audio) entrypoints.push("audio_transcript");
   }
-  if (input.image) entrypoints.push("plate_image", "packaging", "nutrition_label");
+  if (input.image) {
+    entrypoints.push("plate_image", "packaging", "nutrition_label");
+    if (input.text?.trim() || input.audio) entrypoints.push("multimodal");
+  }
   assertUnmigratedFoodD1EntrypointsOff(entrypoints);
 }

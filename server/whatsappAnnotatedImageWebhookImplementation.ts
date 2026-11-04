@@ -938,7 +938,9 @@ async function tryHandleAnnotatedImageMessage(
     // A persisted V1 label request is owned by its original pending workflow,
     // so flag changes cannot steal or abort that in-flight clarification.
     if (!nutritionLabelIdentityContext) {
-      assertUnmigratedFoodD1EntrypointsOff(["plate_image", "packaging", "nutrition_label"]);
+      assertUnmigratedFoodD1EntrypointsOff([
+        "plate_image", "packaging", "nutrition_label", "multimodal",
+      ]);
     }
     const processingOutcome = await processImageMealInputWithFallback({
       userId,

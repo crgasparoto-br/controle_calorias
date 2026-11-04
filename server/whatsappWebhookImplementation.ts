@@ -930,6 +930,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         assertUnmigratedFoodD1EntrypointsOff([
           ...(message.image?.id ? ["plate_image", "packaging", "nutrition_label"] as const : []),
           ...(message.audio?.id ? ["audio_transcript"] as const : []),
+          ...(message.image?.id || message.audio?.id ? ["multimodal"] as const : []),
           ...(!message.image?.id && !message.audio?.id ? ["text"] as const : []),
         ]);
       }
