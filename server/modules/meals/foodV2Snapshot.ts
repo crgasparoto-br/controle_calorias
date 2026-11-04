@@ -53,10 +53,11 @@ export function assertLegacyMealItemMutationSafe(
  * not the full physical identity, source-grant and decision snapshot. Legacy
  * duplication/favorites must not reinsert that lossy DTO as a new food item.
  */
-export function assertLegacyMealProjectionSafe(
-  items: readonly { v2SnapshotVerified?: true }[],
+export function assertLegacyMealProjectionSafe<T extends object>(
+  items: readonly T[],
 ): void {
-  if (items.some(item => item.v2SnapshotVerified === true)) {
+  if (items.some(item =>
+    "v2SnapshotVerified" in item && item.v2SnapshotVerified === true)) {
     throw new Error("food-v2-legacy-item-mutation-not-supported");
   }
 }
