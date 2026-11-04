@@ -1,7 +1,7 @@
 /** #1308: no process-local pending store, no change to legacy pending rows. */
 import { createHash } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
-import { whatsappPendingOperations } from "../../../drizzle/schema";
+import { whatsappPendingOperations, users } from "../../../drizzle/schema";
 import { foodD1OperationRoutes } from "../../../drizzle/food-intelligence-v2-schema";
 import { getDb } from "../../db";
 import { hashFoodD1OperationScope } from "./entrypointRouting";
@@ -78,6 +78,13 @@ export async function stageFoodD1WhatsAppPending(
   const owner = pending.envelope.ownerUserId;
   const db = await dbRequired();
   return db.transaction(async tx => {
+    // Different original D1 routes do not share a route lock. Serialize
+    // creation against the same user's physical row so two simultaneous
+    // operations cannot both observe an empty active-pending set.
+    const [owner] = await tx.select({ id: users.id }).from(users)
+      .where(eq(users.id, pending.envelope.ownerUserId))
+      .for("update").limit(1);
+    if (!owner) throw new Error("food-d1-whatsapp-pending-owner-unavailable");
     const [route] = await tx.select().from(foodD1OperationRoutes).where(and(
       eq(foodD1OperationRoutes.ownerUserId, owner),
       eq(foodD1OperationRoutes.operationKey, pending.envelope.idempotencyKey),
