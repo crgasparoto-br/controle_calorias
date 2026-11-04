@@ -125,6 +125,14 @@ export const processMealDraftSchema = z.object({
   audio: mediaInputSchema,
 });
 
+/** Existing physical V2 item only. Labels never create a second meal. */
+export const applyFoodD1NutritionLabelSchema = z.object({
+  d1OperationId: z.string().trim().min(8).max(80),
+  mealId: z.number().int().positive(),
+  mealItemId: z.number().int().positive(),
+  image: mediaInputSchema.refine(Boolean, "Envie a foto do rótulo."),
+});
+
 export const confirmFoodD1WebDraftSchema = z.object({
   draftId: z.string().min(1).max(80),
   mealLabel: mealLabelSchema,
