@@ -2,7 +2,7 @@
 
 - **Status:** PROPOSED / EM EVOLUÇÃO
 - **Data inicial:** 2026-10-02
-- **Versão da especificação (`specification_version`):** `2026-10-05-revisao-1296-3`; consolidação autorizada do núcleo sobre `82c117c95c9f05559d8ade634cabe731d8bb7208`. Substitui a revisão 2 somente nos requisitos alterados; snapshots anteriores desses requisitos exigem nova avaliação.
+- **Versão da especificação (`specification_version`):** `2026-11-05-revisao-1307-1`; formaliza a separação entre prontidão técnica, avaliação pós-deploy e aprovação operacional de #1307/#1308/#1335, preservando a consolidação do núcleo sobre `82c117c95c9f05559d8ade634cabe731d8bb7208`. Substitui `2026-10-05-revisao-1296-3` somente nos requisitos alterados; snapshots anteriores desses requisitos exigem nova avaliação.
 - **Branch de discussão:** `docs/food-intelligence-v2-adr`
 - **Base:** `develop`
 - **Escopo:** reconhecimento, resolução e governança de alimentos em entradas textuais, áudio/transcrição, imagem/OCR, rótulo nutricional e fluxos multimodais
@@ -2655,12 +2655,13 @@ A migração deve ser incremental e observável.
 
 ### Separação entre prontidão técnica e aprovação operacional
 
-O programa distingue dois estados que não podem ser inferidos um do outro:
+O programa distingue três estados que não podem ser inferidos um do outro:
 
 - **Prontidão técnica (`TECHNICAL_READY`)**: contratos, código, adapters, migrações e controles do recorte técnico estão implementados; testes sintéticos discriminantes e checks remotos passaram no SHA exato; houve auditoria independente do recorte. Todas as flags de decisão V2, shadow e canário permanecem desativadas, e V1 continua como único owner produtivo. Esse estado não autoriza processamento de dados reais, comparação real V1×V2, alegação de baseline/acurácia/SLO operacional nem ativação.
-- **Aprovação operacional (`OPERATIONALLY_APPROVED`)**: somente após a migração técnica integral e o deploy técnico em produção com as flags ainda desativadas, são executadas as pré-condições pós-deploy de #1335: autorização e governança dos dados reais, corpus/base versionados, thresholds e método de avaliação aprovados, oráculo independente e evidência auditável. Gate A deve ser aprovado antes da primeira comparação shadow com dados reais; Gate B e os demais gates aplicáveis continuam obrigatórios antes de canário, cutover ou remoção do V1.
+- **Avaliação operacional pós-deploy (`POST_DEPLOY_EVALUATION`)**: somente após a migração técnica integral e o deploy técnico em produção com as flags ainda desativadas, começa o work item #1335, sujeito a autorização/governança dos dados reais, corpus/base versionados, thresholds e método aprovados, oráculo independente e evidência auditável. A avaliação inclui Gate A offline; enquanto estiver pendente/em andamento, não equivale a aprovação e não autoriza shadow real. Gate A deve ser aprovado antes da primeira comparação shadow com dados reais.
+- **Aprovação operacional (`OPERATIONALLY_APPROVED`)**: resultado terminal para o escopo e a tupla imutável avaliados (SHA de código, ambiente/configuração, corpus/base, thresholds e método), emitido somente com evidência e revisão independentes. Autoriza apenas a transição explicitamente coberta pelo gate aprovado: Gate A pode liberar shadow real sem efeito no usuário, mas Gate B e os demais gates continuam obrigatórios antes de canário, cutover ou remoção do V1. Mudança material na tupla invalida a aprovação e exige nova avaliação; o rótulo nunca constitui autorização geral de rollout.
 
-Uma issue ou PR de escopo exclusivamente técnico pode concluir sua prontidão técnica após seus critérios, checks exact-SHA e auditoria independente; seu merge/fechamento/deploy com flags desativadas não equivale a aprovação operacional. A conclusão técnica não marca Gate A/B como aprovados nem libera tráfego real, troca de owner, canário ou cutover. Esses estados e evidências devem permanecer registrados separadamente.
+Uma issue ou PR de escopo exclusivamente técnico pode concluir `TECHNICAL_READY` após seus critérios, checks exact-SHA e auditoria independente. Merge/fechamento não inicia automaticamente `POST_DEPLOY_EVALUATION`; o deploy com flags desativadas pode satisfazer apenas a pré-condição técnica dessa avaliação. Nenhuma dessas etapas equivale a `OPERATIONALLY_APPROVED`, marca Gate A/B como aprovados ou libera tráfego real, troca de owner, canário ou cutover. Os três estados e suas evidências devem permanecer registrados separadamente.
 
 ### Fase A — contrato e corpus
 
