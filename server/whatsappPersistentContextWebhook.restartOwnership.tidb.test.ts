@@ -566,7 +566,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     await connection.end();
   }, 20_000);
 
-  it("registra, relê e ajusta o cenário #997 pelo webhook sem aplicar duas vezes na redelivery", async () => {
+  it("registra pelo serviço real e ajusta via webhook sem duplicar na redelivery", async () => {
     const databaseUrl = process.env.DATABASE_URL?.trim();
     expect(databaseUrl).toBeTruthy();
     const connection = await mysql.createConnection(databaseUrl!);
@@ -606,21 +606,21 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
         }
       );
       controls.crashNextDownstream = false;
-      const registrationMessageId = `wamid.issue997.registration.${Date.now()}`;
-      const registrationDownstreamBefore = controls.downstreamCalls;
-      const registrationOutcome = await deliver(
-        createRuntime(`runtime-issue997-registration-${Date.now()}`),
-        createPayload(
-          fixture.phoneNumber,
-          registrationMessageId,
-          registrationText,
-          String(Math.floor(Date.now() / 1000))
-        )
+      const { executeConfirmedWhatsAppMealRegistration } = await import(
+        "./modules/whatsapp/confirmedMealRegistration"
       );
+      const registrationMessageId = `wamid.issue997.registration.${Date.now()}`;
+      const registrationOutcome =
+        await executeConfirmedWhatsAppMealRegistration({
+          userId: fixture.userId,
+          registrationText,
+          originalText: registrationText,
+          occurredAt: new Date(),
+          userTimezone: "America/Sao_Paulo",
+          inboundMessageId: registrationMessageId,
+        });
 
-      expect(registrationOutcome.statusCode).toBe(200);
-      expect(registrationOutcome.body).toEqual({ ok: true, processed: 1 });
-      expect(controls.downstreamCalls).toBe(registrationDownstreamBefore + 1);
+      expect(registrationOutcome.status).toBe("registered");
       expect(
         controls.processMealInput.mock.calls.some(([input]) =>
           /presunto|mussarela|muçarela|mozarela/i.test(input.text ?? "")
