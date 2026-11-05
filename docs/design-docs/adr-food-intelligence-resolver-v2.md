@@ -2675,9 +2675,9 @@ Uma issue ou PR de escopo exclusivamente técnico pode concluir sua prontidão t
 
 - consolidar catálogos, aliases, variantes, porções e perfis;
 - migrar hardcodes;
- - criar compatibilidade temporária quando necessário.
+- criar compatibilidade temporária quando necessário.
 
- - quitar as entradas do livro de dívida arquitetural (§19.0.3) alcançadas por esta fase.
+- quitar as entradas do livro de dívida arquitetural (§19.0.3) alcançadas por esta fase.
 
 ### Fase C — preparação técnica do comparador shadow (desativado)
 
