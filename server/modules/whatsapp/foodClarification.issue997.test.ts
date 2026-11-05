@@ -122,6 +122,57 @@ describe("issue #997 persistent mixed increment clarification", () => {
     expect(row.target.resolutionContext.inboundMessageId).toBe("wamid.issue997");
   });
 
+  it("preserva correlação do comando misto no target persistido e após reconstruir o handler", async () => {
+    mocks.continuePlan.mockClear();
+    const { repository, rows } = createRepository();
+    const clarification = createFoodQuantityClarificationService({ repository });
+    const receivedAt = new Date("2026-08-22T20:00:00.000Z");
+    const messageId = "wamid.issue997.mixed-original";
+    const plan = {
+      ...mixedPlan(),
+      receivedAt: receivedAt.toISOString(),
+      inboundMessageId: messageId,
+    };
+
+    await clarification.requestMealItemIncrementQuantity({
+      userId: 42,
+      foodName: "Presunto",
+      originalText: plan.originalText,
+      plan,
+      operationIndex: 1,
+      receivedAt,
+      messageId,
+    });
+
+    const pending = [...rows.values()][0];
+    expect(pending.createdAt).toEqual(receivedAt);
+    expect(pending.target.inboundMessageId).toBe(messageId);
+    expect(pending.target.resolutionContext.plan).toMatchObject({
+      receivedAt: receivedAt.toISOString(),
+      inboundMessageId: messageId,
+      originalText: plan.originalText,
+    });
+
+    const restartedHandler = clarificationHandler(repository);
+    const resumed = await restartedHandler.handle({
+      userId: 42,
+      text: "20 g",
+      receivedAt: new Date("2026-08-22T20:02:00.000Z"),
+      messageId: "wamid.issue997.quantity-reply",
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(resumed?.action).toBe("meal_item_grams_adjusted");
+    expect(mocks.continuePlan).toHaveBeenCalledTimes(1);
+    const resumedPlan = mocks.continuePlan.mock.calls[0][1];
+    expect(resumedPlan.receivedAt).toBe(receivedAt.toISOString());
+    expect(resumedPlan.inboundMessageId).toBe(messageId);
+    expect(resumedPlan.operations[1]).toMatchObject({
+      gramsDelta: 20,
+      resolvedBy: "clarification",
+    });
+  });
+
   it.each(["1 fatia", "1 unidade", "2 fatias"])(
     "resposta sem massa/volume não consome a pendência: %s",
     async replyText => {

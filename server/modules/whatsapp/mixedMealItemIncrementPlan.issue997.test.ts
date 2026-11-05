@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   listMeals: vi.fn(),
   getFood: vi.fn(),
   convert: vi.fn(),
+  searchFood: vi.fn(),
+  resolveSafeCountable: vi.fn(),
   updateBatch: vi.fn(),
   requestQuantity: vi.fn(),
   createSelection: vi.fn(),
@@ -14,6 +16,10 @@ vi.mock("../meals/service", () => ({ listMeals: mocks.listMeals }));
 vi.mock("../foods/service", () => ({
   getGlobalFoodCatalogItem: mocks.getFood,
   convertFoodPortionToGrams: mocks.convert,
+  searchGlobalFoodCatalog: mocks.searchFood,
+}));
+vi.mock("../../countableFoodQuantity", () => ({
+  resolveSafeCountableCatalogGrams: mocks.resolveSafeCountable,
 }));
 vi.mock("./mealBatchMutation", () => ({
   updateMealsWithCompensation: mocks.updateBatch,
@@ -61,6 +67,25 @@ function item(
   };
 }
 
+function countableItem(
+  foodName: string,
+  grams: number,
+  quantity: number,
+  unit: "fatia" | "unidade",
+  foodId?: number,
+  overrides: Parameters<typeof item>[3] = {},
+) {
+  const unitLabel = unit === "fatia"
+    ? (quantity === 1 ? "fatia" : "fatias")
+    : (quantity === 1 ? "unidade" : "unidades");
+  return {
+    ...item(foodName, grams, foodId, overrides),
+    quantity,
+    unit,
+    portionText: `${quantity} ${unitLabel}`,
+  };
+}
+
 function meal(items: ReturnType<typeof item>[]) {
   return {
     id: 10,
@@ -99,7 +124,7 @@ describe("issue #997 atomic mixed increment plan", () => {
   it("não persiste os 48 g enquanto uma fatia ainda precisa de clarificação", async () => {
     mocks.listMeals.mockResolvedValue([meal([
       item("Requeijão Catupiry Light", 45, 1),
-      item("Presunto", 20),
+      item("Presunto", 20, undefined, { brand: "Sadia" }),
       item("Mussarela", 20),
     ])]);
 
@@ -115,17 +140,29 @@ describe("issue #997 atomic mixed increment plan", () => {
   it("usa a porção persistida do alimento e o conversor canônico antes do lote", async () => {
     const initial = meal([
       item("Requeijão Catupiry Light", 45, 1),
-      item("Presunto", 20, 2),
-      item("Mussarela", 20, 3),
+      countableItem("Presunto", 20, 1, "fatia", 2),
+      countableItem("Mussarela", 20, 1, "fatia", 3),
     ]);
     mocks.listMeals.mockResolvedValue([initial]);
-    mocks.getFood.mockImplementation(async (_userId: number, foodId: number) => ({
-      id: foodId,
-      portions: [{ id: foodId * 10, label: "1 fatia", unit: "fatia", quantity: 1, grams: foodId === 2 ? 20 : 30 }],
-    }));
-    mocks.convert.mockImplementation(async (_userId: number, input: { foodId: number }) => ({
-      grams: input.foodId === 2 ? 20 : 30,
-    }));
+    mocks.getFood.mockImplementation(
+      async (_userId: number, foodId: number) => ({
+        id: foodId,
+        portions: [
+          {
+            id: foodId * 10,
+            label: "1 fatia",
+            unit: "fatia",
+            quantity: 1,
+            grams: foodId === 2 ? 20 : 30,
+          },
+        ],
+      })
+    );
+    mocks.convert.mockImplementation(
+      async (_userId: number, input: { foodId: number }) => ({
+        grams: input.foodId === 2 ? 20 : 30,
+      })
+    );
     mocks.updateBatch.mockResolvedValue([initial]);
 
     const result = await continueMixedMealItemIncrementPlan(42, basePlan);
@@ -134,6 +171,80 @@ describe("issue #997 atomic mixed increment plan", () => {
     expect(mocks.convert).toHaveBeenCalledTimes(2);
     expect(mocks.updateBatch).toHaveBeenCalledTimes(1);
     expect(mocks.requestQuantity).not.toHaveBeenCalled();
+    const updatedItems = mocks.updateBatch.mock.calls[0][1][0].after.items;
+    expect(updatedItems[0].estimatedGrams).toBe(93);
+    expect(updatedItems[1]).toMatchObject({
+      quantity: 2,
+      unit: "fatia",
+      portionText: "2 fatias",
+      estimatedGrams: 40,
+    });
+    expect(updatedItems[2]).toMatchObject({
+      quantity: 2,
+      unit: "fatia",
+      portionText: "2 fatias",
+      estimatedGrams: 50,
+    });
+  });
+
+  it("reutiliza a porção local canônica após releitura quando o item não possui foodId", async () => {
+    const initial = meal([countableItem("Presunto", 18, 1, "fatia")]);
+    mocks.listMeals.mockResolvedValue([initial]);
+    mocks.resolveSafeCountable.mockReturnValue({ grams: 18 });
+    mocks.updateBatch.mockResolvedValue([initial]);
+
+    const result = await continueMixedMealItemIncrementPlan(42, {
+      ...basePlan,
+      operations: [{ targetFood: "presunto", quantity: 1, unit: "fatia" }],
+    });
+
+    expect(result.action).toBe("meal_item_grams_adjusted");
+    expect(mocks.getFood).not.toHaveBeenCalled();
+    expect(mocks.searchFood).not.toHaveBeenCalled();
+    expect(mocks.resolveSafeCountable).toHaveBeenCalledWith(
+      "Presunto",
+      1,
+      "fatia",
+      true
+    );
+    const updated = mocks.updateBatch.mock.calls[0][1][0].after.items[0];
+    expect(updated).toMatchObject({
+      quantity: 2,
+      unit: "fatia",
+      portionText: "2 fatias",
+      estimatedGrams: 36,
+    });
+  });
+
+  it("não rebaixa item com marca a porção local genérica e preserva correlação na clarificação", async () => {
+    const initial = meal([
+      countableItem("Presunto", 20, 1, "fatia", undefined, { brand: "Sadia" }),
+    ]);
+    const receivedAt = new Date("2026-08-22T20:00:00.000Z");
+    const messageId = "wamid.issue997.branded-increment";
+    mocks.listMeals.mockResolvedValue([initial]);
+
+    const result = await continueMixedMealItemIncrementPlan(42, {
+      ...basePlan,
+      receivedAt: receivedAt.toISOString(),
+      inboundMessageId: messageId,
+      operations: [{ targetFood: "presunto", quantity: 1, unit: "fatia" }],
+    });
+
+    expect(result.action).toBe("food_clarification_requested");
+    expect(mocks.getFood).not.toHaveBeenCalled();
+    expect(mocks.resolveSafeCountable).not.toHaveBeenCalled();
+    expect(mocks.updateBatch).not.toHaveBeenCalled();
+    expect(mocks.requestQuantity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receivedAt,
+        messageId,
+        plan: expect.objectContaining({
+          receivedAt: receivedAt.toISOString(),
+          inboundMessageId: messageId,
+        }),
+      })
+    );
   });
 
   it("revalida o alvo imediatamente antes da escrita e bloqueia plano stale", async () => {
@@ -170,15 +281,20 @@ describe("issue #997 atomic mixed increment plan", () => {
       item("Presunto", 20, 202),
     ]);
     mocks.listMeals.mockResolvedValue([initial]);
+    const receivedAt = "2026-08-22T20:00:00.000Z";
+    const inboundMessageId = "wamid.issue997.selection";
 
     await continueMixedMealItemIncrementPlan(42, {
       ...basePlan,
-      operations: [{ targetFood: "presunto", quantity: 10, unit: "g" }],
+      receivedAt,
+      inboundMessageId,
+      operations: [{ targetFood: "presunto", quantity: 1, unit: "fatia" }],
     });
 
     const pendingSelection = mocks.createSelection.mock.calls[0][1];
     const selected = pendingSelection.candidates[0];
     expect(selected.itemFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(pendingSelection.continuation.plan).toMatchObject({ receivedAt, inboundMessageId });
 
     const changed = meal([
       item("Presunto", 20, 202),

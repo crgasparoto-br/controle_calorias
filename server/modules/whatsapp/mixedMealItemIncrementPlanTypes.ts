@@ -23,6 +23,8 @@ export type MixedMealItemIncrementPlan = {
   originalText: string;
   mealLabel: string | null;
   timeZone: string;
+  receivedAt?: string;
+  inboundMessageId?: string | null;
   operations: MixedMealItemIncrementOperation[];
 };
 

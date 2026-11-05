@@ -6,6 +6,7 @@ const controls = vi.hoisted(() => ({
   crashQuestionAfterAck: false,
   downstreamCalls: 0,
   questionCalls: 0,
+  processMealInput: vi.fn(),
 }));
 
 vi.mock("./modules/billing/service", () => ({
@@ -20,6 +21,11 @@ vi.mock("./whatsappBillingWriteGate", () => ({
     remainingPayload: payload,
   })),
 }));
+
+vi.mock("./nutritionEngine", async () => {
+  const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
+  return { ...actual, processMealInput: controls.processMealInput };
+});
 
 vi.mock("./modules/whatsapp/aiQuestionAssistant", async () => {
   const actual = await vi.importActual<typeof import("./modules/whatsapp/aiQuestionAssistant")>(
@@ -113,7 +119,12 @@ function createRuntime(ownerToken: string) {
   });
 }
 
-function createPayload(phoneNumber: string, messageId: string) {
+function createPayload(
+  phoneNumber: string,
+  messageId: string,
+  text = "/como está minha proteína hoje?",
+  timestamp = "1789164000",
+) {
   return {
     entry: [{
       changes: [{
@@ -125,9 +136,9 @@ function createPayload(phoneNumber: string, messageId: string) {
           messages: [{
             id: messageId,
             from: phoneNumber,
-            timestamp: "1789164000",
+            timestamp,
             type: "text",
-            text: { body: "/como está minha proteína hoje?" },
+            text: { body: text },
           }],
         },
       }],
@@ -216,6 +227,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     controls.crashQuestionAfterAck = false;
     controls.downstreamCalls = 0;
     controls.questionCalls = 0;
+    controls.processMealInput.mockReset();
     outboundPayloads = [];
     __resetWhatsAppImageIdempotencyForTests();
 
@@ -552,5 +564,155 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     expect(claimRows).toHaveLength(0);
 
     await connection.end();
+  }, 20_000);
+
+  it("registra, relê e ajusta o cenário #997 pelo webhook sem aplicar duas vezes na redelivery", async () => {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    expect(databaseUrl).toBeTruthy();
+    const connection = await mysql.createConnection(databaseUrl!);
+
+    try {
+      const fixture = await createPersistedQuestionFixture(connection);
+      const { listMeals } = await import("./modules/meals/service");
+      const { buildHeuristicItem } = await import("./mealItemBuilders");
+      const { calculateMealTotals } = await import("../shared/mealTotals");
+      const registrationText = [
+        "1 pão francês",
+        "1 ovo frito",
+        "1 fatia presunto",
+        "1 fatia mussarela",
+        "45g requeijão catupiry light",
+        "3 xícaras de café sem açúcar",
+      ].join("\n");
+      controls.processMealInput.mockImplementation(
+        async (input: { text?: string }) => {
+          const text = input.text ?? "";
+          if (/presunto|mussarela|muçarela|mozarela/i.test(text)) {
+            throw new Error(
+              `medida contável resolvida localmente foi enviada ao motor nutricional: ${text}`
+            );
+          }
+          const items = [buildHeuristicItem(text)];
+          return {
+            detectedMealLabel: "Refeição",
+            sourceText: text,
+            confidence: 0.95,
+            needsConfirmation: false,
+            reasoning:
+              "Fixture local determinística para os segmentos não contáveis do cenário.",
+            items,
+            totals: calculateMealTotals(items),
+          } as never;
+        }
+      );
+      controls.crashNextDownstream = false;
+      const registrationMessageId = `wamid.issue997.registration.${Date.now()}`;
+      const registrationDownstreamBefore = controls.downstreamCalls;
+      const registrationOutcome = await deliver(
+        createRuntime(`runtime-issue997-registration-${Date.now()}`),
+        createPayload(
+          fixture.phoneNumber,
+          registrationMessageId,
+          registrationText,
+          String(Math.floor(Date.now() / 1000))
+        )
+      );
+
+      expect(registrationOutcome.statusCode).toBe(200);
+      expect(registrationOutcome.body).toEqual({ ok: true, processed: 1 });
+      expect(controls.downstreamCalls).toBe(registrationDownstreamBefore + 1);
+      expect(
+        controls.processMealInput.mock.calls.some(([input]) =>
+          /presunto|mussarela|muçarela|mozarela/i.test(input.text ?? "")
+        )
+      ).toBe(false);
+
+      const initialMeals = await listMeals(fixture.userId);
+      const initialMeal = initialMeals.find(
+        meal =>
+          meal.items.some(item => /presunto/i.test(item.foodName)) &&
+          meal.items.some(item => /mussarela|mozarela/i.test(item.foodName))
+      );
+      expect(initialMeal).toBeTruthy();
+      const initialPresunto = initialMeal!.items.find(item =>
+        /presunto/i.test(item.foodName)
+      )!;
+      const initialMussarela = initialMeal!.items.find(item =>
+        /mussarela|mozarela/i.test(item.foodName)
+      )!;
+      expect(initialPresunto).toMatchObject({
+        quantity: 1,
+        unit: "fatia",
+        estimatedGrams: 18,
+      });
+      expect(initialMussarela).toMatchObject({
+        quantity: 1,
+        unit: "fatia",
+        estimatedGrams: 20,
+      });
+      expect(initialPresunto.foodId).toBeUndefined();
+      expect(initialMussarela.foodId).toBeUndefined();
+
+      controls.crashNextDownstream = false;
+      const adjustmentMessageId = `wamid.issue997.adjustment.${Date.now()}`;
+      const adjustmentPayload = createPayload(
+        fixture.phoneNumber,
+        adjustmentMessageId,
+        "Adicionar 48g ao requeijão, 1 fatia ao presunto e uma na mussarela",
+        String(Math.floor(Date.now() / 1000))
+      );
+      const downstreamBefore = controls.downstreamCalls;
+      const repliesBefore = outboundPayloads.length;
+      const adjustment = await deliver(
+        createRuntime(`runtime-issue997-${Date.now()}`),
+        adjustmentPayload
+      );
+      expect(adjustment.statusCode).toBe(200);
+      expect(adjustment.body).toEqual({ ok: true, processed: 1 });
+      expect(controls.downstreamCalls).toBe(downstreamBefore + 1);
+      const repliesAfterAdjustment = outboundPayloads.length;
+      expect(repliesAfterAdjustment).toBeGreaterThan(repliesBefore);
+
+      __resetWhatsAppImageIdempotencyForTests();
+      const duplicate = await deliver(
+        createRuntime(`runtime-issue997-replay-${Date.now()}`),
+        adjustmentPayload
+      );
+      expect(duplicate.statusCode).toBe(200);
+      expect(duplicate.body).toEqual({
+        ok: true,
+        processed: 0,
+        deduplicated: true,
+      });
+      expect(controls.downstreamCalls).toBe(downstreamBefore + 1);
+      expect(outboundPayloads).toHaveLength(repliesAfterAdjustment);
+
+      const finalMeals = await listMeals(fixture.userId);
+      const finalMeal = finalMeals.find(meal => meal.id === initialMeal!.id)!;
+      const finalPresunto = finalMeal.items.find(item =>
+        /presunto/i.test(item.foodName)
+      )!;
+      const finalMussarela = finalMeal.items.find(item =>
+        /mussarela|mozarela/i.test(item.foodName)
+      )!;
+      const finalRequeijao = finalMeal.items.find(item =>
+        /requeijão/i.test(item.foodName)
+      )!;
+      expect(finalPresunto).toMatchObject({
+        quantity: 2,
+        unit: "fatia",
+        portionText: "2 fatias",
+        estimatedGrams: 36,
+      });
+      expect(finalMussarela).toMatchObject({
+        quantity: 2,
+        unit: "fatia",
+        portionText: "2 fatias",
+        estimatedGrams: 40,
+      });
+      expect(finalRequeijao.estimatedGrams).toBe(93);
+    } finally {
+      await connection.end();
+    }
   }, 20_000);
 });

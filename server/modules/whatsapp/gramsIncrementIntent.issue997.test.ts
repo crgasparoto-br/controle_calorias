@@ -12,6 +12,8 @@ describe("issue #997 grams increment public intent", () => {
   });
 
   it("encaminha as três operações do comando misto para um único plano", async () => {
+    const receivedAt = new Date("2026-08-22T20:00:00.000Z");
+    const messageId = "wamid.issue997.public-intent";
     mocks.continuePlan.mockResolvedValueOnce({
       handled: true,
       action: "food_clarification_requested",
@@ -22,6 +24,8 @@ describe("issue #997 grams increment public intent", () => {
     const result = await executeWhatsappGramsIncrementIntent(42, {
       text: "Adicionar 48g ao requeijão, 1 fatia ao presunto e uma na mussarela",
       userTimezone: "America/Sao_Paulo",
+      receivedAt,
+      messageId,
     });
     expect(result?.action).toBe("food_clarification_requested");
     expect(mocks.legacyIncrement).not.toHaveBeenCalled();
@@ -30,6 +34,10 @@ describe("issue #997 grams increment public intent", () => {
       expect.objectContaining({ targetFood: "presunto", quantity: 1, unit: "fatia" }),
       expect.objectContaining({ targetFood: "mussarela", quantity: 1, unit: "fatia", inheritedUnit: true }),
     ]);
+    expect(mocks.continuePlan.mock.calls[0][1]).toMatchObject({
+      receivedAt: receivedAt.toISOString(),
+      inboundMessageId: messageId,
+    });
   });
 
   it("mantém o caminho existente para comandos somente em gramas", async () => {

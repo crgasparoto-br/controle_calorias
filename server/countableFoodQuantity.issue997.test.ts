@@ -6,6 +6,7 @@ import {
   prepareCountableFoodRegistration,
   resolveSafeCountableCatalogGrams,
 } from "./countableFoodQuantity";
+import { getLocalCountableIncrementGrams } from "./modules/foods/countablePortionConversion";
 import { findTacoFood } from "./tacoLookup";
 
 describe("issue #997 countable registration and local nutrition", () => {
@@ -25,6 +26,43 @@ describe("issue #997 countable registration and local nutrition", () => {
       expect(findUnsafeCountableFoodQuantity(text)).toBeNull();
       expect(resolveSafeCountableCatalogGrams(foodName, 1, "fatia")?.grams).toBe(grams);
     },
+  );
+
+  it.each([
+    ["presunto", 2, 36],
+    ["mussarela", 2, 40],
+  ])(
+    "reusa a porção local segura em ajuste persistido: %s",
+    async (foodName, quantity, grams) => {
+      await expect(
+        getLocalCountableIncrementGrams({
+          userId: 42,
+          item: { foodName },
+          quantity,
+          unit: "fatia",
+        })
+      ).resolves.toBe(grams);
+    }
+  );
+
+  it.each([
+    { brand: "Sadia" },
+    { productVariant: "defumado" },
+    { foodCatalogId: 2 },
+    { portionId: 3 },
+    { portionQuantity: 1 },
+  ])(
+    "não rebaixa identidade comercial ou referência específica: %o",
+    async identity => {
+      await expect(
+        getLocalCountableIncrementGrams({
+          userId: 42,
+          item: { foodName: "presunto", ...identity },
+          quantity: 1,
+          unit: "fatia",
+        })
+      ).resolves.toBeNull();
+    }
   );
 
   it.each([

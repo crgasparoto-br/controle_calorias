@@ -67,6 +67,8 @@ export async function executeWhatsappGramsIncrementIntent(
     originalText: text ?? "",
     mealLabel: parsed.mealLabel,
     timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+    receivedAt: (input.receivedAt ?? new Date()).toISOString(),
+    inboundMessageId: input.messageId?.trim() || null,
     operations: parsed.operations.map(operation => ({
       targetFood: operation.targetFood,
       quantity: operation.quantity,

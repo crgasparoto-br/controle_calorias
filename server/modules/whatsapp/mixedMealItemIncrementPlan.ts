@@ -2,6 +2,7 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { createHash } from "node:crypto";
 import { convertFoodPortionToGrams, getGlobalFoodCatalogItem } from "../foods/service";
+import { getLocalCountableIncrementGrams } from "../foods/countablePortionConversion";
 import { listMeals } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { resolveTargetMealItemInMeals } from "./intent/mealTargetResolution";
@@ -428,7 +429,14 @@ export async function continueMixedMealItemIncrementPlan(
 
     const countableUnit = operation.unit ? normalizeCountableUnit(operation.unit) : null;
     if (countableUnit) {
-      const grams = await resolveCountableGrams(userId, current.item, operation);
+      const grams = current.item.foodId
+        ? await resolveCountableGrams(userId, current.item, operation)
+        : await getLocalCountableIncrementGrams({
+            userId,
+            item: current.item,
+            quantity: operation.quantity,
+            unit: countableUnit,
+          });
       if (grams) {
         operation.gramsDelta = grams;
         operation.resolvedBy = "canonical_portion";
@@ -442,7 +450,10 @@ export async function continueMixedMealItemIncrementPlan(
       originalText: plan.originalText,
       plan,
       operationIndex: index,
-      receivedAt: new Date(),
+      receivedAt: plan.receivedAt && Number.isFinite(new Date(plan.receivedAt).getTime())
+        ? new Date(plan.receivedAt)
+        : new Date(),
+      messageId: plan.inboundMessageId ?? null,
       instructionText: operation.unit
         ? `Não encontrei uma conversão segura para ${operation.quantity} ${operation.unit} de ${current.item.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`
         : `Não consegui inferir a unidade de ${current.item.foodName} com segurança. Informe somente o incremento em gramas ou ml, por exemplo 20 g.`,
