@@ -13,23 +13,29 @@ import { evaluateWhatsappIntentRoute } from "./intentRouter";
 import {
   COUNTABLE_QUANTITY_PATTERN,
   parseCountableQuantity,
-} from "./quantityUnitVocabulary";
+} from "../quantity/quantityUnitVocabulary";
 import {
   isStandaloneWhatsappCommandWord,
   normalizeStandaloneWhatsappCommand,
 } from "./standaloneCommandWords";
 import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
 
-export const PENDING_FOOD_CLARIFICATION_TYPE = "food_registration_clarification";
+export const PENDING_FOOD_CLARIFICATION_TYPE =
+  "food_registration_clarification";
 export const PENDING_FOOD_CLARIFICATION_ORIGIN = "foodClarification";
 export const PENDING_FOOD_CLARIFICATION_TTL_MS = 10 * 60 * 1000;
 
-export type FoodClarificationKind = "confirmation" | "quantity" | "selection" | "identity";
+export type FoodClarificationKind =
+  | "confirmation"
+  | "quantity"
+  | "selection"
+  | "identity";
 export type FoodClarificationClassification = "open" | "closed";
-export type FoodClarificationInteractionId = `food_clarification.${FoodClarificationKind}`;
+export type FoodClarificationInteractionId =
+  `food_clarification.${FoodClarificationKind}`;
 
 export function getFoodClarificationInteractionId(
-  kind: FoodClarificationKind,
+  kind: FoodClarificationKind
 ): FoodClarificationInteractionId {
   return `food_clarification.${kind}`;
 }
@@ -82,26 +88,34 @@ const SAFE_TYPO_REPLACEMENTS: Record<string, string> = {
   banna: "banana",
 };
 
-const NON_FOOD_COUNT_CONTEXT = /\b(?:relatorio|resumo|registro|opcao|dia|semana|mes|ano|paciente|mensagem|pergunta|consulta|arquivo|foto|imagem)\b/i;
-const DESTRUCTIVE_OR_QUERY_COMMAND = /\b(?:excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
-const COMPLETE_COMMAND_SIGNAL = /\b(?:registrar|registre|registra|adicionar|adicione|adiciona|incluir|inclua|comi|bebi|tomei|excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
-const COMPOUND_ACTION_VERB = "(?:troca|trocar|substitui|substituir|remove|remover|tira|tirar|retira|retirar|exclui|excluir|apaga|apagar|deleta|deletar|corrige|corrigir|ajusta|ajustar|soma|somar|some|adiciona|adicionar|adicione|inclui|inclua|lan[cç]a|lanca|registre|registrar|registra|n[aã]o\\s+e|n[aã]o\\s+era)";
+const NON_FOOD_COUNT_CONTEXT =
+  /\b(?:relatorio|resumo|registro|opcao|dia|semana|mes|ano|paciente|mensagem|pergunta|consulta|arquivo|foto|imagem)\b/i;
+const DESTRUCTIVE_OR_QUERY_COMMAND =
+  /\b(?:excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
+const COMPLETE_COMMAND_SIGNAL =
+  /\b(?:registrar|registre|registra|adicionar|adicione|adiciona|incluir|inclua|comi|bebi|tomei|excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
+const COMPOUND_ACTION_VERB =
+  "(?:troca|trocar|substitui|substituir|remove|remover|tira|tirar|retira|retirar|exclui|excluir|apaga|apagar|deleta|deletar|corrige|corrigir|ajusta|ajustar|soma|somar|some|adiciona|adicionar|adicione|inclui|inclua|lan[cç]a|lanca|registre|registrar|registra|n[aã]o\\s+e|n[aã]o\\s+era)";
 const COMPOUND_ACTION_BOUNDARY = new RegExp(
   `\\s+(?:e|depois|ent[aã]o)\\s+(?=${COMPOUND_ACTION_VERB}\\b)|\\s*[,;]\\s*(?=${COMPOUND_ACTION_VERB}\\b)`,
-  "iu",
+  "iu"
 );
-const COUNTABLE_SERVING = /\b(?:unidades?|unid|und|fatias?|pedacos?|x[ií]caras?|copos?|colheres?|doses?|scoops?|latas?|garrafas?|long\s*necks?|por[cç][oõ]es|por[cç][aã]o)\b/i;
-const EXPLICIT_MASS_OR_VOLUME = /^(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i;
-const HOUSEHOLD_QUANTITY_UNIT = "colheres? de cha|colheres? de sopa|saches?|pacotes?";
+const COUNTABLE_SERVING =
+  /\b(?:unidades?|unid|und|fatias?|pedacos?|x[ií]caras?|copos?|colheres?|doses?|scoops?|latas?|garrafas?|long\s*necks?|por[cç][oõ]es|por[cç][aã]o)\b/i;
+const EXPLICIT_MASS_OR_VOLUME =
+  /^(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i;
+const HOUSEHOLD_QUANTITY_UNIT =
+  "colheres? de cha|colheres? de sopa|saches?|pacotes?";
 const QUANTITY_ONLY_REPLY = new RegExp(
   `^\\s*\\d+(?:[,.]\\d+)?\\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|${HOUSEHOLD_QUANTITY_UNIT})\\s*$`,
-  "i",
+  "i"
 );
 const HOUSEHOLD_QUANTITY_ONLY_REPLY = new RegExp(
   `^\\s*(\\d+(?:[,.]\\d+)?)\\s*(${HOUSEHOLD_QUANTITY_UNIT})\\s*$`,
-  "i",
+  "i"
 );
-const COMPLETE_EXPLICIT_FOOD = /^\s*\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)\s+(?:de\s+)?[\p{L}][\p{L}\p{N}\s'’-]*$/iu;
+const COMPLETE_EXPLICIT_FOOD =
+  /^\s*\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)\s+(?:de\s+)?[\p{L}][\p{L}\p{N}\s'’-]*$/iu;
 
 function normalizeCandidate(value: string) {
   return cleanFoodName(value)
@@ -126,30 +140,45 @@ function parseCount(value: string) {
   return parseCountableQuantity(normalizeStandaloneWhatsappCommand(value));
 }
 
-export function parseCountedFoodRequest(text?: string | null): CountedFoodRequest | null {
+export function parseCountedFoodRequest(
+  text?: string | null
+): CountedFoodRequest | null {
   const originalText = text?.trim() ?? "";
-  if (!originalText || DESTRUCTIVE_OR_QUERY_COMMAND.test(originalText)) return null;
+  if (!originalText || DESTRUCTIVE_OR_QUERY_COMMAND.test(originalText))
+    return null;
   if (extractExplicitQuantities(originalText).length > 0) return null;
 
   const cleaned = cleanFoodName(originalText);
-  const match = cleaned.match(new RegExp(`^(${COUNTABLE_QUANTITY_PATTERN})\\s+(.+)$`, "iu"));
+  const match = cleaned.match(
+    new RegExp(`^(${COUNTABLE_QUANTITY_PATTERN})\\s+(.+)$`, "iu")
+  );
   if (!match) return null;
 
   const count = parseCount(match[1]);
   const originalCandidate = cleanFoodName(match[2]);
-  if (!count || count > 50 || !originalCandidate || NON_FOOD_COUNT_CONTEXT.test(originalCandidate)) return null;
+  if (
+    !count ||
+    count > 50 ||
+    !originalCandidate ||
+    NON_FOOD_COUNT_CONTEXT.test(originalCandidate)
+  )
+    return null;
 
   const normalizedCandidate = normalizeCandidate(originalCandidate);
   return {
     originalText,
     originalCandidate,
     normalizedCandidate,
-    normalizationChanged: normalizeText(originalCandidate) !== normalizeText(normalizedCandidate),
+    normalizationChanged:
+      normalizeText(originalCandidate) !== normalizeText(normalizedCandidate),
     count,
   };
 }
 
-function toCandidate(food: CatalogFood, matchKind: FoodClarificationCandidate["matchKind"]): FoodClarificationCandidate {
+function toCandidate(
+  food: CatalogFood,
+  matchKind: FoodClarificationCandidate["matchKind"]
+): FoodClarificationCandidate {
   return {
     name: food.name,
     servingLabel: food.servingLabel,
@@ -160,9 +189,14 @@ function toCandidate(food: CatalogFood, matchKind: FoodClarificationCandidate["m
   };
 }
 
-function isExactFoodMatch(food: Pick<CatalogFood, "name" | "aliases">, candidate: string) {
+function isExactFoodMatch(
+  food: Pick<CatalogFood, "name" | "aliases">,
+  candidate: string
+) {
   const normalized = normalizeFoodIdentity(candidate);
-  return [food.name, ...food.aliases].some(name => normalizeFoodIdentity(name) === normalized);
+  return [food.name, ...food.aliases].some(
+    name => normalizeFoodIdentity(name) === normalized
+  );
 }
 
 function uniqueCandidates(candidates: FoodClarificationCandidate[]) {
@@ -191,10 +225,17 @@ export function resolveFoodClarificationCandidates(candidate: string): FoodClari
 
 export function hasSafeCanonicalPortion(candidate: FoodClarificationCandidate) {
   if (candidate.matchKind !== "exact") return false;
-  if (!Number.isFinite(candidate.gramsPerServing) || candidate.gramsPerServing <= 0) return false;
+  if (
+    !Number.isFinite(candidate.gramsPerServing) ||
+    candidate.gramsPerServing <= 0
+  )
+    return false;
   if (/^100\s*g$/i.test(candidate.servingLabel.trim())) return false;
   if (COUNTABLE_SERVING.test(candidate.servingLabel)) return true;
-  return candidate.isBrandedProduct && EXPLICIT_MASS_OR_VOLUME.test(candidate.servingLabel.trim()) !== null;
+  return (
+    candidate.isBrandedProduct &&
+    EXPLICIT_MASS_OR_VOLUME.test(candidate.servingLabel.trim()) !== null
+  );
 }
 
 export function buildQuantityInstruction(candidate: string) {
@@ -205,32 +246,58 @@ export function buildConfirmationInstruction(candidate: string) {
   return `Você quis dizer ${candidate}? Responda SIM para registrar o alimento original ou CANCELAR para desistir.`;
 }
 
-export function buildSelectionInstruction(candidates: FoodClarificationCandidate[]) {
-  const options = candidates.map((candidate, index) => `${index + 1}. ${candidate.name} — ${candidate.servingLabel}`).join("\n");
+export function buildSelectionInstruction(
+  candidates: FoodClarificationCandidate[]
+) {
+  const options = candidates
+    .map(
+      (candidate, index) =>
+        `${index + 1}. ${candidate.name} — ${candidate.servingLabel}`
+    )
+    .join("\n");
   return `Encontrei mais de um alimento possível. Qual deles você quis dizer?\n${options}\n\nResponda com o número ou CANCELAR.`;
 }
 
-export function buildFoodClarificationActions(kind: FoodClarificationKind, candidates: FoodClarificationCandidate[]) {
+export function buildFoodClarificationActions(
+  kind: FoodClarificationKind,
+  candidates: FoodClarificationCandidate[]
+) {
   if (kind === "quantity") {
     return [
-      { id: "provide_quantity", label: "Informar quantidade", effect: "complete_original_food" },
+      {
+        id: "provide_quantity",
+        label: "Informar quantidade",
+        effect: "complete_original_food",
+      },
       { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
     ];
   }
   if (kind === "identity") {
     return [
-      { id: "provide_identity", label: "Informar identidade", effect: "confirm_original_identity" },
+      {
+        id: "provide_identity",
+        label: "Informar identidade",
+        effect: "confirm_original_identity",
+      },
       { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
     ];
   }
   if (kind === "confirmation") {
     return [
-      { id: "confirm", label: "Confirmar", effect: "register_original_food_once" },
+      {
+        id: "confirm",
+        label: "Confirmar",
+        effect: "register_original_food_once",
+      },
       { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
     ];
   }
   return [
-    ...candidates.map((_, index) => ({ id: `select:${index}`, label: `Opção ${index + 1}`, effect: "select_candidate" })),
+    ...candidates.map((_, index) => ({
+      id: `select:${index}`,
+      label: `Opção ${index + 1}`,
+      effect: "select_candidate",
+    })),
     { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
   ];
 }
@@ -266,32 +333,42 @@ export function buildPendingFoodClarificationTarget(input: {
   };
 }
 
-export function isPendingFoodClarificationTarget(value: unknown): value is PendingFoodClarificationTarget {
+export function isPendingFoodClarificationTarget(
+  value: unknown
+): value is PendingFoodClarificationTarget {
   if (!value || typeof value !== "object") return false;
   const target = value as Partial<PendingFoodClarificationTarget>;
-  return target.contractVersion === 1
-    && target.kind === "food_registration_clarification"
-    && ["confirmation", "quantity", "selection", "identity"].includes(target.pendingKind ?? "")
-    && typeof target.originalText === "string"
-    && typeof target.sanitizedOriginalText === "string"
-    && typeof target.originalCandidate === "string"
-    && typeof target.normalizedCandidate === "string"
-    && typeof target.normalizationChanged === "boolean"
-    && typeof target.count === "number"
-    && Array.isArray(target.qualifiers)
-    && Array.isArray(target.candidates)
-    && Array.isArray(target.actions)
-    && typeof target.instructionText === "string"
-    && (target.inboundMessageId === null || typeof target.inboundMessageId === "string")
-    && [
+  return (
+    target.contractVersion === 1 &&
+    target.kind === "food_registration_clarification" &&
+    ["confirmation", "quantity", "selection", "identity"].includes(
+      target.pendingKind ?? ""
+    ) &&
+    typeof target.originalText === "string" &&
+    typeof target.sanitizedOriginalText === "string" &&
+    typeof target.originalCandidate === "string" &&
+    typeof target.normalizedCandidate === "string" &&
+    typeof target.normalizationChanged === "boolean" &&
+    typeof target.count === "number" &&
+    Array.isArray(target.qualifiers) &&
+    Array.isArray(target.candidates) &&
+    Array.isArray(target.actions) &&
+    typeof target.instructionText === "string" &&
+    (target.inboundMessageId === null ||
+      typeof target.inboundMessageId === "string") &&
+    [
       "register_original_food_once",
       "complete_pending_food_operation_once",
-    ].includes(target.allowedDomainEffect ?? "");
+    ].includes(target.allowedDomainEffect ?? "")
+  );
 }
 
 export function buildFoodClarificationPendingData(
-  pending: Pick<WhatsAppPendingOperationRecord, "id" | "type" | "state" | "version">,
-  target: PendingFoodClarificationTarget,
+  pending: Pick<
+    WhatsAppPendingOperationRecord,
+    "id" | "type" | "state" | "version"
+  >,
+  target: PendingFoodClarificationTarget
 ) {
   return {
     interactionId: getFoodClarificationInteractionId(target.pendingKind),
@@ -314,21 +391,26 @@ export function buildFoodClarificationPendingData(
 
 function parseCountableServing(candidate: FoodClarificationCandidate) {
   const parsed = parseQuantityUnitFromPortionText(candidate.servingLabel);
-  return parsed && parsed.quantity === 1 && COUNTABLE_SERVING.test(parsed.unit) ? parsed : null;
+  return parsed && parsed.quantity === 1 && COUNTABLE_SERVING.test(parsed.unit)
+    ? parsed
+    : null;
 }
 
 export function buildFoodClarificationRegistrationText(
   target: PendingFoodClarificationTarget,
   candidate: FoodClarificationCandidate,
-  explicitQuantity?: { quantity: number; unit: string },
+  explicitQuantity?: { quantity: number; unit: string }
 ) {
-  if (explicitQuantity) return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${candidate.name}`;
+  if (explicitQuantity)
+    return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${candidate.name}`;
   const countableServing = parseCountableServing(candidate);
   if (countableServing) {
-    const quantity = Math.round(target.count * countableServing.quantity * 100) / 100;
+    const quantity =
+      Math.round(target.count * countableServing.quantity * 100) / 100;
     return `${quantity} ${countableServing.unit} de ${candidate.name}`;
   }
-  const grams = Math.round(candidate.gramsPerServing * target.count * 100) / 100;
+  const grams =
+    Math.round(candidate.gramsPerServing * target.count * 100) / 100;
   return `${grams} g de ${candidate.name}`;
 }
 
@@ -349,8 +431,13 @@ export function parseFoodClarificationQuantityReply(text?: string | null) {
     : null;
 }
 
-export function parseFoodClarificationSelectionReply(text?: string | null, candidateCount = 0) {
-  const match = normalizeStandaloneWhatsappCommand(text).match(/^(?:opcao\s*)?(\d{1,2})$/);
+export function parseFoodClarificationSelectionReply(
+  text?: string | null,
+  candidateCount = 0
+) {
+  const match = normalizeStandaloneWhatsappCommand(text).match(
+    /^(?:opcao\s*)?(\d{1,2})$/
+  );
   if (!match) return null;
   const index = Number(match[1]) - 1;
   return index >= 0 && index < candidateCount ? index : -1;
@@ -358,9 +445,12 @@ export function parseFoodClarificationSelectionReply(text?: string | null, candi
 
 function isRoutableFreeTextFoodMessage(text: string) {
   const route = evaluateWhatsappIntentRoute({ text });
-  return route.action === "continue_pipeline"
-    && route.shouldAllowNutritionFallback
-    && (route.canonicalIntent === "registrar_alimento" || route.canonicalIntent === "adicionar_alimento");
+  return (
+    route.action === "continue_pipeline" &&
+    route.shouldAllowNutritionFallback &&
+    (route.canonicalIntent === "registrar_alimento" ||
+      route.canonicalIntent === "adicionar_alimento")
+  );
 }
 
 export function isCompleteWhatsappCommand(text?: string | null) {
@@ -368,11 +458,10 @@ export function isCompleteWhatsappCommand(text?: string | null) {
   if (!raw || isStandaloneWhatsappCommandWord(raw)) return false;
   const normalized = normalizeStandaloneWhatsappCommand(raw);
   const parsedMealCommand = parseMealCommandFromWhatsApp(normalized);
-  const isIncompleteMealAddition = parsedMealCommand.intent === "add_items_to_meal"
-    && (
-      parsedMealCommand.items.length === 0
-      || parsedMealCommand.items.some(item => item.missingFields.length > 0)
-    );
+  const isIncompleteMealAddition =
+    parsedMealCommand.intent === "add_items_to_meal" &&
+    (parsedMealCommand.items.length === 0 ||
+      parsedMealCommand.items.some(item => item.missingFields.length > 0));
   const isPotentialCompoundCommand = COMPOUND_ACTION_BOUNDARY.test(normalized);
   // A command verb is not enough to bypass an active clarification. In
   // particular, "adicionar água ontem" and "adicionar ao jantar, banana"
@@ -383,11 +472,21 @@ export function isCompleteWhatsappCommand(text?: string | null) {
   if (isIncompleteMealAddition && !isPotentialCompoundCommand) return false;
   const explicitFood = COMPLETE_EXPLICIT_FOOD.test(normalized);
   const countedFood = parseCountedFoodRequest(raw) !== null;
-  const operationalCommand = COMPLETE_COMMAND_SIGNAL.test(normalized) && normalized.split(/\s+/).length >= 2;
-  return explicitFood || countedFood || operationalCommand || isRoutableFreeTextFoodMessage(raw);
+  const operationalCommand =
+    COMPLETE_COMMAND_SIGNAL.test(normalized) &&
+    normalized.split(/\s+/).length >= 2;
+  return (
+    explicitFood ||
+    countedFood ||
+    operationalCommand ||
+    isRoutableFreeTextFoodMessage(raw)
+  );
 }
 
-export function isExpectedWhatsappFoodClarificationAction(target: PendingFoodClarificationTarget, action: string) {
+export function isExpectedWhatsappFoodClarificationAction(
+  target: PendingFoodClarificationTarget,
+  action: string
+) {
   if (target.pendingKind === "quantity") return action === "cancel";
   return target.actions.some(candidate => candidate.id === action);
 }

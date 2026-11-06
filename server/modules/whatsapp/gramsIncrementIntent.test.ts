@@ -2,15 +2,40 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listMealsMock = vi.hoisted(() => vi.fn());
 const updateMealMock = vi.hoisted(() => vi.fn());
+const attachTestMealMutationToken = vi.hoisted(
+  () => (value: unknown, token: string) => {
+    if (!value || typeof value !== "object") return value;
+    const symbol = Symbol.for("controle_calorias.mealMutationPreImage");
+    if (!Object.prototype.hasOwnProperty.call(value, symbol)) {
+      Object.defineProperty(value, symbol, {
+        value: token,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    return value;
+  }
+);
 
 vi.mock("../meals/service", () => ({
-  listMeals: listMealsMock,
-  updateMeal: updateMealMock,
+  listMeals: async (...args: unknown[]) => {
+    const meals = await listMealsMock(...args);
+    const options = args[1] as { adjustmentRead?: boolean } | undefined;
+    return options?.adjustmentRead && Array.isArray(meals)
+      ? meals.map(meal => attachTestMealMutationToken(meal, "a".repeat(64)))
+      : meals;
+  },
+  updateMeal: async (...args: unknown[]) =>
+    attachTestMealMutationToken(await updateMealMock(...args), "b".repeat(64)),
 }));
 
 import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 
-function item(foodName: string, estimatedGrams: number, overrides: Partial<{ canonicalName: string; brand: string }> = {}) {
+function item(
+  foodName: string,
+  estimatedGrams: number,
+  overrides: Partial<{ canonicalName: string; brand: string }> = {}
+) {
   return {
     foodName,
     canonicalName: overrides.canonicalName ?? foodName,
@@ -48,29 +73,51 @@ describe("executeWhatsappGramsIncrementIntent", () => {
       ],
     };
     listMealsMock.mockResolvedValue([meal]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      id: input.mealId,
+      ...input,
+    }));
 
     const result = await executeWhatsappGramsIncrementIntent(42, {
       text: "Adicionar 37g a mandioca",
       receivedAt: new Date("2026-06-29T23:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_grams_adjusted",
-      data: expect.objectContaining({
-        increments: [
-          expect.objectContaining({ foodName: "Mandioca cozida", previousGrams: 100, nextGrams: 137 }),
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_grams_adjusted",
+        data: expect.objectContaining({
+          increments: [
+            expect.objectContaining({
+              foodName: "Mandioca cozida",
+              previousGrams: 100,
+              nextGrams: 137,
+            }),
+          ],
+        }),
+      })
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 36,
+        items: [
+          expect.objectContaining({
+            foodName: "Arroz branco",
+            estimatedGrams: 80,
+          }),
+          expect.objectContaining({
+            foodName: "Mandioca cozida",
+            estimatedGrams: 137,
+            portionText: "137 g",
+          }),
+          expect.objectContaining({
+            foodName: "Feijao carioca",
+            estimatedGrams: 90,
+          }),
         ],
-      }),
-    }));
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 36,
-      items: [
-        expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 80 }),
-        expect.objectContaining({ foodName: "Mandioca cozida", estimatedGrams: 137, portionText: "137 g" }),
-        expect.objectContaining({ foodName: "Feijao carioca", estimatedGrams: 90 }),
-      ],
-    }));
+      })
+    );
     expect(result?.reply).toContain("Alimento ajustado");
     expect(result?.reply).toContain("Refeição atualizada:");
     expect(result?.reply).toContain("Arroz branco");
@@ -85,34 +132,50 @@ describe("executeWhatsappGramsIncrementIntent", () => {
       mealLabel: "Lanche",
       occurredAt: "2026-06-29T23:00:00.000Z",
       notes: null,
-      items: [
-        item("Pao frances", 50),
-        item("Queijo Minas Padrao Fatiado", 30),
-      ],
+      items: [item("Pao frances", 50), item("Queijo Minas Padrao Fatiado", 30)],
     };
     listMealsMock.mockResolvedValue([meal]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      id: input.mealId,
+      ...input,
+    }));
 
     const result = await executeWhatsappGramsIncrementIntent(42, {
       text: "Adicionar 20g ao queijo Minas",
       receivedAt: new Date("2026-06-29T23:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_grams_adjusted",
-      data: expect.objectContaining({
-        increments: [
-          expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 30, nextGrams: 50 }),
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_grams_adjusted",
+        data: expect.objectContaining({
+          increments: [
+            expect.objectContaining({
+              foodName: "Queijo Minas Padrao Fatiado",
+              previousGrams: 30,
+              nextGrams: 50,
+            }),
+          ],
+        }),
+      })
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 51,
+        items: [
+          expect.objectContaining({
+            foodName: "Pao frances",
+            estimatedGrams: 50,
+          }),
+          expect.objectContaining({
+            foodName: "Queijo Minas Padrao Fatiado",
+            estimatedGrams: 50,
+            portionText: "50 g",
+          }),
         ],
-      }),
-    }));
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 51,
-      items: [
-        expect.objectContaining({ foodName: "Pao frances", estimatedGrams: 50 }),
-        expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 50, portionText: "50 g" }),
-      ],
-    }));
+      })
+    );
   });
 
   it("tolera erro leve de digitacao no alvo do incremento", async () => {
@@ -121,27 +184,33 @@ describe("executeWhatsappGramsIncrementIntent", () => {
       mealLabel: "Lanche",
       occurredAt: "2026-06-29T23:00:00.000Z",
       notes: null,
-      items: [
-        item("Pao frances", 50),
-        item("Queijo Minas Padrao Fatiado", 30),
-      ],
+      items: [item("Pao frances", 50), item("Queijo Minas Padrao Fatiado", 30)],
     };
     listMealsMock.mockResolvedValue([meal]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      id: input.mealId,
+      ...input,
+    }));
 
     const result = await executeWhatsappGramsIncrementIntent(42, {
       text: "Adicionar 20g ao quejo minas",
       receivedAt: new Date("2026-06-29T23:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_grams_adjusted",
-      data: expect.objectContaining({
-        increments: [
-          expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 30, nextGrams: 50 }),
-        ],
-      }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_grams_adjusted",
+        data: expect.objectContaining({
+          increments: [
+            expect.objectContaining({
+              foodName: "Queijo Minas Padrao Fatiado",
+              previousGrams: 30,
+              nextGrams: 50,
+            }),
+          ],
+        }),
+      })
+    );
   });
 
   it("ajusta alvo generico quando so existe um item compativel", async () => {
@@ -150,27 +219,33 @@ describe("executeWhatsappGramsIncrementIntent", () => {
       mealLabel: "Lanche",
       occurredAt: "2026-06-29T23:00:00.000Z",
       notes: null,
-      items: [
-        item("Pao frances", 50),
-        item("Queijo Minas Padrao Fatiado", 30),
-      ],
+      items: [item("Pao frances", 50), item("Queijo Minas Padrao Fatiado", 30)],
     };
     listMealsMock.mockResolvedValue([meal]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      id: input.mealId,
+      ...input,
+    }));
 
     const result = await executeWhatsappGramsIncrementIntent(42, {
       text: "Adicionar 20g ao queijo",
       receivedAt: new Date("2026-06-29T23:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_grams_adjusted",
-      data: expect.objectContaining({
-        increments: [
-          expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 30, nextGrams: 50 }),
-        ],
-      }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_grams_adjusted",
+        data: expect.objectContaining({
+          increments: [
+            expect.objectContaining({
+              foodName: "Queijo Minas Padrao Fatiado",
+              previousGrams: 30,
+              nextGrams: 50,
+            }),
+          ],
+        }),
+      })
+    );
   });
 
   it("pede esclarecimento interativo quando alvo generico encontra varios itens", async () => {
@@ -191,42 +266,86 @@ describe("executeWhatsappGramsIncrementIntent", () => {
       receivedAt: new Date("2026-06-29T23:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado em Lanche"),
-      interactiveReply: expect.objectContaining({ kind: "functional" }),
-      data: expect.objectContaining({ candidateCount: 2, targetFood: "queijo" }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        reply: expect.stringContaining(
+          "1. Queijo Minas Padrao Fatiado em Lanche"
+        ),
+        interactiveReply: expect.objectContaining({ kind: "functional" }),
+        data: expect.objectContaining({
+          candidateCount: 2,
+          targetFood: "queijo",
+        }),
+      })
+    );
     expect(result?.reply).toContain("2. Queijo mussarela em Lanche");
     expect(updateMealMock).not.toHaveBeenCalled();
   });
   it("mantém a refeição explicitamente informada quando o mesmo alimento existe na refeição mais recente", async () => {
     listMealsMock.mockResolvedValue([
-      { id: 30, mealLabel: "Jantar", occurredAt: "2026-06-29T23:00:00.000Z", notes: null, items: [item("Arroz branco", 80)] },
-      { id: 20, mealLabel: "Almoco", occurredAt: "2026-06-29T15:00:00.000Z", notes: null, items: [item("Arroz branco", 150)] },
+      {
+        id: 30,
+        mealLabel: "Jantar",
+        occurredAt: "2026-06-29T23:00:00.000Z",
+        notes: null,
+        items: [item("Arroz branco", 80)],
+      },
+      {
+        id: 20,
+        mealLabel: "Almoco",
+        occurredAt: "2026-06-29T15:00:00.000Z",
+        notes: null,
+        items: [item("Arroz branco", 150)],
+      },
     ]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      id: input.mealId,
+      ...input,
+    }));
 
     const result = await executeWhatsappGramsIncrementIntent(42, {
       text: "Adicionar 20g ao arroz do almoco",
       receivedAt: new Date("2026-06-29T23:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_grams_adjusted",
-      data: expect.objectContaining({ mealId: 20 }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_grams_adjusted",
+        data: expect.objectContaining({ mealId: 20 }),
+      })
+    );
     expect(updateMealMock).toHaveBeenCalledTimes(1);
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 20,
-      items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 170 })],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 20,
+        items: [
+          expect.objectContaining({
+            foodName: "Arroz branco",
+            estimatedGrams: 170,
+          }),
+        ],
+      })
+    );
   });
 
   it("restringe candidatos ambíguos à refeição explicitamente informada no incremento", async () => {
     listMealsMock.mockResolvedValue([
-      { id: 30, mealLabel: "Jantar", occurredAt: "2026-06-29T23:00:00.000Z", notes: null, items: [item("Queijo prato", 30)] },
-      { id: 20, mealLabel: "Almoco", occurredAt: "2026-06-29T15:00:00.000Z", notes: null, items: [item("Queijo Minas", 40), item("Queijo mussarela", 35)] },
+      {
+        id: 30,
+        mealLabel: "Jantar",
+        occurredAt: "2026-06-29T23:00:00.000Z",
+        notes: null,
+        items: [item("Queijo prato", 30)],
+      },
+      {
+        id: 20,
+        mealLabel: "Almoco",
+        occurredAt: "2026-06-29T15:00:00.000Z",
+        notes: null,
+        items: [item("Queijo Minas", 40), item("Queijo mussarela", 35)],
+      },
     ]);
 
     const result = await executeWhatsappGramsIncrementIntent(42, {
@@ -234,11 +353,12 @@ describe("executeWhatsappGramsIncrementIntent", () => {
       receivedAt: new Date("2026-06-29T23:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({ action: "clarification_needed" }));
+    expect(result).toEqual(
+      expect.objectContaining({ action: "clarification_needed" })
+    );
     expect(result?.reply).toContain("Queijo Minas em Almoco");
     expect(result?.reply).toContain("Queijo mussarela em Almoco");
     expect(result?.reply).not.toContain("Queijo prato em Jantar");
     expect(updateMealMock).not.toHaveBeenCalled();
   });
-
 });

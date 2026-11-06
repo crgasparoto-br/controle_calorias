@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  gte: (col: { name: string }, val: unknown) => ({ __op: "gte", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
 }));
@@ -9,7 +12,10 @@ vi.mock("drizzle-orm", () => ({
 type FakeDbRow = Record<string, unknown>;
 type FakeDbCondition =
   | { __op: "eq"; col: { name: string }; val: unknown }
+  | { __op: "gte"; col: { name: string }; val: unknown }
+  | { __op: "lt"; col: { name: string }; val: unknown }
   | { __op: "and"; conditions: FakeDbCondition[] }
+  | { __op: "or"; conditions: FakeDbCondition[] }
   | { __op: "desc"; col: { name: string } };
 
 function createFakeDb() {
@@ -19,8 +25,16 @@ function createFakeDb() {
 
   function matches(row: FakeDbRow, condition?: FakeDbCondition): boolean {
     if (!condition) return true;
-    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
-    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "eq")
+      return row[condition.col.name] === condition.val;
+    if (condition.__op === "gte")
+      return Number(row[condition.col.name]) >= Number(condition.val);
+    if (condition.__op === "lt")
+      return Number(row[condition.col.name]) < Number(condition.val);
+    if (condition.__op === "and")
+      return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or")
+      return condition.conditions.some(inner => matches(row, inner));
     return true;
   }
 
@@ -35,9 +49,15 @@ function createFakeDb() {
     };
     const chain: any = {
       from: vi.fn(() => chain),
-      where: vi.fn((condition: FakeDbCondition) => { whereCondition = condition; return chain; }),
+      where: vi.fn((condition: FakeDbCondition) => {
+        whereCondition = condition;
+        return chain;
+      }),
       orderBy: vi.fn(() => chain),
-      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+      limit: vi.fn((value: number) => {
+        limitValue = value;
+        return Promise.resolve(resolve());
+      }),
     };
     return chain;
   }
@@ -54,7 +74,10 @@ function createFakeDb() {
     update: vi.fn(() => {
       let setPayload: FakeDbRow = {};
       const chain: any = {
-        set: vi.fn((payload: FakeDbRow) => { setPayload = payload; return chain; }),
+        set: vi.fn((payload: FakeDbRow) => {
+          setPayload = payload;
+          return chain;
+        }),
         where: vi.fn((condition: FakeDbCondition) => {
           if (rejectTransitions) return Promise.resolve({ affectedRows: 0 });
           const matching = rows.filter(row => matches(row, condition));
@@ -83,8 +106,12 @@ vi.mock("../../db", () => ({
   logPersistenceWarning: vi.fn(),
 }));
 
-const { createDrizzleWhatsAppPendingOperationRepository } = await import("../../repositories/whatsappPendingOperationRepository");
-const { supersedeActiveWhatsappPendingOperations } = await import("./pendingOperationPrecedence");
+const { createDrizzleWhatsAppPendingOperationRepository } = await import(
+  "../../repositories/whatsappPendingOperationRepository"
+);
+const { supersedeActiveWhatsappPendingOperations } = await import(
+  "./pendingOperationPrecedence"
+);
 
 const repository = createDrizzleWhatsAppPendingOperationRepository({
   getDb: async () => fakeDb,
@@ -95,22 +122,56 @@ describe("supersedeActiveWhatsappPendingOperations", () => {
   beforeEach(() => fakeDb.reset());
 
   it("substitui todas as pendências ativas do usuário sem tocar em outro usuário", async () => {
-    await repository.createPendingOperation({ userId: 10, type: "meal_item_selection", origin: "test", target: {}, ttlMs: 60_000 });
-    await repository.createPendingOperation({ userId: 10, type: "delete", origin: "test", target: {}, ttlMs: 60_000 });
-    await repository.createPendingOperation({ userId: 11, type: "delete", origin: "test", target: {}, ttlMs: 60_000 });
+    await repository.createPendingOperation({
+      userId: 10,
+      type: "meal_item_selection",
+      origin: "test",
+      target: {},
+      ttlMs: 60_000,
+    });
+    await repository.createPendingOperation({
+      userId: 10,
+      type: "delete",
+      origin: "test",
+      target: {},
+      ttlMs: 60_000,
+    });
+    await repository.createPendingOperation({
+      userId: 11,
+      type: "delete",
+      origin: "test",
+      target: {},
+      ttlMs: 60_000,
+    });
 
-    await expect(supersedeActiveWhatsappPendingOperations(10)).resolves.toBe(true);
+    await expect(supersedeActiveWhatsappPendingOperations(10)).resolves.toBe(
+      true
+    );
 
     const rows = fakeDb.snapshot();
-    expect(rows.filter(row => row.userId === 10).every(row => row.state === "superseded")).toBe(true);
+    expect(
+      rows
+        .filter(row => row.userId === 10)
+        .every(row => row.state === "superseded")
+    ).toBe(true);
     expect(rows.find(row => row.userId === 11)?.state).toBe("active");
   });
 
   it("falha de forma fechada quando a transição não é confirmada", async () => {
-    await repository.createPendingOperation({ userId: 12, type: "delete", origin: "test", target: {}, ttlMs: 60_000 });
+    await repository.createPendingOperation({
+      userId: 12,
+      type: "delete",
+      origin: "test",
+      target: {},
+      ttlMs: 60_000,
+    });
     fakeDb.rejectTransitions(true);
 
-    await expect(supersedeActiveWhatsappPendingOperations(12)).resolves.toBe(false);
-    expect(fakeDb.snapshot().find(row => row.userId === 12)?.state).toBe("active");
+    await expect(supersedeActiveWhatsappPendingOperations(12)).resolves.toBe(
+      false
+    );
+    expect(fakeDb.snapshot().find(row => row.userId === 12)?.state).toBe(
+      "active"
+    );
   });
 });

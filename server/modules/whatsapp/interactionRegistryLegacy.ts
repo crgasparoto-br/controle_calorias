@@ -95,14 +95,18 @@ import {
   type PendingWhatsAppConfirmation,
 } from "./webhookTextCommands";
 import {
-  buildNutritionLabelPhotoActions,
-  cancelClaimedNutritionLabelPhotoClarification,
-  cancelNutritionLabelPhotoRequest,
   isNutritionLabelPhotoClarificationTarget,
   isNutritionLabelPhotoRequestTarget,
+} from "../../nutritionLabelCandidateService";
+import {
+  buildNutritionLabelPhotoActions,
+  cancelNutritionLabelPhotoRequest,
+} from "../../nutritionLabelPhotoMutationService";
+import {
+  cancelClaimedNutritionLabelPhotoClarification,
   parseNutritionLabelPhotoClarificationText,
   resolveNutritionLabelPhotoClarificationText,
-} from "../../nutritionLabelCandidateService";
+} from "../../nutritionLabelPhotoClarificationService";
 import {
   NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
   PENDING_NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
@@ -294,11 +298,17 @@ async function completeDeleteCallback(input: WhatsappInteractionCallbackInput) {
     input.pendingOperation,
     input.action,
     input.userTimezone ?? undefined,
+    input.receivedAt
   );
 }
 
 function completeMealItemCallback(input: WhatsappInteractionCallbackInput) {
-  return completeMealItemSelectionInteractiveCallback(input.userId, input.pendingOperation, input.action);
+  return completeMealItemSelectionInteractiveCallback(
+    input.userId,
+    input.pendingOperation,
+    input.action,
+    input.receivedAt
+  );
 }
 
 function completeGenericConfirmation(input: WhatsappInteractionCallbackInput) {

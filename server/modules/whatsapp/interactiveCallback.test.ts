@@ -7,7 +7,10 @@ import {
 } from "./interactiveCallback";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 
-const repository = createDrizzleWhatsAppPendingOperationRepository({ getDb, onWarning: () => {} });
+const repository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: () => {},
+});
 
 async function createPending(userId: number, type = "delete") {
   const created = await repository.createPendingOperation({
@@ -23,7 +26,10 @@ async function createPending(userId: number, type = "delete") {
 
 describe("interactiveCallback", () => {
   it("gera um ID cifrado que não expõe o pendingOperationId nem a ação", () => {
-    const plainPayload = JSON.stringify({ pendingOperationId: 42, action: "confirm" });
+    const plainPayload = JSON.stringify({
+      pendingOperationId: 42,
+      action: "confirm",
+    });
 
     // Um trecho curto como "42" pode aparecer por acaso em bytes cifrados
     // aleatórios (ruído estatístico, não vazamento); asserções devem checar
@@ -50,13 +56,22 @@ describe("interactiveCallback", () => {
     const first = buildWhatsAppCallbackId(42, "confirm");
     const second = buildWhatsAppCallbackId(42, "confirm");
     expect(first).not.toBe(second);
-    expect(parseWhatsAppCallbackId(first)).toEqual({ pendingOperationId: 42, action: "confirm" });
-    expect(parseWhatsAppCallbackId(second)).toEqual({ pendingOperationId: 42, action: "confirm" });
+    expect(parseWhatsAppCallbackId(first)).toEqual({
+      pendingOperationId: 42,
+      action: "confirm",
+    });
+    expect(parseWhatsAppCallbackId(second)).toEqual({
+      pendingOperationId: 42,
+      action: "confirm",
+    });
   });
 
   it("faz round-trip de parse do ID gerado", () => {
     const id = buildWhatsAppCallbackId(42, "select:2");
-    expect(parseWhatsAppCallbackId(id)).toEqual({ pendingOperationId: 42, action: "select:2" });
+    expect(parseWhatsAppCallbackId(id)).toEqual({
+      pendingOperationId: 42,
+      action: "select:2",
+    });
   });
 
   it("rejeita um ID adulterado (tag de autenticação não confere)", () => {
@@ -76,7 +91,10 @@ describe("interactiveCallback", () => {
     });
 
     it("retorna invalid para um callback que não corresponde ao formato autenticado", async () => {
-      const result = await claimWhatsAppInteractiveCallback(1, "not-a-real-callback");
+      const result = await claimWhatsAppInteractiveCallback(
+        1,
+        "not-a-real-callback"
+      );
       expect(result).toEqual({ status: "invalid" });
     });
 
@@ -102,11 +120,17 @@ describe("interactiveCallback", () => {
       const pending = await createPending(owner);
       const callbackId = buildWhatsAppCallbackId(pending.id, "confirm");
 
-      const result = await claimWhatsAppInteractiveCallback(attacker, callbackId);
+      const result = await claimWhatsAppInteractiveCallback(
+        attacker,
+        callbackId
+      );
       expect(result.status).toBe("unavailable");
 
       // A pendência do dono legítimo continua ativa e consumível normalmente.
-      const legitimate = await claimWhatsAppInteractiveCallback(owner, callbackId);
+      const legitimate = await claimWhatsAppInteractiveCallback(
+        owner,
+        callbackId
+      );
       expect(legitimate.status).toBe("claimed");
     });
 
@@ -116,7 +140,11 @@ describe("interactiveCallback", () => {
       const callbackId = buildWhatsAppCallbackId(pending.id, "confirm");
       const farFuture = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      const result = await claimWhatsAppInteractiveCallback(userId, callbackId, farFuture);
+      const result = await claimWhatsAppInteractiveCallback(
+        userId,
+        callbackId,
+        farFuture
+      );
       expect(result.status).toBe("unavailable");
     });
 
@@ -135,8 +163,59 @@ describe("interactiveCallback", () => {
         claimWhatsAppInteractiveCallback(userId, callbackId),
         claimWhatsAppInteractiveCallback(userId, callbackId),
       ]);
-      const claimedCount = [a, b].filter(result => result.status === "claimed").length;
+      const claimedCount = [a, b].filter(
+        result => result.status === "claimed"
+      ).length;
       expect(claimedCount).toBe(1);
+    });
+
+    it("mantém seleção com lease, bloqueia clique duplo e exige revisão após crash", async () => {
+      const userId = 9_007;
+      const startedAt = new Date("2026-09-01T10:00:00.000Z");
+      const pending = await repository.createPendingOperation({
+        userId,
+        type: "meal_item_selection",
+        origin: "mealItemSelectionCallback",
+        ttlMs: 10 * 60 * 1000,
+        target: {
+          candidates: [{ mealId: 1, itemIndex: 0, itemName: "Presunto" }],
+        },
+        now: startedAt,
+      });
+      const callbackId = buildWhatsAppCallbackId(pending!.id, "select:0");
+
+      const first = await claimWhatsAppInteractiveCallback(
+        userId,
+        callbackId,
+        startedAt
+      );
+      expect(first).toMatchObject({
+        status: "claimed",
+        pendingOperation: { state: "processing", version: 2 },
+      });
+      expect(
+        await claimWhatsAppInteractiveCallback(
+          userId,
+          callbackId,
+          new Date(startedAt.getTime() + 1)
+        )
+      ).toEqual({ status: "unavailable" });
+
+      // A process crash leaves the effect uncertain; never reclaim this callback automatically.
+      const reviewAt = new Date(startedAt.getTime() + 5 * 60 * 1000);
+      const retried = await claimWhatsAppInteractiveCallback(
+        userId,
+        callbackId,
+        reviewAt
+      );
+      expect(retried).toEqual({ status: "unavailable" });
+      expect(
+        await repository.getActivePendingOperation(userId, reviewAt)
+      ).toMatchObject({
+        id: pending!.id,
+        state: "review_required",
+        version: 3,
+      });
     });
 
     it("rejeita tipo ou ação incompatíveis sem consumir a pendência", async () => {
@@ -144,15 +223,22 @@ describe("interactiveCallback", () => {
       const pending = await createPending(userId, "delete");
       const callbackId = buildWhatsAppCallbackId(pending.id, "confirm");
 
-      await expect(claimWhatsAppInteractiveCallback(userId, callbackId, new Date(), {
-        expectedTypes: ["professional_access"],
-      })).resolves.toEqual({ status: "unavailable" });
-      await expect(claimWhatsAppInteractiveCallback(userId, callbackId, new Date(), {
-        expectedTypes: ["delete"],
-        isExpectedAction: () => false,
-      })).resolves.toEqual({ status: "invalid" });
+      await expect(
+        claimWhatsAppInteractiveCallback(userId, callbackId, new Date(), {
+          expectedTypes: ["professional_access"],
+        })
+      ).resolves.toEqual({ status: "unavailable" });
+      await expect(
+        claimWhatsAppInteractiveCallback(userId, callbackId, new Date(), {
+          expectedTypes: ["delete"],
+          isExpectedAction: () => false,
+        })
+      ).resolves.toEqual({ status: "invalid" });
 
-      const legitimate = await claimWhatsAppInteractiveCallback(userId, callbackId);
+      const legitimate = await claimWhatsAppInteractiveCallback(
+        userId,
+        callbackId
+      );
       expect(legitimate.status).toBe("claimed");
     });
   });

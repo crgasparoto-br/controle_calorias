@@ -56,7 +56,7 @@ import {
   PENDING_PERIOD_REPORT_TYPE,
 } from "./modules/whatsapp/periodReportClarification";
 import type { DomainLinkInput } from "./repositories/whatsappConversationRepository";
-import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
+import { joinUnitWords } from "./modules/quantity/quantityUnitVocabulary";
 import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
 import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
 import { getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
@@ -202,7 +202,7 @@ function buildCountableResolutionPrefixBlock(
 }
 
 function buildCountableSkippedItemsPrefixBlock(
-  skippedItems: ReadyCountableFoodRegistration["skippedItems"],
+  skippedItems: ReadyCountableFoodRegistration["skippedItems"]
 ) {
   if (!skippedItems?.length) return null;
   const lines = skippedItems.map(item => `• ${item.segment}`);
@@ -400,24 +400,29 @@ function markTextIntentMessageHandled(messageId?: string) {
   textIntentMessageDeduplicationCache.markHandled(messageId);
 }
 
-async function getPendingTextIntentContext(userId: number) {
-  const pending =
-    await pendingOperationRepository.getActivePendingOperation(userId);
+async function getPendingTextIntentContext(userId: number, now = new Date()) {
+  const pending = await pendingOperationRepository.getActivePendingOperation(
+    userId,
+    now
+  );
   if (!pending || pending.type !== PENDING_PERIOD_REPORT_TYPE) return null;
   return { kind: "period_report" as const, id: pending.id };
 }
 
-async function clearPendingTextIntentContext(userId: number) {
-  const pending =
-    await pendingOperationRepository.getActivePendingOperation(userId);
+async function clearPendingTextIntentContext(userId: number, now = new Date()) {
+  const pending = await pendingOperationRepository.getActivePendingOperation(
+    userId,
+    now
+  );
   if (pending && pending.type === PENDING_PERIOD_REPORT_TYPE) {
-    await pendingOperationRepository.cancelPendingOperation(pending.id);
+    await pendingOperationRepository.cancelPendingOperation(pending.id, now);
   }
 }
 
 async function rememberPendingTextIntentContext(
   userId: number,
-  result: TextIntentResult
+  result: TextIntentResult,
+  now = new Date()
 ) {
   if (
     result.action === "clarification_needed" &&
@@ -428,6 +433,7 @@ async function rememberPendingTextIntentContext(
       type: PENDING_PERIOD_REPORT_TYPE,
       origin: PERIOD_REPORT_PENDING_ORIGIN,
       ttlMs: TEXT_INTENT_CONTEXT_TTL_MS,
+      now,
       target: { kind: "period_report" },
     });
     // Pergunta com escolhas objetivas usa lista interativa (#782); o fallback
@@ -439,7 +445,7 @@ async function rememberPendingTextIntentContext(
         )
       : null;
   }
-  await clearPendingTextIntentContext(userId);
+  await clearPendingTextIntentContext(userId, now);
   return null;
 }
 
@@ -503,18 +509,20 @@ async function sendAndLogTextReply(input: {
   }
 
   const shouldRetryQuestionContinuation =
-    !replyOk
-    && input.pendingType === "question_meal_calculation"
-    && typeof input.pendingOperationId === "number";
+    !replyOk &&
+    input.pendingType === "question_meal_calculation" &&
+    typeof input.pendingOperationId === "number";
   if (shouldRetryQuestionContinuation) {
     const pendingOperationId = input.pendingOperationId as number;
-    const {
-      recoverQuestionMealCalculationAfterDeliveryFailure,
-    } = await import("./modules/whatsapp/questionMealCalculationInteraction");
+    const { recoverQuestionMealCalculationAfterDeliveryFailure } = await import(
+      "./modules/whatsapp/questionMealCalculationInteraction"
+    );
     const recovery = await recoverQuestionMealCalculationAfterDeliveryFailure({
       userId: input.userId,
       pendingOperationId,
-      receivedAt: input.occurredAtMs ? new Date(input.occurredAtMs) : new Date(),
+      receivedAt: input.occurredAtMs
+        ? new Date(input.occurredAtMs)
+        : new Date(),
     });
     if (recovery) {
       logInferenceEvent({
@@ -525,7 +533,8 @@ async function sendAndLogTextReply(input: {
         detail: recovery.detail,
       });
     }
-    if (input.messageId) textIntentMessageDeduplicationCache.forget(input.messageId);
+    if (input.messageId)
+      textIntentMessageDeduplicationCache.forget(input.messageId);
     await releaseMessageForRetry(input.lifecycleHandle ?? null);
     input.response.status(503).json({
       ok: false,
@@ -588,7 +597,9 @@ async function sendTextFailureReply(input: {
   occurredAtMs: number;
   lifecycleHandle: MessageLifecycleHandle;
 }) {
-  const failureMessage = await resolveDomainInferenceFailureMessage(input.error);
+  const failureMessage = await resolveDomainInferenceFailureMessage(
+    input.error
+  );
   if (!failureMessage) return false;
   const reply = buildWhatsAppRecoverableErrorReplyMessage(failureMessage);
   try {
@@ -620,9 +631,10 @@ async function sendTextFailureReply(input: {
       input.userId,
       input.userMessage,
       delivery.result.ok ? reply : null,
-      input.occurredAtMs,
+      input.occurredAtMs
     );
-    if (delivery.result.ok) setWhatsAppWebhookOutcome(input.response, "handled_without_meal");
+    if (delivery.result.ok)
+      setWhatsAppWebhookOutcome(input.response, "handled_without_meal");
     return delivery.result.ok;
   } catch {
     return false;
@@ -738,7 +750,7 @@ async function tryHandleTextIntent(
     const safety = inspectWhatsAppUserContentSafety(text, "text");
     if (!safety.safe) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -775,7 +787,7 @@ async function tryHandleTextIntent(
       // prettier-ignore
       const preservePendingAfterReplay = precedenceGate.result.eventType === "whatsapp.interaction.pending_represented";
       if (!preservePendingAfterReplay) {
-        await clearPendingTextIntentContext(userId);
+        await clearPendingTextIntentContext(userId, occurredAt);
       }
       await sendAndLogTextReply({
         response: res,
@@ -824,7 +836,7 @@ async function tryHandleTextIntent(
     );
     if (professionalResponse) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -854,7 +866,7 @@ async function tryHandleTextIntent(
         await processProfessionalAccessWhatsappResponse(userId, text);
       if (professionalAccessResponse) {
         markTextIntentMessageHandled(message.id);
-        await clearPendingTextIntentContext(userId);
+        await clearPendingTextIntentContext(userId, occurredAt);
         await sendAndLogTextReply({
           response: res,
           userId,
@@ -876,7 +888,7 @@ async function tryHandleTextIntent(
 
     if (weightLog?.kind === "clarification") {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -912,7 +924,7 @@ async function tryHandleTextIntent(
       }
 
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -990,7 +1002,7 @@ async function tryHandleTextIntent(
           await recordDomainLink(lifecycleHandle, domainLink);
         }
         markTextIntentMessageHandled(message.id);
-        await clearPendingTextIntentContext(userId);
+        await clearPendingTextIntentContext(userId, occurredAt);
         await sendAndLogTextReply({
           response: res,
           userId,
@@ -1016,8 +1028,9 @@ async function tryHandleTextIntent(
       const countableResolutionPrefix = buildCountableResolutionPrefixBlock(
         countableGate.resolutions
       );
-      const countableSkippedItemsPrefix =
-        buildCountableSkippedItemsPrefixBlock(countableGate.skippedItems);
+      const countableSkippedItemsPrefix = buildCountableSkippedItemsPrefixBlock(
+        countableGate.skippedItems
+      );
       const prefixBlocks = [
         ...waterPrefixBlocks,
         ...(countableResolutionPrefix ? [countableResolutionPrefix] : []),
@@ -1039,7 +1052,10 @@ async function tryHandleTextIntent(
       return { passthroughText: countableGate.registrationText };
     }
 
-    const pendingContext = await getPendingTextIntentContext(userId);
+    const pendingContext = await getPendingTextIntentContext(
+      userId,
+      occurredAt
+    );
     const textForIntent =
       pendingContext?.kind === "period_report"
         ? `Resumo ${text}`
@@ -1053,11 +1069,11 @@ async function tryHandleTextIntent(
         text: textForIntent,
         receivedAt: occurredAt,
         userTimezone,
-      },
+      }
     );
     if (datedFoodAddition) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1066,7 +1082,10 @@ async function tryHandleTextIntent(
         reply: datedFoodAddition.reply,
         eventType: datedFoodAddition.eventType,
         detail: datedFoodAddition.detail,
-        status: datedFoodAddition.action === "clarification_needed" ? "warning" : "success",
+        status:
+          datedFoodAddition.action === "clarification_needed"
+            ? "warning"
+            : "success",
         mealId: extractMealId(datedFoodAddition.data),
         occurredAtMs,
         lifecycleHandle,
@@ -1077,11 +1096,12 @@ async function tryHandleTextIntent(
 
     const mealItemSelectionResult = await resolveTextMealItemSelection(
       userId,
-      textForIntent
+      textForIntent,
+      occurredAt
     );
     if (mealItemSelectionResult) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1105,10 +1125,11 @@ async function tryHandleTextIntent(
     const deleteIntentResult = await executeWhatsappDeleteIntent(userId, {
       text: textForIntent,
       timeZone: userTimezone,
+      receivedAt: occurredAt,
     });
     if (deleteIntentResult) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1131,7 +1152,7 @@ async function tryHandleTextIntent(
     });
     if (mealListResult) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1158,7 +1179,7 @@ async function tryHandleTextIntent(
       });
     if (contextualReplacementResult) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1185,7 +1206,7 @@ async function tryHandleTextIntent(
     );
     if (gramsAdjustmentResult) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1220,7 +1241,7 @@ async function tryHandleTextIntent(
         });
     if (gramsIncrementResult) {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1261,7 +1282,7 @@ async function tryHandleTextIntent(
           });
     if (countableGate?.kind === "clarification") {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1348,7 +1369,7 @@ async function tryHandleTextIntent(
           }));
         if (fallbackGate.kind === "clarification") {
           markTextIntentMessageHandled(message.id);
-          await clearPendingTextIntentContext(userId);
+          await clearPendingTextIntentContext(userId, occurredAt);
           await sendAndLogTextReply({
             response: res,
             userId,
@@ -1367,14 +1388,15 @@ async function tryHandleTextIntent(
         const fallbackResolutionPrefix = buildCountableResolutionPrefixBlock(
           fallbackGate.resolutions
         );
-        const fallbackSkippedItemsPrefix = buildCountableSkippedItemsPrefixBlock(
-          fallbackGate.skippedItems,
-        );
+        const fallbackSkippedItemsPrefix =
+          buildCountableSkippedItemsPrefixBlock(fallbackGate.skippedItems);
         if (fallbackResolutionPrefix || fallbackSkippedItemsPrefix) {
           setWhatsAppDeferredLogicalReply(req, message.id, {
             prefixBlocks: [
               ...(fallbackResolutionPrefix ? [fallbackResolutionPrefix] : []),
-              ...(fallbackSkippedItemsPrefix ? [fallbackSkippedItemsPrefix] : []),
+              ...(fallbackSkippedItemsPrefix
+                ? [fallbackSkippedItemsPrefix]
+                : []),
             ],
             domainLinks: [],
           });
@@ -1388,7 +1410,7 @@ async function tryHandleTextIntent(
       const unknownFoodReply = buildUnknownFoodReply(text);
       if (!unknownFoodReply) return false;
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      await clearPendingTextIntentContext(userId, occurredAt);
       await sendAndLogTextReply({
         response: res,
         userId,
@@ -1408,7 +1430,8 @@ async function tryHandleTextIntent(
     markTextIntentMessageHandled(message.id);
     const pendingInteractiveReply = await rememberPendingTextIntentContext(
       userId,
-      result
+      result,
+      occurredAt
     );
     await sendAndLogTextReply({
       response: res,

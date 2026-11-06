@@ -12,7 +12,7 @@ export async function executeWhatsappGramsIncrementIntent(
     receivedAt?: Date;
     userTimezone?: string;
     messageId?: string | null;
-  },
+  }
 ): Promise<WhatsappIntentResult | null> {
   const text = input.text?.trim();
   const parsed = text ? parseMixedMealItemIncrementCommand(text) : null;
@@ -23,10 +23,11 @@ export async function executeWhatsappGramsIncrementIntent(
       handled: true,
       action: "clarification_needed",
       reply: buildWhatsAppClarificationReplyMessage(
-        "Não consegui interpretar todas as quantidades desse ajuste. Nada foi alterado; informe cada quantidade com g, ml, fatia ou unidade.",
+        "Não consegui interpretar todas as quantidades desse ajuste. Nada foi alterado; informe cada quantidade com g, ml, fatia ou unidade."
       ),
       eventType: "whatsapp.intent.meal_item_increment_parse_incomplete",
-      detail: "Comando de incremento bloqueado porque nem todos os segmentos quantitativos foram interpretados.",
+      detail:
+        "Comando de incremento bloqueado porque nem todos os segmentos quantitativos foram interpretados.",
       data: {
         parsedOperationCount: parsed.operations.length,
         unparsedSegmentCount: parsed.unparsedSegments.length,
@@ -35,7 +36,7 @@ export async function executeWhatsappGramsIncrementIntent(
   }
 
   const onlyMassOrVolume = parsed.operations.every(
-    operation => operation.unit === "g" || operation.unit === "ml",
+    operation => operation.unit === "g" || operation.unit === "ml"
   );
   if (onlyMassOrVolume) {
     const result = await handleMealItemMultiIncrement(
@@ -47,7 +48,7 @@ export async function executeWhatsappGramsIncrementIntent(
       {
         mealLabel: parsed.mealLabel,
         timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
-      },
+      }
     );
     if (result.action !== "meal_item_grams_adjusted") return result;
     const adjustments = Array.isArray(result.data?.adjustments)
@@ -62,20 +63,24 @@ export async function executeWhatsappGramsIncrementIntent(
     };
   }
 
-  return continueMixedMealItemIncrementPlan(userId, {
-    contractVersion: 1,
-    originalText: text ?? "",
-    mealLabel: parsed.mealLabel,
-    timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
-    receivedAt: (input.receivedAt ?? new Date()).toISOString(),
-    inboundMessageId: input.messageId?.trim() || null,
-    operations: parsed.operations.map(operation => ({
-      targetFood: operation.targetFood,
-      quantity: operation.quantity,
-      unit: operation.unit,
-      inheritedUnit: operation.inheritedUnit,
-    })),
-  });
+  return continueMixedMealItemIncrementPlan(
+    userId,
+    {
+      contractVersion: 1,
+      originalText: text ?? "",
+      mealLabel: parsed.mealLabel,
+      timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+      receivedAt: (input.receivedAt ?? new Date()).toISOString(),
+      inboundMessageId: input.messageId?.trim() || null,
+      operations: parsed.operations.map(operation => ({
+        targetFood: operation.targetFood,
+        quantity: operation.quantity,
+        unit: operation.unit,
+        inheritedUnit: operation.inheritedUnit,
+      })),
+    },
+    { receivedAt: input.receivedAt }
+  );
 }
 
 export const contextUsage: import("./intentContext").IntentContextUsage = {

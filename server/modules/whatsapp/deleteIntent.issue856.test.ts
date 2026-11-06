@@ -12,14 +12,17 @@ vi.mock("../meals/service", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  gte: (col: { name: string }, val: unknown) => ({ __op: "gte", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
 }));
 
 type FakeDbRow = Record<string, unknown>;
 type FakeDbCondition =
-  | { __op: "eq"; col: { name: string }; val: unknown }
-  | { __op: "and"; conditions: FakeDbCondition[] }
+  | { __op: "eq" | "gte" | "lt"; col: { name: string }; val: unknown }
+  | { __op: "and" | "or"; conditions: FakeDbCondition[] }
   | { __op: "desc"; col: { name: string } };
 
 function createFakePendingOperationDb() {
@@ -28,8 +31,21 @@ function createFakePendingOperationDb() {
 
   function matches(row: FakeDbRow, condition?: FakeDbCondition): boolean {
     if (!condition) return true;
-    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
-    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "eq")
+      return row[condition.col.name] === condition.val;
+    if (condition.__op === "gte" || condition.__op === "lt") {
+      const value = (item: unknown) =>
+        item instanceof Date
+          ? item.getTime()
+          : new Date(String(item)).getTime();
+      return condition.__op === "gte"
+        ? value(row[condition.col.name]) >= value(condition.val)
+        : value(row[condition.col.name]) < value(condition.val);
+    }
+    if (condition.__op === "and")
+      return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or")
+      return condition.conditions.some(inner => matches(row, inner));
     return true;
   }
 
@@ -44,9 +60,15 @@ function createFakePendingOperationDb() {
     };
     const chain: any = {
       from: vi.fn(() => chain),
-      where: vi.fn((condition: FakeDbCondition) => { whereCondition = condition; return chain; }),
+      where: vi.fn((condition: FakeDbCondition) => {
+        whereCondition = condition;
+        return chain;
+      }),
       orderBy: vi.fn(() => chain),
-      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+      limit: vi.fn((value: number) => {
+        limitValue = value;
+        return Promise.resolve(resolve());
+      }),
     };
     return chain;
   }
@@ -63,7 +85,10 @@ function createFakePendingOperationDb() {
     update: vi.fn(() => {
       let setPayload: FakeDbRow = {};
       const chain: any = {
-        set: vi.fn((payload: FakeDbRow) => { setPayload = payload; return chain; }),
+        set: vi.fn((payload: FakeDbRow) => {
+          setPayload = payload;
+          return chain;
+        }),
         where: vi.fn((condition: FakeDbCondition) => {
           const matching = rows.filter(row => matches(row, condition));
           for (const row of matching) Object.assign(row, setPayload);
@@ -90,8 +115,11 @@ vi.mock("../../db", () => ({
 }));
 
 const { executeWhatsappDeleteIntent } = await import("./deleteIntent");
-const { __resetConversationHistoryForTests, recordConversationTurn } = await import("./conversationHistory");
-const { createDrizzleWhatsAppPendingOperationRepository } = await import("../../repositories/whatsappPendingOperationRepository");
+const { __resetConversationHistoryForTests, recordConversationTurn } =
+  await import("./conversationHistory");
+const { createDrizzleWhatsAppPendingOperationRepository } = await import(
+  "../../repositories/whatsappPendingOperationRepository"
+);
 
 const pendingRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb: async () => fakePendingOperationDb,
@@ -104,8 +132,24 @@ const lunch = {
   occurredAt: "2026-07-20T15:00:00.000Z",
   notes: "texto",
   items: [
-    { foodName: "Arroz", canonicalName: "Arroz branco", portionText: "100 g", calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-    { foodName: "Queijo minas", canonicalName: "Queijo minas", portionText: "30 g", calories: 90, protein: 6, carbs: 1, fat: 7 },
+    {
+      foodName: "Arroz",
+      canonicalName: "Arroz branco",
+      portionText: "100 g",
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+    },
+    {
+      foodName: "Queijo minas",
+      canonicalName: "Queijo minas",
+      portionText: "30 g",
+      calories: 90,
+      protein: 6,
+      carbs: 1,
+      fat: 7,
+    },
   ],
 };
 
@@ -115,26 +159,36 @@ const dinner = {
   occurredAt: "2026-07-20T22:00:00.000Z",
   notes: "texto",
   items: [
-    { foodName: "Sopa", canonicalName: "Sopa", portionText: "300 ml", calories: 180, protein: 8, carbs: 25, fat: 5 },
+    {
+      foodName: "Sopa",
+      canonicalName: "Sopa",
+      portionText: "300 ml",
+      calories: 180,
+      protein: 8,
+      carbs: 25,
+      fat: 5,
+    },
   ],
 };
 
 const legacyRegistrarMeal = {
   ...lunch,
   id: 30,
-  items: [{
-    foodName: "Registrar",
-    canonicalName: "Registrar",
-    portionText: "1 unidade",
-    servings: 1,
-    estimatedGrams: 0,
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-    confidence: 0.1,
-    source: "legacy",
-  }],
+  items: [
+    {
+      foodName: "Registrar",
+      canonicalName: "Registrar",
+      portionText: "1 unidade",
+      servings: 1,
+      estimatedGrams: 0,
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      confidence: 0.1,
+      source: "legacy",
+    },
+  ],
 };
 
 describe("deleteIntent issue #856", () => {
@@ -145,7 +199,10 @@ describe("deleteIntent issue #856", () => {
     removeMealMock.mockReset();
     updateMealMock.mockReset();
     removeMealMock.mockResolvedValue(undefined);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ ...lunch, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      ...lunch,
+      ...input,
+    }));
   });
 
   it("substitui uma pendência alimentar real por novo comando destrutivo explícito", async () => {
@@ -164,13 +221,20 @@ describe("deleteIntent issue #856", () => {
       entrypoint: "test.incompatiblePending",
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_food_confirmation_requested",
-      data: expect.objectContaining({ fallbackBlocked: true, pendingType: "confirmation" }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_food_confirmation_requested",
+        data: expect.objectContaining({
+          fallbackBlocked: true,
+          pendingType: "confirmation",
+        }),
+      })
+    );
     const rows = fakePendingOperationDb.snapshot();
     expect(rows.find(row => row.id === previous?.id)?.state).toBe("superseded");
-    expect(rows.at(-1)).toEqual(expect.objectContaining({ type: "delete", state: "active" }));
+    expect(rows.at(-1)).toEqual(
+      expect.objectContaining({ type: "delete", state: "active" })
+    );
     expect(removeMealMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
   });
@@ -182,19 +246,32 @@ describe("deleteIntent issue #856", () => {
       receivedAt: new Date("2026-07-20T16:00:00.000Z"),
     });
 
-    const invalid = await executeWhatsappDeleteIntent(52, { text: "talvez o arroz" });
+    const invalid = await executeWhatsappDeleteIntent(52, {
+      text: "talvez o arroz",
+      receivedAt: new Date("2026-07-20T16:01:00.000Z"),
+    });
 
-    expect(invalid).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      eventType: "whatsapp.intent.delete_food_confirmation_still_pending",
-      data: expect.objectContaining({ fallbackBlocked: true, pendingState: "open" }),
-      interactiveReply: expect.any(Object),
-    }));
+    expect(invalid).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        eventType: "whatsapp.intent.delete_food_confirmation_still_pending",
+        data: expect.objectContaining({
+          fallbackBlocked: true,
+          pendingState: "open",
+        }),
+        interactiveReply: expect.any(Object),
+      })
+    );
     expect(removeMealMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
 
-    const confirmed = await executeWhatsappDeleteIntent(52, { text: "sim" });
-    expect(confirmed).toEqual(expect.objectContaining({ action: "meal_item_deleted" }));
+    const confirmed = await executeWhatsappDeleteIntent(52, {
+      text: "sim",
+      receivedAt: new Date("2026-07-20T16:02:00.000Z"),
+    });
+    expect(confirmed).toEqual(
+      expect.objectContaining({ action: "meal_item_deleted" })
+    );
     expect(updateMealMock).toHaveBeenCalledTimes(1);
   });
 
@@ -213,29 +290,49 @@ describe("deleteIntent issue #856", () => {
       receivedAt: new Date("2026-07-20T22:10:00.000Z"),
     });
 
-    expect(selection).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_meal_selection_requested",
-      data: expect.objectContaining({
-        candidateCount: 2,
-        pendingType: "selection",
-        interaction: expect.objectContaining({
-          candidates: [
-            expect.objectContaining({ kind: "delete_meal", mealId: 12, order: 1 }),
-            expect.objectContaining({ kind: "delete_meal", mealId: 10, order: 2 }),
-          ],
+    expect(selection).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_meal_selection_requested",
+        data: expect.objectContaining({
+          candidateCount: 2,
+          pendingType: "selection",
+          interaction: expect.objectContaining({
+            candidates: [
+              expect.objectContaining({
+                kind: "delete_meal",
+                mealId: 12,
+                order: 1,
+              }),
+              expect.objectContaining({
+                kind: "delete_meal",
+                mealId: 10,
+                order: 2,
+              }),
+            ],
+          }),
         }),
-      }),
-    }));
+      })
+    );
     expect(removeMealMock).not.toHaveBeenCalled();
 
-    const confirmation = await executeWhatsappDeleteIntent(53, { text: "2" });
-    expect(confirmation).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_meal_confirmation_requested",
-      data: expect.objectContaining({ mealId: 10 }),
-    }));
+    const confirmation = await executeWhatsappDeleteIntent(53, {
+      text: "2",
+      receivedAt: new Date("2026-07-20T22:11:00.000Z"),
+    });
+    expect(confirmation).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_meal_confirmation_requested",
+        data: expect.objectContaining({ mealId: 10 }),
+      })
+    );
 
-    const completed = await executeWhatsappDeleteIntent(53, { text: "sim" });
-    expect(completed).toEqual(expect.objectContaining({ action: "meal_deleted" }));
+    const completed = await executeWhatsappDeleteIntent(53, {
+      text: "sim",
+      receivedAt: new Date("2026-07-20T22:12:00.000Z"),
+    });
+    expect(completed).toEqual(
+      expect.objectContaining({ action: "meal_deleted" })
+    );
     expect(removeMealMock).toHaveBeenCalledWith(53, 10);
     expect(removeMealMock).toHaveBeenCalledTimes(1);
   });
@@ -248,10 +345,15 @@ describe("deleteIntent issue #856", () => {
       receivedAt: new Date("2026-07-20T22:10:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_meal_selection_requested",
-      data: expect.objectContaining({ candidateCount: 2, pendingType: "selection" }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_meal_selection_requested",
+        data: expect.objectContaining({
+          candidateCount: 2,
+          pendingType: "selection",
+        }),
+      })
+    );
     expect(removeMealMock).not.toHaveBeenCalled();
   });
 
@@ -264,37 +366,50 @@ describe("deleteIntent issue #856", () => {
       entrypoint: "test.namedMeal",
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_food_confirmation_requested",
-      data: expect.objectContaining({ mealId: 10, candidateCount: 1 }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_food_confirmation_requested",
+        data: expect.objectContaining({ mealId: 10, candidateCount: 1 }),
+      })
+    );
     expect(result?.reply).toContain("Arroz em Almoço");
   });
 
   it("usa contexto conversacional somente quando identifica uma refeição única", async () => {
     listMealsMock.mockResolvedValue([dinner, lunch]);
-    recordConversationTurn(42, "mostrar almoço", "Almoço registrado: Arroz e Queijo minas.", Date.parse("2026-07-20T22:05:00.000Z"));
+    recordConversationTurn(
+      42,
+      "mostrar almoço",
+      "Almoço registrado: Arroz e Queijo minas.",
+      Date.parse("2026-07-20T22:05:00.000Z")
+    );
 
     const request = await executeWhatsappDeleteIntent(42, {
       text: "Apagar essa refeição",
       receivedAt: new Date("2026-07-20T22:10:00.000Z"),
     });
 
-    expect(request).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_meal_confirmation_requested",
-      data: expect.objectContaining({ mealId: 10 }),
-    }));
+    expect(request).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_meal_confirmation_requested",
+        data: expect.objectContaining({ mealId: 10 }),
+      })
+    );
   });
 
   it("falha de forma fechada quando referência conversacional não é única", async () => {
     listMealsMock.mockResolvedValue([dinner, lunch]);
 
-    const result = await executeWhatsappDeleteIntent(55, { text: "Apagar essa refeição" });
+    const result = await executeWhatsappDeleteIntent(55, {
+      text: "Apagar essa refeição",
+    });
 
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_clarification_needed",
-      data: expect.objectContaining({ fallbackBlocked: true }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_clarification_needed",
+        data: expect.objectContaining({ fallbackBlocked: true }),
+      })
+    );
     expect(result?.reply).toContain("Não consegui identificar com segurança");
   });
 
@@ -306,10 +421,12 @@ describe("deleteIntent issue #856", () => {
       receivedAt: new Date("2026-07-20T22:10:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_food_confirmation_requested",
-      data: expect.objectContaining({ mealId: 10 }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_food_confirmation_requested",
+        data: expect.objectContaining({ mealId: 10 }),
+      })
+    );
     expect(result?.reply).toContain("Queijo minas em Almoço");
   });
 });

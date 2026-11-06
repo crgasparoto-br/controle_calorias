@@ -4,8 +4,22 @@ const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
+const attachTestMealMutationToken = vi.hoisted(
+  () => (value: unknown, token: string) => {
+    if (!value || typeof value !== "object") return value;
+    const symbol = Symbol.for("controle_calorias.mealMutationPreImage");
+    if (!Object.prototype.hasOwnProperty.call(value, symbol)) {
+      Object.defineProperty(value, symbol, {
+        value: token,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    return value;
+  }
+);
 
-vi.mock("../../db", async (importOriginal) => {
+vi.mock("../../db", async importOriginal => {
   const actual = await importOriginal<typeof import("../../db")>();
   return {
     ...actual,
@@ -14,8 +28,15 @@ vi.mock("../../db", async (importOriginal) => {
 });
 
 vi.mock("../meals/service", () => ({
-  listMeals: listMealsMock,
-  updateMeal: updateMealMock,
+  listMeals: async (...args: unknown[]) => {
+    const meals = await listMealsMock(...args);
+    const options = args[1] as { adjustmentRead?: boolean } | undefined;
+    return options?.adjustmentRead && Array.isArray(meals)
+      ? meals.map(meal => attachTestMealMutationToken(meal, "a".repeat(64)))
+      : meals;
+  },
+  updateMeal: async (...args: unknown[]) =>
+    attachTestMealMutationToken(await updateMealMock(...args), "b".repeat(64)),
 }));
 
 vi.mock("../water/service", () => ({
@@ -53,42 +74,59 @@ describe("executeWhatsappTextIntent target matching details", () => {
   });
 
   it("registra ajuste claro concluído sem ambiguidade pendente", async () => {
-    listMealsMock.mockResolvedValue([{
-      id: 81,
-      userId: 42,
-      mealLabel: "Lanche",
-      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
-      notes: null,
-      items: [item("Queijo Minas Padrao Fatiado", 80)],
-    }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+    listMealsMock.mockResolvedValue([
+      {
+        id: 81,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+        notes: null,
+        items: [item("Queijo Minas Padrao Fatiado", 80)],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: input.mealId,
+        ...input,
+      })
+    );
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Diminuir 20g do queijo Minas",
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_grams_adjusted",
-      detail: expect.stringContaining("sem ambiguidade pendente"),
-      data: expect.objectContaining({
-        adjustments: [expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 80, nextGrams: 60 })],
-      }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_grams_adjusted",
+        detail: expect.stringContaining("sem ambiguidade pendente"),
+        data: expect.objectContaining({
+          adjustments: [
+            expect.objectContaining({
+              foodName: "Queijo Minas Padrao Fatiado",
+              previousGrams: 80,
+              nextGrams: 60,
+            }),
+          ],
+        }),
+      })
+    );
   });
 
   it("registra ambiguidade em ajuste de gramas quando existem varios candidatos", async () => {
-    listMealsMock.mockResolvedValue([{
-      id: 82,
-      userId: 42,
-      mealLabel: "Lanche",
-      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
-      notes: null,
-      items: [
-        item("Queijo Minas Padrao Fatiado", 80),
-        item("Queijo mussarela", 70),
-      ],
-    }]);
+    listMealsMock.mockResolvedValue([
+      {
+        id: 82,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+        notes: null,
+        items: [
+          item("Queijo Minas Padrao Fatiado", 80),
+          item("Queijo mussarela", 70),
+        ],
+      },
+    ]);
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Aumentar 20g do queijo",
@@ -119,81 +157,108 @@ describe("executeWhatsappTextIntent target matching details", () => {
         items: [item("Queijo Minas Padrao Fatiado", 80)],
       },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: input.mealId,
+        ...input,
+      })
+    );
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Adicionar 20g ao queijo Minas",
       receivedAt: new Date("2026-06-09T21:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "meal_item_grams_adjusted",
-      data: expect.objectContaining({ mealId: 84 }),
-    }));
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({ mealId: 84 }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "meal_item_grams_adjusted",
+        data: expect.objectContaining({ mealId: 84 }),
+      })
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ mealId: 84 })
+    );
   });
 
   it("mantém ações claras pendentes quando ajuste múltiplo contém alvo ambíguo", async () => {
-    listMealsMock.mockResolvedValue([{
-      id: 85,
-      userId: 42,
-      mealLabel: "Lanche",
-      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
-      notes: null,
-      items: [
-        item("Banana prata", 100),
-        item("Queijo Minas Padrao Fatiado", 80),
-        item("Queijo mussarela", 70),
-      ],
-    }]);
+    listMealsMock.mockResolvedValue([
+      {
+        id: 85,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+        notes: null,
+        items: [
+          item("Banana prata", 100),
+          item("Queijo Minas Padrao Fatiado", 80),
+          item("Queijo mussarela", 70),
+        ],
+      },
+    ]);
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Diminuir 10g da banana e 10g do queijo",
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      detail: expect.stringContaining("Alvo usado: queijo"),
-      interactiveReply: expect.objectContaining({ kind: "functional" }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        detail: expect.stringContaining("Alvo usado: queijo"),
+        interactiveReply: expect.objectContaining({ kind: "functional" }),
+      })
+    );
     expect(result?.detail).toContain("Ambiguidade: sim");
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 
   it("registra alvo e item escolhido em troca de alimento", async () => {
-    listMealsMock.mockResolvedValue([{
-      id: 86,
-      userId: 42,
-      mealLabel: "Lanche",
-      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
-      notes: null,
-      items: [item("Queijo Minas Padrao Fatiado", 80)],
-    }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+    listMealsMock.mockResolvedValue([
+      {
+        id: 86,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+        notes: null,
+        items: [item("Queijo Minas Padrao Fatiado", 80)],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: input.mealId,
+        ...input,
+      })
+    );
 
     const result = await executeWhatsappTextIntent(42, {
       text: "não é queijo minas é ricota",
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result?.detail).toContain('Matches: alvo "queijo minas" -> "Queijo Minas Padrao Fatiado"');
+    expect(result?.detail).toContain(
+      'Matches: alvo "queijo minas" -> "Queijo Minas Padrao Fatiado"'
+    );
     expect(result?.detail).toContain("última refeição");
-    expect(result).toEqual(expect.objectContaining({ action: "meal_item_replaced" }));
+    expect(result).toEqual(
+      expect.objectContaining({ action: "meal_item_replaced" })
+    );
   });
 
   it("registra ambiguidade em troca de alimento quando existem varios candidatos", async () => {
-    listMealsMock.mockResolvedValue([{
-      id: 87,
-      userId: 42,
-      mealLabel: "Lanche",
-      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
-      notes: null,
-      items: [
-        item("Queijo Minas Padrao Fatiado", 80),
-        item("Queijo mussarela", 70),
-      ],
-    }]);
+    listMealsMock.mockResolvedValue([
+      {
+        id: 87,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+        notes: null,
+        items: [
+          item("Queijo Minas Padrao Fatiado", 80),
+          item("Queijo mussarela", 70),
+        ],
+      },
+    ]);
 
     const result = await executeWhatsappTextIntent(42, {
       text: "não é queijo é ricota",
@@ -206,29 +271,33 @@ describe("executeWhatsappTextIntent target matching details", () => {
   });
 
   it("mantém substituições claras pendentes quando a mesma mensagem contém ambiguidade", async () => {
-    listMealsMock.mockResolvedValue([{
-      id: 88,
-      userId: 42,
-      mealLabel: "Lanche",
-      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
-      notes: null,
-      items: [
-        item("Banana prata", 100),
-        item("Queijo Minas Padrao Fatiado", 80),
-        item("Queijo mussarela", 70),
-      ],
-    }]);
+    listMealsMock.mockResolvedValue([
+      {
+        id: 88,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+        notes: null,
+        items: [
+          item("Banana prata", 100),
+          item("Queijo Minas Padrao Fatiado", 80),
+          item("Queijo mussarela", 70),
+        ],
+      },
+    ]);
 
     const result = await executeWhatsappTextIntent(42, {
       text: "não é banana é pera e não é queijo é ricota",
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      detail: expect.stringContaining("Alvo usado: queijo"),
-      interactiveReply: expect.objectContaining({ kind: "functional" }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        detail: expect.stringContaining("Alvo usado: queijo"),
+        interactiveReply: expect.objectContaining({ kind: "functional" }),
+      })
+    );
     expect(result?.detail).toContain("Ambiguidade: sim");
     expect(updateMealMock).not.toHaveBeenCalled();
   });

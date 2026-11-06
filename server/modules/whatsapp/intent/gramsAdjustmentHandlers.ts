@@ -6,6 +6,7 @@ import {
 } from "../replyMessages";
 import { composeWhatsAppMealActionReply, composeWhatsAppMealActionReplies } from "../mealActionReplyComposer";
 import { listMeals, updateMeal, updateMealWithHouseholdMeasureLearning } from "../../meals/service";
+import { getMealMutationPreImage } from "../../meals/mealMutationToken";
 import { buildUserLearnedHouseholdMeasurePreference } from "../../../householdMeasureResolutionPersistence";
 import type { MealItemInput } from "../../meals/schemas";
 import {
@@ -95,6 +96,7 @@ function toBatchSnapshot(meal: MealRecord | MutableMealRecord) {
     mealLabel: meal.mealLabel,
     occurredAt: meal.occurredAt,
     notes: meal.notes,
+    mutationPreImage: getMealMutationPreImage(meal) ?? undefined,
     items: [...(meal.items ?? [])] as MealItemInput[],
   };
 }
@@ -228,7 +230,7 @@ async function ambiguousTargetReply(input: {
 }
 
 export async function handleQuantityCorrectionIntent(userId: number, correction: QuantityCorrectionIntent): Promise<WhatsappIntentResult> {
-  const latestMeal = (await listMeals(userId))[0];
+  const latestMeal = (await listMeals(userId, { adjustmentRead: true }))[0];
   if (!latestMeal?.items?.length) {
     return {
       handled: true,
@@ -318,7 +320,7 @@ async function updateLatestMealItemGrams(input: {
   detail: string;
   timeZone: string;
 }) {
-  const meals = await listMeals(input.userId);
+  const meals = await listMeals(input.userId, { adjustmentRead: true });
   if (!meals.length) {
     return {
       handled: true,
@@ -401,7 +403,7 @@ async function handleMultiGramsChange(input: {
   mealLabel?: string | null;
   timeZone: string;
 }): Promise<WhatsappIntentResult> {
-  const allMeals = await listMeals(input.userId);
+  const allMeals = await listMeals(input.userId, { adjustmentRead: true });
   const normalizedMealLabel = input.mealLabel
     ?.normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

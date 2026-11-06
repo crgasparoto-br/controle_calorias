@@ -442,7 +442,7 @@ describe("issue #1037 — passthrough de medidas contáveis no WhatsApp", () => 
     expect(source).toContain("prepareWhatsappCountableFoodRegistration");
     expect(source).toContain("resolveUnsafeKnownCountableFoodRegistration");
     expect(source).toMatch(
-      /const countableClarification = await resolveUnsafeKnownCountableFoodRegistration\([\s\S]*?if \(countableClarification\) return countableClarification;/,
+      /const\s+countableClarification\s*=\s*await\s+resolveUnsafeKnownCountableFoodRegistration\([\s\S]*?if \(countableClarification\) return countableClarification;/,
     );
   });
 });

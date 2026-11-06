@@ -1,11 +1,17 @@
-import { calculateMealTotals } from "../../../shared/mealTotals";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type * as dbRuntime from "../../db";
-import { estimateGramsFromQuantity, normalizeText } from "../../mealTextParsing";
+import {
+  estimateGramsFromQuantity,
+  normalizeText,
+} from "../../mealTextParsing";
 import type * as nutritionRuntime from "../../nutritionEngine";
 import type { MealDraftItem } from "../../nutritionEngineTypes";
 import type * as mealRuntime from "../meals/service";
 import { persistResolvedCaloricComplement } from "./foodCaloricComplementPersistence";
+import {
+  persistCompletedImageMeal,
+  type ImageMealPersistenceServices,
+} from "./foodClarificationImagePersistence";
 import type { WhatsappIntentResult } from "./intent/types";
 import {
   buildFoodClarificationRegistrationText,
@@ -16,7 +22,6 @@ import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
 import { toMealItemInputs } from "./intent/mealItemHelpers";
 import {
   createFoodQuantityClarificationService,
-  type ImageMealIdentityContext,
   type ImageMealQuantityContext,
   type FoodQuantityClarificationTarget,
 } from "./foodQuantityClarification";
@@ -62,6 +67,54 @@ export type ResolvedFoodPersistenceOutcome =
 type ExistingMeal = Awaited<
   ReturnType<FoodClarificationDependencies["listMeals"]>
 >[number];
+
+function imageMealPersistenceServices(
+  deps: FoodClarificationDependencies,
+): ImageMealPersistenceServices {
+  return {
+    createWhatsappMeal: async (userId, input) => {
+      const saved = await deps.createWhatsappMeal(userId, input);
+      return {
+        ...saved,
+        userId,
+        items: saved.items ?? input.items,
+      };
+    },
+    consolidateWhatsAppMealAfterSave: async (savedMeal, timeZone) => {
+      const consolidated = await consolidateWhatsAppMealAfterSave(
+        {
+          listUserMeals: deps.listMeals,
+          updateUserMeal: input =>
+            deps.updateMeal(input.userId, {
+              mealId: input.mealId,
+              mealLabel: input.mealLabel,
+              occurredAt: input.occurredAt,
+              notes: input.notes,
+              items: input.items,
+            }),
+          removeUserMeal: deps.removeMeal,
+        },
+        { ...savedMeal, notes: savedMeal.notes ?? undefined },
+        timeZone,
+      );
+      return {
+        ...consolidated,
+        meal: {
+          ...consolidated.meal,
+          userId: consolidated.meal.userId ?? savedMeal.userId,
+          items: (consolidated.meal.items ?? savedMeal.items) as typeof savedMeal.items,
+        },
+      };
+    },
+    composeWhatsAppMealActionReply: input =>
+      composeWhatsAppMealActionReply({
+        userId: input.userId,
+        meal: input.meal,
+        timeZone: input.timeZone,
+        options: input.options,
+      }),
+  };
+}
 
 function sameLogicalMeal(
   meal: { mealLabel: string; occurredAt: Date | number | string },
@@ -205,70 +258,7 @@ async function persistResolvedCorrection(
   };
 }
 
-type ImageMealResolutionContext = ImageMealQuantityContext | ImageMealIdentityContext;
-
-async function persistCompletedImageMeal(
-  deps: FoodClarificationDependencies,
-  userId: number,
-  target: FoodQuantityClarificationTarget,
-  context: ImageMealResolutionContext,
-  items: MealDraftItem[],
-  timeZone: string,
-  actionLine: string,
-): Promise<WhatsappIntentResult> {
-  const saved = await deps.createWhatsappMeal(userId, {
-    detectedMealLabel: context.detectedMealLabel,
-    sourceText: context.sourceText,
-    transcript: context.transcript,
-    reasoning: context.reasoning,
-    confidence: context.confidence,
-    occurredAt: context.occurredAt,
-    items,
-    media: context.media,
-  });
-  const consolidated = await consolidateWhatsAppMealAfterSave(
-    {
-      listUserMeals: deps.listMeals,
-      updateUserMeal: input =>
-        deps.updateMeal(input.userId, {
-          mealId: input.mealId,
-          mealLabel: input.mealLabel,
-          occurredAt: input.occurredAt,
-          notes: input.notes,
-          items: input.items,
-        }),
-      removeUserMeal: deps.removeMeal,
-    },
-    saved,
-    timeZone
-  );
-  const meal = consolidated.meal;
-  const reply = await composeWhatsAppMealActionReply({
-    userId,
-    meal,
-    timeZone,
-    options: {
-      title: "Refeição registrada",
-      actionLines: [actionLine],
-      mealResultState: consolidated.action === "updated" ? "updated" : "registered",
-    },
-  });
-  return {
-    handled: true,
-    action: "food_clarification_completed",
-    reply,
-    eventType: "whatsapp.food_clarification.completed",
-    detail: "Refeição da imagem concluída após clarificação persistente e estado recarregado.",
-    data: {
-      mealId: meal.id,
-      interactionId: target.interactionId,
-      resolvedItemCount: items.length,
-      totals: calculateMealTotals(items),
-    },
-  };
-}
-
-async function persistResolvedImageMealIdentity(
+async function persistImageMealIdentityCompletion(
   deps: FoodClarificationDependencies,
   userId: number,
   target: FoodQuantityClarificationTarget,
@@ -347,17 +337,18 @@ async function persistResolvedImageMealIdentity(
     });
   }
   return persistCompletedImageMeal(
-    deps,
+    imageMealPersistenceServices(deps),
     userId,
     target,
     { ...context, mode: "complete_image_meal", items } as ImageMealQuantityContext,
     items,
     timeZone,
-    "Completei as identidades confirmadas na imagem."
+    "Completei as identidades confirmadas na imagem.",
+    "Refeição da imagem concluída após clarificação persistente e estado recarregado."
   );
 }
 
-async function persistResolvedImageMeal(
+async function persistImageMealQuantityCompletion(
   deps: FoodClarificationDependencies,
   userId: number,
   target: FoodQuantityClarificationTarget,
@@ -423,86 +414,73 @@ async function persistResolvedImageMeal(
     });
   }
 
-  const saved = await deps.createWhatsappMeal(userId, {
-    detectedMealLabel: context.detectedMealLabel,
-    sourceText: context.sourceText,
-    transcript: context.transcript,
-    reasoning: context.reasoning,
-    confidence: context.confidence,
-    occurredAt: context.occurredAt,
-    items,
-    media: context.media,
-  });
-  const consolidated = await consolidateWhatsAppMealAfterSave(
-    {
-      listUserMeals: deps.listMeals,
-      updateUserMeal: input =>
-        deps.updateMeal(input.userId, {
-          mealId: input.mealId,
-          mealLabel: input.mealLabel,
-          occurredAt: input.occurredAt,
-          notes: input.notes,
-          items: input.items,
-        }),
-      removeUserMeal: deps.removeMeal,
-    },
-    saved,
-    timeZone
-  );
-  const meal = consolidated.meal;
-  const reply = await composeWhatsAppMealActionReply({
+  return persistCompletedImageMeal(
+    imageMealPersistenceServices(deps),
     userId,
-    meal,
+    target,
+    {
+      detectedMealLabel: context.detectedMealLabel,
+      sourceText: context.sourceText,
+      transcript: context.transcript,
+      reasoning: context.reasoning,
+      confidence: context.confidence,
+      occurredAt: context.occurredAt,
+      media: context.media,
+    },
+    items,
     timeZone,
-    options: {
-      title: "Refeição registrada",
-      actionLines: ["Completei as quantidades identificadas na imagem."],
-      mealResultState:
-        consolidated.action === "updated" ? "updated" : "registered",
-    },
-  });
-
-  return {
-    handled: true,
-    action: "food_clarification_completed",
-    reply,
-    eventType: "whatsapp.food_clarification.completed",
-    detail:
-      "Refeição da imagem concluída após clarificação sequencial e estado persistido recarregado.",
-    data: {
-      mealId: meal.id,
-      interactionId: target.interactionId,
-      resolvedItemCount: items.length,
-      totals: calculateMealTotals(items),
-    },
-  };
+    "Completei as quantidades identificadas na imagem.",
+    "Refeição da imagem concluída após clarificação sequencial e estado persistido recarregado."
+  );
 }
 
-async function persistResolvedMixedIncrementPlan(
+async function persistMixedIncrementPlanContinuation(
   userId: number,
   target: FoodQuantityClarificationTarget,
   explicitQuantity?: { quantity: number; unit: string },
+  occurredAt?: Date
 ): Promise<WhatsappIntentResult> {
   const context = target.resolutionContext;
-  if (!context || context.mode !== "complete_mixed_increment_plan" || !explicitQuantity) {
+  if (
+    !context ||
+    context.mode !== "complete_mixed_increment_plan" ||
+    !explicitQuantity
+  ) {
     throw new Error("Contexto do ajuste misto ou quantidade ausente.");
   }
-  const grams = estimateGramsFromQuantity(explicitQuantity.quantity, explicitQuantity.unit);
+  const grams = estimateGramsFromQuantity(
+    explicitQuantity.quantity,
+    explicitQuantity.unit
+  );
   if (!grams || grams <= 0) {
-    throw new Error("A resposta do ajuste misto não representa massa/volume explícitos.");
+    throw new Error(
+      "A resposta do ajuste misto não representa massa/volume explícitos."
+    );
   }
   const operation = context.plan.operations[context.operationIndex];
-  if (!operation) throw new Error("Operação pendente do ajuste misto não existe.");
+  if (!operation)
+    throw new Error("Operação pendente do ajuste misto não existe.");
   const plan = {
     ...context.plan,
     operations: context.plan.operations.map((candidate, index) =>
       index === context.operationIndex
-        ? { ...candidate, gramsDelta: grams, resolvedBy: "clarification" as const }
-        : { ...candidate, target: candidate.target ? { ...candidate.target } : undefined },
+        ? {
+            ...candidate,
+            gramsDelta: grams,
+            resolvedBy: "clarification" as const,
+          }
+        : {
+            ...candidate,
+            target: candidate.target ? { ...candidate.target } : undefined,
+          }
     ),
   };
-  const { continueMixedMealItemIncrementPlan } = await import("./mixedMealItemIncrementPlan");
-  return continueMixedMealItemIncrementPlan(userId, plan);
+  const { continueMixedMealItemIncrementPlan } = await import(
+    "./mixedMealItemIncrementPlan"
+  );
+  return continueMixedMealItemIncrementPlan(userId, plan, {
+    receivedAt: occurredAt,
+  });
 }
 
 async function persistResolvedConfirmedTextMeal(
@@ -568,28 +546,39 @@ async function persistResolvedConfirmedTextMeal(
   };
 }
 
-async function persistResolvedFoodAddition(
+async function persistClarificationResultAddition(
   deps: FoodClarificationDependencies,
   userId: number,
   target: FoodQuantityClarificationTarget,
   timeZone: string,
-  explicitQuantity?: { quantity: number; unit: string },
+  explicitQuantity?: { quantity: number; unit: string }
 ): Promise<WhatsappIntentResult> {
   const context = target.resolutionContext;
-  if (!context || context.mode !== "complete_food_addition" || !explicitQuantity) {
+  if (
+    !context ||
+    context.mode !== "complete_food_addition" ||
+    !explicitQuantity
+  ) {
     throw new Error("Contexto da adição ou quantidade ausente.");
   }
-  const grams = estimateGramsFromQuantity(explicitQuantity.quantity, explicitQuantity.unit);
+  const grams = estimateGramsFromQuantity(
+    explicitQuantity.quantity,
+    explicitQuantity.unit
+  );
   if (!grams || grams <= 0) {
-    throw new Error("A quantidade da adição deve ser informada em massa ou volume.");
+    throw new Error(
+      "A quantidade da adição deve ser informada em massa ou volume."
+    );
   }
 
   const meals = await deps.listMeals(userId);
   const expectedMeal = meals.find(meal => meal.id === context.expectedMealId);
   if (
-    !expectedMeal
-    || normalizeText(expectedMeal.mealLabel) !== normalizeText(context.expectedMealLabel)
-    || new Date(expectedMeal.occurredAt).toISOString() !== context.expectedOccurredAt
+    !expectedMeal ||
+    normalizeText(expectedMeal.mealLabel) !==
+      normalizeText(context.expectedMealLabel) ||
+    new Date(expectedMeal.occurredAt).toISOString() !==
+      context.expectedOccurredAt
   ) {
     throw new Error("A refeição alvo mudou antes da conclusão da adição.");
   }
@@ -598,10 +587,16 @@ async function persistResolvedFoodAddition(
   if (!currentItem) throw new Error("Item pendente da adição não existe.");
   const items = context.addition.items.map((item, index) =>
     index === context.itemIndex
-      ? { ...item, quantity: explicitQuantity.quantity, unit: explicitQuantity.unit }
+      ? {
+          ...item,
+          quantity: explicitQuantity.quantity,
+          unit: explicitQuantity.unit,
+        }
       : { ...item }
   );
-  const { handleFoodAdditionIntent } = await import("./intent/foodAdditionHandlers");
+  const { handleFoodAdditionIntent } = await import(
+    "./intent/foodAdditionHandlers"
+  );
   return handleFoodAdditionIntent(
     userId,
     {
@@ -618,11 +613,11 @@ async function persistResolvedFoodAddition(
       expectedMealLabel: context.expectedMealLabel,
       expectedOccurredAt: context.expectedOccurredAt,
       resolvedItems: context.resolvedItems,
-    },
+    }
   );
 }
 
-async function persistResolvedFood(
+async function persistClarificationResult(
   deps: FoodClarificationDependencies,
   userId: number,
   target: PendingFoodClarificationTarget,
@@ -630,19 +625,41 @@ async function persistResolvedFood(
   occurredAt: Date,
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string },
-  explicitIdentity?: string,
+  explicitIdentity?: string
 ): Promise<WhatsappIntentResult> {
   const quantityTarget = target as FoodQuantityClarificationTarget;
-  if (quantityTarget.resolutionContext?.mode === "complete_mixed_increment_plan") {
-    return persistResolvedMixedIncrementPlan(userId, quantityTarget, explicitQuantity);
+  if (
+    quantityTarget.resolutionContext?.mode === "complete_mixed_increment_plan"
+  ) {
+    return persistMixedIncrementPlanContinuation(
+      userId,
+      quantityTarget,
+      explicitQuantity,
+      occurredAt
+    );
   }
-  if (quantityTarget.resolutionContext?.mode === "complete_confirmed_text_meal") {
-    return persistResolvedConfirmedTextMeal(deps, userId, quantityTarget, explicitQuantity);
+  if (
+    quantityTarget.resolutionContext?.mode === "complete_confirmed_text_meal"
+  ) {
+    return persistResolvedConfirmedTextMeal(
+      deps,
+      userId,
+      quantityTarget,
+      explicitQuantity
+    );
   }
   if (quantityTarget.resolutionContext?.mode === "complete_food_addition") {
-    return persistResolvedFoodAddition(deps, userId, quantityTarget, timeZone, explicitQuantity);
+    return persistClarificationResultAddition(
+      deps,
+      userId,
+      quantityTarget,
+      timeZone,
+      explicitQuantity
+    );
   }
-  if (quantityTarget.resolutionContext?.mode === "complete_caloric_complement") {
+  if (
+    quantityTarget.resolutionContext?.mode === "complete_caloric_complement"
+  ) {
     return persistResolvedCaloricComplement(
       deps,
       userId,
@@ -663,7 +680,7 @@ async function persistResolvedFood(
     );
   }
   if (quantityTarget.resolutionContext?.mode === "complete_image_meal") {
-    return persistResolvedImageMeal(
+    return persistImageMealQuantityCompletion(
       deps,
       userId,
       quantityTarget,
@@ -673,8 +690,10 @@ async function persistResolvedFood(
       explicitQuantity
     );
   }
-  if (quantityTarget.resolutionContext?.mode === "complete_image_meal_identity") {
-    return persistResolvedImageMealIdentity(
+  if (
+    quantityTarget.resolutionContext?.mode === "complete_image_meal_identity"
+  ) {
+    return persistImageMealIdentityCompletion(
       deps,
       userId,
       quantityTarget,
@@ -783,7 +802,7 @@ async function persistResolvedFood(
  * recriar a pendência automaticamente; no segundo, o usuário deve revisar o
  * estado antes de tentar novamente, evitando duplicidade.
  */
-export async function persistResolvedFoodSafely(
+export async function persistClarificationResultSafely(
   deps: FoodClarificationDependencies,
   userId: number,
   target: PendingFoodClarificationTarget,
@@ -791,13 +810,13 @@ export async function persistResolvedFoodSafely(
   occurredAt: Date,
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string },
-  explicitIdentity?: string,
+  explicitIdentity?: string
 ): Promise<ResolvedFoodPersistenceOutcome> {
   const before = await captureMealState(deps, userId);
   try {
     return {
       status: "success",
-      result: await persistResolvedFood(
+      result: await persistClarificationResult(
         deps,
         userId,
         target,

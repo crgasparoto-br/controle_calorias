@@ -33,7 +33,7 @@ import {
 } from "./foodClarificationContract";
 import { planFoodClarification } from "./foodClarificationPlan";
 import {
-  persistResolvedFoodSafely,
+  persistClarificationResultSafely,
   type FoodClarificationDependencies,
 } from "./foodClarificationPersistence";
 import {
@@ -165,10 +165,10 @@ async function persistWithRecovery(
   occurredAt: Date,
   timeZone: string,
   explicitQuantity?: { quantity: number; unit: string },
-  explicitIdentity?: string,
+  explicitIdentity?: string
 ): Promise<WhatsappFoodClarificationResult> {
   const canonicalTarget = canonicalizeFoodClarificationTarget(target);
-  const outcome = await persistResolvedFoodSafely(
+  const outcome = await persistClarificationResultSafely(
     deps,
     userId,
     canonicalTarget,
@@ -176,7 +176,7 @@ async function persistWithRecovery(
     occurredAt,
     timeZone,
     explicitQuantity,
-    explicitIdentity,
+    explicitIdentity
   );
   if (outcome.status !== "safe_to_retry") return outcome.result;
 
@@ -233,12 +233,18 @@ function reprompt(
   });
 }
 
-function isSugarComplementQuantityTarget(target: PendingFoodClarificationTarget) {
-  const resolutionContext = (target as PendingFoodClarificationTarget & {
-    resolutionContext?: { mode?: string; componentName?: string };
-  }).resolutionContext;
-  return resolutionContext?.mode === "complete_caloric_complement"
-    && resolutionContext.componentName === "açúcar";
+function isSugarComplementQuantityTarget(
+  target: PendingFoodClarificationTarget
+) {
+  const resolutionContext = (
+    target as PendingFoodClarificationTarget & {
+      resolutionContext?: { mode?: string; componentName?: string };
+    }
+  ).resolutionContext;
+  return (
+    resolutionContext?.mode === "complete_caloric_complement" &&
+    resolutionContext.componentName === "açúcar"
+  );
 }
 
 function isSupportedSugarQuantityUnit(unit: string) {
@@ -248,10 +254,12 @@ function isSupportedSugarQuantityUnit(unit: string) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
-  return /^(?:g|gr|grama|gramas|kg|quilo|quilos|mg|miligrama|miligramas|colher de cha|colheres de cha|colher de sopa|colheres de sopa|sache|saches|pacote|pacotes)$/.test(normalized);
+  return /^(?:g|gr|grama|gramas|kg|quilo|quilos|mg|miligrama|miligramas|colher de cha|colheres de cha|colher de sopa|colheres de sopa|sache|saches|pacote|pacotes)$/.test(
+    normalized
+  );
 }
 
-async function resolvePendingText(
+async function handlePendingClarificationReply(
   deps: FoodClarificationDependencies,
   userId: number,
   pending: WhatsAppPendingOperationRecord,
@@ -261,7 +269,10 @@ async function resolvePendingText(
   timeZone: string
 ): Promise<WhatsappFoodClarificationResult | "new_command"> {
   if (isStandaloneWhatsappCancellationWord(text)) {
-    const cancelled = await deps.repository.cancelPendingOperation(pending.id);
+    const cancelled = await deps.repository.cancelPendingOperation(
+      pending.id,
+      occurredAt
+    );
     if (!cancelled.cancelled)
       return unavailable("A pendência alimentar já não estava ativa.");
     return result({
@@ -289,23 +300,24 @@ async function resolvePendingText(
         "Resposta incompatível não consumiu a pendência aberta de quantidade."
       );
     }
-    const resolutionMode = (target as { resolutionContext?: { mode?: string } }).resolutionContext?.mode;
+    const resolutionMode = (target as { resolutionContext?: { mode?: string } })
+      .resolutionContext?.mode;
     if (
-      (resolutionMode === "complete_mixed_increment_plan"
-        || resolutionMode === "complete_confirmed_text_meal")
-      && !estimateGramsFromQuantity(quantity.quantity, quantity.unit)
+      (resolutionMode === "complete_mixed_increment_plan" ||
+        resolutionMode === "complete_confirmed_text_meal") &&
+      !estimateGramsFromQuantity(quantity.quantity, quantity.unit)
     ) {
       return reprompt(
         pending,
         target,
         "whatsapp.food_clarification.invalid_mass_volume_response",
-        "Resposta sem massa/volume explícitos não consumiu a pendência aberta.",
+        "Resposta sem massa/volume explícitos não consumiu a pendência aberta."
       );
     }
 
     if (
-      isSugarComplementQuantityTarget(target)
-      && !isSupportedSugarQuantityUnit(quantity.unit)
+      isSugarComplementQuantityTarget(target) &&
+      !isSupportedSugarQuantityUnit(quantity.unit)
     ) {
       return reprompt(
         pending,
@@ -318,6 +330,7 @@ async function resolvePendingText(
     const claimed = await deps.repository.claimPendingOperation({
       id: pending.id,
       expectedVersion: pending.version,
+      now: occurredAt,
     });
     if (!claimed.claimed)
       return unavailable("Claim atômico da quantidade falhou.");
@@ -354,6 +367,7 @@ async function resolvePendingText(
     const claimed = await deps.repository.claimPendingOperation({
       id: pending.id,
       expectedVersion: pending.version,
+      now: occurredAt,
     });
     if (!claimed.claimed)
       return unavailable("Claim atômico da identidade falhou.");
@@ -419,7 +433,8 @@ async function resolvePendingText(
       ),
     };
     const transitioned = await deps.repository.supersedePendingOperation(
-      pending.id
+      pending.id,
+      occurredAt
     );
     if (!transitioned.superseded) {
       return unavailable(
@@ -458,6 +473,7 @@ async function resolvePendingText(
   const claimed = await deps.repository.claimPendingOperation({
     id: pending.id,
     expectedVersion: pending.version,
+    now: occurredAt,
   });
   if (!claimed.claimed)
     return unavailable("Claim atômico da confirmação/seleção falhou.");
@@ -482,7 +498,8 @@ async function supersedeActive(
   );
   if (!active) return true;
   const transitioned = await deps.repository.supersedePendingOperation(
-    active.id
+    active.id,
+    occurredAt
   );
   return transitioned.superseded;
 }
@@ -559,7 +576,7 @@ export function createWhatsappFoodClarificationService(
       active?.type === PENDING_FOOD_CLARIFICATION_TYPE &&
       isPendingFoodClarificationTarget(active.target)
     ) {
-      const pendingResult = await resolvePendingText(
+      const pendingResult = await handlePendingClarificationReply(
         deps,
         input.userId,
         active,
@@ -571,7 +588,8 @@ export function createWhatsappFoodClarificationService(
       if (pendingResult !== "new_command") return pendingResult;
 
       const transitioned = await deps.repository.supersedePendingOperation(
-        active.id
+        active.id,
+        occurredAt
       );
       if (!transitioned.superseded) {
         return result({
@@ -617,7 +635,7 @@ export function createWhatsappFoodClarificationService(
         instructionText: buildConfirmationInstruction(plan.candidate.name),
         messageId: input.messageId,
       });
-      const outcome = await persistResolvedFoodSafely(
+      const outcome = await persistClarificationResultSafely(
         deps,
         input.userId,
         target,

@@ -7,7 +7,7 @@ import {
   getUserDayMealTotals,
   getHabitSnapshots,
   getPendingInference,
-  getPendingInferenceFromDb,
+  loadPendingMealDraftFromDb,
   listFavoriteMeals,
   listUserMeals,
   logInferenceEvent,
@@ -17,14 +17,26 @@ import {
   removeUserMeal,
   reuseFavoriteMeal,
   saveFavoriteMeal,
-  updateUserMealItem,
   updateUserMeal,
+  updateUserMealItem,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
-import { associateMealItemsWithSourceMedia, clearMealItemSourceMedia } from "../../mealItemImageProvenance";
-import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "../../householdMeasureResolutionPersistence";
+import {
+  associateMealItemsWithSourceMedia,
+  clearMealItemSourceMedia,
+} from "../../mealItemImageProvenance";
+import {
+  buildUserLearnedHouseholdMeasurePreference,
+  type UserLearnedHouseholdMeasureInput,
+} from "../../householdMeasureResolutionPersistence";
 import { updateMealAndHouseholdMeasureLearning } from "../../householdMeasureMealUpdate";
-import { DEFAULT_APP_TIME_ZONE, addCalendarDays, getDateKeyInTimeZone, getDateTimePartsInTimeZone, zonedDateTimeLocalToIso } from "../../../shared/timeZone";
+import {
+  DEFAULT_APP_TIME_ZONE,
+  addCalendarDays,
+  getDateKeyInTimeZone,
+  getDateTimePartsInTimeZone,
+  zonedDateTimeLocalToIso,
+} from "../../../shared/timeZone";
 import { storagePut } from "../../storage";
 import { transcribeAudio } from "../../_core/voiceTranscription";
 import { runWithAiUsageScope } from "../../_core/ai/usageContext";
@@ -46,6 +58,12 @@ import {
   recordMealItemsCatalogUsage,
   type MealItemWithNutritionSnapshot,
 } from "./nutritionSnapshot";
+import {
+  createMealMutationCoordinator,
+  type UpdateMealServiceOptions,
+} from "./mealMutationCoordinator";
+export { getMealMutationPreImage } from "./mealMutationToken";
+export { MEAL_UPDATE_SERVICE_OPTIONS } from "./mealUpdateOptions";
 
 export class MealDraftNotFoundError extends Error {
   constructor() {
@@ -78,7 +96,7 @@ function padTemporalPart(value: number) {
 function resolveSuggestedOccurredAtFromText(
   text?: string | null,
   referenceDate = new Date(),
-  timeZone = DEFAULT_APP_TIME_ZONE,
+  timeZone = DEFAULT_APP_TIME_ZONE
 ) {
   const normalized = normalizeTemporalText(text ?? "");
   if (!normalized) {
@@ -89,16 +107,23 @@ function resolveSuggestedOccurredAtFromText(
     return referenceDate.toISOString();
   }
 
-  const dayOffset = /\banteontem\b/.test(normalized) ? -2 : /\bontem\b/.test(normalized) ? -1 : null;
+  const dayOffset = /\banteontem\b/.test(normalized)
+    ? -2
+    : /\bontem\b/.test(normalized)
+      ? -1
+      : null;
   if (dayOffset === null) {
     return null;
   }
 
   const parts = getDateTimePartsInTimeZone(referenceDate, timeZone);
-  const targetDate = addCalendarDays(getDateKeyInTimeZone(referenceDate, timeZone), dayOffset);
+  const targetDate = addCalendarDays(
+    getDateKeyInTimeZone(referenceDate, timeZone),
+    dayOffset
+  );
   return zonedDateTimeLocalToIso(
     `${targetDate}T${padTemporalPart(parts.hour)}:${padTemporalPart(parts.minute)}:${padTemporalPart(parts.second)}`,
-    timeZone,
+    timeZone
   );
 }
 
@@ -124,14 +149,16 @@ async function uploadMedia(params: {
     return null;
   }
 
-  const extension = params.media.mimeType.split("/")[1] || (params.type === "image" ? "jpg" : "webm");
+  const extension =
+    params.media.mimeType.split("/")[1] ||
+    (params.type === "image" ? "jpg" : "webm");
   const keyPrefix = params.type === "image" ? "meal-images" : "meal-audios";
   const buffer = extractBase64Payload(params.media.base64);
   const upload = await storagePut(
     `${params.userId}/${keyPrefix}/${Date.now()}.${extension}`,
     buffer,
     params.media.mimeType,
-    { publicRead: params.type === "image" },
+    { publicRead: params.type === "image" }
   );
 
   return buildSavedMedia({
@@ -235,23 +262,33 @@ function deriveUnitFromPortionText(portionText: string) {
   return normalized || "porção";
 }
 
-function normalizeMealItemQuantityUnit<T extends MealDraftItem>(item: T): T & MealItemQuantityUnit {
+function normalizeMealItemQuantityUnit<T extends MealDraftItem>(
+  item: T
+): T & MealItemQuantityUnit {
   const quantityUnit = item as T & MaybeMealItemQuantityUnit;
 
   return {
     ...item,
-    quantity: quantityUnit.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings,
-    unit: quantityUnit.unit?.trim() || deriveUnitFromPortionText(item.portionText),
+    quantity:
+      quantityUnit.quantity ??
+      parseQuantityFromPortionText(item.portionText) ??
+      item.servings,
+    unit:
+      quantityUnit.unit?.trim() || deriveUnitFromPortionText(item.portionText),
   };
 }
 
-function ensureMealItems(items: Array<MealDraftItem>): Array<MealDraftItem & MealItemQuantityUnit> {
+function ensureMealItems(
+  items: Array<MealDraftItem>
+): Array<MealDraftItem & MealItemQuantityUnit> {
   return dedupeMealItemsByProductIdentity(
-    items.map(item => normalizeMealItemQuantityUnit(item)),
+    items.map(item => normalizeMealItemQuantityUnit(item))
   ) as Array<MealDraftItem & MealItemQuantityUnit>;
 }
 
-function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processed: T): T {
+function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(
+  processed: T
+): T {
   return {
     ...processed,
     items: ensureMealItems(processed.items),
@@ -261,20 +298,32 @@ function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processe
 async function prepareMealItemsForSave(
   userId: number,
   items: Array<MealDraftItem>,
-  options: { recordUsage?: boolean } = {},
+  options: { recordUsage?: boolean } = {}
 ) {
   return enrichMealItemsWithNutritionSnapshots(
     userId,
     ensureMealItems(items) as MealItemWithNutritionSnapshot[],
-    options,
+    options
   );
 }
 
-export async function listMeals(userId: number) {
-  return (await listUserMeals(userId)).map(decorateMealWithImageUrl);
+export async function listMeals(
+  userId: number,
+  options: { adjustmentRead?: boolean } = {}
+) {
+  return (await listUserMeals(userId, options)).map(decorateMealWithImageUrl);
 }
 
-export async function getDayTotals(userId: number, date: string, timeZone = DEFAULT_APP_TIME_ZONE) {
+/** Internal mutation projection; this is not registered as a public procedure. */
+export async function listMealsForAdjustment(userId: number) {
+  return listMeals(userId, { adjustmentRead: true });
+}
+
+export async function getDayTotals(
+  userId: number,
+  date: string,
+  timeZone = DEFAULT_APP_TIME_ZONE
+) {
   return getUserDayMealTotals(userId, date, timeZone);
 }
 
@@ -282,121 +331,59 @@ export async function createManualMeal(userId: number, input: ManualMealInput) {
   await ensureCurrentIrreversibleEffectAllowed();
   const items = await prepareMealItemsForSave(userId, input.items);
   await ensureCurrentIrreversibleEffectAllowed();
-  const meal = decorateMealWithImageUrl(await createUserManualMeal({ userId, ...input, items }));
+  const meal = decorateMealWithImageUrl(
+    await createUserManualMeal({ userId, ...input, items })
+  );
   return meal;
 }
 
-export type UpdateMealServiceOptions = {
-  recordCatalogUsage?: boolean;
-  updateHabits?: boolean;
-  logEvent?: boolean;
-  finalizeBatch?: {
-    meals: Array<{ items: MealItemWithNutritionSnapshot[] }>;
-    recordCatalogUsage?: boolean;
-    throwOnHabitFailure?: boolean;
-  };
-};
+let mealMutationCoordinator: ReturnType<typeof createMealMutationCoordinator> | undefined;
 
-const MEAL_UPDATE_SERVICE_OPTIONS = Symbol.for("controle_calorias.mealUpdateServiceOptions");
+function getMealMutationCoordinator() {
+  return (mealMutationCoordinator ??= createMealMutationCoordinator({
+    prepareMealItemsForSave,
+    updateUserMeal,
+    updateUserMealItem,
+    moveUserMealItem,
+    decorateMealWithImageUrl,
+    recordMealItemsCatalogUsage,
+    rebuildUserMealHabits,
+    logPersistenceWarning,
+    updateMealAndHouseholdMeasureLearning,
+    buildUserLearnedHouseholdMeasurePreference,
+    ensureCurrentIrreversibleEffectAllowed,
+    clearMealItemSourceMedia,
+  }));
+}
 
 export async function updateMeal(userId: number, input: UpdateMealInput) {
-  await ensureCurrentIrreversibleEffectAllowed();
-  const options = (input as UpdateMealInput & {
-    [MEAL_UPDATE_SERVICE_OPTIONS]?: UpdateMealServiceOptions;
-  })[MEAL_UPDATE_SERVICE_OPTIONS] ?? {};
-  const items = await prepareMealItemsForSave(userId, input.items, {
-    recordUsage: options.recordCatalogUsage !== false,
-  });
-  await ensureCurrentIrreversibleEffectAllowed();
-  const meal = decorateMealWithImageUrl(await updateUserMeal({
-    userId,
-    mealId: input.mealId,
-    mealLabel: input.mealLabel,
-    occurredAt: input.occurredAt,
-    notes: input.notes,
-    items,
-  }, {
-    updateHabits: options.updateHabits !== false,
-    logEvent: options.logEvent !== false,
-  }));
-
-  if (options.finalizeBatch) {
-    if (options.finalizeBatch.recordCatalogUsage !== false) {
-      try {
-        for (const batchMeal of options.finalizeBatch.meals) {
-          await recordMealItemsCatalogUsage(userId, batchMeal.items);
-        }
-      } catch (error) {
-        logPersistenceWarning("Meal batch catalog usage finalization skipped", error);
-      }
-    }
-
-    try {
-      await rebuildUserMealHabits(userId);
-    } catch (error) {
-      logPersistenceWarning("Meal batch habit rebuild skipped", error);
-      if (options.finalizeBatch.throwOnHabitFailure) {
-        throw error;
-      }
-    }
-  }
-
-  return meal;
+  return getMealMutationCoordinator().updateMeal(userId, input);
 }
 
-export async function updateMealItem(userId: number, input: {
-  sourceMeal: Awaited<ReturnType<typeof listMeals>>[number];
-  itemIndex: number;
-  targetMealLabel: string;
-  occurredAt: string;
-  item: MealDraftItem;
-}) {
-  await ensureCurrentIrreversibleEffectAllowed();
-  const [preparedItem] = await prepareMealItemsForSave(userId, [input.item], { recordUsage: true });
-  await ensureCurrentIrreversibleEffectAllowed();
-  const meal = await updateUserMealItem({
-    userId,
-    sourceMeal: input.sourceMeal,
-    itemIndex: input.itemIndex,
-    updatedItem: preparedItem,
-    mealLabel: input.targetMealLabel,
-    occurredAt: input.occurredAt,
-  });
-  return decorateMealWithImageUrl(meal);
+export async function updateMealItem(
+  userId: number,
+  input: {
+    sourceMeal: Awaited<ReturnType<typeof listMeals>>[number];
+    itemIndex: number;
+    targetMealLabel: string;
+    occurredAt: string;
+    item: MealDraftItem;
+  }
+) {
+  return getMealMutationCoordinator().updateMealItem(userId, input);
 }
 
-export async function moveMealItem(userId: number, input: {
-  sourceMeal: Awaited<ReturnType<typeof listMeals>>[number];
-  itemIndex: number;
-  targetMealLabel: string;
-  occurredAt: string;
-  item: MealDraftItem;
-}) {
-  await ensureCurrentIrreversibleEffectAllowed();
-  const [preparedItem] = await prepareMealItemsForSave(
-    userId,
-    [clearMealItemSourceMedia(input.item)],
-    { recordUsage: true },
-  );
-  await ensureCurrentIrreversibleEffectAllowed();
-
-  const persisted = await moveUserMealItem({
-    userId,
-    sourceMeal: input.sourceMeal,
-    itemIndex: input.itemIndex,
-    updatedItem: preparedItem,
-    targetMealLabel: input.targetMealLabel,
-    occurredAt: input.occurredAt,
-  });
-  if (!persisted) {
-    throw new Error("Não foi possível confirmar a movimentação da refeição.");
+export async function moveMealItem(
+  userId: number,
+  input: {
+    sourceMeal: Awaited<ReturnType<typeof listMeals>>[number];
+    itemIndex: number;
+    targetMealLabel: string;
+    occurredAt: string;
+    item: MealDraftItem;
   }
-
-  return {
-    moved: true,
-    meal: decorateMealWithImageUrl(persisted.meal),
-    sourceMeal: decorateMealWithImageUrl(persisted.sourceMeal),
-  };
+) {
+  return getMealMutationCoordinator().moveMealItem(userId, input);
 }
 
 export async function updateMealWithHouseholdMeasureLearning(
@@ -405,29 +392,15 @@ export async function updateMealWithHouseholdMeasureLearning(
   learning: {
     expectedOriginalItem: MealDraftItem;
     relation: UserLearnedHouseholdMeasureInput;
-  },
+  }
 ) {
-  if (learning.relation.userId !== userId) {
-    throw new Error("Household measure learning user must match the authenticated user.");
-  }
-  if (!buildUserLearnedHouseholdMeasurePreference(learning.relation)) {
-    return updateMeal(userId, input);
-  }
-  await ensureCurrentIrreversibleEffectAllowed();
-  const items = await prepareMealItemsForSave(userId, input.items);
-  await ensureCurrentIrreversibleEffectAllowed();
-  const meal = decorateMealWithImageUrl(await updateMealAndHouseholdMeasureLearning({
+  return getMealMutationCoordinator().updateMealWithHouseholdMeasureLearning(
     userId,
-    mealId: input.mealId,
-    mealLabel: input.mealLabel,
-    occurredAt: input.occurredAt,
-    notes: input.notes,
-    items,
-    expectedOriginalItem: learning.expectedOriginalItem,
-    learning: learning.relation,
-  }));
-  return meal;
+    input,
+    learning
+  );
 }
+export type { UpdateMealServiceOptions };
 
 export async function removeMeal(userId: number, mealId: number) {
   await ensureCurrentIrreversibleEffectAllowed();
@@ -443,20 +416,28 @@ export async function listMealFavorites(userId: number) {
   return listFavoriteMeals(userId);
 }
 
-export async function saveMealFavorite(userId: number, input: SaveFavoriteMealInput) {
+export async function saveMealFavorite(
+  userId: number,
+  input: SaveFavoriteMealInput
+) {
   await ensureCurrentIrreversibleEffectAllowed();
   return saveFavoriteMeal({ userId, ...input });
 }
 
-export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMealInput) {
+export async function reuseMealFavorite(
+  userId: number,
+  input: ReuseFavoriteMealInput
+) {
   await ensureCurrentIrreversibleEffectAllowed();
-  return decorateMealWithImageUrl(await reuseFavoriteMeal({ userId, ...input }));
+  return decorateMealWithImageUrl(
+    await reuseFavoriteMeal({ userId, ...input })
+  );
 }
 
 async function processMealDraftAttributed(
   userId: number,
   input: ProcessMealDraftInput,
-  timeZone = DEFAULT_APP_TIME_ZONE,
+  timeZone = DEFAULT_APP_TIME_ZONE
 ) {
   const [resolvedImage, resolvedAudio] = await Promise.all([
     resolveDraftImage({ userId, media: input.image }),
@@ -465,17 +446,21 @@ async function processMealDraftAttributed(
 
   let transcript: string | undefined;
   if (resolvedAudio.inlineAudioDataUrl) {
-    const transcription = await transcribeAudio({
-      audioBase64: resolvedAudio.inlineAudioDataUrl,
-      mimeType: resolvedAudio.mimeType,
-      language: "pt",
-      prompt: "Transcreva a refeição narrada pelo usuário com foco em alimentos e porções.",
-    }, {
-      observability: {
-        origin: input.source,
-        flow: "voice_transcription",
+    const transcription = await transcribeAudio(
+      {
+        audioBase64: resolvedAudio.inlineAudioDataUrl,
+        mimeType: resolvedAudio.mimeType,
+        language: "pt",
+        prompt:
+          "Transcreva a refeição narrada pelo usuário com foco em alimentos e porções.",
       },
-    });
+      {
+        observability: {
+          origin: input.source,
+          flow: "voice_transcription",
+        },
+      }
+    );
     if ("error" in transcription) {
       logInferenceEvent({
         userId,
@@ -489,25 +474,27 @@ async function processMealDraftAttributed(
     }
   }
 
-  const processedBase = ensureProcessedMealItems(await processMealInput({
-    text: input.text,
-    transcript,
-    imageUrl: resolvedImage.imageUrl,
-    audioUrl: resolvedAudio.audioUrl,
-    habits: await getHabitSnapshots(userId),
-    occurredAt: new Date(),
-    timeZone,
-  }));
+  const processedBase = ensureProcessedMealItems(
+    await processMealInput({
+      text: input.text,
+      transcript,
+      imageUrl: resolvedImage.imageUrl,
+      audioUrl: resolvedAudio.audioUrl,
+      habits: await getHabitSnapshots(userId),
+      occurredAt: new Date(),
+      timeZone,
+    })
+  );
   const canAttributeAllItemsToImage = Boolean(
-    resolvedImage.media
-    && input.image
-    && !input.text?.trim()
-    && !input.audio,
+    resolvedImage.media && input.image && !input.text?.trim() && !input.audio
   );
   const processed = canAttributeAllItemsToImage
     ? {
         ...processedBase,
-        items: associateMealItemsWithSourceMedia(processedBase.items, resolvedImage.media?.storageKey),
+        items: associateMealItemsWithSourceMedia(
+          processedBase.items,
+          resolvedImage.media?.storageKey
+        ),
       }
     : processedBase;
 
@@ -515,9 +502,15 @@ async function processMealDraftAttributed(
     userId,
     input.source,
     processed,
-    [resolvedImage.media, resolvedAudio.media].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
+    [resolvedImage.media, resolvedAudio.media].filter(Boolean) as NonNullable<
+      Awaited<ReturnType<typeof uploadMedia>>
+    >[]
   );
-  const suggestedOccurredAt = resolveSuggestedOccurredAtFromText(input.text, new Date(), timeZone);
+  const suggestedOccurredAt = resolveSuggestedOccurredAtFromText(
+    input.text,
+    new Date(),
+    timeZone
+  );
 
   return {
     draftId: draft.draftId,
@@ -530,28 +523,31 @@ async function processMealDraftAttributed(
 export async function processMealDraft(
   userId: number,
   input: ProcessMealDraftInput,
-  timeZone = DEFAULT_APP_TIME_ZONE,
+  timeZone = DEFAULT_APP_TIME_ZONE
 ) {
-  return runWithAiUsageScope(
-    { userId },
-    () => processMealDraftAttributed(userId, input, timeZone),
+  return runWithAiUsageScope({ userId }, () =>
+    processMealDraftAttributed(userId, input, timeZone)
   );
 }
 
 export async function confirmMeal(userId: number, input: ConfirmMealInput) {
-  const pending = getPendingInference(input.draftId) ?? await getPendingInferenceFromDb(input.draftId);
+  const pending =
+    getPendingInference(input.draftId) ??
+    (await loadPendingMealDraftFromDb(input.draftId));
   if (!pending || pending.userId !== userId) {
     throw new MealDraftNotFoundError();
   }
 
   const items = await prepareMealItemsForSave(userId, input.items);
-  const meal = decorateMealWithImageUrl(await confirmPendingMeal({
-    draftId: input.draftId,
-    userId,
-    mealLabel: input.mealLabel,
-    occurredAt: input.occurredAt,
-    notes: input.notes,
-    items,
-  }));
+  const meal = decorateMealWithImageUrl(
+    await confirmPendingMeal({
+      draftId: input.draftId,
+      userId,
+      mealLabel: input.mealLabel,
+      occurredAt: input.occurredAt,
+      notes: input.notes,
+      items,
+    })
+  );
   return meal;
 }

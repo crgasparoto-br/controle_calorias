@@ -23,8 +23,32 @@ const baseMeal = {
   occurredAt: "2026-07-11T22:00:00.000Z",
   notes: null,
   items: [
-    { foodName: "Chocolate ao leite", canonicalName: "Chocolate", portionText: "15 g", servings: 1, estimatedGrams: 15, calories: 80, protein: 1, carbs: 10, fat: 4, confidence: 0.9, source: "catalog" },
-    { foodName: "Chocolate amargo", canonicalName: "Chocolate", portionText: "15 g", servings: 1, estimatedGrams: 15, calories: 70, protein: 1, carbs: 8, fat: 4, confidence: 0.9, source: "catalog" },
+    {
+      foodName: "Chocolate ao leite",
+      canonicalName: "Chocolate",
+      portionText: "15 g",
+      servings: 1,
+      estimatedGrams: 15,
+      calories: 80,
+      protein: 1,
+      carbs: 10,
+      fat: 4,
+      confidence: 0.9,
+      source: "catalog",
+    },
+    {
+      foodName: "Chocolate amargo",
+      canonicalName: "Chocolate",
+      portionText: "15 g",
+      servings: 1,
+      estimatedGrams: 15,
+      calories: 70,
+      protein: 1,
+      carbs: 8,
+      fat: 4,
+      confidence: 0.9,
+      source: "catalog",
+    },
   ],
 };
 
@@ -32,7 +56,10 @@ describe("deleteIntent seleção persistente", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listMealsMock.mockResolvedValue([structuredClone(baseMeal)]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ ...baseMeal, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      ...baseMeal,
+      ...input,
+    }));
   });
 
   it("executa excluir chocolate -> o segundo -> sim uma única vez", async () => {
@@ -45,18 +72,29 @@ describe("deleteIntent seleção persistente", () => {
     expect(ambiguous?.reply).toContain("2. Chocolate amargo");
     expect(updateMealMock).not.toHaveBeenCalled();
 
-    const selection = await executeWhatsappDeleteIntent(userId, { text: "o segundo" });
+    const selection = await executeWhatsappDeleteIntent(userId, {
+      text: "o segundo",
+      receivedAt: new Date("2026-07-11T22:31:00.000Z"),
+    });
     expect(selection?.action).toBe("clarification_needed");
     expect(selection?.reply).toContain("Chocolate amargo");
     expect(updateMealMock).not.toHaveBeenCalled();
 
-    const confirmation = await executeWhatsappDeleteIntent(userId, { text: "sim" });
+    const confirmation = await executeWhatsappDeleteIntent(userId, {
+      text: "sim",
+      receivedAt: new Date("2026-07-11T22:32:00.000Z"),
+    });
     expect(confirmation?.action).toBe("meal_item_deleted");
     expect(updateMealMock).toHaveBeenCalledTimes(1);
     expect(updateMealMock.mock.calls[0][1].items).toHaveLength(1);
-    expect(updateMealMock.mock.calls[0][1].items[0].foodName).toBe("Chocolate ao leite");
+    expect(updateMealMock.mock.calls[0][1].items[0].foodName).toBe(
+      "Chocolate ao leite"
+    );
 
-    const redelivery = await executeWhatsappDeleteIntent(userId, { text: "sim" });
+    const redelivery = await executeWhatsappDeleteIntent(userId, {
+      text: "sim",
+      receivedAt: new Date("2026-07-11T22:33:00.000Z"),
+    });
     expect(redelivery).toBeNull();
     expect(updateMealMock).toHaveBeenCalledTimes(1);
   });

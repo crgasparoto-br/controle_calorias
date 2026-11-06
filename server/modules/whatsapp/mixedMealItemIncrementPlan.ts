@@ -1,9 +1,12 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { createHash } from "node:crypto";
-import { convertFoodPortionToGrams, getGlobalFoodCatalogItem } from "../foods/service";
-import { getLocalCountableIncrementGrams } from "../foods/countablePortionConversion";
+import { getCountableIncrementGrams } from "../foods/countablePortionConversion";
 import { listMeals } from "../meals/service";
+import {
+  attachMealMutationPreImage,
+  getMealMutationPreImage,
+} from "../meals/mealMutationToken";
 import type { MealItemInput } from "../meals/schemas";
 import { resolveTargetMealItemInMeals } from "./intent/mealTargetResolution";
 import { scaleMealItem, toMealItemInput } from "./intent/mealItemHelpers";
@@ -32,6 +35,12 @@ import type {
 
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMeal = MealRecord & { items: MealItemInput[] };
+type AdjustmentMealItem = MealItemInput & {
+  foodVariantId?: number | null;
+  nutritionProfileId?: number | null;
+  foodPortionId?: number | null;
+  brandName?: string | null;
+};
 
 function normalize(value: string) {
   return value
@@ -43,19 +52,31 @@ function normalize(value: string) {
 }
 
 function toMutableMeals(meals: MealRecord[]): MutableMeal[] {
-  return meals.map(meal => ({ ...meal, items: [...(meal.items ?? [])] as MealItemInput[] }));
+  return meals.map(meal =>
+    attachMealMutationPreImage(
+      { ...meal, items: [...(meal.items ?? [])] as MealItemInput[] },
+      getMealMutationPreImage(meal)
+    )
+  );
 }
 
 function itemFingerprint(item: MealItemInput) {
+  const identity = item as AdjustmentMealItem;
   const nutritionSource = item.nutritionSource;
   const payload = [
     item.foodId ?? null,
     item.foodCatalogId ?? null,
+    identity.foodVariantId ?? null,
+    identity.nutritionProfileId ?? null,
+    identity.foodPortionId ?? null,
     item.portionId ?? null,
     item.portionQuantity ?? null,
     normalize(item.foodName),
     normalize(item.canonicalName),
     normalize(item.brand ?? ""),
+    normalize(identity.brandName ?? ""),
+    normalize(item.productVariant ?? ""),
+    normalize(item.resolution?.productVariant ?? ""),
     normalize(item.portionText),
     item.quantity ?? null,
     normalize(item.unit ?? ""),
@@ -95,40 +116,6 @@ function normalizeCountableUnit(value: string) {
   if (normalized === "fatia") return "fatia";
   if (normalized === "un") return "unidade";
   return null;
-}
-
-function portionSupportsUnit(
-  portion: { label: string; unit: string },
-  requested: "fatia" | "unidade",
-) {
-  const requestedNormalized = requested === "unidade" ? "un" : "fatia";
-  return normalizeMeasurementUnit(portion.unit) === requestedNormalized
-    || normalizeMeasurementUnit(portion.label.replace(/^\d+(?:[,.]\d+)?\s*/u, "")) === requestedNormalized;
-}
-
-async function resolveCountableGrams(
-  userId: number,
-  item: MealItemInput,
-  operation: MixedMealItemIncrementOperation,
-) {
-  const foodId = item.foodId;
-  const requestedUnit = operation.unit;
-  if ((requestedUnit !== "fatia" && requestedUnit !== "unidade") || !foodId) return null;
-
-  try {
-    const food = await getGlobalFoodCatalogItem(userId, foodId);
-    const matching = food.portions.filter(portion => portionSupportsUnit(portion, requestedUnit));
-    if (matching.length !== 1) return null;
-    const portion = matching[0];
-    const converted = await convertFoodPortionToGrams(userId, {
-      foodId,
-      portionId: portion.id,
-      quantity: operation.quantity,
-    });
-    return converted.grams > 0 ? converted.grams : null;
-  } catch {
-    return null;
-  }
 }
 
 function selectionCandidate(input: { meal: MutableMeal; index: number }) {
@@ -188,6 +175,7 @@ function snapshot(meal: MutableMeal | MealRecord) {
     mealLabel: meal.mealLabel,
     occurredAt: meal.occurredAt,
     notes: meal.notes,
+    mutationPreImage: getMealMutationPreImage(meal) ?? undefined,
     items: [...(meal.items ?? [])] as MealItemInput[],
   };
 }
@@ -208,7 +196,9 @@ async function applyReadyPlan(
   userId: number,
   plan: MixedMealItemIncrementPlan,
 ): Promise<WhatsappIntentResult> {
-  const currentMeals = toMutableMeals(await listMeals(userId));
+  const currentMeals = toMutableMeals(
+    await listMeals(userId, { adjustmentRead: true })
+  );
   const originalById = new Map(currentMeals.map(meal => [meal.id, snapshot(meal)]));
   const actionLines = new Map<number, string[]>();
   const changed = new Set<number>();
@@ -302,11 +292,12 @@ async function applyReadyPlan(
   }
 }
 
-async function requestSelection(
+async function requestItemChoice(
   userId: number,
   plan: MixedMealItemIncrementPlan,
   meals: MutableMeal[],
   pendingIndexes: number[],
+  receivedAt?: Date,
 ) {
   const [firstIndex, ...remainingIndexes] = pendingIndexes;
   const firstOperation = plan.operations[firstIndex];
@@ -340,23 +331,28 @@ async function requestSelection(
     };
   });
 
-  return createPendingMealItemSelection(userId, {
-    targetFood: firstOperation.targetFood,
-    action: { kind: "mixed_increment_target", operationIndex: firstIndex },
-    contextLabel: firstResolution.scope === "same_day_meals" ? "nas refeições do dia" : "na última refeição",
-    resultTitle: "Alimentos ajustados",
-    candidates: firstResolution.candidates.map(candidate =>
-      selectionCandidate({ meal: candidate.meal as MutableMeal, index: candidate.index }),
-    ),
-    companionActions,
-    remainingSelections,
-    continuation: { kind: "mixed_increment_plan", plan },
-  });
+  return createPendingMealItemSelection(
+    userId,
+    {
+      targetFood: firstOperation.targetFood,
+      action: { kind: "mixed_increment_target", operationIndex: firstIndex },
+      contextLabel: firstResolution.scope === "same_day_meals" ? "nas refeições do dia" : "na última refeição",
+      resultTitle: "Alimentos ajustados",
+      candidates: firstResolution.candidates.map(candidate =>
+        selectionCandidate({ meal: candidate.meal as MutableMeal, index: candidate.index }),
+      ),
+      companionActions,
+      remainingSelections,
+      continuation: { kind: "mixed_increment_plan", plan },
+    },
+    receivedAt,
+  );
 }
 
 export async function continueMixedMealItemIncrementPlan(
   userId: number,
   inputPlan: MixedMealItemIncrementPlan,
+  interactionContext: { receivedAt?: Date } = {},
 ): Promise<WhatsappIntentResult> {
   const plan: MixedMealItemIncrementPlan = {
     ...inputPlan,
@@ -367,7 +363,7 @@ export async function continueMixedMealItemIncrementPlan(
     })),
   };
 
-  const allMeals = await listMeals(userId);
+  const allMeals = await listMeals(userId, { adjustmentRead: true });
   const meals = toMutableMeals(
     plan.mealLabel
       ? allMeals.filter(meal => normalize(meal.mealLabel) === normalize(plan.mealLabel!))
@@ -411,7 +407,13 @@ export async function continueMixedMealItemIncrementPlan(
   }
 
   if (ambiguousIndexes.length) {
-    return requestSelection(userId, plan, meals, ambiguousIndexes);
+    return requestItemChoice(
+      userId,
+      plan,
+      meals,
+      ambiguousIndexes,
+      interactionContext.receivedAt,
+    );
   }
 
   for (const [index, operation] of plan.operations.entries()) {
@@ -429,14 +431,12 @@ export async function continueMixedMealItemIncrementPlan(
 
     const countableUnit = operation.unit ? normalizeCountableUnit(operation.unit) : null;
     if (countableUnit) {
-      const grams = current.item.foodId
-        ? await resolveCountableGrams(userId, current.item, operation)
-        : await getLocalCountableIncrementGrams({
-            userId,
-            item: current.item,
-            quantity: operation.quantity,
-            unit: countableUnit,
-          });
+      const grams = await getCountableIncrementGrams({
+        userId,
+        item: current.item as AdjustmentMealItem,
+        quantity: operation.quantity,
+        unit: countableUnit,
+      });
       if (grams) {
         operation.gramsDelta = grams;
         operation.resolvedBy = "canonical_portion";
@@ -450,8 +450,8 @@ export async function continueMixedMealItemIncrementPlan(
       originalText: plan.originalText,
       plan,
       operationIndex: index,
-      receivedAt: plan.receivedAt && Number.isFinite(new Date(plan.receivedAt).getTime())
-        ? new Date(plan.receivedAt)
+      receivedAt: interactionContext.receivedAt && Number.isFinite(interactionContext.receivedAt.getTime())
+        ? interactionContext.receivedAt
         : new Date(),
       messageId: plan.inboundMessageId ?? null,
       instructionText: operation.unit

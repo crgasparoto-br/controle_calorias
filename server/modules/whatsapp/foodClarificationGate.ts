@@ -9,6 +9,11 @@ import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
+import { getPendingOperationDispatchStatus } from "../../repositories/whatsappPendingOperationTypes";
+import {
+  buildPendingOperationRecoveryResult,
+  buildStaleInteractionReply,
+} from "./pendingOperationRecovery";
 import { handleWhatsappFoodClarification } from "./foodClarification";
 import { parseLatestFoodCorrection } from "./contextualFoodReplacementIntent";
 import { isCompleteWhatsappCommand } from "./foodClarificationContract";
@@ -199,31 +204,11 @@ function buildUnregisteredPendingResult(
 }
 
 function buildClaimUnavailableResult(
-  pending: WhatsAppPendingOperationRecord,
+  pending: WhatsAppPendingOperationRecord
 ): PendingInteractionResult {
-  const interactionId =
-    pending.target && typeof pending.target === "object" && "interactionId" in pending.target
-      ? (pending.target as { interactionId?: unknown }).interactionId
-      : null;
-  return {
-    handled: true,
-    action: "clarification_needed",
-    reply: "Essa confirmação já está sendo processada ou não está mais disponível. Aguarde a resposta ou envie o comando novamente.",
-    eventType: "whatsapp.interaction.claim_unavailable",
-    detail: "A resposta compatível perdeu o claim versionado; o replay e o fallback foram bloqueados para evitar execução duplicada.",
-    data: {
-      pendingOperationId: pending.id,
-      pendingType: pending.type,
-      ...(typeof interactionId === "string" ? { interactionId } : {}),
-      fallbackBlocked: true,
-      fallbackBlockReason: "pending_interaction_claim_unavailable",
-      interactionLifecycle: "blocked",
-      noReplay: true,
-    },
-  };
+  return buildPendingOperationRecoveryResult(pending);
 }
-
-export async function resolvePendingWhatsappFoodClarification(input: {
+async function handlePendingReply(input: {
   userId: number;
   text?: string | null;
   receivedAt?: Date;
@@ -239,12 +224,20 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   const correlatedMessageId =
     input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId();
 
+  if (active && getPendingOperationDispatchStatus(active.state) !== "ready") {
+    return buildClaimUnavailableResult(active);
+  }
+
   if (
     active &&
     input.skipActivePendingForExplicitFoodAddition &&
     isExplicitFoodAdditionCommand(input.text)
   ) {
-    const superseded = await pendingOperationRepository.supersedePendingOperation(active.id);
+    const superseded =
+      await pendingOperationRepository.supersedePendingOperation(
+        active.id,
+        input.receivedAt ?? new Date()
+      );
     if (superseded.superseded) return null;
     return {
       handled: true,
@@ -258,7 +251,8 @@ export async function resolvePendingWhatsappFoodClarification(input: {
         pendingOperationId: active.id,
         pendingType: active.type,
         fallbackBlocked: true,
-        fallbackBlockReason: "explicit_food_addition_pending_replacement_failed",
+        fallbackBlockReason:
+          "explicit_food_addition_pending_replacement_failed",
         interactionLifecycle: "blocked",
       },
     };
@@ -278,7 +272,10 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     !interactionOwnsIdentityCorrection
   ) {
     const superseded =
-      await pendingOperationRepository.supersedePendingOperation(active.id);
+      await pendingOperationRepository.supersedePendingOperation(
+        active.id,
+        input.receivedAt ?? new Date()
+      );
     if (superseded.superseded) return null;
     return {
       handled: true,
@@ -299,11 +296,20 @@ export async function resolvePendingWhatsappFoodClarification(input: {
 
   if (!active) {
     if (input.skipStalePendingResponse) return null;
-
     const latest =
       (await pendingOperationRepository.getLatestPendingOperation?.(
-        input.userId
+        input.userId,
+        input.receivedAt ?? new Date()
       )) ?? null;
+    const latestInteraction = latest
+      ? findWhatsappRegisteredInteraction(latest.type, latest.target)
+      : null;
+    const staleSelection = buildStaleInteractionReply(
+      latest,
+      latest?.type === "meal_item_selection" &&
+        latestInteraction?.classifyText(latest.target, input.text) === "resolve"
+    );
+    if (staleSelection) return staleSelection;
     if (
       latest?.type === PENDING_COFFEE_ADDITION_CLARIFICATION_TYPE
       && isPendingCoffeeAdditionClarification(latest.target)
@@ -430,14 +436,21 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   );
   if (!interaction) {
     if (isStandaloneWhatsappCancellationWord(input.text)) {
-      const superseded = await pendingOperationRepository.supersedePendingOperation(active.id);
+      const superseded =
+        await pendingOperationRepository.supersedePendingOperation(
+          active.id,
+          input.receivedAt ?? new Date()
+        );
       if (superseded.superseded) {
         return {
           handled: true,
           action: "pending_operation_cancelled",
-          reply: buildWhatsAppActionCancelledReplyMessage("Não registrei o alimento pendente."),
+          reply: buildWhatsAppActionCancelledReplyMessage(
+            "Não registrei o alimento pendente."
+          ),
           eventType: "whatsapp.interaction.pending_operation_cancelled",
-          detail: "Pendência ativa sem interação registrada substituída por cancelamento explícito, sem mutação.",
+          detail:
+            "Pendência ativa sem interação registrada substituída por cancelamento explícito, sem mutação.",
           data: {
             pendingOperationId: active.id,
             pendingType: active.type,
@@ -450,8 +463,8 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     return buildUnregisteredPendingResult(active);
   }
 
-  const classification = interaction.classifyText(active.target, input.text);
-  if (classification === "resolve") {
+  const resultKind = interaction.classifyText(active.target, input.text);
+  if (resultKind === "resolve") {
     const resolved = await resolveWhatsappRegisteredText(interaction, {
       userId: input.userId,
       pendingOperation: active,
@@ -471,7 +484,9 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     // A classificação foi compatível, mas o CAS pode ter perdido a pendência
     // para outra entrega concorrente. Nunca reapresente os botões nem deixe o
     // texto cair no fallback genérico, pois isso executaria a ação duas vezes.
-    const current = await pendingOperationRepository.getPendingOperationById(active.id);
+    const current = await pendingOperationRepository.getPendingOperationById(
+      active.id
+    );
     if (!current || current.state !== "active") {
       return buildClaimUnavailableResult(current ?? active);
     }
@@ -480,7 +495,10 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     // textuais válidos da interação, como "Registrar alimento", são resolvidos
     // acima pela própria entrada do registro.
     const superseded =
-      await pendingOperationRepository.supersedePendingOperation(active.id);
+      await pendingOperationRepository.supersedePendingOperation(
+        active.id,
+        input.receivedAt ?? new Date()
+      );
     if (superseded.superseded) return null;
     return {
       handled: true,
@@ -519,3 +537,5 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     interactiveReply: replay.interactiveReply,
   };
 }
+
+export const resolvePendingWhatsappFoodClarification = handlePendingReply;

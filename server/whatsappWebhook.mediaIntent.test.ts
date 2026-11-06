@@ -9,16 +9,39 @@ const processMealInputMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const transcribeAudioMock = vi.fn();
-const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
+const claimMessageForProcessingStateMock = vi.fn(
+  async () => "claimed" as const
+);
 const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
+const attachTestMealMutationToken = vi.hoisted(
+  () => (value: unknown, token: string) => {
+    if (!value || typeof value !== "object") return value;
+    const symbol = Symbol.for("controle_calorias.mealMutationPreImage");
+    if (!Object.prototype.hasOwnProperty.call(value, symbol)) {
+      Object.defineProperty(value, symbol, {
+        value: token,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    return value;
+  }
+);
 
 vi.mock("./modules/water/service", () => ({
   createWaterLog: createWaterLogMock,
 }));
 
 vi.mock("./modules/meals/service", () => ({
-  listMeals: listMealsMock,
-  updateMeal: updateMealMock,
+  listMeals: async (...args: unknown[]) => {
+    const meals = await listMealsMock(...args);
+    const options = args[1] as { adjustmentRead?: boolean } | undefined;
+    return options?.adjustmentRead && Array.isArray(meals)
+      ? meals.map(meal => attachTestMealMutationToken(meal, "a".repeat(64)))
+      : meals;
+  },
+  updateMeal: async (...args: unknown[]) =>
+    attachTestMealMutationToken(await updateMealMock(...args), "b".repeat(64)),
 }));
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
@@ -45,7 +68,9 @@ vi.mock("./db", () => ({
   listUserMeals: vi.fn(async () => []),
   updateUserMeal: vi.fn(),
   removeUserMeal: vi.fn(),
-  getUserDayMealTotals: vi.fn(async () => ({ totals: { calories: 0, protein: 0, carbs: 0, fat: 0 } })),
+  getUserDayMealTotals: vi.fn(async () => ({
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  })),
   logInferenceEvent: logInferenceEventMock,
   relabelUserMeals: vi.fn(),
   updateUserCurrentWeight: vi.fn(),
@@ -64,7 +89,9 @@ vi.mock("./whatsappConfig", () => ({
     phoneNumberId: "phone-number-test",
     verifyToken: "verify-token-test",
   }),
-  requireWhatsAppMediaConfig: async () => ({ accessToken: "access-token-test" }),
+  requireWhatsAppMediaConfig: async () => ({
+    accessToken: "access-token-test",
+  }),
   requireWhatsAppSendConfig: async () => ({
     accessToken: "access-token-test",
     phoneNumberId: "phone-number-test",
@@ -76,7 +103,10 @@ vi.mock("./_core/voiceTranscription", () => ({
 }));
 
 vi.mock("./nutritionEngine", async () => {
-  const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
+  const actual =
+    await vi.importActual<typeof import("./nutritionEngine")>(
+      "./nutritionEngine"
+    );
   return {
     ...actual,
     processMealInput: processMealInputMock,
@@ -195,44 +225,61 @@ describe("handleWhatsAppWebhook media text intents", () => {
     transcribeAudioMock.mockReset();
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
-    createWaterLogMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      id: 91,
-      userId: 42,
-      ...input,
-    }));
+    createWaterLogMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 91,
+        userId: 42,
+        ...input,
+      })
+    );
     processMealInputMock.mockResolvedValue(mockNutritionResult());
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-1" });
-    confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
-      id: 10,
-      mealLabel: input.mealLabel,
-    }));
+    confirmPendingMealMock.mockImplementation(
+      async (input: Record<string, unknown>) => ({
+        id: 10,
+        mealLabel: input.mealLabel,
+      })
+    );
 
-    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/messages")) {
-        const payload = init?.body ? JSON.parse(String(init.body)) : {};
-        if (payload?.text?.body) {
-          sentMessages.push(payload.text.body);
+    global.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/messages")) {
+          const payload = init?.body ? JSON.parse(String(init.body)) : {};
+          if (payload?.text?.body) {
+            sentMessages.push(payload.text.body);
+          }
+          return { ok: true, json: async () => ({}) } as Response;
         }
-        return { ok: true, json: async () => ({}) } as Response;
-      }
 
-      if (url.includes("graph.facebook.com")) {
+        if (url.includes("graph.facebook.com")) {
+          return {
+            ok: true,
+            json: async () => ({
+              url: url.includes("audio-media-id")
+                ? "https://media.test/audio"
+                : "https://media.test/image",
+              mime_type: url.includes("audio-media-id")
+                ? "audio/ogg"
+                : "image/jpeg",
+            }),
+          } as Response;
+        }
+
         return {
           ok: true,
-          json: async () => ({
-            url: url.includes("audio-media-id") ? "https://media.test/audio" : "https://media.test/image",
-            mime_type: url.includes("audio-media-id") ? "audio/ogg" : "image/jpeg",
+          headers: {
+            get: () => (url.includes("audio") ? "audio/ogg" : "image/jpeg"),
+          },
+          body: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("binary-media"));
+              controller.close();
+            },
           }),
         } as Response;
       }
-
-      return {
-        ok: true,
-        headers: { get: () => (url.includes("audio") ? "audio/ogg" : "image/jpeg") },
-        body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("binary-media")); controller.close(); } }),
-      } as Response;
-    }) as typeof fetch;
+    ) as typeof fetch;
   });
 
   afterEach(() => {
@@ -264,11 +311,13 @@ describe("handleWhatsAppWebhook media text intents", () => {
     });
     expect(processMealInputMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.water_logged",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.water_logged",
+      })
+    );
     // Fast path (#785): sem acknowledgement, apenas a resposta funcional final.
     expect(sentMessages).toHaveLength(1);
     expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
@@ -290,10 +339,12 @@ describe("handleWhatsAppWebhook media text intents", () => {
         items: [riceItem],
       },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      id: 10,
-      ...input,
-    }));
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 10,
+        ...input,
+      })
+    );
     const req = createWebhookRequest({
       id: "audio-increment-rice-intent",
       from: "5511999999999",
@@ -307,18 +358,30 @@ describe("handleWhatsAppWebhook media text intents", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 10,
-      items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 145, portionText: "145 g", calories: 188.5 })],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 10,
+        items: [
+          expect.objectContaining({
+            foodName: "Arroz branco",
+            estimatedGrams: 145,
+            portionText: "145 g",
+            calories: 188.5,
+          }),
+        ],
+      })
+    );
     expect(processMealInputMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).not.toHaveBeenCalled();
     expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_grams_adjusted",
+      })
+    );
     // Fast path (#785): sem acknowledgement, apenas a resposta funcional final.
     expect(sentMessages).toHaveLength(1);
     expect(sentMessages.at(-1)).toContain("de 100 g para 145 g");
@@ -342,10 +405,12 @@ describe("handleWhatsAppWebhook media text intents", () => {
 
     expect(res.statusCode).toBe(200);
     expect(createWaterLogMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
-      text: "500 ml de água ontem",
-      imageUrl: expect.stringMatching(/^data:image\/jpeg;base64,/),
-    }));
+    expect(processMealInputMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "500 ml de água ontem",
+        imageUrl: expect.stringMatching(/^data:image\/jpeg;base64,/),
+      })
+    );
     expect(confirmPendingMealMock).toHaveBeenCalled();
     // Fast path (#785): sem acknowledgement, apenas a resposta funcional final da refeição.
     expect(sentMessages).toHaveLength(1);

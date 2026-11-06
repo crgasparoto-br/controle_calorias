@@ -28,7 +28,7 @@ vi.mock("../../db", () => ({
   getUserDayMealTotals: vi.fn(),
   getHabitSnapshots: getHabitSnapshotsMock,
   getPendingInference: vi.fn(),
-  getPendingInferenceFromDb: vi.fn(),
+  loadPendingMealDraftFromDb: vi.fn(),
   listFavoriteMeals: vi.fn(),
   listUserMeals: vi.fn(),
   logInferenceEvent: vi.fn(),

@@ -56,36 +56,43 @@ describe("executeWhatsappTextIntent com quantidade liquida", () => {
         items: [riceItem],
       },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      id: input.mealId,
-      ...input,
-    }));
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: input.mealId,
+        ...input,
+      })
+    );
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Adicionar 160g - 23g de maça fugi ao lanche",
       receivedAt: new Date("2026-06-04T18:30:00.000Z"),
     });
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 44,
-      mealLabel: "Lanche",
-      items: [
-        riceItem,
-        expect.objectContaining({
-          foodName: "maça fugi",
-          quantity: 137,
-          unit: "g",
-          portionText: "137 g",
-          estimatedGrams: 137,
-        }),
-      ],
-    }));
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "meal_item_added",
-      eventType: "whatsapp.intent.meal_item_added",
-      reply: expect.stringContaining("137 g de maça fugi"),
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 44,
+        mealLabel: "Lanche",
+        items: [
+          riceItem,
+          expect.objectContaining({
+            foodName: "maça fugi",
+            quantity: 137,
+            unit: "g",
+            portionText: "137 g",
+            estimatedGrams: 137,
+          }),
+        ],
+      })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        handled: true,
+        action: "meal_item_added",
+        eventType: "whatsapp.intent.meal_item_added",
+        reply: expect.stringContaining("137 g de maça fugi"),
+      })
+    );
   });
 
   it("pede esclarecimento quando a conta resulta em zero ou negativo", async () => {
@@ -105,6 +112,11 @@ describe("executeWhatsappTextIntent com quantidade liquida", () => {
     });
 
     expect(updateMealMock).not.toHaveBeenCalled();
-    expect(result).toBeNull();
+    expect(result).toEqual(
+      expect.objectContaining({
+        handled: true,
+        action: "clarification_needed",
+      })
+    );
   });
 });

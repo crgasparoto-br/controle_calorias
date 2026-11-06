@@ -7,7 +7,7 @@ const buildSavedMediaMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const getPendingInferenceMock = vi.fn();
-const getPendingInferenceFromDbMock = vi.fn();
+const loadPendingMealDraftFromDbMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 
@@ -32,7 +32,7 @@ vi.mock("../../db", () => ({
   getUserDayMealTotals: vi.fn(),
   getHabitSnapshots: getHabitSnapshotsMock,
   getPendingInference: getPendingInferenceMock,
-  getPendingInferenceFromDb: getPendingInferenceFromDbMock,
+  loadPendingMealDraftFromDb: loadPendingMealDraftFromDbMock,
   listFavoriteMeals: vi.fn(),
   listUserMeals: vi.fn(),
   logInferenceEvent: logInferenceEventMock,
@@ -115,7 +115,7 @@ describe("meals service characterization", () => {
     ]);
 
     getPendingInferenceMock.mockReset();
-    getPendingInferenceFromDbMock.mockReset();
+    loadPendingMealDraftFromDbMock.mockReset();
     confirmPendingMealMock.mockReset();
     logInferenceEventMock.mockReset();
   });
@@ -423,7 +423,7 @@ describe("meals service characterization", () => {
       ],
     });
 
-    expect(getPendingInferenceFromDbMock).not.toHaveBeenCalled();
+    expect(loadPendingMealDraftFromDbMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).toHaveBeenCalledWith({
       draftId: "draft-local",
       userId: 42,
@@ -460,7 +460,7 @@ describe("meals service characterization", () => {
 
   it("mantem erro de rascunho ausente quando nao encontra dados locais nem persistidos", async () => {
     getPendingInferenceMock.mockReturnValue(undefined);
-    getPendingInferenceFromDbMock.mockResolvedValue(undefined);
+    loadPendingMealDraftFromDbMock.mockResolvedValue(undefined);
 
     await expect(confirmMeal(42, {
       draftId: "draft-inexistente",

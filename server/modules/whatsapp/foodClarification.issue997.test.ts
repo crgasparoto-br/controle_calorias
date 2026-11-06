@@ -4,13 +4,19 @@ import { createFoodQuantityClarificationService } from "./foodQuantityClarificat
 import { createWhatsappFoodClarificationService } from "./foodClarification";
 
 const mocks = vi.hoisted(() => ({
-  continuePlan: vi.fn(async () => ({
-    handled: true,
-    action: "meal_item_grams_adjusted",
-    reply: "ok",
-    eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: "aplicado uma vez",
-  })),
+  continuePlan: vi.fn(
+    async (
+      _userId?: number,
+      _plan?: any,
+      _interactionContext?: { receivedAt?: Date }
+    ) => ({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+      reply: "ok",
+      eventType: "whatsapp.intent.meal_item_grams_adjusted",
+      detail: "aplicado uma vez",
+    })
+  ),
 }));
 
 vi.mock("./mixedMealItemIncrementPlan", () => ({
@@ -22,7 +28,8 @@ function createRepository() {
   let sequence = 1;
   const claimPendingOperation = vi.fn(async ({ id, expectedVersion }) => {
     const row = rows.get(id);
-    if (!row || row.state !== "active" || row.version !== expectedVersion) return { claimed: false };
+    if (!row || row.state !== "active" || row.version !== expectedVersion)
+      return { claimed: false };
     row.state = "consumed";
     row.version += 1;
     row.consumedAt = new Date();
@@ -45,11 +52,20 @@ function createRepository() {
       return row;
     },
     async getActivePendingOperation(userId, now = new Date()) {
-      return [...rows.values()]
-        .filter(row => row.userId === userId && row.state === "active" && row.expiresAt >= now)
-        .sort((left, right) => right.id - left.id)[0] ?? null;
+      return (
+        [...rows.values()]
+          .filter(
+            row =>
+              row.userId === userId &&
+              row.state === "active" &&
+              row.expiresAt >= now
+          )
+          .sort((left, right) => right.id - left.id)[0] ?? null
+      );
     },
-    async getPendingOperationById(id) { return rows.get(id) ?? null; },
+    async getPendingOperationById(id) {
+      return rows.get(id) ?? null;
+    },
     claimPendingOperation,
     async cancelPendingOperation(id) {
       const row = rows.get(id);
@@ -63,7 +79,9 @@ function createRepository() {
       row.state = "superseded";
       return { superseded: true };
     },
-    async purgeInactiveOperations() { return 0; },
+    async purgeInactiveOperations() {
+      return 0;
+    },
   };
   return { repository, rows, claimPendingOperation };
 }
@@ -71,13 +89,24 @@ function createRepository() {
 function mixedPlan() {
   return {
     contractVersion: 1 as const,
-    originalText: "Adicionar 48g ao requeijão, 1 fatia ao presunto e uma na mussarela",
+    originalText:
+      "Adicionar 48g ao requeijão, 1 fatia ao presunto e uma na mussarela",
     mealLabel: null,
     timeZone: "America/Sao_Paulo",
     operations: [
-      { targetFood: "requeijao", quantity: 48, unit: "g" as const, gramsDelta: 48 },
+      {
+        targetFood: "requeijao",
+        quantity: 48,
+        unit: "g" as const,
+        gramsDelta: 48,
+      },
       { targetFood: "presunto", quantity: 1, unit: "fatia" as const },
-      { targetFood: "mussarela", quantity: 1, unit: "fatia" as const, inheritedUnit: true },
+      {
+        targetFood: "mussarela",
+        quantity: 1,
+        unit: "fatia" as const,
+        inheritedUnit: true,
+      },
     ],
   };
 }
@@ -98,7 +127,9 @@ function clarificationHandler(repository: WhatsAppPendingOperationRepository) {
 describe("issue #997 persistent mixed increment clarification", () => {
   it("usa receivedAt da interação para o TTL, sem confundir com occurredAt histórico da refeição", async () => {
     const { repository, rows } = createRepository();
-    const clarification = createFoodQuantityClarificationService({ repository });
+    const clarification = createFoodQuantityClarificationService({
+      repository,
+    });
     const receivedAt = new Date("2026-08-22T20:00:00.000Z");
     const occurredAt = new Date("2026-08-01T12:00:00.000Z");
 
@@ -107,7 +138,15 @@ describe("issue #997 persistent mixed increment clarification", () => {
       foodName: "ovo frito",
       originalText: "1 ovo frito",
       registrationSegments: ["1 ovo frito"],
-      pendingItems: [{ segmentIndex: 0, segment: "1 ovo frito", foodName: "ovo frito", count: 1, requestedUnit: "un" }],
+      pendingItems: [
+        {
+          segmentIndex: 0,
+          segment: "1 ovo frito",
+          foodName: "ovo frito",
+          count: 1,
+          requestedUnit: "un",
+        },
+      ],
       currentPendingIndex: 0,
       occurredAt,
       receivedAt,
@@ -117,15 +156,23 @@ describe("issue #997 persistent mixed increment clarification", () => {
 
     const row = [...rows.values()][0];
     expect(row.createdAt).toEqual(receivedAt);
-    expect(row.target.resolutionContext.occurredAt).toBe(occurredAt.toISOString());
-    expect(row.target.resolutionContext.receivedAt).toBe(receivedAt.toISOString());
-    expect(row.target.resolutionContext.inboundMessageId).toBe("wamid.issue997");
+    expect(row.target.resolutionContext.occurredAt).toBe(
+      occurredAt.toISOString()
+    );
+    expect(row.target.resolutionContext.receivedAt).toBe(
+      receivedAt.toISOString()
+    );
+    expect(row.target.resolutionContext.inboundMessageId).toBe(
+      "wamid.issue997"
+    );
   });
 
   it("preserva correlação do comando misto no target persistido e após reconstruir o handler", async () => {
     mocks.continuePlan.mockClear();
     const { repository, rows } = createRepository();
-    const clarification = createFoodQuantityClarificationService({ repository });
+    const clarification = createFoodQuantityClarificationService({
+      repository,
+    });
     const receivedAt = new Date("2026-08-22T20:00:00.000Z");
     const messageId = "wamid.issue997.mixed-original";
     const plan = {
@@ -173,12 +220,93 @@ describe("issue #997 persistent mixed increment clarification", () => {
     });
   });
 
+  it("renova o TTL da próxima clarificação em cadeia sem reescrever a correlação original", async () => {
+    mocks.continuePlan.mockClear();
+    const { repository, rows } = createRepository();
+    const clarification = createFoodQuantityClarificationService({
+      repository,
+    });
+    const t0 = new Date("2026-08-22T20:00:00.000Z");
+    const replyAt = new Date(t0.getTime() + 9 * 60 * 1000);
+    const secondReplyAt = new Date(t0.getTime() + 10 * 60 * 1000 + 1000);
+    const messageId = "wamid.issue997.ttl-chain-original";
+    const plan = {
+      ...mixedPlan(),
+      receivedAt: t0.toISOString(),
+      inboundMessageId: messageId,
+    };
+
+    await clarification.requestMealItemIncrementQuantity({
+      userId: 42,
+      foodName: "Presunto",
+      originalText: plan.originalText,
+      plan,
+      operationIndex: 1,
+      receivedAt: t0,
+      messageId,
+    });
+
+    mocks.continuePlan.mockImplementationOnce(
+      async (_userId, resumedPlan, interactionContext) => {
+        await clarification.requestMealItemIncrementQuantity({
+          userId: 42,
+          foodName: "Mussarela",
+          originalText: resumedPlan.originalText,
+          plan: resumedPlan,
+          operationIndex: 2,
+          receivedAt: interactionContext?.receivedAt,
+          messageId: resumedPlan.inboundMessageId,
+        });
+        return {
+          handled: true,
+          action: "food_clarification_requested",
+          reply: "informe a próxima quantidade",
+          eventType: "whatsapp.food_clarification.requested",
+          detail: "segunda etapa persistida",
+        };
+      }
+    );
+
+    const firstReply = await clarificationHandler(repository).handle({
+      userId: 42,
+      text: "20 g",
+      receivedAt: replyAt,
+      messageId: "wamid.issue997.ttl-chain-first-reply",
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(firstReply?.action).toBe("food_clarification_requested");
+    const secondPending = [...rows.values()].sort(
+      (left, right) => right.id - left.id
+    )[0];
+    expect(secondPending.createdAt).toEqual(replyAt);
+    expect(secondPending.expiresAt).toEqual(
+      new Date(replyAt.getTime() + 10 * 60 * 1000)
+    );
+    expect(secondPending.target.resolutionContext.plan).toMatchObject({
+      receivedAt: t0.toISOString(),
+      inboundMessageId: messageId,
+    });
+
+    const secondReply = await clarificationHandler(repository).handle({
+      userId: 42,
+      text: "18 g",
+      receivedAt: secondReplyAt,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(secondReply?.action).toBe("meal_item_grams_adjusted");
+    expect(mocks.continuePlan).toHaveBeenCalledTimes(2);
+  });
+
   it.each(["1 fatia", "1 unidade", "2 fatias"])(
     "resposta sem massa/volume não consome a pendência: %s",
     async replyText => {
       mocks.continuePlan.mockClear();
       const { repository, claimPendingOperation } = createRepository();
-      const clarification = createFoodQuantityClarificationService({ repository });
+      const clarification = createFoodQuantityClarificationService({
+        repository,
+      });
       await clarification.requestMealItemIncrementQuantity({
         userId: 42,
         foodName: "Presunto",
@@ -198,13 +326,15 @@ describe("issue #997 persistent mixed increment clarification", () => {
       expect(result?.action).toBe("food_clarification_reprompted");
       expect(claimPendingOperation).not.toHaveBeenCalled();
       expect(mocks.continuePlan).not.toHaveBeenCalled();
-    },
+    }
   );
 
   it("duas respostas concorrentes/retry continuam o plano exatamente uma vez", async () => {
     mocks.continuePlan.mockClear();
     const { repository, claimPendingOperation } = createRepository();
-    const clarification = createFoodQuantityClarificationService({ repository });
+    const clarification = createFoodQuantityClarificationService({
+      repository,
+    });
     await clarification.requestMealItemIncrementQuantity({
       userId: 42,
       foodName: "Presunto",
@@ -217,12 +347,24 @@ describe("issue #997 persistent mixed increment clarification", () => {
     const firstProcess = clarificationHandler(repository);
     const restartedProcess = clarificationHandler(repository);
     const [first, retry] = await Promise.all([
-      firstProcess.handle({ userId: 42, text: "20 g", receivedAt: new Date(), userTimezone: "America/Sao_Paulo" }),
-      restartedProcess.handle({ userId: 42, text: "20 g", receivedAt: new Date(), userTimezone: "America/Sao_Paulo" }),
+      firstProcess.handle({
+        userId: 42,
+        text: "20 g",
+        receivedAt: new Date(),
+        userTimezone: "America/Sao_Paulo",
+      }),
+      restartedProcess.handle({
+        userId: 42,
+        text: "20 g",
+        receivedAt: new Date(),
+        userTimezone: "America/Sao_Paulo",
+      }),
     ]);
 
     expect(claimPendingOperation).toHaveBeenCalledTimes(2);
     expect(mocks.continuePlan).toHaveBeenCalledTimes(1);
-    expect([first?.action, retry?.action]).toContain("meal_item_grams_adjusted");
+    expect([first?.action, retry?.action]).toContain(
+      "meal_item_grams_adjusted"
+    );
   });
 });

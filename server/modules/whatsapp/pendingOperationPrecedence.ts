@@ -1,10 +1,11 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 
-const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
-  getDb,
-  onWarning: logPersistenceWarning,
-});
+const pendingOperationRepository =
+  createDrizzleWhatsAppPendingOperationRepository({
+    getDb,
+    onWarning: logPersistenceWarning,
+  });
 
 const MAX_PENDING_OPERATIONS_PER_REPLACEMENT = 20;
 
@@ -15,15 +16,29 @@ const MAX_PENDING_OPERATIONS_PER_REPLACEMENT = 20;
  */
 export async function supersedeActiveWhatsappPendingOperations(
   userId: number,
-  receivedAt?: Date,
+  receivedAt?: Date
 ): Promise<boolean> {
-  for (let index = 0; index < MAX_PENDING_OPERATIONS_PER_REPLACEMENT; index += 1) {
-    const active = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
+  for (
+    let index = 0;
+    index < MAX_PENDING_OPERATIONS_PER_REPLACEMENT;
+    index += 1
+  ) {
+    const active = await pendingOperationRepository.getActivePendingOperation(
+      userId,
+      receivedAt
+    );
     if (!active) return true;
 
-    const transition = await pendingOperationRepository.supersedePendingOperation(active.id);
+    const transition =
+      await pendingOperationRepository.supersedePendingOperation(
+        active.id,
+        receivedAt ?? new Date()
+      );
     if (!transition.superseded) return false;
   }
 
-  return !(await pendingOperationRepository.getActivePendingOperation(userId, receivedAt));
+  return !(await pendingOperationRepository.getActivePendingOperation(
+    userId,
+    receivedAt
+  ));
 }

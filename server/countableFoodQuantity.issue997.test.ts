@@ -11,7 +11,9 @@ import { findTacoFood } from "./tacoLookup";
 
 describe("issue #997 countable registration and local nutrition", () => {
   it("escala múltiplas unidades somente a partir da porção canônica", () => {
-    expect(resolveSafeCountableCatalogGrams("pão francês", 2, "un")?.grams).toBe(100);
+    expect(
+      resolveSafeCountableCatalogGrams("pão francês", 2, "un")?.grams
+    ).toBe(100);
     const item = buildHeuristicItem("2 pão francês");
     expect(item.estimatedGrams).toBe(100);
     expect(item.quantity).toBe(2);
@@ -24,8 +26,10 @@ describe("issue #997 countable registration and local nutrition", () => {
     "reconhece a porção curada sem promovê-la a 100 g nutricionais: %s",
     (text, foodName, grams) => {
       expect(findUnsafeCountableFoodQuantity(text)).toBeNull();
-      expect(resolveSafeCountableCatalogGrams(foodName, 1, "fatia")?.grams).toBe(grams);
-    },
+      expect(
+        resolveSafeCountableCatalogGrams(foodName, 1, "fatia")?.grams
+      ).toBe(grams);
+    }
   );
 
   it.each([
@@ -65,24 +69,56 @@ describe("issue #997 countable registration and local nutrition", () => {
     }
   );
 
+  it.each([0, -1, 1.5, Number.NaN, 124])(
+    "recusa qualquer foodId não nulo no adaptador local: %s",
+    async foodId => {
+      await expect(
+        getLocalCountableIncrementGrams({
+          userId: 42,
+          item: { foodName: "presunto", foodId },
+          quantity: 1,
+          unit: "fatia",
+        })
+      ).resolves.toBeNull();
+    }
+  );
+
+  it("permite apenas ausência ou null de foodId para identidade local", async () => {
+    await expect(
+      getLocalCountableIncrementGrams({
+        userId: 42,
+        item: { foodName: "presunto", foodId: null },
+        quantity: 1,
+        unit: "fatia",
+      })
+    ).resolves.toBe(18);
+  });
+
   it.each([
     ["1 ovo", "ovo", 1, 50],
     ["1 ovo frito", "ovo frito", 1, 50],
     ["2 ovos fritos", "ovos fritos", 2, 100],
-  ])("resolve %s pela porção canônica de ovo", (text, foodName, count, grams) => {
-    expect(findUnsafeCountableFoodQuantity(text)).toBeNull();
-    expect(resolveSafeCountableCatalogGrams(foodName, count, "un")?.grams).toBe(grams);
-  });
+  ])(
+    "resolve %s pela porção canônica de ovo",
+    (text, foodName, count, grams) => {
+      expect(findUnsafeCountableFoodQuantity(text)).toBeNull();
+      expect(
+        resolveSafeCountableCatalogGrams(foodName, count, "un")?.grams
+      ).toBe(grams);
+    }
+  );
 
   it("prepara a refeição real mantendo massa explícita e isolando apenas contagens inseguras", () => {
-    const prepared = prepareCountableFoodRegistration([
-      "1 pão francês",
-      "1 ovo frito",
-      "1 fatia de pão francês",
-      "1 fatia de queijo prato",
-      "45g requeijão catupiry light",
-      "3 xícaras de café sem açúcar",
-    ].join("\n"));
+    const prepared = prepareCountableFoodRegistration(
+      [
+        "1 pão francês",
+        "1 ovo frito",
+        "1 fatia de pão francês",
+        "1 fatia de queijo prato",
+        "45g requeijão catupiry light",
+        "3 xícaras de café sem açúcar",
+      ].join("\n")
+    );
 
     expect(prepared.registrationText).toContain("50 g de pão francês");
     expect(prepared.registrationText).toContain("50 g de ovo frito");
@@ -95,8 +131,12 @@ describe("issue #997 countable registration and local nutrition", () => {
   });
 
   it("não reinterpreta massa ou volume explícitos como contagem nua", () => {
-    expect(parseCountableFoodQuantitySegment("200 ml café com açúcar")).toBeNull();
-    expect(parseCountableFoodQuantitySegment("45 g requeijão catupiry light")).toBeNull();
+    expect(
+      parseCountableFoodQuantitySegment("200 ml café com açúcar")
+    ).toBeNull();
+    expect(
+      parseCountableFoodQuantitySegment("45 g requeijão catupiry light")
+    ).toBeNull();
 
     const prepared = prepareCountableFoodRegistration("200 ml café com açúcar");
     expect(prepared.pendingItems).toEqual([]);
@@ -118,7 +158,9 @@ describe("issue #997 countable registration and local nutrition", () => {
   });
 
   it("resolve identidades TACO locais antes do perfil genérico", () => {
-    expect(findTacoFood("ovo frito")?.name).toBe("Ovo, de galinha, inteiro, frito");
+    expect(findTacoFood("ovo frito")?.name).toBe(
+      "Ovo, de galinha, inteiro, frito"
+    );
     for (const spelling of ["mussarela", "muçarela", "mozarela"]) {
       expect(findTacoFood(spelling)?.name).toBe("Queijo, mozarela");
     }

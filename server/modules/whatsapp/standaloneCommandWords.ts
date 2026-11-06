@@ -67,3 +67,15 @@ export function isStandaloneWhatsappCancellationWord(text?: string | null): bool
   const normalized = normalizeStandaloneWhatsappCommand(text);
   return ["nao", "cancelar", "cancele", "cancela"].includes(normalized);
 }
+
+export function isStandaloneWhatsappSelectionCancellation(text?: string | null): boolean {
+  const normalized = normalizeStandaloneWhatsappCommand(text);
+  return (
+    isStandaloneWhatsappCancellationWord(normalized) ||
+    normalized === "parar" ||
+    normalized === "desfazer" ||
+    normalized === "nenhuma" ||
+    normalized === "nenhuma dessas" ||
+    normalized === "nenhuma dessas opcoes"
+  );
+}

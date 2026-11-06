@@ -31,6 +31,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Log source tree identities
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          TREE_SHA="$(git rev-parse 'HEAD^{tree}')"
+          printf 'headSha=%s\ncheckoutSha=%s\ntreeSha=%s\n' "$PR_HEAD_SHA" "$CHECKOUT_SHA" "$TREE_SHA"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

@@ -9,7 +9,9 @@ vi.mock("../../db", async () => {
   };
 });
 
-const { createDrizzleWhatsAppPendingOperationRepository } = await import("../../repositories/whatsappPendingOperationRepository");
+const { createDrizzleWhatsAppPendingOperationRepository } = await import(
+  "../../repositories/whatsappPendingOperationRepository"
+);
 const {
   buildPendingFoodClarificationTarget,
   PENDING_FOOD_CLARIFICATION_ORIGIN,
@@ -53,16 +55,26 @@ describe("proteção de callback em interação aberta da issue #858", () => {
     const result = await resolveWhatsAppPrecedenceGate({
       userId,
       receivedAt,
-      interactiveReplyId: buildWhatsAppCallbackId(pending.id, "provide_quantity"),
+      interactiveReplyId: buildWhatsAppCallbackId(
+        pending.id,
+        "provide_quantity"
+      ),
     });
 
     expect(result.step).toBe("interactive_callback");
-    if (result.step !== "interactive_callback") throw new Error("callback não roteado");
-    expect(result.result.eventType).toBe("whatsapp.interactive_callback.unavailable");
-    expect(result.result.data).toEqual(expect.objectContaining({
-      callbackBlocked: true,
-      interactionLifecycle: "blocked",
-    }));
-    expect((await repository.getPendingOperationById(pending.id))?.state).toBe("active");
+    if (result.step !== "interactive_callback")
+      throw new Error("callback não roteado");
+    expect(result.result.eventType).toBe(
+      "whatsapp.interactive_callback.unavailable"
+    );
+    expect(result.result.data).toEqual(
+      expect.objectContaining({
+        callbackBlocked: true,
+        interactionLifecycle: "blocked",
+      })
+    );
+    expect(
+      (await repository.getPendingOperationById(pending.id, receivedAt))?.state
+    ).toBe("active");
   });
 });

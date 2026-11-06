@@ -3,6 +3,7 @@ import {
   isStandaloneWhatsappCancellationWord,
   isStandaloneWhatsappCommandWord,
   isStandaloneWhatsappConfirmationWord,
+  isStandaloneWhatsappSelectionCancellation,
 } from "./standaloneCommandWords";
 
 describe("standaloneCommandWords", () => {
@@ -37,5 +38,18 @@ describe("standaloneCommandWords", () => {
     expect(isStandaloneWhatsappConfirmationWord("sim")).toBe(true);
     expect(isStandaloneWhatsappCancellationWord("não")).toBe(true);
     expect(isStandaloneWhatsappCancellationWord("cancelar")).toBe(true);
+  });
+
+  it("reconhece respostas de desistência exclusivas da seleção de item", () => {
+    for (const text of [
+      "parar",
+      "desfazer",
+      "nenhuma",
+      "nenhuma dessas",
+      "nenhuma dessas opções",
+    ]) {
+      expect(isStandaloneWhatsappSelectionCancellation(text)).toBe(true);
+    }
+    expect(isStandaloneWhatsappCancellationWord("nenhuma dessas")).toBe(false);
   });
 });
