@@ -72,7 +72,7 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
   onWarning: logPersistenceWarning,
 });
 
-function isConfirmationText(normalized: string) {
+export function isConfirmationText(normalized: string) {
   return [
     "sim",
     "confirmar",
@@ -85,8 +85,7 @@ function isConfirmationText(normalized: string) {
     "autorizado",
   ].includes(normalized);
 }
-
-function isCancellationText(normalized: string) {
+export function isCancellationText(normalized: string) {
   return [
     "nao",
     "cancelar",
@@ -99,8 +98,7 @@ function isCancellationText(normalized: string) {
     "não remover",
   ].includes(normalized);
 }
-
-function parseSelectionIndex(normalized: string) {
+export function parseSelectionIndex(normalized: string) {
   const ordinalWords: Record<string, number> = {
     primeiro: 0,
     primeira: 0,
@@ -288,13 +286,14 @@ function toPendingMealDelete(meal: ListedMeal): PendingDeleteIntent {
   };
 }
 
-async function persistPendingConfirmation(userId: number, pending: PendingDeleteIntent, timeZone: string) {
+async function persistPendingConfirmation(userId: number, pending: PendingDeleteIntent, timeZone: string, receivedAt?: Date) {
   const created = await pendingOperationRepository.createPendingOperation({
     userId,
     type: PENDING_DELETE_TYPE,
     origin: PENDING_DELETE_ORIGIN,
     ttlMs: PENDING_DELETE_TTL_MS,
     target: pending,
+    ...(receivedAt ? { now: receivedAt } : {}),
   });
   return buildPendingResult(pending, created?.id, timeZone);
 }
@@ -303,7 +302,7 @@ async function createPendingFoodDelete(
   userId: number,
   meal: ListedMeal,
   itemIndex: number,
-  timeZone: string,
+  timeZone: string, receivedAt?: Date,
 ) {
   const item = meal.items[itemIndex];
   const pending: PendingDeleteIntent = {
@@ -314,7 +313,7 @@ async function createPendingFoodDelete(
     itemIndex,
     itemName: item.foodName,
   };
-  return persistPendingConfirmation(userId, pending, timeZone);
+  return persistPendingConfirmation(userId, pending, timeZone, receivedAt);
 }
 
 function buildAmbiguousFoodMatchesReply(targetFoodName: string, matches: FoodMatch[]) {
@@ -344,13 +343,13 @@ function buildAmbiguousMealsReply(meals: ListedMeal[], timeZone: string) {
   return `Encontrei mais de uma refeição compatível. Qual deseja remover?\n${options}\n\nResponda com o número ou ordinal, por exemplo: a segunda.`;
 }
 
-async function createPendingDeleteSelection(input: {
+async function persistDeleteChoices(input: {
   userId: number;
   targetLabel: string;
   targetFoodName?: string;
   candidates: PendingDeleteIntent[];
   reply: string;
-  timeZone: string;
+  timeZone: string; receivedAt?: Date;
 }) {
   const pending: PendingDeleteSelection = {
     kind: "selection",
@@ -364,6 +363,7 @@ async function createPendingDeleteSelection(input: {
     origin: PENDING_DELETE_ORIGIN,
     ttlMs: PENDING_DELETE_TTL_MS,
     target: pending,
+    ...(input.receivedAt ? { now: input.receivedAt } : {}),
   });
   return buildSelectionResult({
     targetLabel: input.targetLabel,
@@ -375,11 +375,11 @@ async function createPendingDeleteSelection(input: {
   });
 }
 
-async function createPendingFoodSelection(
+async function persistFoodRemovalChoices(
   userId: number,
   targetFoodName: string,
   matches: FoodMatch[],
-  timeZone: string,
+  timeZone: string, receivedAt?: Date,
 ) {
   const candidates: PendingDeleteIntent[] = matches.map(match => ({
     kind: "delete_food_from_meal",
@@ -389,23 +389,25 @@ async function createPendingFoodSelection(
     itemIndex: match.itemIndex,
     itemName: match.item.foodName,
   }));
-  return createPendingDeleteSelection({
+  return persistDeleteChoices({
     userId,
     targetLabel: targetFoodName,
     targetFoodName,
     candidates,
     reply: buildAmbiguousFoodMatchesReply(targetFoodName, matches),
     timeZone,
+    receivedAt,
   });
 }
 
-async function createPendingMealSelection(userId: number, meals: ListedMeal[], timeZone: string) {
-  return createPendingDeleteSelection({
+async function persistMealRemovalChoices(userId: number, meals: ListedMeal[], timeZone: string, receivedAt?: Date) {
+  return persistDeleteChoices({
     userId,
     targetLabel: "refeição",
     candidates: meals.map(toPendingMealDelete),
     reply: buildAmbiguousMealsReply(meals, timeZone),
     timeZone,
+    receivedAt,
   });
 }
 
@@ -444,9 +446,9 @@ async function requestMealDeleteConfirmation(
   const candidates = resolveMealCandidates(userId, meals, detection, receivedAt);
   if (!candidates.length) return buildMissingReferenceResult(detection);
   if (candidates.length === 1) {
-    return persistPendingConfirmation(userId, toPendingMealDelete(candidates[0]), timeZone);
+    return persistPendingConfirmation(userId, toPendingMealDelete(candidates[0]), timeZone, receivedAt);
   }
-  return createPendingMealSelection(userId, candidates, timeZone);
+  return persistMealRemovalChoices(userId, candidates, timeZone, receivedAt);
 }
 
 async function requestFoodDeleteConfirmation(
@@ -477,9 +479,9 @@ async function requestFoodDeleteConfirmation(
       });
     }
     if (lastMatches.length === 1) {
-      return createPendingFoodDelete(userId, lastMatches[0].meal, lastMatches[0].itemIndex, timeZone);
+      return createPendingFoodDelete(userId, lastMatches[0].meal, lastMatches[0].itemIndex, timeZone, receivedAt);
     }
-    return createPendingFoodSelection(userId, "último alimento", lastMatches, timeZone);
+    return persistFoodRemovalChoices(userId, "último alimento", lastMatches, timeZone, receivedAt);
   }
 
   if (detection.targetFoodName) {
@@ -487,10 +489,10 @@ async function requestFoodDeleteConfirmation(
       ? findFoodMatchesAcrossMeals(referenceMeals, detection.targetFoodName)
       : findFoodMatchesInLogicalContext(meals, referenceMeals[0], detection.targetFoodName);
     if (matches.length === 1) {
-      return createPendingFoodDelete(userId, matches[0].meal, matches[0].itemIndex, timeZone);
+      return createPendingFoodDelete(userId, matches[0].meal, matches[0].itemIndex, timeZone, receivedAt);
     }
     if (matches.length > 1) {
-      return createPendingFoodSelection(userId, detection.targetFoodName, matches, timeZone);
+      return persistFoodRemovalChoices(userId, detection.targetFoodName, matches, timeZone, receivedAt);
     }
     return buildClarificationResult({
       ...detection,
@@ -512,9 +514,9 @@ async function requestFoodDeleteConfirmation(
     });
   }
   if (matches.length === 1) {
-    return createPendingFoodDelete(userId, matches[0].meal, matches[0].itemIndex, timeZone);
+    return createPendingFoodDelete(userId, matches[0].meal, matches[0].itemIndex, timeZone, receivedAt);
   }
-  return createPendingFoodSelection(userId, "alimento", matches, timeZone);
+  return persistFoodRemovalChoices(userId, "alimento", matches, timeZone, receivedAt);
 }
 
 function resolveDeleteReferenceDateKey(
@@ -558,8 +560,8 @@ async function requestDeleteConfirmation(
     meal => formatWhatsAppConsolidationDateKey(meal.occurredAt, timeZone) === reference.dateKey,
   );
   return detection.kind === "delete_meal"
-    ? requestMealDeleteConfirmation(userId, meals, detection, timeZone, receivedAt)
-    : requestFoodDeleteConfirmation(userId, meals, detection, timeZone, receivedAt);
+    ? requestMealDeleteConfirmation(userId, meals, detection, timeZone, effectiveReceivedAt)
+    : requestFoodDeleteConfirmation(userId, meals, detection, timeZone, effectiveReceivedAt);
 }
 
 function buildBlockedConfirmationResult(input: {
@@ -720,7 +722,7 @@ function isCompatiblePendingResponse(normalized: string, pending: PendingDeleteO
   return isConfirmationText(normalized);
 }
 
-async function resolveActiveDeletePending(
+async function applyPendingDeleteResponse(
   userId: number,
   normalized: string,
   pending: PendingDeleteOperation,
@@ -728,7 +730,7 @@ async function resolveActiveDeletePending(
   receivedAt?: Date,
 ): Promise<WhatsappDeleteIntentResult | null> {
   if (isCancellationText(normalized)) {
-    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CANCEL_ACTION);
+    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CANCEL_ACTION, receivedAt);
     return claim.status === "claimed" ? buildCancellationResult() : null;
   }
 
@@ -758,14 +760,14 @@ async function resolveActiveDeletePending(
     const claim = await claimWhatsAppTextPendingOperation(
       userId,
       PENDING_DELETE_TYPE,
-      `${SELECT_ACTION_PREFIX}${selectedIndex}`,
+      `${SELECT_ACTION_PREFIX}${selectedIndex}`, receivedAt
     );
     if (claim.status !== "claimed") return null;
-    return persistPendingConfirmation(userId, selected, timeZone);
+    return persistPendingConfirmation(userId, selected, timeZone, receivedAt);
   }
 
   if (!isConfirmationText(normalized)) return null;
-  const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CONFIRM_ACTION);
+  const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CONFIRM_ACTION, receivedAt);
   if (claim.status !== "claimed") return null;
   return confirmPendingDelete(userId, claim.pendingOperation.target as PendingDeleteIntent, timeZone, receivedAt);
 }
@@ -774,7 +776,7 @@ async function supersedeActivePendingOperations(userId: number, receivedAt?: Dat
   for (let index = 0; index < 20; index += 1) {
     const active = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
     if (!active) return true;
-    const transition = await pendingOperationRepository.supersedePendingOperation(active.id);
+    const transition = await pendingOperationRepository.supersedePendingOperation(active.id, receivedAt ?? new Date());
     if (!transition.superseded) return false;
   }
   return !(await pendingOperationRepository.getActivePendingOperation(userId, receivedAt));
@@ -796,7 +798,7 @@ async function executeWhatsappDeleteIntentInternal(
   if (pendingRow?.type === PENDING_DELETE_TYPE) {
     const pending = pendingRow.target as PendingDeleteOperation;
     if (isCompatiblePendingResponse(normalized, pending)) {
-      const result = await resolveActiveDeletePending(userId, normalized, pending, timeZone, input.receivedAt);
+      const result = await applyPendingDeleteResponse(userId, normalized, pending, timeZone, input.receivedAt);
       return result ?? buildCallbackResourceNotFoundResult();
     }
     if (!detection) {
@@ -836,7 +838,7 @@ export async function completeWhatsappDeleteInteractiveCallback(
   userId: number,
   pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
   action: string,
-  timeZone = DEFAULT_APP_TIME_ZONE,
+  timeZone = DEFAULT_APP_TIME_ZONE, receivedAt?: Date,
 ): Promise<WhatsappDeleteIntentResult> {
   const pending = pendingOperation.target as PendingDeleteOperation;
   let result: WhatsappDeleteIntentResult;
@@ -846,12 +848,12 @@ export async function completeWhatsappDeleteInteractiveCallback(
   } else if (action === CONFIRM_ACTION) {
     result = pending.kind === "selection"
       ? buildCallbackResourceNotFoundResult()
-      : await confirmPendingDelete(userId, pending, timeZone);
+      : await confirmPendingDelete(userId, pending, timeZone, receivedAt);
   } else if (action.startsWith(SELECT_ACTION_PREFIX) && pending.kind === "selection") {
     const index = Number(action.slice(SELECT_ACTION_PREFIX.length));
     const selected = pending.candidates[index];
     result = selected
-      ? await persistPendingConfirmation(userId, selected, timeZone)
+      ? await persistPendingConfirmation(userId, selected, timeZone, receivedAt)
       : buildCallbackResourceNotFoundResult();
   } else {
     result = buildCallbackResourceNotFoundResult();

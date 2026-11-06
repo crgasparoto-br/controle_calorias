@@ -15,6 +15,7 @@ const {
   sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppInteractiveButtonsMessage,
   sendWhatsAppInteractiveListMessage,
+  resolveWhatsAppTextIntentInput,
 } = await import("./webhookUtils");
 
 function responseHeaders(values: Record<string, string>) {
@@ -219,5 +220,47 @@ describe("sendWhatsAppInteractiveListMessage", () => {
         },
       },
     });
+  });
+});
+
+describe("resolveWhatsAppTextIntentInput", () => {
+  it("returns trimmed free text as an eligible intent input", () => {
+    expect(
+      resolveWhatsAppTextIntentInput({
+        text: { body: "  arroz e feijão  " },
+      })
+    ).toEqual({
+      text: "arroz e feijão",
+      canInterpretText: true,
+    });
+  });
+
+  it("keeps an interactive reply eligible without inventing free text", () => {
+    expect(
+      resolveWhatsAppTextIntentInput({
+        interactive: { type: "button_reply", button_reply: { id: "confirm" } },
+      })
+    ).toEqual({ text: "", canInterpretText: true });
+  });
+
+  it("rejects image and audio payloads even when text is present", () => {
+    expect(
+      resolveWhatsAppTextIntentInput({
+        text: { body: "arroz" },
+        image: { id: "image-1" },
+      }).canInterpretText
+    ).toBe(false);
+    expect(
+      resolveWhatsAppTextIntentInput({
+        text: { body: "arroz" },
+        audio: { id: "audio-1" },
+      }).canInterpretText
+    ).toBe(false);
+  });
+
+  it("does not reinterpret an image caption as free-text intent", () => {
+    expect(
+      resolveWhatsAppTextIntentInput({ image: { caption: "arroz e feijão" } })
+    ).toEqual({ text: "", canInterpretText: false });
   });
 });

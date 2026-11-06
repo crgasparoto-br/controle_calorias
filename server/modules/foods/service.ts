@@ -14,6 +14,7 @@ import {
   LegacyFoodDeletePersistenceError,
   LegacyFoodNotFoundError,
 } from "./legacyDeletion";
+export { calculatePortionGrams, convertFoodPortionToGrams } from "./portionConversionService";
 import type {
   AdminCatalogFoodCurationInput,
   AdminCatalogFoodSearchInput,
@@ -65,10 +66,7 @@ type CatalogFoodPortionRow = {
   quantity: number;
   grams: number;
   isDefault: number;
-};
-
-type CatalogFoodPortionConversionRow = CatalogFoodPortionRow & {
-  foodId: number;
+  foodVariantId?: number | null;
 };
 
 type CustomFoodOwnershipRow = {
@@ -164,6 +162,9 @@ function mapCatalogFood(
       quantity: portion.quantity,
       grams: portion.grams,
       isDefault: Boolean(portion.isDefault),
+      ...(portion.foodVariantId != null
+        ? { foodVariantId: portion.foodVariantId }
+        : {}),
     })),
   };
 }
@@ -178,6 +179,7 @@ async function getCatalogDb() {
   }
   return db as unknown as SqlExecutor;
 }
+
 
 function normalizeOptionalString(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -204,18 +206,6 @@ function uniqueNormalizedAliases(name: string, aliases: string[]) {
   });
 }
 
-export function calculatePortionGrams(params: {
-  portionGrams: number;
-  portionQuantity: number;
-  requestedQuantity: number;
-}) {
-  const baseQuantity = params.portionQuantity > 0 ? params.portionQuantity : 1;
-  return (
-    Math.round(
-      ((params.portionGrams * params.requestedQuantity) / baseQuantity) * 100
-    ) / 100
-  );
-}
 
 async function assertOwnedCustomFood(
   db: SqlExecutor,
@@ -417,7 +407,9 @@ export async function searchGlobalFoodCatalog(
   return rows.map(row => mapCatalogFood(row));
 }
 
-export async function searchAdminFoodCatalog(input: AdminCatalogFoodSearchInput) {
+export async function searchAdminFoodCatalog(
+  input: AdminCatalogFoodSearchInput
+) {
   const db = await getCatalogDb();
   const normalizedQuery = normalizeCatalogSearchTerm(input.query);
   const likeQuery = `%${normalizedQuery}%`;
@@ -553,6 +545,7 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
       unit AS unit,
       quantity AS quantity,
       grams AS grams,
+      food_variant_id AS foodVariantId,
       is_default AS isDefault
     FROM food_portions
     WHERE food_id = ${foodId}
@@ -679,53 +672,6 @@ export async function curateGlobalFood(
   return getGlobalFoodCatalogItem(userId, input.foodId);
 }
 
-export async function convertFoodPortionToGrams(
-  userId: number,
-  input: { foodId: number; portionId: number; quantity: number }
-) {
-  const db = await getCatalogDb();
-  const rows = extractRows<CatalogFoodPortionConversionRow>(
-    await db.execute(sql`
-    SELECT
-      fp.id AS id,
-      fp.food_id AS foodId,
-      fp.label AS label,
-      fp.unit AS unit,
-      fp.quantity AS quantity,
-      fp.grams AS grams,
-      fp.is_default AS isDefault
-    FROM food_portions fp
-    INNER JOIN foods f ON f.id = fp.food_id
-    WHERE fp.id = ${input.portionId}
-      AND fp.food_id = ${input.foodId}
-      AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
-    LIMIT 1
-  `)
-  );
-
-  const portion = rows[0];
-  if (!portion) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Porção não encontrada para este alimento.",
-    });
-  }
-
-  return {
-    portionId: portion.id,
-    foodId: portion.foodId,
-    label: portion.label,
-    unit: portion.unit,
-    quantity: input.quantity,
-    baseQuantity: portion.quantity,
-    baseGrams: portion.grams,
-    grams: calculatePortionGrams({
-      portionGrams: portion.grams,
-      portionQuantity: portion.quantity,
-      requestedQuantity: input.quantity,
-    }),
-  };
-}
 
 export async function createCustomFood(userId: number, input: CustomFoodInput) {
   const db = await getCatalogDb();

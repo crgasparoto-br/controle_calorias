@@ -102,21 +102,22 @@ describe("#1307 — architecture structural telemetry vs food policy boundaries"
   it("A-032 rejects unsafe name/portion-based post-save nutrition updates", () => {
     const service = readFileSync(resolve(process.cwd(), "server/modules/meals/service.ts"), "utf8");
     const snapshots = readFileSync(resolve(process.cwd(), "server/modules/meals/nutritionSnapshot.ts"), "utf8");
-    const repository = readFileSync(resolve(process.cwd(), "server/repositories/mealsRepository.ts"), "utf8");
+    const itemPersistence = readFileSync(resolve(process.cwd(), "server/repositories/mealItemPersistence.ts"), "utf8");
+    const transactions = readFileSync(resolve(process.cwd(), "server/repositories/mealTransactionOperations.ts"), "utf8");
     // A write after the confirmed repository transaction can hit two homonyms
     // and overwrite both identities. The old post-save SQL must stay removed.
     expect(service).not.toContain("persistMealItemNutritionSnapshots");
     expect(snapshots).not.toContain("persistMealItemNutritionSnapshots");
     expect(snapshots).not.toMatch(/UPDATE\s+mealItems/);
-    // The classification merge remains nested inside the commercial identity
-    // merge, both performed in the row-scoped transactional writer.
-    expect(repository).toMatch(/foodSnapshotJson: mergePreservingMealCommercialIdentity\(\s*mergeConfirmedMealClassification\(/);
+    // The extracted item-value builder preserves classification inside the
+    // commercial identity merge; the transaction writer consumes its output.
+    expect(itemPersistence).toMatch(/foodSnapshotJson: mergePreservingMealCommercialIdentity\(\s*mergeConfirmedMealClassification\(/);
     // The only allowed source for reconstructed values is the sanitized
     // replacement draft. Direct use and local rebinding are equivalent only
     // when the sanitization happens before the builder is called.
-    const sanitizedAt = repository.indexOf("const sanitized = input.items.map(");
+    const sanitizedAt = transactions.indexOf("const sanitized = input.items.map(");
     expect(sanitizedAt).toBeGreaterThan(-1);
-    const candidate = repository.slice(sanitizedAt);
+    const candidate = transactions.slice(sanitizedAt);
     expect(candidate).toMatch(/replaced\[index\]\s*\?\s*sanitizeUnverifiedReplacement\(item\)/);
     const direct = candidate.indexOf("buildMealItemValues(input.meal.id, sanitized");
     const rebound = candidate.indexOf("input = { ...input, items: sanitized }");

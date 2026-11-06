@@ -5,12 +5,18 @@ const listUserMealsMock = vi.fn(async () => []);
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  gte: (col: { name: string }, val: unknown) => ({ __op: "gte", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
 }));
 
 type Row = Record<string, unknown>;
-type Condition = { __op: "eq"; col: { name: string }; val: unknown } | { __op: "and"; conditions: Condition[] } | { __op: "desc"; col: { name: string } };
+type Condition =
+  | { __op: "eq" | "gte" | "lt"; col: { name: string }; val: unknown }
+  | { __op: "and" | "or"; conditions: Condition[] }
+  | { __op: "desc"; col: { name: string } };
 
 function createFakePendingOperationDb() {
   let rows: Row[] = [];
@@ -18,8 +24,23 @@ function createFakePendingOperationDb() {
 
   function matches(row: Row, condition?: Condition): boolean {
     if (!condition) return true;
-    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
-    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "eq")
+      return row[condition.col.name] === condition.val;
+    if (condition.__op === "gte" || condition.__op === "lt") {
+      const left = row[condition.col.name];
+      const right = condition.val;
+      const value = (item: unknown) =>
+        item instanceof Date
+          ? item.getTime()
+          : new Date(String(item)).getTime();
+      return condition.__op === "gte"
+        ? value(left) >= value(right)
+        : value(left) < value(right);
+    }
+    if (condition.__op === "and")
+      return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or")
+      return condition.conditions.some(inner => matches(row, inner));
     return true;
   }
 
@@ -34,9 +55,15 @@ function createFakePendingOperationDb() {
     };
     const chain: any = {
       from: vi.fn(() => chain),
-      where: vi.fn((condition: Condition) => { whereCondition = condition; return chain; }),
+      where: vi.fn((condition: Condition) => {
+        whereCondition = condition;
+        return chain;
+      }),
       orderBy: vi.fn(() => chain),
-      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+      limit: vi.fn((value: number) => {
+        limitValue = value;
+        return Promise.resolve(resolve());
+      }),
     };
     return chain;
   }
@@ -53,7 +80,10 @@ function createFakePendingOperationDb() {
     update: vi.fn(() => {
       let setPayload: Row = {};
       const chain: any = {
-        set: vi.fn((payload: Row) => { setPayload = payload; return chain; }),
+        set: vi.fn((payload: Row) => {
+          setPayload = payload;
+          return chain;
+        }),
         where: vi.fn((condition: Condition) => {
           const matching = rows.filter(row => matches(row, condition));
           for (const row of matching) Object.assign(row, setPayload);
@@ -99,29 +129,44 @@ describe("webhookTextCommands", () => {
 
   describe("detectWaterLogFromMessage", () => {
     it("reconhece quantidade em mililitros", () => {
-      expect(detectWaterLogFromMessage(textMessage("bebi 300ml de agua"))).toEqual({ amountMl: 300 });
+      expect(
+        detectWaterLogFromMessage(textMessage("bebi 300ml de agua"))
+      ).toEqual({ amountMl: 300 });
     });
 
     it("reconhece quantidade em litros", () => {
-      expect(detectWaterLogFromMessage(textMessage("1,5 litros de agua"))).toEqual({ amountMl: 1500 });
+      expect(
+        detectWaterLogFromMessage(textMessage("1,5 litros de agua"))
+      ).toEqual({ amountMl: 1500 });
     });
 
     it("ignora mensagens que misturam comida com água", () => {
-      expect(detectWaterLogFromMessage(textMessage("300ml de agua e um pao"))).toBeNull();
+      expect(
+        detectWaterLogFromMessage(textMessage("300ml de agua e um pao"))
+      ).toBeNull();
     });
 
     it("ignora mensagens com mídia anexada", () => {
-      expect(detectWaterLogFromMessage({ text: { body: "300ml de agua" }, image: { id: "img" } })).toBeNull();
+      expect(
+        detectWaterLogFromMessage({
+          text: { body: "300ml de agua" },
+          image: { id: "img" },
+        })
+      ).toBeNull();
     });
   });
 
   describe("detectWeightLogFromMessage", () => {
     it("reconhece peso em kg", () => {
-      expect(detectWeightLogFromMessage(textMessage("meu peso hoje é 82,5kg"))).toEqual({ weightKg: 82.5 });
+      expect(
+        detectWeightLogFromMessage(textMessage("meu peso hoje é 82,5kg"))
+      ).toEqual({ weightKg: 82.5 });
     });
 
     it("não trata pergunta sobre peso como registro corporal", () => {
-      expect(detectWeightLogFromMessage(textMessage("qual o peso ideal para 68 kg?"))).toBeNull();
+      expect(
+        detectWeightLogFromMessage(textMessage("qual o peso ideal para 68 kg?"))
+      ).toBeNull();
     });
 
     it("ignora valores fora da faixa aceitável", () => {
@@ -131,7 +176,9 @@ describe("webhookTextCommands", () => {
 
   describe("detectWhatsAppAction", () => {
     it("reconhece comando de reclassificação de refeição", () => {
-      const action = detectWhatsAppAction(textMessage("Mudar a refeição lanche para café da manhã"));
+      const action = detectWhatsAppAction(
+        textMessage("Mudar a refeição lanche para café da manhã")
+      );
       expect(action).toEqual({
         kind: "reclassify_recent_meals",
         fromMealLabel: "Lanche",
@@ -140,29 +187,55 @@ describe("webhookTextCommands", () => {
     });
 
     it("ignora quando origem e destino são a mesma refeição", () => {
-      expect(detectWhatsAppAction(textMessage("Mudar a refeição lanche para lanche"))).toBeNull();
+      expect(
+        detectWhatsAppAction(textMessage("Mudar a refeição lanche para lanche"))
+      ).toBeNull();
     });
   });
 
   describe("handleWhatsAppAction", () => {
     it("pede esclarecimento quando não há refeições recentes compatíveis", async () => {
       listUserMealsMock.mockResolvedValueOnce([]);
-      const result = await handleWhatsAppAction({ kind: "reclassify_recent_meals", fromMealLabel: "Lanche", toMealLabel: "Café da manhã" }, 42);
-      expect(result).toEqual(expect.objectContaining({
-        handled: true,
-        eventType: "whatsapp.action_clarification_needed",
-      }));
+      const result = await handleWhatsAppAction(
+        {
+          kind: "reclassify_recent_meals",
+          fromMealLabel: "Lanche",
+          toMealLabel: "Café da manhã",
+        },
+        42
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          handled: true,
+          eventType: "whatsapp.action_clarification_needed",
+        })
+      );
     });
 
     it("cria pendência durável quando todas as refeições recentes são compatíveis", async () => {
       listUserMealsMock.mockResolvedValueOnce([
-        { id: 1, mealLabel: "Lanche", source: "whatsapp", occurredAt: new Date().toISOString() },
+        {
+          id: 1,
+          mealLabel: "Lanche",
+          source: "whatsapp",
+          occurredAt: new Date().toISOString(),
+        },
       ]);
 
-      const result = await handleWhatsAppAction({ kind: "reclassify_recent_meals", fromMealLabel: "Lanche", toMealLabel: "Café da manhã" }, 42);
+      const result = await handleWhatsAppAction(
+        {
+          kind: "reclassify_recent_meals",
+          fromMealLabel: "Lanche",
+          toMealLabel: "Café da manhã",
+        },
+        42
+      );
       expect(result.eventType).toBe("whatsapp.action_confirmation_requested");
 
-      const pending = await handlePendingWhatsAppConfirmation(textMessage("outra coisa"), 42);
+      const pending = await handlePendingWhatsAppConfirmation(
+        textMessage("outra coisa"),
+        42
+      );
       expect(pending).toBeNull(); // mensagem não é confirmação nem cancelamento: pendência continua ativa
     });
   });
@@ -170,27 +243,56 @@ describe("webhookTextCommands", () => {
   describe("handlePendingWhatsAppConfirmation", () => {
     async function createPending(userId: number) {
       listUserMealsMock.mockResolvedValueOnce([
-        { id: 1, mealLabel: "Lanche", source: "whatsapp", occurredAt: new Date().toISOString() },
+        {
+          id: 1,
+          mealLabel: "Lanche",
+          source: "whatsapp",
+          occurredAt: new Date().toISOString(),
+        },
       ]);
-      await handleWhatsAppAction({ kind: "reclassify_recent_meals", fromMealLabel: "Lanche", toMealLabel: "Café da manhã" }, userId);
+      await handleWhatsAppAction(
+        {
+          kind: "reclassify_recent_meals",
+          fromMealLabel: "Lanche",
+          toMealLabel: "Café da manhã",
+        },
+        userId
+      );
     }
 
     it("aplica a ação ao confirmar, revalidando o alvo no banco atual", async () => {
       await createPending(1);
       listUserMealsMock.mockResolvedValueOnce([
-        { id: 1, mealLabel: "Lanche", source: "whatsapp", occurredAt: new Date().toISOString() },
+        {
+          id: 1,
+          mealLabel: "Lanche",
+          source: "whatsapp",
+          occurredAt: new Date().toISOString(),
+        },
       ]);
       relabelUserMealsMock.mockResolvedValueOnce([{ id: 1 }]);
 
-      const result = await handlePendingWhatsAppConfirmation(textMessage("sim"), 1);
-      expect(result).toEqual(expect.objectContaining({ eventType: "whatsapp.action_applied" }));
-      expect(relabelUserMealsMock).toHaveBeenCalledWith(expect.objectContaining({ mealIds: [1] }));
+      const result = await handlePendingWhatsAppConfirmation(
+        textMessage("sim"),
+        1
+      );
+      expect(result).toEqual(
+        expect.objectContaining({ eventType: "whatsapp.action_applied" })
+      );
+      expect(relabelUserMealsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ mealIds: [1] })
+      );
     });
 
     it("cancela a pendência sem alterar registros", async () => {
       await createPending(2);
-      const result = await handlePendingWhatsAppConfirmation(textMessage("cancela"), 2);
-      expect(result).toEqual(expect.objectContaining({ eventType: "whatsapp.action_cancelled" }));
+      const result = await handlePendingWhatsAppConfirmation(
+        textMessage("cancela"),
+        2
+      );
+      expect(result).toEqual(
+        expect.objectContaining({ eventType: "whatsapp.action_cancelled" })
+      );
       expect(relabelUserMealsMock).not.toHaveBeenCalled();
     });
 
@@ -198,7 +300,10 @@ describe("webhookTextCommands", () => {
       await createPending(3);
       await handlePendingWhatsAppConfirmation(textMessage("cancela"), 3);
 
-      const result = await handlePendingWhatsAppConfirmation(textMessage("sim"), 3);
+      const result = await handlePendingWhatsAppConfirmation(
+        textMessage("sim"),
+        3
+      );
       expect(result).toBeNull();
       expect(relabelUserMealsMock).not.toHaveBeenCalled();
     });
@@ -206,7 +311,12 @@ describe("webhookTextCommands", () => {
     it("apenas uma de duas confirmações concorrentes aplica a alteração", async () => {
       await createPending(4);
       listUserMealsMock.mockResolvedValue([
-        { id: 1, mealLabel: "Lanche", source: "whatsapp", occurredAt: new Date().toISOString() },
+        {
+          id: 1,
+          mealLabel: "Lanche",
+          source: "whatsapp",
+          occurredAt: new Date().toISOString(),
+        },
       ]);
       relabelUserMealsMock.mockResolvedValue([{ id: 1 }]);
 
@@ -215,7 +325,9 @@ describe("webhookTextCommands", () => {
         handlePendingWhatsAppConfirmation(textMessage("sim"), 4),
       ]);
 
-      const applied = [first, second].filter(result => result?.eventType === "whatsapp.action_applied");
+      const applied = [first, second].filter(
+        result => result?.eventType === "whatsapp.action_applied"
+      );
       expect(applied).toHaveLength(1);
       expect(relabelUserMealsMock).toHaveBeenCalledTimes(1);
     });

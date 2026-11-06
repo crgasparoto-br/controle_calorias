@@ -3,12 +3,12 @@ import {
   COUNTABLE_QUANTITY_PATTERN,
   UNIT_WORDS,
   parseCountableQuantity,
-} from "./quantityUnitVocabulary";
+} from "../quantity/quantityUnitVocabulary";
 
 const UNIT_PATTERN = Object.values(UNIT_WORDS).join("|");
 const LEADING_PORTION_PATTERN = new RegExp(
   `^(${COUNTABLE_QUANTITY_PATTERN})\\s*(${UNIT_PATTERN})(?:\\s+de)?(?:\\s+(.+))?$`,
-  "iu",
+  "iu"
 );
 const IDENTITY_STOP_WORDS = new Set(["de", "do", "da", "dos", "das"]);
 
@@ -66,13 +66,18 @@ function identityTerms(value: string) {
   return normalizeIdentity(value)
     .split(" ")
     .filter(Boolean)
-    .filter((term) => !IDENTITY_STOP_WORDS.has(term));
+    .filter(term => !IDENTITY_STOP_WORDS.has(term));
 }
 
-function isCompatibleIdentityExtension(baseIdentity: string, candidate: string) {
+function isCompatibleIdentityExtension(
+  baseIdentity: string,
+  candidate: string
+) {
   const baseTerms = identityTerms(baseIdentity);
   const candidateTerms = new Set(identityTerms(candidate));
-  return baseTerms.length > 0 && baseTerms.every((term) => candidateTerms.has(term));
+  return (
+    baseTerms.length > 0 && baseTerms.every(term => candidateTerms.has(term))
+  );
 }
 
 export function analyzeRegistrationDetailsIdentityReply(input: {
@@ -83,7 +88,8 @@ export function analyzeRegistrationDetailsIdentityReply(input: {
   isCompleteCommand: boolean;
 }): IdentityReplyAnalysis {
   const raw = input.text?.trim() ?? "";
-  if (!raw || splitFoodTextSegments(raw).length !== 1) return { kind: "invalid" };
+  if (!raw || splitFoodTextSegments(raw).length !== 1)
+    return { kind: "invalid" };
 
   const portion = parsePortionIdentity(raw);
   const identityDetails = portion?.identity ?? raw;
@@ -131,9 +137,14 @@ export function parsePendingIdentityContext(input: {
   const parsed = input.segment ? parsePortionIdentity(input.segment) : null;
   return {
     baseIdentity:
-      parsed?.identity?.trim() || input.fallbackIdentity?.trim() || input.segment?.trim() || "",
+      parsed?.identity?.trim() ||
+      input.fallbackIdentity?.trim() ||
+      input.segment?.trim() ||
+      "",
     expectedQuantity: parsed?.quantity ?? input.fallbackQuantity ?? null,
-    expectedUnit: parsed?.unit ?? (input.fallbackUnit ? normalizeUnit(input.fallbackUnit) : null),
+    expectedUnit:
+      parsed?.unit ??
+      (input.fallbackUnit ? normalizeUnit(input.fallbackUnit) : null),
   };
 }
 
@@ -143,12 +154,12 @@ export function mergePendingIdentity(baseIdentity: string, details: string) {
   if (!identityDetails) return baseIdentity.trim();
 
   const baseTokens = new Set(
-    normalizeIdentity(baseIdentity).split(" ").filter(Boolean),
+    normalizeIdentity(baseIdentity).split(" ").filter(Boolean)
   );
   const additions = identityDetails
     .split(/\s+/)
     .filter(Boolean)
-    .filter((token) => {
+    .filter(token => {
       const normalized = normalizeIdentity(token);
       return Boolean(normalized) && !baseTokens.has(normalized);
     });

@@ -2,6 +2,10 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { getHabitSnapshots } from "../../db";
 import { processMealInput } from "../../nutritionEngine";
 import { listMeals } from "../meals/service";
+import {
+  attachMealMutationPreImage,
+  getMealMutationPreImage,
+} from "../meals/mealMutationToken";
 import type { MealItemInput } from "../meals/schemas";
 import {
   createPendingMealItemSelection,
@@ -115,7 +119,9 @@ function parseReplacements(text: string): ReplacementParseResult {
     .split(REPLACEMENT_SEGMENT_SEPARATOR)
     .map(segment => segment.trim())
     .filter(Boolean);
-  if (!segments.some(segment => isWhatsappFoodReplacementCommandStart(segment))) {
+  if (
+    !segments.some(segment => isWhatsappFoodReplacementCommandStart(segment))
+  ) {
     return { kind: "not_replacement" };
   }
 
@@ -207,10 +213,15 @@ function recentMeals(
     0,
     RECENT_REPLACEMENT_MEAL_LIMIT
   );
-  const mutable = selected.map(meal => ({
-    ...meal,
-    items: toMealItemInputs(meal.items),
-  }));
+  const mutable = selected.map(meal =>
+    attachMealMutationPreImage(
+      {
+        ...meal,
+        items: toMealItemInputs(meal.items),
+      },
+      getMealMutationPreImage(meal)
+    )
+  );
   if (!context) return mutable;
   const ascending = [...mutable].sort(
     (left, right) =>
@@ -258,6 +269,7 @@ function toBatchSnapshot(meal: MutableMeal) {
     mealLabel: meal.mealLabel,
     occurredAt: meal.occurredAt,
     notes: meal.notes,
+    mutationPreImage: getMealMutationPreImage(meal) ?? undefined,
     items: meal.items.map(item => ({ ...item })),
   };
 }
@@ -337,7 +349,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   if (!replacements && !latestCorrection) return null;
 
   const meals = recentMeals(
-    await listMeals(userId),
+    await listMeals(userId, { adjustmentRead: true }),
     input.receivedAt ?? new Date(),
     parseContext(text)
   );

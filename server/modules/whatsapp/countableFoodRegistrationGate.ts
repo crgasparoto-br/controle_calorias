@@ -238,6 +238,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
       })),
       currentPendingIndex: 0,
       occurredAt,
+      receivedAt: occurredAt,
       userTimezone,
       messageId: input.inboundMessageId,
       resolvedSegments: resolvedSegments.length ? resolvedSegments : undefined,

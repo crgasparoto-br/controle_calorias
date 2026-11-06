@@ -460,6 +460,39 @@ describe("createDrizzleMealsRepository moveMealItem", () => {
   });
 });
 
+describe("createDrizzleMealsRepository adjustmentRead failures", () => {
+  it("fails closed when persistence is unavailable instead of returning a cache-fallback null", async () => {
+    const onWarning = vi.fn();
+    const repository = createDrizzleMealsRepository({
+      getDb: async () => null,
+      onWarning,
+    });
+
+    await expect(
+      repository.findConfirmedByUserId(1, { adjustmentRead: true })
+    ).rejects.toThrow("Persistent meal read unavailable for adjustment");
+    await expect(repository.findConfirmedByUserId(1)).resolves.toBeNull();
+  });
+
+  it("propagates query failures for adjustment reads instead of returning null", async () => {
+    const failure = new Error("database read failed");
+    const onWarning = vi.fn();
+    const repository = createDrizzleMealsRepository({
+      getDb: async () => ({
+        select: vi.fn(() => {
+          throw failure;
+        }),
+      }),
+      onWarning,
+    });
+
+    await expect(
+      repository.findConfirmedByUserId(1, { adjustmentRead: true })
+    ).rejects.toBe(failure);
+    expect(onWarning).toHaveBeenCalledWith("Meal read skipped", failure);
+  });
+});
+
 describe("createDrizzleMealsRepository deleteMeal", () => {
   it("validates ownership before deleting child rows and meal", async () => {
     const db = createFakeDb();

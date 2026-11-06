@@ -122,7 +122,7 @@ const LIQUID_DENSITY_G_PER_ML: Array<{ pattern: RegExp; density: number }> = [
   { pattern: /\bcha\b/i, density: 1 },
 ];
 
-function normalizeKey(value: string) {
+export function normalizeKey(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -132,15 +132,33 @@ function normalizeKey(value: string) {
     .trim();
 }
 
+export function normalizeQuantityInputText(value: string) {
+  const normalized = normalizeKey(
+    value
+      .replaceAll(",", "xxquantitycommamarkerxx")
+      .replaceAll(".", "xxquantityperiodmarkerxx")
+      .replaceAll(";", "xxquantitysemicolonmarkerxx")
+      .replaceAll("’", " ")
+      .replaceAll("'", " ")
+  );
+  return normalized
+    .replaceAll("xxquantitycommamarkerxx", ",")
+    .replaceAll("xxquantityperiodmarkerxx", ".")
+    .replaceAll("xxquantitysemicolonmarkerxx", ";");
+}
+
 function formatPtBrNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", {
     maximumFractionDigits: Number.isInteger(value) ? 0 : 1,
   }).format(value);
 }
 
-function findDensityGPerMl(foodName: string) {
+function densityForFoodName(foodName: string) {
   const normalized = normalizeKey(foodName);
-  return LIQUID_DENSITY_G_PER_ML.find(entry => entry.pattern.test(normalized))?.density ?? null;
+  return (
+    LIQUID_DENSITY_G_PER_ML.find(entry => entry.pattern.test(normalized))
+      ?.density ?? null
+  );
 }
 
 export function normalizeMeasurementUnit(value: string) {
@@ -152,14 +170,34 @@ export function normalizeMeasurementUnit(value: string) {
   return UNIT_ALIASES.get(normalizeKey(cleaned)) ?? cleaned;
 }
 
+/** Compare a normalized unit label with a requested measure, ignoring an optional leading amount. */
+export function measurementLabelMatchesUnit(
+  label: string,
+  unit: string,
+  requestedUnit: string
+) {
+  const normalizedRequest = normalizeMeasurementUnit(requestedUnit);
+  const strippedLabel = label.replace(/^\d+(?:[,.]\d+)?\s*/u, "");
+  return (
+    normalizeMeasurementUnit(unit) === normalizedRequest ||
+    normalizeMeasurementUnit(strippedLabel) === normalizedRequest
+  );
+}
+
 function normalizeKnownFoodTypos(text: string) {
   return text
-    .replace(/^\s*(\d+(?:[,.]\d+)?\s+(?:g|gr|kg|mg|ml|l|un|unidade|unidades))\s+(?:de\s+)?ma[çc]a\s+fugi\s*$/i, "$1 maçã fuji")
+    .replace(
+      /^\s*(\d+(?:[,.]\d+)?\s+(?:g|gr|kg|mg|ml|l|un|unidade|unidades))\s+(?:de\s+)?ma[çc]a\s+fugi\s*$/i,
+      "$1 maçã fuji"
+    )
     .replace(/^\s*(\d+(?:[,.]\d+)?)\s+ma[çc]a\s+fugi\s*$/i, "$1 un maçã fuji")
     .replace(/^\s*(\d+(?:[,.]\d+)?)\s+maca\s+fuji\s*$/i, "$1 un maçã fuji")
     .replace(/^\s*uma\s+maca\s*$/i, "1 un maçã")
     .replace(/^\s*(\d+(?:[,.]\d+)?)\s+ovos\s+cozido\s*$/i, "$1 un ovos cozidos")
-    .replace(/^\s*(\d+(?:[,.]\d+)?)\s+banana\s+prata\s*$/i, "$1 un banana prata");
+    .replace(
+      /^\s*(\d+(?:[,.]\d+)?)\s+banana\s+prata\s*$/i,
+      "$1 un banana prata"
+    );
 }
 
 export function normalizeTextMeasurementUnits(text: string) {
@@ -172,7 +210,7 @@ export function normalizeTextMeasurementUnits(text: string) {
 }
 
 export function getFoodDensityGPerMl(foodName: string) {
-  return findDensityGPerMl(foodName);
+  return densityForFoodName(foodName);
 }
 
 export function convertFoodQuantityForRegistration(input: {
@@ -181,7 +219,7 @@ export function convertFoodQuantityForRegistration(input: {
   unit: string;
 }) {
   const unit = normalizeMeasurementUnit(input.unit);
-  const density = findDensityGPerMl(input.foodName);
+  const density = densityForFoodName(input.foodName);
   if (!density) {
     return null;
   }

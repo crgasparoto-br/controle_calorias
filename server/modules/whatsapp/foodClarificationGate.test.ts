@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getActivePendingOperationMock = vi.hoisted(() => vi.fn());
 const getPendingOperationByIdMock = vi.hoisted(() => vi.fn());
+const getLatestPendingOperationMock = vi.hoisted(() => vi.fn());
 const createPendingOperationMock = vi.hoisted(() => vi.fn());
 const supersedePendingOperationMock = vi.hoisted(() => vi.fn());
 const handleWhatsappFoodClarificationMock = vi.hoisted(() => vi.fn());
@@ -18,6 +19,7 @@ vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({
   createDrizzleWhatsAppPendingOperationRepository: vi.fn(() => ({
     getActivePendingOperation: getActivePendingOperationMock,
     getPendingOperationById: getPendingOperationByIdMock,
+    getLatestPendingOperation: getLatestPendingOperationMock,
     createPendingOperation: createPendingOperationMock,
     supersedePendingOperation: supersedePendingOperationMock,
     cancelPendingOperation: vi.fn(),
@@ -31,16 +33,20 @@ vi.mock("./foodClarification", () => ({
 
 vi.mock("./interactionRegistry", () => ({
   findWhatsappRegisteredInteraction: findWhatsappRegisteredInteractionMock,
-  rebuildWhatsappRegisteredInteraction: rebuildWhatsappRegisteredInteractionMock,
+  rebuildWhatsappRegisteredInteraction:
+    rebuildWhatsappRegisteredInteractionMock,
   resolveWhatsappRegisteredText: resolveWhatsappRegisteredTextMock,
 }));
 
-const { resolvePendingWhatsappFoodClarification } = await import("./foodClarificationGate");
+const { resolvePendingWhatsappFoodClarification } = await import(
+  "./foodClarificationGate"
+);
 
 describe("resolvePendingWhatsappFoodClarification", () => {
   beforeEach(() => {
     getActivePendingOperationMock.mockReset();
     getPendingOperationByIdMock.mockReset();
+    getLatestPendingOperationMock.mockReset();
     createPendingOperationMock.mockReset();
     supersedePendingOperationMock.mockReset();
     handleWhatsappFoodClarificationMock.mockReset();
@@ -49,6 +55,7 @@ describe("resolvePendingWhatsappFoodClarification", () => {
     resolveWhatsappRegisteredTextMock.mockReset();
     getActivePendingOperationMock.mockResolvedValue(null);
     getPendingOperationByIdMock.mockResolvedValue(null);
+    getLatestPendingOperationMock.mockResolvedValue(null);
     createPendingOperationMock.mockImplementation(async input => ({
       id: 99,
       userId: input.userId,
@@ -86,8 +93,16 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       origin: "foodClarification",
       classification: "open",
       actions: vi.fn(() => [
-        { id: "provide_quantity", label: "Informar quantidade", effect: "complete_original_food" },
-        { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+        {
+          id: "provide_quantity",
+          label: "Informar quantidade",
+          effect: "complete_original_food",
+        },
+        {
+          id: "cancel",
+          label: "Cancelar",
+          effect: "cancel_without_persistence",
+        },
       ]),
       classifyText: vi.fn(() => "resolve"),
     };
@@ -108,18 +123,26 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       skipStalePendingResponse: true,
     });
 
-    expect(interaction.classifyText).toHaveBeenCalledWith(active.target, "Meu Peso 68,70");
+    expect(interaction.classifyText).toHaveBeenCalledWith(
+      active.target,
+      "Meu Peso 68,70"
+    );
     expect(resolveWhatsappRegisteredTextMock).toHaveBeenCalledWith(
       interaction,
-      expect.objectContaining({ pendingOperation: active, text: "Meu Peso 68,70" }),
+      expect.objectContaining({
+        pendingOperation: active,
+        text: "Meu Peso 68,70",
+      })
     );
-    expect(result).toEqual(expect.objectContaining({
-      action: "food_clarification_requested",
-      data: expect.objectContaining({
-        interactionId: "food_clarification.quantity",
-        interactionLifecycle: "consumed",
-      }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "food_clarification_requested",
+        data: expect.objectContaining({
+          interactionId: "food_clarification.quantity",
+          interactionLifecycle: "consumed",
+        }),
+      })
+    );
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
 
@@ -146,7 +169,11 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       version: 1,
     };
     getActivePendingOperationMock.mockResolvedValue(active);
-    getPendingOperationByIdMock.mockResolvedValue({ ...active, state: "consumed", version: 2 });
+    getPendingOperationByIdMock.mockResolvedValue({
+      ...active,
+      state: "consumed",
+      version: 2,
+    });
     findWhatsappRegisteredInteractionMock.mockReturnValue({
       id: "question.meal_calculation",
       origin: "aiQuestionAssistant",
@@ -162,16 +189,86 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.interaction.claim_unavailable",
-      data: expect.objectContaining({
-        noReplay: true,
-        fallbackBlocked: true,
-        interactionLifecycle: "blocked",
-      }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.interaction.claim_unavailable",
+        data: expect.objectContaining({
+          noReplay: true,
+          fallbackBlocked: true,
+          interactionLifecycle: "blocked",
+        }),
+      })
+    );
     expect(rebuildWhatsappRegisteredInteractionMock).not.toHaveBeenCalled();
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia fallback quando uma seleção de callback exige revisão pós-crash", async () => {
+    getActivePendingOperationMock.mockResolvedValue({
+      id: 44,
+      userId: 42,
+      type: "meal_item_selection",
+      origin: "mealItemSelectionCallback",
+      target: { action: { kind: "grams_delta", delta: 10 } },
+      state: "review_required",
+      version: 3,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await resolvePendingWhatsappFoodClarification({
+      userId: 42,
+      text: "1",
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.interaction.pending_review_required",
+        data: expect.objectContaining({
+          fallbackBlocked: true,
+          noReplay: true,
+        }),
+      })
+    );
+    expect(findWhatsappRegisteredInteractionMock).not.toHaveBeenCalled();
+    expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia escolha curta de uma seleção já expirada antes do fallback", async () => {
+    findWhatsappRegisteredInteractionMock.mockReturnValue({
+      classifyText: vi.fn(() => "resolve"),
+    });
+    getLatestPendingOperationMock.mockResolvedValue({
+      id: 45,
+      userId: 42,
+      type: "meal_item_selection",
+      origin: "mealItemSelectionCallback",
+      target: { action: { kind: "grams_delta", delta: 10 } },
+      state: "expired",
+      version: 4,
+      expiresAt: new Date(Date.now() - 1),
+    });
+
+    const result = await resolvePendingWhatsappFoodClarification({
+      userId: 42,
+      text: "1",
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.meal_item_selection_unavailable",
+        data: expect.objectContaining({
+          fallbackBlocked: true,
+          pendingOperationId: 45,
+        }),
+      })
+    );
+    expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
+    expect(findWhatsappRegisteredInteractionMock).toHaveBeenCalledWith(
+      "meal_item_selection",
+      { action: { kind: "grams_delta", delta: 10 } }
+    );
   });
 
   it("transforma comando operacional isolado em clarificação genérica interativa", async () => {
@@ -181,14 +278,18 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(createPendingOperationMock).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 42,
-      type: "intent_clarification",
-    }));
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent_clarification.requested",
-      interactiveReply: expect.objectContaining({ kind: "functional" }),
-    }));
+    expect(createPendingOperationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 42,
+        type: "intent_clarification",
+      })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent_clarification.requested",
+        interactiveReply: expect.objectContaining({ kind: "functional" }),
+      })
+    );
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
 
@@ -210,13 +311,15 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      eventType: "whatsapp.interaction.unregistered_pending_blocked",
-      data: expect.objectContaining({
-        fallbackBlocked: true,
-        interactionLifecycle: "blocked",
-      }),
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.interaction.unregistered_pending_blocked",
+        data: expect.objectContaining({
+          fallbackBlocked: true,
+          interactionLifecycle: "blocked",
+        }),
+      })
+    );
     expect(resolveWhatsappRegisteredTextMock).not.toHaveBeenCalled();
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
@@ -240,14 +343,19 @@ describe("resolvePendingWhatsappFoodClarification", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(supersedePendingOperationMock).toHaveBeenCalledWith(active.id);
-    expect(result).toEqual(expect.objectContaining({
-      action: "pending_operation_cancelled",
-      eventType: "whatsapp.interaction.pending_operation_cancelled",
-      data: expect.objectContaining({
-        pendingType: "legacy_food_clarification",
-        interactionLifecycle: "cancelled",
-      }),
-    }));
+    expect(supersedePendingOperationMock).toHaveBeenCalledWith(
+      active.id,
+      expect.any(Date)
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "pending_operation_cancelled",
+        eventType: "whatsapp.interaction.pending_operation_cancelled",
+        data: expect.objectContaining({
+          pendingType: "legacy_food_clarification",
+          interactionLifecycle: "cancelled",
+        }),
+      })
+    );
   });
 });

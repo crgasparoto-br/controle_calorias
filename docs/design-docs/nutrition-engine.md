@@ -91,9 +91,11 @@ evidência explícita do usuário/imagem
   4. categoria ampla (linhas nutricionalmente distintas) sem variante explícita → `brand_variant_unresolved`;
   5. identidade suficiente com referência genérica compatível com **todos** os tokens da identidade sem marca (descritores neutros de embalagem/processo, como `UHT`, são ignorados) → `provisional_estimate`, `nutritionVerified = false`, evidência explicitamente genérica;
   6. identidade suficiente sem composição disponível → `commercial_nutrition_unverified`.
-  A presença da marca, isoladamente, não cria necessidade de variante. Não há allowlist por marca/produto; a lista de categorias amplas e de descritores neutros é regra de categoria do domínio.
+     A presença da marca, isoladamente, não cria necessidade de variante. Não há allowlist por marca/produto; a lista de categorias amplas e de descritores neutros é regra de categoria do domínio.
 - **Paridade.** `projectFoodResolution` projeta qualquer item resolvido em `FoodResolutionResult` (`identity`, `quantity`, `nutrition`, `clarification` com `missingField` `identity`/`variant`/`nutrition`/`quantity`). Testes de paridade comparam essa projeção entre entrypoints; resposta textual, IDs, timestamps e persistência ficam fora da comparação.
 - **Monotonicidade.** Um fato estruturado aceito (produto comercial, porção canônica, massa explícita) prevalece sobre re-inferência a partir de texto formatado. A gramatura reescrita (`50 g de ovo frito`) transporta a decisão de quantidade sem remover o preparo.
+
+No escopo específico de medidas contáveis da issue #997, a conversão para gramas aceita somente massa/volume explícitos ou porção canônica segura; as estimativas `researched_exact`, `user_learned`, `usual_average` e `contextual_estimate` não substituem uma porção `fatia`/`unidade` ausente. Esse recorte mantém a precedência explícita dos ACs #997-04/#997-06 e não altera a política geral de estimativas para as demais interações.
 
 ## Compatibilidade semântica de variantes
 
@@ -252,10 +254,18 @@ Para evitar que “owner atual” seja interpretado como múltiplos decisores co
 | Gramatura/porção resolvida                    | `resolveCanonicalFoodQuantity` (`foodItemResolution`, #1244) sobre `resolveHouseholdMeasure`               | `countableFoodQuantity` transporta request, origem e resultado; catálogos fornecem referências                                               | WhatsApp não define médias, densidades ou fallback de medida próprio                      |
 | Contrato semântico                            | `buildMealSemanticContract` no domínio nutricional                                                         | `materializeResolvedCommercialMeal` pode construir um resultado transitório a partir de decisão estruturada                                  | o gate não pode inferir novamente marca, variante, quantidade ou origem                   |
 | Construção de item persistível e totais       | `mealItemBuilders` + `calculateMealTotals`                                                                 | gate contável pode adaptar o contrato enquanto F0-03 estiver `defer`                                                                         | wrappers de canal não podem criar fórmulas ou totals paralelos                            |
-| Clarificação e retomada                       | `MealInferenceError` + repositório de operações/continuação WhatsApp                                       | handlers apenas traduzem o reason code e retomam o contrato persistido                                                                       | nenhuma etapa pode persistir parcialmente antes da clarificação                           |
+| Clarificação e retomada                       | `MealInferenceError` + repositório de operações/continuação WhatsApp                                       | handlers apenas traduzem o reason code e retomam o contrato persistido                                                                       | registro inicial parcial não autoriza ajuste composto parcial nem fallback comercial      |
 | Pesquisa nutricional externa                  | `catalogSemanticSearch` via capacidade `NUTRITION_SEARCH`                                                  | `createNutritionSearchTrace` e telemetria sanitizada                                                                                         | preflight/fallback não pode emitir segunda pesquisa por representação alternativa         |
 
 Esses owners são uma decisão de leitura da baseline, não uma mudança de implementação. Findings F0-01 a F0-04 permanecem abertos para a Fase 2 porque a consolidação deve provar equivalência e preservar os invariantes antes de transformar o owner provisório em uma API única.
+
+### Persistência parcial no registro inicial e atomicidade do ajuste (#997)
+
+A decisão B da #997 separa dois efeitos. No **registro textual inicial** de uma refeição mista, podem ser persistidos os segmentos cuja identidade, quantidade e composição nutricional estejam resolvidas com segurança; o usuário deve ser informado explicitamente de quais itens foram omitidos, e a continuação de quantidade pendente deve permanecer durável. Se a continuação falhar ao ser criada depois do save seguro, a resposta deve dizer que ela não ficou persistida e orientar o reenvio explícito dos itens omitidos; não se afirma que existe retomada. Identidade ou nutrição comercial não resolvida continua bloqueada: não se pode substituir o produto por macros genéricos nem afirmar que o item foi registrado. Se nenhum segmento puder ser salvo com segurança, persiste-se somente a pendência, sem refeição ou rascunho vazio.
+
+Essa exceção não se estende a **ajustes compostos** de refeições existentes. Nenhuma operação do ajuste pode ser aplicada até que todas as operações sejam resolvidas e os alvos revalidados na escrita final; falha ou estado stale não pode deixar alterações parciais. Essa distinção substitui a proibição absoluta de qualquer persistência parcial na etapa inicial, sem relaxar o bloqueio comercial, a segurança de cada segmento ou a atomicidade dos ajustes.
+
+Para manter a atomicidade também após interrupção do processo, um comando composto da #997 só pode alterar uma refeição por operação transacional. Se os alvos resolvidos pertencerem a refeições diferentes, o comando é bloqueado antes da primeira escrita e o usuário deve indicar uma única refeição; não se tenta compensação sequencial entre transações independentes.
 
 ## Consolidação da Fase 2 — issue #1095
 

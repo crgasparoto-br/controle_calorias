@@ -110,6 +110,18 @@ export function isWhatsAppInteractiveReplyMessage(message: Pick<WhatsAppWebhookM
   return Boolean(getWhatsAppInteractiveReplyId(message));
 }
 
+export function resolveWhatsAppTextIntentInput(message: WhatsAppWebhookMessage) {
+  const text = message.text?.body?.trim() || "";
+  return {
+    text,
+    canInterpretText: Boolean(
+      (text || getWhatsAppInteractiveReplyId(message)) &&
+        !message.image?.id &&
+        !message.audio?.id
+    ),
+  };
+}
+
 export async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
   let config;
   try {

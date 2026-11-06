@@ -45,6 +45,43 @@ function createRepository(): WhatsAppPendingOperationRepository {
       row.consumedAt = new Date();
       return { claimed: true };
     },
+    async beginPendingOperationProcessing({ id, expectedVersion, now }) {
+      const row = rows.get(id);
+      if (!row || row.state !== "active" || row.version !== expectedVersion)
+        return { claimed: false };
+      row.state = "processing";
+      row.version += 1;
+      row.updatedAt = now ?? new Date();
+      return { claimed: true, version: row.version };
+    },
+    async completePendingOperationProcessing({ id, expectedVersion, now }) {
+      const row = rows.get(id);
+      if (!row || row.state !== "processing" || row.version !== expectedVersion)
+        return { completed: false };
+      row.state = "consumed";
+      row.version += 1;
+      row.updatedAt = now ?? new Date();
+      row.consumedAt = now ?? new Date();
+      return { completed: true };
+    },
+    async releasePendingOperationProcessing({ id, expectedVersion, now }) {
+      const row = rows.get(id);
+      if (!row || row.state !== "processing" || row.version !== expectedVersion)
+        return { released: false };
+      row.state = "active";
+      row.version += 1;
+      row.updatedAt = now ?? new Date();
+      return { released: true };
+    },
+    async requirePendingOperationVerification({ id, expectedVersion, now }) {
+      const row = rows.get(id);
+      if (!row || row.state !== "processing" || row.version !== expectedVersion)
+        return { required: false };
+      row.state = "review_required";
+      row.version += 1;
+      row.updatedAt = now ?? new Date();
+      return { required: true };
+    },
     async cancelPendingOperation(id) {
       const row = rows.get(id);
       if (!row || row.state !== "active") return { cancelled: false };

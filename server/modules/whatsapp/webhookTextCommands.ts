@@ -14,6 +14,7 @@ import {
 import {
   getWhatsAppMessageTextBody,
   normalizeWhatsAppIntentText,
+  resolveWhatsAppMessageOccurredAt,
   type WhatsAppWebhookMessage,
 } from "./webhookUtils";
 
@@ -170,12 +171,24 @@ async function applyClaimedGenericConfirmation(
   };
 }
 
-export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhookMessage, userId: number) {
-  const pendingRow = await pendingOperationRepository.getActivePendingOperation(userId);
+export async function handlePendingWhatsAppConfirmation(
+  message: WhatsAppWebhookMessage,
+  userId: number,
+  receivedAt = resolveWhatsAppMessageOccurredAt(message)
+) {
+  const pendingRow = await pendingOperationRepository.getActivePendingOperation(
+    userId,
+    receivedAt
+  );
   if (!pendingRow || pendingRow.type !== PENDING_CONFIRMATION_TYPE) return null;
 
   if (isCancellationMessage(message)) {
-    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CONFIRMATION_CANCEL_ACTION);
+    const claim = await claimWhatsAppTextPendingOperation(
+      userId,
+      PENDING_CONFIRMATION_TYPE,
+      CONFIRMATION_CANCEL_ACTION,
+      receivedAt
+    );
     if (claim.status !== "claimed") return null;
     const pending = claim.pendingOperation.target as PendingWhatsAppConfirmation;
     return {
@@ -190,7 +203,12 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
   if (pending.decision === "reclassify_scope") {
     const scopeAction = parseReclassifyScopeMessage(message);
     if (!scopeAction) return null;
-    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, scopeAction);
+    const claim = await claimWhatsAppTextPendingOperation(
+      userId,
+      PENDING_CONFIRMATION_TYPE,
+      scopeAction,
+      receivedAt
+    );
     if (claim.status !== "claimed") return null;
     return applyClaimedGenericConfirmation(
       userId,
@@ -200,7 +218,12 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
   }
 
   if (!isConfirmationMessage(message)) return null;
-  const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CONFIRM_ACTION);
+  const claim = await claimWhatsAppTextPendingOperation(
+    userId,
+    PENDING_CONFIRMATION_TYPE,
+    CONFIRM_ACTION,
+    receivedAt
+  );
   if (claim.status !== "claimed") return null;
   return applyClaimedGenericConfirmation(userId, claim.pendingOperation.target as PendingWhatsAppConfirmation);
 }

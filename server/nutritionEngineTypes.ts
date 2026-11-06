@@ -127,6 +127,10 @@ export type MealDraftItem = {
   /** Immutable reference from the confirmed item's persisted snapshot (shadow reads). */
   historicalRef?: string | null;
   foodId?: number;
+  /** Persisted governed-catalog identity used by internal adjustment reads. */
+  foodVariantId?: number | null;
+  nutritionProfileId?: number | null;
+  foodPortionId?: number | null;
   foodCatalogId?: number | null;
   portionId?: number;
   portionQuantity?: number;
