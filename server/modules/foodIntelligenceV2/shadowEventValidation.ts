@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { AI_CAPABILITIES } from "../../_core/ai/capabilities";
+import { FOOD_INPUT_TYPES } from "./contracts";
 import { hasConsistentFoodShadowTimings, MAX_SHADOW_EVENT_COST_USD,
   MAX_SHADOW_EVENT_COUNT, MAX_SHADOW_MACRO_EVENT_DELTA,
   MAX_SHADOW_REPLAY_EVENTS, MAX_SHADOW_TIMING_MS } from "./shadowPairing";
@@ -42,7 +43,7 @@ const capability = z.object({
 export const sanitizedFoodShadowEventSchema = z.object({
   schemaVersion: z.literal(1),
   traceId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
-  modality: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+  modality: z.enum(FOOD_INPUT_TYPES),
   entrypoint: z.enum(["web", "whatsapp", "meal_add", "meal_edit", "label_continuation", "replay"]),
   scenarioClass: z.enum(["generic", "commercial", "quantity", "label", "ambiguous", "unknown", "mixed"]),
   run: z.enum(["compared", "partial", "failed"]),

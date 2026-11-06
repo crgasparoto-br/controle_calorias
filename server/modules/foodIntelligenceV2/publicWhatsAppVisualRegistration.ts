@@ -6,58 +6,44 @@ import { createHash } from "node:crypto";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type { WhatsappIntentResult } from "../whatsapp/intent/types";
 import { comprehendFoodLanguage, type LinguisticRequest } from "./linguisticComprehension";
-import { extractD1VisualSurfaces, type FoodD1VisualKind } from "./publicVisualSurfaces";
+import {
+  extractD1VisualSurfaces,
+  isValidD1VisualContentDigest,
+  parseFoodD1VisualKind,
+  parseD1VisualMediaDataUrl,
+  type FoodD1VisualKind,
+} from "./publicVisualSurfaces";
 import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
-import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
+import {
+  isCurrentFoodD1GateApproval,
+  isFoodD1EntrypointCutoverRequested,
+  isFoodD1WhatsAppImageCutoverRequested,
+} from "./entrypointRouting";
 import type { FoodObservation, FoodOperationEnvelope } from "./schemas";
-import type { FoodD1Dependencies, FoodD1Request } from "./entrypointMigration";
+import {
+  FoodD1NeedsClarificationError,
+  createFoodD1StructuredEvidence,
+  type FoodD1Dependencies,
+  type FoodD1Request,
+  type FoodD1Result,
+} from "./entrypointMigration";
 import type { runFoodD1Migration } from "./entrypointRunner";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import type { FoodD1CommitResult } from "./entrypointPersistenceRepository";
 import { sanitizeD1WhatsAppObservations, type FoodD1WhatsAppPending } from "./publicWhatsAppPendingContract";
-import type { FoodD1Result } from "./entrypointMigration";
-
-/** Command syntax is a user declaration of a ROLE, not a food classifier.
- * A free caption, OCR, inferred role or nutrition label never grants one.
- */
-const mealDestinations = {
-  almoco: "almoço", jantar: "jantar", lanche: "lanche", ceia: "ceia",
-  cafe: "café da manhã",
-} as const;
-export function parseExplicitD1WhatsAppVisualIntent(caption: string | null | undefined) {
-  if (!caption || caption.length > 600) return null;
-  const match = /^(#prato|#embalagem)\s+@(almoco|jantar|lanche|ceia|cafe)(?:\n([^]*))?$/u.exec(caption);
-  if (!match) return null;
-  const text = match[3]?.trim();
-  if (text && text.length > 400) return null;
-  return {
-    kind: match[1] === "#prato" ? "plate_image" as const : "packaging" as const,
-    mealLabel: mealDestinations[match[2] as keyof typeof mealDestinations],
-    description: text || null,
-  };
-}
-
-/** A WhatsApp Media API download is already normalized to a data URL.
- * Derive the actual MIME from the trusted normalized bytes, never the caption.
- */
-export function fromTrustedD1WhatsAppMediaDataUrl(dataUrl: string) {
-  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/u.exec(dataUrl);
-  if (!match) throw new Error("food-d1-whatsapp-visual-normalized-media-required");
-  return { base64: match[2], mimeType: match[1] };
-}
-
-/** Used before decoding image media so V1 remains untouched when flags are OFF. */
-export function isAnyD1WhatsAppVisualEntrypointSelected(): boolean {
-  return (["plate_image", "packaging", "multimodal"] as const)
-    .some(isFoodD1EntrypointCutoverRequested);
-}
+export const fromTrustedD1WhatsAppMediaDataUrl = parseD1VisualMediaDataUrl;
+export const isAnyD1WhatsAppVisualEntrypointSelected = isFoodD1WhatsAppImageCutoverRequested;
 
 export type PublicD1WhatsAppVisualInput = {
   userId: number;
   externalMessageId: string | null;
   /** Normalized image from the trusted WhatsApp Media API, not a user URL. */
   image: { base64: string; mimeType: string };
-  caption: string | null | undefined;
+  intent: {
+    kind: FoodD1VisualKind;
+    mealLabel: string;
+    description: string | null;
+  } | null;
   transcript?: string | null;
   receivedAt: Date;
   timeZone: string;
@@ -87,15 +73,17 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
     // was selected. The channel must ask the user to declare a new operation.
     const selected = isAnyD1WhatsAppVisualEntrypointSelected();
     if (!selected) return null;
-    const selectedRole = parseExplicitD1WhatsAppVisualIntent(input.caption);
-    if (!selectedRole ||
-        !isFoodD1EntrypointCutoverRequested(selectedRole.kind) ||
+    const selectedRole = input.intent;
+    const visualSelection = selectedRole
+      ? parseFoodD1VisualKind(selectedRole.kind) : null;
+    if (!selectedRole || !visualSelection ||
+        !isFoodD1EntrypointCutoverRequested(visualSelection.kind) ||
         (input.transcript?.trim() && !isFoodD1EntrypointCutoverRequested("multimodal"))) {
       throw new Error("food-d1-whatsapp-visual-explicit-role-required");
     }
-    const entrypoint = selectedRole.description || input.transcript?.trim()
-      ? "multimodal" as const : selectedRole.kind;
-    if (entrypoint === "multimodal" &&
+    const hasCompanion = Boolean(selectedRole.description || input.transcript?.trim());
+    const entrypoint = hasCompanion ? "multimodal" as const : visualSelection.kind;
+    if (hasCompanion &&
         !isFoodD1EntrypointCutoverRequested(entrypoint)) {
       throw new Error("food-d1-whatsapp-visual-multimodal-not-enabled");
     }
@@ -123,8 +111,8 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
       input.userId, stableMessageId,
     ])).digest("hex");
     const key = "d1-whatsapp-" + digest;
-    const visual = await deps.extract({ image: input.image, kind: selectedRole.kind });
-    if (!visual || !/^[a-f0-9]{64}$/u.test(visual.contentDigest) ||
+    const visual = await deps.extract({ image: input.image, kind: visualSelection.kind });
+    if (!visual || !isValidD1VisualContentDigest(visual.contentDigest) ||
         !Array.isArray(visual.surfaces) || !visual.surfaces.length ||
         visual.surfaces.length > 30 || visual.surfaces.some(surface =>
           typeof surface !== "string" || !surface.trim() || surface.length > 240)) {
@@ -166,7 +154,7 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
     for (const [i, surface] of visual.surfaces.entries()) {
       imageObservations.push(...await parse(
         surface, `d1-image:${visual.contentDigest}:${i}`, "image",
-        selectedRole.kind === "plate_image" ? "caption" : "front_identity",
+        visualSelection.imageRegionRole,
       ));
     }
     const textObservations = selectedRole.description
@@ -174,7 +162,7 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
     const audioObservations = input.transcript?.trim()
       ? await parse(input.transcript, key + ":audio", "audio_transcript") : [];
     let observations: FoodObservation[] = [...imageObservations];
-    if (entrypoint === "multimodal") {
+    if (hasCompanion) {
       const companion = textObservations.length && audioObservations.length
         ? coalesceEquivalentMultimodalEvidence(textObservations, audioObservations)
         : [...textObservations, ...audioObservations];
@@ -183,10 +171,9 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
     if (!observations.length || observations.length > 80) {
       throw new Error("food-d1-whatsapp-visual-no-observations");
     }
-    const evidence = { kind: "structured" as const, observations };
     const request: FoodD1Request = {
       authenticatedUserId: input.userId, entrypoint, envelope,
-      evidence, now: input.receivedAt,
+      evidence: createFoodD1StructuredEvidence(observations), now: input.receivedAt,
     };
     let incomplete: FoodD1Result | null = null;
     let response: Awaited<ReturnType<typeof deps.run>>;
@@ -196,7 +183,7 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
       dependencies: {
         lexicon: deps.lexicon, knowledge: deps.knowledge,
         authorizeEvidence: async candidate => candidate.ownerUserId === input.userId &&
-          candidate.entrypoint === entrypoint && candidate.evidence === evidence,
+          candidate.entrypoint === entrypoint && candidate.evidence === request.evidence,
         authorizeExistingItem: async () => false,
       },
       legacy: async () => {
@@ -209,13 +196,12 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
         if (plan.items.length !== observations.length ||
             plan.readyCount !== observations.length ||
             plan.items.some(item => item.disposition !== "ready")) {
-          throw new Error("food-d1-whatsapp-visual-needs-clarification");
+          throw new FoodD1NeedsClarificationError("food-d1-whatsapp-visual-needs-clarification");
         }
       },
     });
     } catch (error) {
-      if (!(error instanceof Error) ||
-          error.message !== "food-d1-whatsapp-visual-needs-clarification" ||
+      if (!(error instanceof FoodD1NeedsClarificationError) ||
           !incomplete || !deps.stagePending) throw error;
       const plan: FoodD1Result = incomplete;
       if (plan.items.length !== observations.length ||

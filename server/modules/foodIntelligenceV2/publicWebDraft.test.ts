@@ -19,6 +19,7 @@ import {
 } from "./schemas";
 import type { ConfirmFoodD1WebDraftInput, ProcessMealDraftInput } from "../meals/schemas";
 import type { FoodD1Request, FoodD1Result } from "./entrypointMigration";
+import { FoodD1NativeWebDraftNotPendingError } from "./entrypointPersistenceRepository";
 import type { FoodD1RouteStore } from "./entrypointRouting";
 import type {
   FoodD1CommitResult,
@@ -617,7 +618,7 @@ describe("public Food D1 web draft confirmation", () => {
       .mockResolvedValueOnce(pending)
       .mockResolvedValueOnce(confirmed);
     const run = vi.fn(async () => {
-      throw new Error("food-d1-native-web-draft-not-pending");
+      throw new FoodD1NativeWebDraftNotPendingError();
     });
     const { service } = createService(readDraft, run);
 

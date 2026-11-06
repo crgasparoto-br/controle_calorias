@@ -20,6 +20,20 @@ export const D1_ENTRYPOINT_IDS = [
   "packaging", "nutrition_label", "continuation", "simulator",
 ] as const;
 export type FoodD1Entrypoint = (typeof D1_ENTRYPOINT_IDS)[number];
+export const D1_VISUAL_ENTRYPOINT_IDS = [
+  "multimodal", "plate_image", "packaging", "nutrition_label",
+] as const satisfies readonly FoodD1Entrypoint[];
+export const D1_WHATSAPP_IMAGE_ENTRYPOINT_IDS = [
+  "multimodal", "plate_image", "packaging",
+] as const satisfies readonly FoodD1Entrypoint[];
+export const D1_NEW_MEAL_OPERATION_ENTRYPOINT_IDS = [
+  "text", "audio_transcript", "addition", "plate_image", "packaging",
+] as const satisfies readonly FoodD1Entrypoint[];
+export const D1_TEXT_ENTRYPOINT_IDS = [
+  "text",
+  "audio_transcript",
+] as const satisfies readonly FoodD1Entrypoint[];
+export type FoodD1Resolver = "v1" | "v2";
 
 /** Only an authorised transcription/OCR boundary may supply source text. */
 export type FoodD1Evidence =
@@ -32,6 +46,12 @@ export type FoodD1Evidence =
       transcriptionConfidence?: number | null;
     }
   | { kind: "structured"; observations: readonly FoodObservation[] };
+
+export function createFoodD1StructuredEvidence(
+  observations: readonly FoodObservation[]
+): Extract<FoodD1Evidence, { kind: "structured" }> {
+  return { kind: "structured", observations };
+}
 
 export type FoodD1Target = {
   observationId: string;
@@ -50,6 +70,14 @@ export type FoodD1Request = {
   targets?: readonly FoodD1Target[];
   now?: Date;
 };
+
+/** A before-commit clarification is control flow, not an arbitrary error string. */
+export class FoodD1NeedsClarificationError extends Error {
+  constructor(externalCode: string) {
+    super(externalCode);
+    this.name = "FoodD1NeedsClarificationError";
+  }
+}
 
 export type FoodD1ItemResult = {
   observationId: string;

@@ -2,14 +2,43 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { AiProviderTextRequest } from "../../_core/aiProvider";
-import { decodeStrictBase64 } from "../../_core/imageBase64";
+import { decodeStrictBase64, parseBase64DataUrl } from "../../_core/imageBase64";
 import { executeResolvedCapability } from "../../_core/ai/capabilityExecutor";
 import { resolveCapabilityConfig } from "../../_core/ai/configResolver";
 import { createDomainTextResponse } from "../../_core/ai/domainTextResponse";
 import { parseJsonOutput } from "../../_core/ai/policyExecutor";
 import type { ProcessMealDraftInput } from "../meals/schemas";
+import { isValidFoodSha256HexDigest } from "./contracts";
 
 export type FoodD1VisualKind = "plate_image" | "packaging";
+const foodD1VisualKindSchema = z.union([
+  z.literal("plate_image").transform(kind => ({
+    kind,
+    imageRegionRole: "caption" as const,
+  })),
+  z.literal("packaging").transform(kind => ({
+    kind,
+    imageRegionRole: "front_identity" as const,
+  })),
+]);
+export type FoodD1VisualSelection = z.output<typeof foodD1VisualKindSchema>;
+const foodD1VisualMimeSchema = z.enum([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+export function parseFoodD1VisualKind(
+  value: unknown
+): FoodD1VisualSelection | null {
+  const parsed = foodD1VisualKindSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function isValidD1VisualContentDigest(value: unknown): value is string {
+  return isValidFoodSha256HexDigest(value);
+}
+
 export type FoodD1VisualInput = {
   image: NonNullable<ProcessMealDraftInput["image"]>;
   kind: FoodD1VisualKind;
@@ -53,20 +82,21 @@ function matchesMimeMagic(bytes: Buffer, mime: string): boolean {
 
 /** Validate raw byte provenance and MIME BEFORE any network/provider call. */
 export function prepareD1VisualMedia(image: FoodD1VisualInput["image"]) {
-  const mime = image.mimeType?.toLowerCase();
-  if (!["image/jpeg", "image/png", "image/webp"].includes(mime ?? "")) {
+  const parsedMime = foodD1VisualMimeSchema.safeParse(image.mimeType?.toLowerCase());
+  if (!parsedMime.success) {
     throw new Error("food-d1-visual-unsupported-mime");
   }
+  const mime = parsedMime.data;
   if (image.base64.length > Math.ceil(MAX_D1_IMAGE_BYTES * 4 / 3) + 100) {
     throw new Error("food-d1-visual-media-too-large");
   }
   let encoded = image.base64;
   if (encoded.startsWith("data:")) {
-    const prefix = /^data:([^;,]+);base64,/u.exec(encoded);
-    if (!prefix || prefix[1].toLowerCase() !== mime) {
+    const parsed = parseBase64DataUrl(encoded);
+    if (!parsed || parsed.mimeType.toLowerCase() !== mime) {
       throw new Error("food-d1-visual-media-mime-mismatch");
     }
-    encoded = encoded.slice(prefix[0].length);
+    encoded = parsed.base64;
   }
   let decoded: ReturnType<typeof decodeStrictBase64>;
   try { decoded = decodeStrictBase64(encoded, MAX_D1_IMAGE_BYTES); }
@@ -77,6 +107,20 @@ export function prepareD1VisualMedia(image: FoodD1VisualInput["image"]) {
   return {
     url: `data:${mime};base64,${decoded.compact}`,
     contentDigest: createHash("sha256").update(decoded.buffer).digest("hex"),
+  };
+}
+
+/** Decode only transport media URLs containing a supported image payload. */
+export function parseD1VisualMediaDataUrl(dataUrl: string) {
+  const parsed = parseBase64DataUrl(dataUrl);
+  if (!parsed || !foodD1VisualMimeSchema.safeParse(parsed.mimeType).success) {
+    throw new Error("food-d1-whatsapp-visual-normalized-media-required");
+  }
+  const prepared = prepareD1VisualMedia({ base64: parsed.base64, mimeType: parsed.mimeType });
+  return {
+    base64: prepared.url.split(",", 2)[1],
+    mimeType: parsed.mimeType,
+    contentDigest: prepared.contentDigest,
   };
 }
 

@@ -1,6 +1,7 @@
 /** #1308 D1 web correction provenance and bounded source identities. */
 import { createHash } from "node:crypto";
 import { parseFoodObservation, type FoodObservation } from "./schemas";
+import { FOOD_MULTIMODAL_INPUT_TYPE, FOOD_TEXT_INPUT_TYPE } from "./contracts";
 
 /** Fixed-size source reference: nested operation and observation IDs can be long. */
 export function foodD1WebCorrectionSourceRef(operationKey: string, observationId: string): string {
@@ -17,7 +18,7 @@ export function foodD1WebCorrectionSourceRef(operationKey: string, observationId
 export function preserveFoodD1ReviewProvenance(
   corrected: FoodObservation, original: FoodObservation,
 ): FoodObservation {
-  if (original.modality === "text") return corrected;
+  if (original.modality === FOOD_TEXT_INPUT_TYPE) return corrected;
   const oldEvidence = original.evidence.filter(item =>
     !corrected.evidence.some(previous => previous === item));
   const evidence = oldEvidence.map((item, index) => ({
@@ -29,12 +30,10 @@ export function preserveFoodD1ReviewProvenance(
   }));
   const combined: FoodObservation = {
     ...corrected,
-    modality: "multimodal",
+    modality: FOOD_MULTIMODAL_INPUT_TYPE,
     evidence: [...corrected.evidence, ...evidence],
   };
   const parsed = parseFoodObservation(combined);
   if (!parsed.ok) throw new Error("food-d1-public-web-draft-invalid-correction-provenance");
   return parsed.value;
 }
-
-

@@ -6,10 +6,16 @@ import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from 
 import { mergeD1WhatsAppReply, sanitizeD1WhatsAppObservations } from "./publicWhatsAppPendingContract";
 import type { FoodD1WhatsAppPending } from "./publicWhatsAppPendingContract";
 import type { FoodD1WhatsAppPendingRecord } from "./publicWhatsAppPendingRepository";
-import type { FoodD1Dependencies, FoodD1Request, FoodD1Result } from "./entrypointMigration";
+import {
+  FoodD1NeedsClarificationError,
+  type FoodD1Dependencies,
+  type FoodD1Request,
+  type FoodD1Result,
+} from "./entrypointMigration";
 import type { runFoodD1Migration } from "./entrypointRunner";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import type { FoodD1CommitResult } from "./entrypointPersistenceRepository";
+import { FOOD_TEXT_INPUT_TYPE, haveEqualFoodEnvelopeRevisions } from "./contracts";
 
 export type FoodD1WhatsAppContinuationDependencies = {
   readPending: (userId: number, now: Date) =>
@@ -55,9 +61,7 @@ export function createFoodD1WhatsAppContinuation(
     if (!context || !isCurrentFoodD1GateApproval(
       context.approval, context.expectedAuditedBaseSha,
     ) || context.revisions.code !== context.expectedAuditedBaseSha ||
-        (["code", "knowledge", "lexicon", "policy", "resolver"] as const).some(
-          name => context.revisions[name] !== env.revisions[name],
-        )) {
+        !haveEqualFoodEnvelopeRevisions(context.revisions, env.revisions)) {
       throw new Error("food-d1-whatsapp-continuation-gate-or-version-unavailable");
     }
     if (!input.externalMessageId?.trim() ||
@@ -80,7 +84,7 @@ export function createFoodD1WhatsAppContinuation(
     ])).digest("hex");
     const ref = "d1-turn-" + digest;
     const interpreted = await deps.comprehend({
-      rawText: input.replyText, sourceRef: ref, modality: "text",
+      rawText: input.replyText, sourceRef: ref, modality: FOOD_TEXT_INPUT_TYPE,
       ownerUserId: input.userId, lexiconRevision: env.revisions.lexicon,
       locale: "pt-BR", now: input.receivedAt,
     }, deps.lexicon);
@@ -139,13 +143,14 @@ export function createFoodD1WhatsAppContinuation(
               plan.items.some((item, i) =>
                 item.observationId !== current.observations[i].observationId) ||
               plan.items.some(item => item.disposition !== "ready")) {
-            throw new Error("food-d1-whatsapp-continuation-needs-clarification");
+            throw new FoodD1NeedsClarificationError(
+              "food-d1-whatsapp-continuation-needs-clarification",
+            );
           }
         },
       });
     } catch (error) {
-      if (!(error instanceof Error) ||
-          error.message !== "food-d1-whatsapp-continuation-needs-clarification" ||
+      if (!(error instanceof FoodD1NeedsClarificationError) ||
           !incomplete) throw error;
       const plan: FoodD1Result = incomplete;
       if (plan.items.length !== current.observations.length ||
@@ -162,7 +167,7 @@ export function createFoodD1WhatsAppContinuation(
         unresolvedIds,
       }, input.userId);
       const wanted = plan.items.find(item => item.observationId === unresolvedIds[0]);
-      const label = wanted?.decision.identity.canonicalName ?? "o alimento pendente";
+      const label = wanted?.decision?.identity?.canonicalName ?? "o alimento pendente";
       return {
         handled: true, action: "food_clarification_reprompted",
         reply: `Ainda preciso confirmar ${label}. A resposta anterior foi preservada; nenhum item foi registrado parcialmente.`,
@@ -178,7 +183,8 @@ export function createFoodD1WhatsAppContinuation(
         new Set(outcome.recordedItemIds).size !== current.observations.length ||
         !("skipped" in outcome) || !Array.isArray(outcome.skipped) ||
         outcome.skipped.length !== 0 ||
-        !("mealId" in outcome) || (!Number.isSafeInteger(outcome.mealId) || outcome.mealId <= 0)) {
+        !("mealId" in outcome) || typeof outcome.mealId !== "number" ||
+        !Number.isSafeInteger(outcome.mealId) || outcome.mealId <= 0) {
       throw new Error("food-d1-whatsapp-continuation-commit-incomplete");
     }
     const receipt = outcome as FoodD1CommitResult;

@@ -8,13 +8,28 @@ import { governedLinguisticLexiconStore } from "./linguisticLexiconRepository";
 import { comprehendFoodLanguage } from "./linguisticComprehension";
 import { isCurrentFoodD1GateApproval } from "./entrypointRouting";
 import { runFoodD1Migration } from "./entrypointRunner";
-import type { FoodD1Request, FoodD1Result } from "./entrypointMigration";
+import {
+  FoodD1NeedsClarificationError,
+  type FoodD1Result,
+  type FoodD1Request,
+} from "./entrypointMigration";
 import type { FoodObservation } from "./schemas";
-import { getFoodD1WebDraft, type FoodD1WebDraftRecord } from "./publicWebDraftRepository";
-import type { FoodD1CommitResult } from "./entrypointPersistenceRepository";
+import {
+  getFoodD1WebDraft,
+  isConfirmedFoodD1WebDraft,
+  type FoodD1WebDraftRecord,
+} from "./publicWebDraftRepository";
+import {
+  FoodD1NativeWebDraftNotPendingError,
+  type FoodD1CommitResult,
+} from "./entrypointPersistenceRepository";
 import { buildDependencies } from "./publicWebDraftSupport";
 import { foodD1WebCorrectionSourceRef, preserveFoodD1ReviewProvenance } from "./publicWebDraftProvenance";
 import type { PublicD1WebDraftDependencies } from "./publicWebDraft";
+import {
+  FOOD_QUANTITY_UNIT_EVIDENCE_FIELD,
+  FOOD_TEXT_INPUT_TYPE,
+} from "./contracts";
 
 export class FoodD1WebDraftNotFoundError extends Error {
   constructor() {
@@ -44,12 +59,6 @@ export function hashFoodD1WebDraftConfirmation(input: {
   })).digest("hex");
 }
 
-function isConfirmedDraft(
-  record: FoodD1WebDraftRecord | null | undefined,
-): record is Extract<FoodD1WebDraftRecord, { status: "confirmed" }> {
-  return record?.status === "confirmed";
-}
-
 function sameReviewItem(
   current: { name: string; quantity: number | null; unit: string | null },
   original: { name: string; quantity: number | null; unit: string | null },
@@ -71,12 +80,6 @@ function assertReviewMeasurement(
   }
 }
 
-function isNativeDraftNotPending(error: unknown): boolean {
-  return error instanceof Error &&
-    error.message === "food-d1-native-web-draft-not-pending";
-}
-
-
 export function createFoodD1PublicWebDraftConfirmation(deps: PublicD1WebDraftDependencies) {
   const comprehend = deps.comprehend ?? comprehendFoodLanguage;
   return async function confirmPublicWebDraft(input: {
@@ -91,7 +94,7 @@ export function createFoodD1PublicWebDraftConfirmation(deps: PublicD1WebDraftDep
       ownerUserId: input.userId,
     });
     if (!record) throw new FoodD1WebDraftNotFoundError();
-    if (isConfirmedDraft(record)) {
+    if (isConfirmedFoodD1WebDraft(record)) {
       if (record.confirmationHash !== confirmationHash) {
         throw new Error("food-d1-web-draft-confirmation-conflict");
       }
@@ -140,7 +143,7 @@ export function createFoodD1PublicWebDraftConfirmation(deps: PublicD1WebDraftDep
       const corrected = await comprehend({
         rawText: surface,
         sourceRef: foodD1WebCorrectionSourceRef(draft.operationKey, item.observationId),
-        modality: "text",
+        modality: FOOD_TEXT_INPUT_TYPE,
         ownerUserId: input.userId,
         lexiconRevision: envelope.revisions.lexicon,
         locale: "pt-BR",
@@ -159,8 +162,10 @@ export function createFoodD1PublicWebDraftConfirmation(deps: PublicD1WebDraftDep
           unit: item.unit,
         };
         correctedObservation.evidence = [
-          ...correctedObservation.evidence.filter(item => item.field !== "quantity.unit"),
-          ...originalObservation.evidence.filter(item => item.field === "quantity.unit"),
+          ...correctedObservation.evidence.filter(item =>
+            item.field !== FOOD_QUANTITY_UNIT_EVIDENCE_FIELD),
+          ...originalObservation.evidence.filter(item =>
+            item.field === FOOD_QUANTITY_UNIT_EVIDENCE_FIELD),
         ];
       }
       // Corrections arrive as text but must not erase the original
@@ -211,21 +216,23 @@ export function createFoodD1PublicWebDraftConfirmation(deps: PublicD1WebDraftDep
         beforeCommit: plan => {
           if (plan.items.length !== draft.items.length ||
               plan.items.some(item => item.disposition !== "ready")) {
-            throw new Error("food-d1-public-web-draft-needs-clarification");
+            throw new FoodD1NeedsClarificationError(
+              "food-d1-public-web-draft-needs-clarification",
+            );
           }
         },
       });
     } catch (error) {
-      if (!isNativeDraftNotPending(error)) throw error;
+      if (!(error instanceof FoodD1NativeWebDraftNotPendingError)) throw error;
       const latest = await (deps.readDraft ?? getFoodD1WebDraft)({
         draftId: input.request.draftId,
         ownerUserId: input.userId,
       });
-      if (isConfirmedDraft(latest) &&
+      if (isConfirmedFoodD1WebDraft(latest) &&
           latest.confirmationHash === confirmationHash) {
         return latest.result;
       }
-      if (isConfirmedDraft(latest)) {
+      if (isConfirmedFoodD1WebDraft(latest)) {
         throw new Error("food-d1-web-draft-confirmation-conflict");
       }
       throw error;

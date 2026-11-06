@@ -200,4 +200,17 @@ describe("#1308 durable WhatsApp continuation from pinned original decisions", (
     )(input())).toBeNull();
     expect(deps.run).not.toHaveBeenCalled();
   });
+  it("does not treat an ordinary Error with the clarification message as a resumable pending result", async () => {
+    vi.stubEnv("FOOD_V2_D1_ENABLED", "true");
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "text,continuation");
+    const deps = dependencies();
+    const unrelated = new Error("food-d1-whatsapp-continuation-needs-clarification");
+    deps.run.mockImplementation(async () => { throw unrelated; });
+    const service = createFoodD1WhatsAppContinuation(
+      deps as unknown as FoodD1WhatsAppContinuationDependencies,
+    );
+    await expect(service(input())).rejects.toBe(unrelated);
+    expect(deps.updatePending).not.toHaveBeenCalled();
+    expect(deps.consumePending).not.toHaveBeenCalled();
+  });
 });

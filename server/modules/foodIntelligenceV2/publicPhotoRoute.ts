@@ -2,9 +2,14 @@
 import { foodD1WebDraftSchema, type FoodD1WebDraft } from "../../../shared/foodD1WebDraft";
 import { zonedDateTimeLocalToIso } from "../../../shared/timeZone";
 import type { AnalyzeFoodPhotoInput } from "../photoAnalysis/schemas";
-import { isFoodD1EntrypointCutoverRequested, isValidD1OperationId } from "./entrypointRouting";
+import {
+  isFoodD1EntrypointCutoverRequested,
+  isFoodD1VisualCutoverRequested,
+  isValidD1OperationId,
+} from "./entrypointRouting";
 import { assertNewMealLabelHasExistingTarget } from "./publicUnmigratedEntrypoints";
 import { tryRunFoodD1PublicWebDraft } from "./publicWebDraft";
+import { parseFoodD1VisualKind } from "./publicVisualSurfaces";
 
 type PhotoRequest = {
   userId: number;
@@ -25,9 +30,9 @@ export function createFoodD1PublicPhotoAnalysis(
     // A later nutrition label requires the authenticated physical item target.
     // Refuse label-as-new-meal even while the V2 feature flag is OFF.
     assertNewMealLabelHasExistingTarget(input.input);
-    const anyVisualSelected = ([
-      "plate_image", "packaging", "nutrition_label", "multimodal",
-    ] as const).some(isFoodD1EntrypointCutoverRequested);
+    const anyVisualSelected = isFoodD1VisualCutoverRequested();
+    const visualSelection = parseFoodD1VisualKind(input.input.imageKind);
+    const visualKind = visualSelection?.kind ?? null;
     const hasStableId = input.input.d1OperationId !== undefined;
     if (!anyVisualSelected && !hasStableId) return null;
     if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
@@ -36,8 +41,7 @@ export function createFoodD1PublicPhotoAnalysis(
       throw new Error("food-d1-public-photo-invalid-operation");
     }
     if (anyVisualSelected &&
-        (input.input.imageKind !== "plate_image" && input.input.imageKind !== "packaging" ||
-        !isFoodD1EntrypointCutoverRequested(input.input.imageKind))) {
+        (!visualKind || !isFoodD1EntrypointCutoverRequested(visualKind))) {
       throw new Error("food-d1-public-photo-explicit-kind-required");
     }
     if (anyVisualSelected &&
@@ -52,7 +56,7 @@ export function createFoodD1PublicPhotoAnalysis(
       request: {
         source: "web",
         image: input.input.image,
-        imageKind: input.input.imageKind,
+        imageKind: visualKind ?? input.input.imageKind,
         d1OperationId: input.input.d1OperationId,
         mealLabel: input.input.mealLabel,
         occurredAt: input.input.occurredAt,

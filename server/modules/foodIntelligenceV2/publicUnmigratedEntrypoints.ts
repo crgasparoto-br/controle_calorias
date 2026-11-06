@@ -2,7 +2,10 @@
  * Checks only server rollout selection; never infers food or invokes a resolver.
  */
 import type { ProcessMealDraftInput } from "../meals/schemas";
-import type { FoodD1Entrypoint } from "./entrypointMigration";
+import {
+  D1_TEXT_ENTRYPOINT_IDS,
+  type FoodD1Entrypoint,
+} from "./entrypointMigration";
 import { isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 
 // Public boundary error code, never a food/identity knowledge constant.
@@ -16,6 +19,10 @@ export function assertUnmigratedFoodD1EntrypointsOff(
   if (entrypoints.some(isFoodD1EntrypointCutoverRequested)) {
     throw new Error(D1_PUBLIC_MIGRATION_INCOMPLETE);
   }
+}
+
+export function assertUnmigratedFoodD1WhatsAppTextEntrypointsOff(): void {
+  assertUnmigratedFoodD1EntrypointsOff(D1_TEXT_ENTRYPOINT_IDS);
 }
 
 /**

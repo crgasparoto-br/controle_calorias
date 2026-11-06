@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFoodD1PublicWhatsAppVisualRegistration,
-  parseExplicitD1WhatsAppVisualIntent,
   fromTrustedD1WhatsAppMediaDataUrl,
   isAnyD1WhatsAppVisualEntrypointSelected } from "./publicWhatsAppVisualRegistration";
 import type { PublicD1WhatsAppVisualDependencies } from "./publicWhatsAppVisualRegistration";
 import { buildFoodObservationFixture, buildFoodResolutionDecisionFixture } from "./fixtures";
+import { parseD1WhatsAppVisualIntent } from "../whatsapp/mealCommandParser";
 
 const sha = "c".repeat(40);
 const context = {
@@ -16,7 +16,7 @@ const context = {
 const input = () => ({
   userId: 7, externalMessageId: "wamid.visual-001",
   image: { base64: "aW1hZ2U=", mimeType: "image/jpeg" },
-  caption: "#prato @almoco",
+  intent: parseD1WhatsAppVisualIntent("#prato @almoco"),
   receivedAt: new Date("2026-11-04T15:00:00.000Z"),
   timeZone: "America/Sao_Paulo",
 });
@@ -66,22 +66,9 @@ function service(overrides: Partial<PublicD1WhatsAppVisualDependencies> = {}) {
 }
 afterEach(() => vi.unstubAllEnvs());
 describe("#1308 WhatsApp image -> canonical V2", () => {
-  it("accepts only explicit purpose and destination, never a free caption or nutritional table", () => {
-    expect(parseExplicitD1WhatsAppVisualIntent("#prato @almoco")).toEqual({
-      kind: "plate_image", mealLabel: "almoço", description: null,
-    });
-    expect(parseExplicitD1WhatsAppVisualIntent("#embalagem @jantar")).toMatchObject({
-      kind: "packaging", mealLabel: "jantar",
-    });
-    for (const value of ["almoço", "foto de prato", "#rotulo @almoco",
-      "#embalagem", "#prato @almoco\n".repeat(410)]) {
-      expect(parseExplicitD1WhatsAppVisualIntent(value)).toBeNull();
-    }
-  });
   it("derives MIME from trusted normalized data URL and rejects non-image resources", () => {
-    expect(fromTrustedD1WhatsAppMediaDataUrl("data:image/png;base64,YWJj")).toEqual({
-      base64: "YWJj", mimeType: "image/png",
-    });
+    expect(fromTrustedD1WhatsAppMediaDataUrl("data:image/jpeg;base64,/9j/4A=="))
+      .toMatchObject({ mimeType: "image/jpeg", base64: "/9j/4A==" });
     for (const url of ["https://example.invalid/photo", "data:text/html;base64,YWJj",
       "data:image/png;base64,#", "data:image/svg+xml;base64,YWJj"]) {
       expect(() => fromTrustedD1WhatsAppMediaDataUrl(url))
@@ -111,7 +98,9 @@ describe("#1308 WhatsApp image -> canonical V2", () => {
       vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", kind);
       const { deps, run } = service();
       const result = await run({ ...input(),
-        caption: kind === "plate_image" ? "#prato @almoco" : "#embalagem @almoco",
+        intent: parseD1WhatsAppVisualIntent(
+          kind === "plate_image" ? "#prato @almoco" : "#embalagem @almoco",
+        ),
       });
       expect(result?.data?.mealId).toBe(44);
       expect(deps.run).toHaveBeenCalledOnce();
@@ -135,7 +124,7 @@ describe("#1308 WhatsApp image -> canonical V2", () => {
     vi.stubEnv("FOOD_V2_D1_ENABLED", "true");
     vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image");
     const { deps, run } = service();
-    await expect(run({ ...input(), caption: "Minha foto de almoço" }))
+    await expect(run({ ...input(), intent: null }))
       .rejects.toThrow("food-d1-whatsapp-visual-explicit-role-required");
     expect(deps.extract).not.toHaveBeenCalled();
   });
@@ -157,6 +146,19 @@ describe("#1308 WhatsApp image -> canonical V2", () => {
       }) as PublicD1WhatsAppVisualDependencies["run"],
     });
     await expect(run(input())).rejects.toThrow("food-d1-whatsapp-visual-needs-clarification");
+    expect(deps.renderCommittedMeal).not.toHaveBeenCalled();
+  });
+  it("does not stage pending for an ordinary Error that only copies the clarification message", async () => {
+    vi.stubEnv("FOOD_V2_D1_ENABLED", "true");
+    vi.stubEnv("FOOD_V2_D1_ENTRYPOINTS", "plate_image");
+    const unrelated = new Error("food-d1-whatsapp-visual-needs-clarification");
+    const stagePending = vi.fn(async () => undefined);
+    const { deps, run } = service({
+      stagePending,
+      run: vi.fn(async () => { throw unrelated; }) as unknown as PublicD1WhatsAppVisualDependencies["run"],
+    });
+    await expect(run(input())).rejects.toBe(unrelated);
+    expect(stagePending).not.toHaveBeenCalled();
     expect(deps.renderCommittedMeal).not.toHaveBeenCalled();
   });
 });

@@ -104,7 +104,7 @@ describe("nutrition router", () => {
     vi.useRealTimers();
   });
 
-  it("#1308 blocks selected unmigrated web modalities before any V1 inference", async () => {
+  it("#1308 blocks selected web modalities before any V1 inference", async () => {
     const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
     const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
     const caller = appRouter.createCaller(createNutritionContext(13918));
@@ -114,17 +114,38 @@ describe("nutrition router", () => {
     const audio = { base64: "YQ==", mimeType: "audio/webm" };
     try {
       process.env.FOOD_V2_D1_ENABLED = "true";
-      for (const { selector, draft } of [
-        { selector: "text", draft: { text: "100 g de arroz" } },
-        { selector: "audio_transcript", draft: { audio } },
-        { selector: "plate_image", draft: { image } },
-        { selector: "packaging", draft: { image } },
-        { selector: "nutrition_label", draft: { image } },
+      for (const { selector, draft, error } of [
+        {
+          selector: "text",
+          draft: { text: "100 g de arroz" },
+          error: "food-d1-public-web-draft-operation-required",
+        },
+        {
+          selector: "audio_transcript",
+          draft: { audio },
+          error: "food-d1-public-web-draft-operation-required",
+        },
+        {
+          selector: "plate_image",
+          draft: { image },
+          error: "food-d1-public-web-image-role-required",
+        },
+        {
+          selector: "packaging",
+          draft: { image },
+          error: "food-d1-public-web-image-role-required",
+        },
+        {
+          selector: "nutrition_label",
+          draft: { image },
+          error: "food-d1-public-web-image-role-required",
+        },
       ]) {
         process.env.FOOD_V2_D1_ENTRYPOINTS = selector;
         vi.mocked(processMealInput).mockClear();
-        await expect(caller.nutrition.meals.processDraft({ source: "web", ...draft }))
-          .rejects.toThrow("food-d1-public-entrypoint-migration-incomplete");
+        await expect(
+          caller.nutrition.meals.processDraft({ source: "web", ...draft })
+        ).rejects.toThrow(error);
         expect(processMealInput).not.toHaveBeenCalled();
       }
       process.env.FOOD_V2_D1_ENTRYPOINTS = "plate_image";

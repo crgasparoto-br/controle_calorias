@@ -561,8 +561,7 @@ describe("issue #997 atomic mixed increment plan", () => {
       operations: [{ targetFood: "presunto", quantity: 1, unit: "fatia" }],
     });
     expect(result.eventType).toBe("whatsapp.intent.meal_item_increment_requires_v2");
-    expect(mocks.getFood).not.toHaveBeenCalled();
-    expect(mocks.convert).not.toHaveBeenCalled();
+    expect(mocks.countableIncrement).not.toHaveBeenCalled();
     expect(mocks.updateBatch).not.toHaveBeenCalled();
     expect(mocks.requestQuantity).not.toHaveBeenCalled();
   });

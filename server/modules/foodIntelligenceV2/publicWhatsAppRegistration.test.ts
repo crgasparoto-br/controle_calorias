@@ -189,6 +189,22 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     // The real route rejects that changed hash under the same pinned key;
     // this test proves the boundary supplies its discriminant.
   });
+  it("does not convert an ordinary Error with the clarification message into durable pending state", async () => {
+    process.env.FOOD_V2_D1_ENABLED = "true";
+    process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
+    const unrelated = new Error("food-d1-whatsapp-public-needs-clarification");
+    const stagePending = vi.fn(async () => undefined);
+    const run = vi.fn(async () => { throw unrelated; });
+    const service = createWhatsAppD1RegistrationService({
+      readAuthorizedContext: async () => approval,
+      readActivePending: async () => false,
+      parseOperation: () => parsed(),
+      stagePending,
+      run: run as unknown as typeof runFoodD1Migration,
+    });
+    await expect(service(createInput())).rejects.toBe(unrelated);
+    expect(stagePending).not.toHaveBeenCalled();
+  });
   it("rejects partial siblings and a zero-ready batch before any native commit", async () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";

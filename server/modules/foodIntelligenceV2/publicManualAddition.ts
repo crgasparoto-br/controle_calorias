@@ -16,6 +16,8 @@ import { hashFoodD1OperationScope, type FoodD1PinnedRoute, type FoodD1RouteStore
 import type { FoodOperationEnvelope } from "./schemas";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested, isValidD1OperationId } from "./entrypointRouting";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
+import { FOOD_TEXT_INPUT_TYPE, haveEqualFoodEnvelopeRevisions } from "./contracts";
+import { isD1V1Route, isD1V2Route } from "./entrypointRouting";
 
 type ApprovedContext = AuthorizedD1SimulationContext;
 export type PublicD1ManualDependencies = {
@@ -78,13 +80,12 @@ export function buildLegacyManualRoute(input: {
 }
 
 function assertSameLegacyManualScope(pinned: FoodD1PinnedRoute, candidate: FoodD1PinnedRoute) {
-  if (pinned.resolver === "v2") throw new Error("food-d1-operation-paused-by-rollback");
-  if (pinned.resolver !== "v1" || pinned.operationKey !== candidate.operationKey ||
+  if (isD1V2Route(pinned.resolver)) throw new Error("food-d1-operation-paused-by-rollback");
+  if (!isD1V1Route(pinned.resolver) || pinned.operationKey !== candidate.operationKey ||
       pinned.ownerUserId !== candidate.ownerUserId ||
       pinned.operationScopeHash !== candidate.operationScopeHash ||
       pinned.originEntrypoint !== candidate.originEntrypoint ||
-      (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
-        .some(key => pinned.versions?.[key] !== candidate.versions[key])) {
+      !pinned.versions || !haveEqualFoodEnvelopeRevisions(pinned.versions, candidate.versions)) {
     throw new Error("food-d1-legacy-operation-scope-changed");
   }
 }
@@ -127,7 +128,7 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
     const pinned = await (deps.readPinnedRoute
       ? deps.readPinnedRoute(key, input.userId)
       : createFoodD1RouteDbStore().readPinnedRoute(key, input.userId));
-    if (pinned?.resolver === "v1") {
+    if (isD1V1Route(pinned?.resolver)) {
       assertSameLegacyManualScope(pinned, buildLegacyManualRoute(input));
       return null;
     }
@@ -141,7 +142,7 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
       const surface = item.quantity + " " + item.unit + " de " + item.foodName;
       const current = await comprehendFoodLanguage({
         rawText: surface, sourceRef: key + ":item:" + index,
-        modality: "text", ownerUserId: input.userId,
+        modality: FOOD_TEXT_INPUT_TYPE, ownerUserId: input.userId,
         lexiconRevision: ctx.revisions.lexicon, locale: "pt-BR",
         now: occurredAt,
       }, lexicon);

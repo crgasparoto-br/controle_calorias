@@ -5,9 +5,12 @@ import { foodResolutionDecisionSchema } from "./decisionSchemas";
 import { foodOperationEnvelopeSchema } from "./schemas";
 import type { FoodObservation, FoodResolutionDecision, FoodOperationEnvelope } from "./schemas";
 
-export const FOOD_D1_WHATSAPP_PENDING_TYPE = "food_d1_clarification";
-export const FOOD_D1_WHATSAPP_PENDING_ORIGIN = "FoodIntelligenceV2";
-export const FOOD_D1_WHATSAPP_PENDING_TTL_MS = 30 * 60 * 1000;
+export const WHATSAPP_PENDING_TYPE = "food_d1_clarification";
+export const WHATSAPP_PENDING_ORIGIN = "FoodIntelligenceV2";
+export const WHATSAPP_PENDING_TTL_MS = 30 * 60 * 1000;
+export const WHATSAPP_PENDING_ENTRYPOINTS = [
+  "text", "audio_transcript", "multimodal", "plate_image", "packaging",
+] as const;
 
 const storedObservation = foodObservationSchema.refine(item =>
   item.rawInput === null && item.normalizedInput === null,
@@ -16,9 +19,7 @@ const storedDecision = foodResolutionDecisionSchema;
 const pendingSchema = z.strictObject({
   schemaVersion: z.literal(2),
   envelope: foodOperationEnvelopeSchema,
-  originEntrypoint: z.enum([
-    "text", "audio_transcript", "multimodal", "plate_image", "packaging",
-  ]),
+  originEntrypoint: z.enum(WHATSAPP_PENDING_ENTRYPOINTS),
   occurredAt: z.string().datetime({ offset: true }),
   observations: z.array(storedObservation).min(1).max(80),
   decisions: z.array(storedDecision).min(1).max(80),
@@ -43,7 +44,7 @@ const pendingSchema = z.strictObject({
 export type FoodD1WhatsAppPending = {
   schemaVersion: 2;
   envelope: FoodOperationEnvelope;
-  originEntrypoint: "text" | "audio_transcript" | "multimodal" | "plate_image" | "packaging";
+  originEntrypoint: (typeof WHATSAPP_PENDING_ENTRYPOINTS)[number];
   occurredAt: string;
   observations: FoodObservation[];
   decisions: FoodResolutionDecision[];

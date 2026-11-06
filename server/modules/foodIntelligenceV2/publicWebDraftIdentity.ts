@@ -1,9 +1,10 @@
 /** Stable, media-aware identity for #1308 web draft retries. No model output enters this hash. */
 import { createHash } from "node:crypto";
-import type { FoodD1WebDraft } from "../../../shared/foodD1WebDraft";
+import { foodD1WebDraftSchema, type FoodD1WebDraft } from "../../../shared/foodD1WebDraft";
 import type { ProcessMealDraftInput } from "../meals/schemas";
-import type { FoodD1WebDraftRecord } from "./publicWebDraftRepository";
+import { isConfirmedFoodD1WebDraft, type FoodD1WebDraftRecord } from "./publicWebDraftRepository";
 import type { FoodOperationEnvelope } from "./schemas";
+import { haveEqualFoodEnvelopeRevisions } from "./contracts";
 
 function digest(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -47,13 +48,17 @@ export function checkedFoodD1WebReplay(input: {
   timeZone: string;
   revisions: FoodOperationEnvelope["revisions"];
 }): FoodD1WebDraft {
-  if (input.record.status === "confirmed") {
+  if (isConfirmedFoodD1WebDraft(input.record)) {
     throw new Error("food-d1-web-draft-operation-already-confirmed");
   }
-  const { draft, envelope, occurredAt } = input.record.payload;
+  const parsedDraft = foodD1WebDraftSchema.safeParse(input.record.payload.draft);
+  if (!parsedDraft.success) {
+    throw new Error("food-d1-public-web-draft-operation-scope-changed");
+  }
+  const { envelope, occurredAt } = input.record.payload;
+  const draft = parsedDraft.data;
   const versions = envelope.revisions;
-  if (draft.resolver !== "food-v2" ||
-      draft.operationKey !== input.operationKey ||
+  if (draft.operationKey !== input.operationKey ||
       draft.entrypoint !== input.entrypoint ||
       draft.mealLabel !== input.mealLabel ||
       envelope.idempotencyKey !== input.operationKey ||
@@ -61,8 +66,7 @@ export function checkedFoodD1WebReplay(input: {
       envelope.traceId !== input.traceId ||
       envelope.effectiveTimeZone !== input.timeZone ||
       occurredAt.getTime() !== input.occurredAt.getTime() ||
-      (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
-        .some(key => versions[key] !== input.revisions[key])) {
+      !haveEqualFoodEnvelopeRevisions(versions, input.revisions)) {
     throw new Error("food-d1-public-web-draft-operation-scope-changed");
   }
   return draft;

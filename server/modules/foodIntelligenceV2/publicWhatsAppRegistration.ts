@@ -6,7 +6,12 @@
 import { createHash } from "node:crypto";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type { WhatsappIntentResult } from "../whatsapp/intent/types";
-import type { FoodD1Request, FoodD1Dependencies, FoodD1Result } from "./entrypointMigration";
+import {
+  FoodD1NeedsClarificationError,
+  type FoodD1Request,
+  type FoodD1Dependencies,
+  type FoodD1Result,
+} from "./entrypointMigration";
 import { comprehendFoodLanguage } from "./linguisticComprehension";
 import { sanitizeD1WhatsAppObservations, type FoodD1WhatsAppPending } from "./publicWhatsAppPendingContract";
 import type { runFoodD1Migration } from "./entrypointRunner";
@@ -124,13 +129,14 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
         if (plan.items.length !== operation.itemCount ||
             plan.readyCount !== operation.itemCount ||
             plan.items.some(item => item.disposition !== "ready")) {
-          throw new Error("food-d1-whatsapp-public-needs-clarification");
+          throw new FoodD1NeedsClarificationError(
+            "food-d1-whatsapp-public-needs-clarification",
+          );
         }
       },
     });
     } catch (error) {
-      if (!(error instanceof Error) ||
-          error.message !== "food-d1-whatsapp-public-needs-clarification" ||
+      if (!(error instanceof FoodD1NeedsClarificationError) ||
           !incomplete || !deps.stagePending) throw error;
       const plan: FoodD1Result = incomplete;
       if (plan.items.length !== operation.itemCount) {

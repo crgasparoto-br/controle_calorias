@@ -8,14 +8,30 @@ import { foods, mealItems, meals } from "../../../drizzle/schema";
 import { isGovernedFamilyVisible } from "./knowledgeEligibility";
 import { getDb } from "../../db";
 import { canReadFoodSource } from "./sourceGrants";
-import { isFoodD1CutoverRequested, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
+import {
+  isFoodD1CutoverRequested,
+  isFoodD1EntrypointCutoverRequested,
+  isD1V2Route,
+} from "./entrypointRouting";
 import type { FoodD1PreparedItem, FoodD1PreparedWrite } from "./entrypointPersistence";
 import { hasBoundFoodV2Snapshot } from "../meals/foodV2Snapshot";
 import { z } from "zod";
 import { foodD1WebDraftSchema } from "../../../shared/foodD1WebDraft";
 import { foodObservationSchema } from "./observationSchemas";
 import { foodOperationEnvelopeSchema } from "./schemas";
+import { D1_NEW_MEAL_OPERATION_ENTRYPOINT_IDS } from "./entrypointMigration";
+import {
+  haveEqualFoodEnvelopeRevisions,
+  isValidFoodSha256HexDigest,
+} from "./contracts";
 export { hasBoundFoodV2Snapshot } from "../meals/foodV2Snapshot";
+
+export class FoodD1NativeWebDraftNotPendingError extends Error {
+  constructor() {
+    super("food-d1-native-web-draft-not-pending");
+    this.name = "FoodD1NativeWebDraftNotPendingError";
+  }
+}
 
 export type FoodD1CommitResult = {
   committed: boolean;
@@ -143,7 +159,7 @@ export async function commitFoodD1NativeWrite(input: {
       .where(and(eq(foodD1OperationRoutes.ownerUserId, plan.ownerUserId),
         eq(foodD1OperationRoutes.operationKey, plan.operationKey)))
       .for("update").limit(1);
-    if (pins.length !== 1 || pins[0].resolver !== "v2" ||
+    if (pins.length !== 1 || !isD1V2Route(pins[0].resolver) ||
         (pins[0].originEntrypoint !== plan.entrypoint &&
           plan.entrypoint !== "continuation" && plan.entrypoint !== "nutrition_label")) {
       throw new Error("food-d1-native-route-not-pinned-to-v2");
@@ -164,16 +180,12 @@ export async function commitFoodD1NativeWrite(input: {
     // Compare the typed revision contract directly: these fields are pinned
     // operation versions, not a vocabulary for food/materiality decisions.
     const pinnedRevisions = revisions as Record<keyof FoodD1PreparedWrite["revisions"], unknown>;
-    if (pinnedRevisions.code !== plan.revisions.code ||
-        pinnedRevisions.knowledge !== plan.revisions.knowledge ||
-        pinnedRevisions.lexicon !== plan.revisions.lexicon ||
-        pinnedRevisions.policy !== plan.revisions.policy ||
-        pinnedRevisions.resolver !== plan.revisions.resolver) {
+    if (!haveEqualFoodEnvelopeRevisions(pinnedRevisions, plan.revisions)) {
       throw new Error("food-d1-native-pinned-revisions-mismatch");
     }
     if (plan.draftId) {
       if (!plan.draftConfirmationHash ||
-          !/^[a-f0-9]{64}$/.test(plan.draftConfirmationHash)) {
+          !isValidFoodSha256HexDigest(plan.draftConfirmationHash)) {
         throw new Error("food-d1-native-web-draft-confirmation-hash-required");
       }
       const [draft] = await tx.select().from(foodD1WebDrafts)
@@ -183,7 +195,7 @@ export async function commitFoodD1NativeWrite(input: {
         .for("update").limit(1);
       if (!draft || draft.status !== "pending" || !draft.payloadJson ||
           draft.expiresAt.getTime() <= Date.now()) {
-        throw new Error("food-d1-native-web-draft-not-pending");
+        throw new FoodD1NativeWebDraftNotPendingError();
       }
       assertDraftTransactionBinding({
         payloadJson: draft.payloadJson,
@@ -216,8 +228,8 @@ export async function commitFoodD1NativeWrite(input: {
     if (plan.entrypoint === "continuation" &&
         plan.items.some(item => item.targetItemId === null) &&
         previousManifest !== undefined &&
-        !["text", "audio_transcript", "addition", "plate_image", "packaging"]
-          .includes(pins[0].originEntrypoint)) {
+        !D1_NEW_MEAL_OPERATION_ENTRYPOINT_IDS.includes(pins[0].originEntrypoint as
+          (typeof D1_NEW_MEAL_OPERATION_ENTRYPOINT_IDS)[number])) {
       throw new Error("food-d1-native-deferred-sibling-origin-not-addition");
     }
     if (previousManifest === undefined) {

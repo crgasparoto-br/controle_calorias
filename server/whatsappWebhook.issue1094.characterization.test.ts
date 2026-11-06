@@ -55,6 +55,23 @@ type SemanticFactSnapshot = {
   sourceUrls: string[];
 };
 
+// These legacy specs have no D1 pending or route; D1 replay behavior is tested separately.
+vi.mock(
+  "./modules/whatsapp/confirmedMealRegistration",
+  async importOriginal => {
+    const actual =
+      await importOriginal<
+        typeof import("./modules/whatsapp/confirmedMealRegistration")
+      >();
+    return {
+      ...actual,
+      tryRunPublicFoodD1WhatsAppContinuation: vi.fn(async () => null),
+      assertWhatsAppInboundNotPreviouslyD1Owned: vi.fn(async () => undefined),
+    };
+  }
+);
+
+
 const nativeFetch = globalThis.fetch.bind(globalThis);
 const BASELINE_DEVELOP_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
 const METRICS_BASELINE_DEVELOP_SHA = "1db5d6b0d0ac64c171511b2e49bca4d4ea6f2367";

@@ -4,7 +4,7 @@ import { prepareFoodD1NativeWrite } from "./entrypointPersistence";
 import { commitFoodD1NativeWrite, hasBoundFoodV2Snapshot } from "./entrypointPersistenceRepository";
 import { hashFoodD1OperationScope } from "./entrypointRouting";
 import type { FoodD1Result } from "./entrypointMigration";
-import type { FoodOperationEnvelope, FoodResolutionDecision } from "./schemas";
+import { parseFoodResolutionDecision, type FoodOperationEnvelope, type FoodResolutionDecision } from "./schemas";
 
 const envelope = () => buildFoodOperationEnvelopeFixture() as FoodOperationEnvelope;
 const decision = (overrides: unknown = {}) => buildFoodResolutionDecisionFixture({
@@ -32,6 +32,8 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
     expect(output.items[0].values.foodVariantId).toBe(102);
     expect(JSON.parse(output.items[0].values.foodSnapshotJson).nutrition.verified).toBe(true);
     const structured = JSON.parse(output.items[0].values.foodSnapshotJson).structuredDecision;
+    const parsed = parseFoodResolutionDecision(structured);
+    expect(parsed.ok).toBe(true);
     expect(structured).toMatchObject({
       ownerUserId: 7, traceId: "trace-1", revision: 1,
       identity: { variantId: 102 },
@@ -42,6 +44,15 @@ describe("#1308 D1 native write preparation (synthetic, no real runtime proof)",
     expect(output.operationScopeHash).toBe(hashFoodD1OperationScope(envelope(), "whatsapp"));
     expect(output.effectiveTimeZone).toBe(envelope().effectiveTimeZone);
     expect(output.items[0].values.foodSnapshotJson).not.toContain("rawInput");
+    expect(output.items[0].values.foodSnapshotJson).not.toContain("normalizedInput");
+  });
+
+  it("rejects observation-only fields through the strict decision parser before snapshotting", () => {
+    for (const field of ["rawInput", "normalizedInput"] as const) {
+      const untrusted = decision({ [field]: "raw surface must not become decision data" });
+      expect(() => prepare({ result: result(untrusted) }))
+        .toThrow("food-d1-native-decision-scope-mismatch");
+    }
   });
 
   it("fails closed for unverified nutrition, absent variants, missing grams and provenance", () => {

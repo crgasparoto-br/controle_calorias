@@ -22,17 +22,17 @@ export function createWhatsAppD1NutritionLabelService(
   });
   return async (input: {
     userId: number; externalMessageId: string | null;
-    imageAnalysisUrl: string; caption: string | null | undefined;
+    imageAnalysisUrl: string;
+    target: { mealId: number; itemId: number };
     timeZone: string;
   }): Promise<WhatsappIntentResult | null> => {
     if (!isFoodD1NutritionLabelSelected()) return null;
-    const command = /^#rotulo\s+@([1-9]\d{0,9}):([1-9]\d{0,9})$/u.exec(input.caption?.trim() ?? "");
-    if (!command) return null;
     if (!input.externalMessageId?.trim()) {
       throw new Error("food-d1-whatsapp-label-message-id-required");
     }
-    const mealId = Number(command[1]), mealItemId = Number(command[2]);
-    if (![mealId, mealItemId].every(Number.isSafeInteger)) {
+    const { mealId, itemId: mealItemId } = input.target;
+    if (![mealId, mealItemId].every(Number.isSafeInteger) ||
+        mealId <= 0 || mealItemId <= 0) {
       throw new Error("food-d1-whatsapp-label-target-invalid");
     }
     const digest = createHash("sha256").update(JSON.stringify([
@@ -64,4 +64,3 @@ export function createWhatsAppD1NutritionLabelService(
 }
 export const tryRunPublicFoodD1WhatsAppNutritionLabel =
   createWhatsAppD1NutritionLabelService();
-

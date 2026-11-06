@@ -19,25 +19,31 @@ import {
 } from "./countableFoodRegistrationGate";
 import { splitFoodTextSegments } from "../../mealTextParsing";
 import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
-import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
+import { assertUnmigratedFoodD1EntrypointsOff,
+  assertUnmigratedFoodD1WhatsAppTextEntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { createFoodD1PublicWhatsAppRegistration,
   type PublicD1WhatsAppDependencies } from "../foodIntelligenceV2/publicWhatsAppRegistration";
 import { createFoodD1PublicWhatsAppVisualRegistration,
   fromTrustedD1WhatsAppMediaDataUrl,
   isAnyD1WhatsAppVisualEntrypointSelected,
   type PublicD1WhatsAppVisualDependencies } from "../foodIntelligenceV2/publicWhatsAppVisualRegistration";
-import { extractD1VisualSurfaces } from "../foodIntelligenceV2/publicVisualSurfaces";
-import { comprehendFoodLanguage } from "../foodIntelligenceV2/linguisticComprehension";
-import { hasActiveWhatsappPendingInDb } from "../foodIntelligenceV2/publicSimulator";
-import { stageFoodD1WhatsAppPending, readActiveFoodD1WhatsAppPending,
-  updateFoodD1WhatsAppPending, consumeFoodD1WhatsAppPending } from "../foodIntelligenceV2/publicWhatsAppPendingRepository";
 import { createFoodD1WhatsAppContinuation,
   type FoodD1WhatsAppContinuationDependencies } from "../foodIntelligenceV2/publicWhatsAppContinuation";
+import { extractD1VisualSurfaces } from "../foodIntelligenceV2/publicVisualSurfaces";
+import { comprehendFoodLanguage } from "../foodIntelligenceV2/linguisticComprehension";
+import { stageFoodD1WhatsAppPending, readActiveFoodD1WhatsAppPending,
+  updateFoodD1WhatsAppPending, consumeFoodD1WhatsAppPending } from "../foodIntelligenceV2/publicWhatsAppPendingRepository";
 import { foodD1WhatsAppReplayFence } from "../foodIntelligenceV2/publicWhatsAppReplayFence";
+import { hasActiveWhatsappPendingInDb } from "../foodIntelligenceV2/publicSimulator";
 import { governedLinguisticLexiconStore } from "../foodIntelligenceV2/linguisticLexiconRepository";
 import { createFoodV2KnowledgeRepository } from "../foodIntelligenceV2/repository";
 import { runFoodD1Migration } from "../foodIntelligenceV2/entrypointRunner";
-import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
+import {
+  parseD1WhatsAppExistingItemCommand,
+  parseD1WhatsAppVisualIntent,
+  parseMealCommandFromWhatsApp,
+} from "./mealCommandParser";
+import { createWhatsAppD1NutritionLabelService } from "./d1NutritionLabelRegistration";
 import { getCurrentWhatsappInboundContentType,
   getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import type { RequestPartialConfirmedTextMealQuantityInput } from "./foodQuantityClarificationTypes";
@@ -169,8 +175,9 @@ export async function tryRunPublicFoodD1WhatsAppVisualRegistration(input: {
   transcript?: string | null; receivedAt: Date; timeZone: string;
 }) {
   if (!isAnyD1WhatsAppVisualEntrypointSelected()) return null;
+  const intent = parseD1WhatsAppVisualIntent(input.caption);
   return visualRegistration({
-    ...input, image: fromTrustedD1WhatsAppMediaDataUrl(input.imageAnalysisUrl),
+    ...input, intent, image: fromTrustedD1WhatsAppMediaDataUrl(input.imageAnalysisUrl),
   });
 }
 
@@ -216,9 +223,21 @@ export async function assertWhatsAppInboundNotPreviouslyD1Owned(
   });
 }
 
-// The verified label transport remains separate from legacy meal registration.
-export { createWhatsAppD1NutritionLabelService,
-  tryRunPublicFoodD1WhatsAppNutritionLabel } from "./d1NutritionLabelRegistration";
+// Parse the explicit existing-item target at the trusted WhatsApp boundary;
+// the D1 adapter receives only an authenticated, typed physical target.
+const nutritionLabelRegistration = createWhatsAppD1NutritionLabelService();
+export { createWhatsAppD1NutritionLabelService };
+export async function tryRunPublicFoodD1WhatsAppNutritionLabel(input: {
+  userId: number; externalMessageId: string | null;
+  imageAnalysisUrl: string; caption: string | null | undefined;
+  timeZone: string;
+}) {
+  const target = parseD1WhatsAppExistingItemCommand(input.caption);
+  if (!target) return null;
+  return nutritionLabelRegistration({
+    ...input, target,
+  });
+}
 
 const defaultDependencies: ConfirmedMealRegistrationDependencies = {
   processMeal: input => nutritionRuntime.processMealInput(input),
@@ -343,7 +362,7 @@ export function createConfirmedMealRegistrationService(
         assertUnmigratedFoodD1EntrypointsOff([modality]);
       } else {
         // Unknown, image or mixed-media sources cannot silently choose text.
-        assertUnmigratedFoodD1EntrypointsOff(["text", "audio_transcript"]);
+        assertUnmigratedFoodD1WhatsAppTextEntrypointsOff();
       }
     }
     let mutationMayHaveStarted = false;

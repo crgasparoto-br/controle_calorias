@@ -5,7 +5,11 @@
 import { createHash } from "node:crypto";
 import type { FoodOperationEnvelope } from "./schemas";
 import { createFoodD1RouteDbStore } from "./entrypointRouteRepository";
-import { hashFoodD1OperationScope, type FoodD1RouteStore } from "./entrypointRouting";
+import {
+  hashFoodD1OperationScope,
+  isD1V2Route,
+  type FoodD1RouteStore,
+} from "./entrypointRouting";
 
 function hashMessage(userId: number, messageId: string): string {
   if (!Number.isSafeInteger(userId) || userId <= 0 ||
@@ -36,7 +40,7 @@ export function createFoodD1WhatsAppReplayFence(
         store.readPinnedRoute(key, input.ownerUserId),
         store.readPinnedRoute(labelKey, input.ownerUserId),
       ]);
-      if (route?.resolver === "v2" || label?.resolver === "v2") {
+      if (isD1V2Route(route?.resolver) || isD1V2Route(label?.resolver)) {
         throw new Error("food-d1-whatsapp-inbound-already-v2-owned");
       }
     },
@@ -64,7 +68,7 @@ export function createFoodD1WhatsAppReplayFence(
       if (winner.ownerUserId !== proposed.ownerUserId ||
           winner.operationKey !== key ||
           winner.originEntrypoint !== "continuation" ||
-          winner.resolver !== "v2" ||
+          !isD1V2Route(winner.resolver) ||
           winner.operationScopeHash !== proposed.operationScopeHash ||
           JSON.stringify(winner.versions) !== JSON.stringify(proposed.versions)) {
         throw new Error("food-d1-whatsapp-continuation-fence-conflict");

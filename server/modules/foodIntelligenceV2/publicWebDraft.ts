@@ -19,6 +19,9 @@ import {
 import {
   isCurrentFoodD1GateApproval,
   isFoodD1EntrypointCutoverRequested,
+  isD1V1Route,
+  isD1V2Route,
+  isFoodD1VisualCutoverRequested,
   isValidD1OperationId,
   routeFoodD1Operation,
   type FoodD1RouteStore,
@@ -27,7 +30,19 @@ import type { runFoodD1Migration } from "./entrypointRunner";
 import type { FoodObservation } from "./schemas";
 import { coalesceEquivalentMultimodalEvidence } from "./multimodalEvidence";
 import { traceFoodD1WebSubmission, checkedFoodD1WebReplay } from "./publicWebDraftIdentity";
-import { extractD1VisualSurfaces, type FoodD1VisualSurfaces, type FoodD1VisualKind } from "./publicVisualSurfaces";
+import { isConfirmedFoodD1WebDraft } from "./publicWebDraftRepository";
+import {
+  FOOD_AUDIO_TRANSCRIPT_INPUT_TYPE,
+  FOOD_MULTIMODAL_INPUT_TYPE,
+  FOOD_TEXT_INPUT_TYPE,
+} from "./contracts";
+import {
+  extractD1VisualSurfaces,
+  isValidD1VisualContentDigest,
+  parseFoodD1VisualKind,
+  type FoodD1VisualSurfaces,
+  type FoodD1VisualKind,
+} from "./publicVisualSurfaces";
 import { buildEnvelope, buildDependencies, toReviewItem } from "./publicWebDraftSupport";
 import { createFoodD1PublicWebDraftConfirmation } from "./publicWebDraftConfirmation";
 export { FoodD1WebDraftNotFoundError, hashFoodD1WebDraftConfirmation } from "./publicWebDraftConfirmation";
@@ -79,7 +94,7 @@ function isD1WebDraftResult(value: unknown): value is FoodD1Result {
 }
 
 function getStoredRecord(record: FoodD1WebDraftRecord): FoodD1WebDraft {
-  if (record.status === "confirmed") {
+  if (isConfirmedFoodD1WebDraft(record)) {
     throw new Error("food-d1-web-draft-operation-already-confirmed");
   }
   return record.payload.draft;
@@ -99,16 +114,19 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     const hasText = Boolean(request.text?.trim());
     const hasAudio = Boolean(request.audio);
     const hasImage = Boolean(request.image);
-    const visualKind: FoodD1VisualKind | null =
-      hasImage && (request.imageKind === "plate_image" || request.imageKind === "packaging")
-        ? request.imageKind : null;
+    const visualSelection = hasImage ? parseFoodD1VisualKind(request.imageKind) : null;
+    const visualKind = visualSelection?.kind ?? null;
     // Image role is explicitly chosen by the user, never guessed from a caption.
     // A nutrition-label continuation requires an existing physical item and
     // separately verified source evidence: a new web draft cannot authorize it.
+    const combinesInputs = Boolean((hasImage && visualKind && (hasText || hasAudio)) ||
+      (hasText && hasAudio));
     const entrypoint: FoodD1WebDraft["entrypoint"] | null = hasImage && visualKind
-      ? hasText || hasAudio ? "multimodal" : visualKind
+      ? combinesInputs ? FOOD_MULTIMODAL_INPUT_TYPE : visualKind
       : hasText && hasAudio
-        ? "multimodal" : hasText ? "text" : hasAudio ? "audio_transcript" : null;
+        ? FOOD_MULTIMODAL_INPUT_TYPE
+        : hasText ? FOOD_TEXT_INPUT_TYPE
+          : hasAudio ? FOOD_AUDIO_TRANSCRIPT_INPUT_TYPE : null;
     // A stable web submission already owned by V2 must never be reinterpreted
     // by V1 after the flag is disabled or the user changes modality. Check the
     // durable route before returning null to the public V1 draft handler.
@@ -116,7 +134,7 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
         isValidD1OperationId(request.d1OperationId ?? "")) {
       const pinned = await (deps.routeStore ?? createFoodD1RouteDbStore())
         .readPinnedRoute(operationKey(input.userId, request.d1OperationId!), input.userId);
-      if (pinned?.resolver === "v2") {
+      if (isD1V2Route(pinned?.resolver)) {
         if (!entrypoint || pinned.originEntrypoint !== entrypoint) {
           throw new Error("food-d1-entrypoint-changed-during-operation");
         }
@@ -124,16 +142,22 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
           throw new Error("food-d1-operation-paused-by-rollback");
         }
       }
-      if (pinned?.resolver === "v1") return null;
+      if (isD1V1Route(pinned?.resolver)) return null;
     }
-    if (!entrypoint || !isFoodD1EntrypointCutoverRequested(entrypoint)) return null;
+    if (!entrypoint) {
+      if (hasImage && isFoodD1VisualCutoverRequested()) {
+        throw new Error("food-d1-public-web-image-role-required");
+      }
+      return null;
+    }
+    if (!isFoodD1EntrypointCutoverRequested(entrypoint)) return null;
     if (hasImage && !visualKind) {
       throw new Error("food-d1-public-web-image-role-required");
     }
     if (hasImage && visualKind &&
         (!isFoodD1EntrypointCutoverRequested(visualKind) ||
-        (entrypoint === "multimodal" &&
-          !isFoodD1EntrypointCutoverRequested("multimodal")))) {
+        (combinesInputs &&
+          !isFoodD1EntrypointCutoverRequested(FOOD_MULTIMODAL_INPUT_TYPE)))) {
       throw new Error("food-d1-public-web-image-rollout-incomplete");
     }
     if (!Number.isSafeInteger(input.userId) || input.userId <= 0 ||
@@ -188,19 +212,12 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       ? await (deps.extractVisualSurfaces ?? extractD1VisualSurfaces)({
         image: request.image!, kind: visualKind,
       }) : null;
-    if (visual && (!/^[a-f0-9]{64}$/u.test(visual.contentDigest) ||
+    if (visual && (!isValidD1VisualContentDigest(visual.contentDigest) ||
         !Array.isArray(visual.surfaces) || visual.surfaces.length === 0 ||
         visual.surfaces.length > 30 ||
         visual.surfaces.some(surface => typeof surface !== "string" ||
           !surface.trim() || surface.length > 240))) {
       throw new Error("food-d1-public-web-visual-evidence-invalid");
-    }
-    const surfaces: Array<{ text: string; modality: "text" | "audio_transcript"; source: string }> = [];
-    if (hasText) {
-      surfaces.push({ text: request.text!.trim(), modality: "text", source: "text" });
-    }
-    if (transcript) {
-      surfaces.push({ text: transcript, modality: "audio_transcript", source: "audio" });
     }
     const envelope = buildEnvelope({
       userId: input.userId,
@@ -216,18 +233,29 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
     const lexicon = deps.lexicon ?? governedLinguisticLexiconStore;
     const textObservations: FoodObservation[] = [];
     const transcriptObservations: FoodObservation[] = [];
-    for (const surface of surfaces) {
+    if (hasText) {
       const parsed = await comprehend({
-        rawText: surface.text,
-        sourceRef: `${operationKeyValue}:${surface.source}`,
-        modality: surface.modality,
+        rawText: request.text!.trim(),
+        sourceRef: `${operationKeyValue}:text`,
+        modality: FOOD_TEXT_INPUT_TYPE,
         ownerUserId: input.userId,
         lexiconRevision: context.revisions.lexicon,
         locale: "pt-BR",
         now,
       }, lexicon);
-      if (surface.modality === "text") textObservations.push(...parsed);
-      else transcriptObservations.push(...parsed);
+      textObservations.push(...parsed);
+    }
+    if (transcript) {
+      const parsed = await comprehend({
+        rawText: transcript,
+        sourceRef: `${operationKeyValue}:audio`,
+        modality: "audio_transcript",
+        ownerUserId: input.userId,
+        lexiconRevision: context.revisions.lexicon,
+        locale: "pt-BR",
+        now,
+      }, lexicon);
+      transcriptObservations.push(...parsed);
     }
     const imageObservations: FoodObservation[] = [];
     if (visual && visualKind) {
@@ -238,7 +266,7 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
           // signed URL, original filename, or user-supplied caption.
           sourceRef: `d1-image:${visual.contentDigest}:${index}`,
           modality: "image",
-          imageRegionRole: visualKind === "plate_image" ? "caption" : "front_identity",
+          imageRegionRole: visualSelection!.imageRegionRole,
           ownerUserId: input.userId,
           lexiconRevision: context.revisions.lexicon,
           locale: "pt-BR",
@@ -247,7 +275,7 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       }
     }
     let observations: FoodObservation[] = [...textObservations, ...transcriptObservations, ...imageObservations];
-    if (entrypoint === "multimodal") {
+    if (combinesInputs) {
       const pairedTextAudio = textObservations.length && transcriptObservations.length
         ? coalesceEquivalentMultimodalEvidence(textObservations, transcriptObservations)
         : [...textObservations, ...transcriptObservations];

@@ -7,8 +7,16 @@
  * and by a separate V2 consumer/persistence adapter.
  */
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { parseFoodOperationEnvelope, type FoodOperationEnvelope } from "./schemas";
-import { D1_ENTRYPOINT_IDS, type FoodD1Entrypoint } from "./entrypointMigration";
+import { haveEqualFoodEnvelopeRevisions } from "./contracts";
+import {
+  D1_ENTRYPOINT_IDS,
+  D1_VISUAL_ENTRYPOINT_IDS,
+  D1_WHATSAPP_IMAGE_ENTRYPOINT_IDS,
+  type FoodD1Resolver,
+  type FoodD1Entrypoint,
+} from "./entrypointMigration";
 
 /** Exact opaque submission key syntax, independent of food identity and nutrition.
  * Keep this check shared by public additions and edits to prevent rule drift.
@@ -31,10 +39,26 @@ export type FoodD1PinnedRoute = {
   operationKey: string;
   ownerUserId: number;
   originEntrypoint: FoodD1Entrypoint;
-  resolver: "v1" | "v2";
+  resolver: FoodD1Resolver;
   operationScopeHash: string;
   versions: FoodOperationEnvelope["revisions"];
 };
+
+const foodD1ResolverSchema = z.union([z.literal("v1"), z.literal("v2")]);
+const foodD1V1ResolverSchema = z.literal("v1");
+const foodD1V2ResolverSchema = z.literal("v2");
+
+export function isD1RouteVersion(value: unknown): value is FoodD1Resolver {
+  return foodD1ResolverSchema.safeParse(value).success;
+}
+
+export function isD1V2Route(value: unknown): value is "v2" {
+  return foodD1V2ResolverSchema.safeParse(value).success;
+}
+
+export function isD1V1Route(value: unknown): value is "v1" {
+  return foodD1V1ResolverSchema.safeParse(value).success;
+}
 
 /**
  * Immutable identity of the meal operation across retries and later turns.
@@ -89,6 +113,16 @@ export function isFoodD1EntrypointCutoverRequested(entrypoint: FoodD1Entrypoint)
   return selected.includes(entrypoint);
 }
 
+export function isFoodD1VisualCutoverRequested(): boolean {
+  return D1_VISUAL_ENTRYPOINT_IDS.some(entrypoint =>
+    isFoodD1EntrypointCutoverRequested(entrypoint));
+}
+
+export function isFoodD1WhatsAppImageCutoverRequested(): boolean {
+  return D1_WHATSAPP_IMAGE_ENTRYPOINT_IDS.some(entrypoint =>
+    isFoodD1EntrypointCutoverRequested(entrypoint));
+}
+
 function enabledForRequest(override: boolean | undefined, original: FoodD1Entrypoint): boolean {
   return process.env.NODE_ENV === "test" && override !== undefined
     ? override : isFoodD1EntrypointCutoverRequested(original);
@@ -109,7 +143,7 @@ function assertPinnedIdentity(
 ): void {
   if (!pin || pin.operationKey !== env.idempotencyKey ||
       pin.ownerUserId !== env.ownerUserId ||
-      (pin.resolver !== "v1" && pin.resolver !== "v2")) {
+      !isD1RouteVersion(pin.resolver)) {
     throw new Error("food-d1-pinned-route-scope-mismatch");
   }
   // The original handler owns the operation. A later continuation does not
@@ -121,9 +155,7 @@ function assertPinnedIdentity(
   if (pin.operationScopeHash !== hashFoodD1OperationScope(env, source)) {
     throw new Error("food-d1-operation-scope-changed");
   }
-  if (!pin.versions ||
-      (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
-        .some(key => pin.versions[key] !== env.revisions[key])) {
+  if (!pin.versions || !haveEqualFoodEnvelopeRevisions(pin.versions, env.revisions)) {
     throw new Error("food-d1-pinned-versions-changed");
   }
 }

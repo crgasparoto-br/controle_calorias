@@ -186,23 +186,6 @@ export type MealsRepository = {
   countConfirmed(): Promise<number>;
 };
 
-import {
-  assertMealItemSnapshot,
-  assertMealMetadataSnapshot,
-  buildMealItemUpdate,
-  readMealItemResolution,
-  sanitizeUnverifiedReplacement,
-  samePersistedMealItem,
-} from "./mealItemPersistence";
-import {
-  assertMealBelongsToUser,
-  insertConfirmedMealInTransaction,
-  lockMealAndItems,
-  replaceMealItemsInTransaction,
-  runInTransaction,
-  updateMealMetadataInTransaction,
-} from "./mealTransactionOperations";
-
 /** One snapshot-only database reader; the public repository method is a facade. */
 async function loadSavedMeals(
   deps: { getDb: DbProvider; onWarning: PersistenceWarningHandler },

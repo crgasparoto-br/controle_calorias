@@ -4,11 +4,15 @@ import { and, eq, gt } from "drizzle-orm";
 import { whatsappPendingOperations, users } from "../../../drizzle/schema";
 import { foodD1OperationRoutes } from "../../../drizzle/food-intelligence-v2-schema";
 import { getDb } from "../../db";
-import { hashFoodD1OperationScope } from "./entrypointRouting";
-import { FOOD_D1_WHATSAPP_PENDING_TYPE, FOOD_D1_WHATSAPP_PENDING_ORIGIN,
-  FOOD_D1_WHATSAPP_PENDING_TTL_MS, parseFoodD1WhatsAppPending,
+import { hashFoodD1OperationScope, isD1V2Route } from "./entrypointRouting";
+import { WHATSAPP_PENDING_TYPE, WHATSAPP_PENDING_ORIGIN,
+  WHATSAPP_PENDING_TTL_MS, parseFoodD1WhatsAppPending,
   assertD1WhatsAppPendingFactsPreserved,
   type FoodD1WhatsAppPending } from "./publicWhatsAppPendingContract";
+import {
+  haveEqualFoodEnvelopeRevisions,
+  parseFoodEnvelopeRevisions,
+} from "./contracts";
 
 type Row = typeof whatsappPendingOperations.$inferSelect;
 export type FoodD1WhatsAppPendingRecord = {
@@ -16,8 +20,8 @@ export type FoodD1WhatsAppPendingRecord = {
 };
 
 function checkedRow(row: Row, ownerUserId: number, now: Date): FoodD1WhatsAppPendingRecord {
-  if (row.userId !== ownerUserId || row.type !== FOOD_D1_WHATSAPP_PENDING_TYPE ||
-      row.origin !== FOOD_D1_WHATSAPP_PENDING_ORIGIN || row.state !== "active" ||
+  if (row.userId !== ownerUserId || row.type !== WHATSAPP_PENDING_TYPE ||
+      row.origin !== WHATSAPP_PENDING_ORIGIN || row.state !== "active" ||
       row.expiresAt.getTime() <= now.getTime()) {
     throw new Error("food-d1-whatsapp-pending-owner-or-expiry-mismatch");
   }
@@ -59,7 +63,7 @@ export async function readActiveFoodD1WhatsAppPending(
   const db = await dbRequired();
   const rows = await db.select().from(whatsappPendingOperations).where(and(
     eq(whatsappPendingOperations.userId, ownerUserId),
-    eq(whatsappPendingOperations.type, FOOD_D1_WHATSAPP_PENDING_TYPE),
+    eq(whatsappPendingOperations.type, WHATSAPP_PENDING_TYPE),
     eq(whatsappPendingOperations.state, "active"),
     gt(whatsappPendingOperations.expiresAt, now),
   )).limit(2);
@@ -92,27 +96,31 @@ export async function stageFoodD1WhatsAppPending(
       eq(foodD1OperationRoutes.ownerUserId, ownerUserId),
       eq(foodD1OperationRoutes.operationKey, pending.envelope.idempotencyKey),
     )).for("update").limit(1);
-    if (!route || route.resolver !== "v2" ||
+    if (!route || !isD1V2Route(route.resolver) ||
         route.originEntrypoint !== pending.originEntrypoint) {
       throw new Error("food-d1-whatsapp-pending-route-unavailable");
     }
-    let revisions: Record<string, unknown>;
-    try { revisions = JSON.parse(route.revisionsJson); }
+    let metadata: unknown;
+    try { metadata = JSON.parse(route.revisionsJson); }
     catch { throw new Error("food-d1-whatsapp-pending-corrupt-revisions"); }
-    if (revisions.operationScopeHash !==
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      throw new Error("food-d1-whatsapp-pending-corrupt-revisions");
+    }
+    const routeMetadata = metadata as Record<string, unknown>;
+    const revisions = parseFoodEnvelopeRevisions(routeMetadata);
+    if (!revisions || routeMetadata.operationScopeHash !==
         hashFoodD1OperationScope(pending.envelope, "whatsapp") ||
-        (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
-          .some(field => revisions[field] !== pending.envelope.revisions[field])) {
+        !haveEqualFoodEnvelopeRevisions(revisions, pending.envelope.revisions)) {
       throw new Error("food-d1-whatsapp-pending-route-mismatch");
     }
     const ids = pending.observations.map(item => item.observationId).sort();
-    const priorIds = revisions.observationIds;
+    const priorIds = routeMetadata.observationIds;
     if (priorIds !== undefined && JSON.stringify(priorIds) !== JSON.stringify(ids)) {
       throw new Error("food-d1-whatsapp-pending-manifest-conflict");
     }
     const rows = await tx.select().from(whatsappPendingOperations).where(and(
       eq(whatsappPendingOperations.userId, ownerUserId),
-      eq(whatsappPendingOperations.type, FOOD_D1_WHATSAPP_PENDING_TYPE),
+      eq(whatsappPendingOperations.type, WHATSAPP_PENDING_TYPE),
       eq(whatsappPendingOperations.state, "active"),
       gt(whatsappPendingOperations.expiresAt, now),
     )).for("update").limit(2);
@@ -129,14 +137,14 @@ export async function stageFoodD1WhatsAppPending(
     }
     if (priorIds === undefined) {
       await tx.update(foodD1OperationRoutes).set({
-        revisionsJson: JSON.stringify({ ...revisions, observationIds: ids }),
+        revisionsJson: JSON.stringify({ ...routeMetadata, observationIds: ids }),
       }).where(and(eq(foodD1OperationRoutes.ownerUserId, ownerUserId),
         eq(foodD1OperationRoutes.operationKey, pending.envelope.idempotencyKey)));
     }
-    const expiresAt = new Date(now.getTime() + FOOD_D1_WHATSAPP_PENDING_TTL_MS);
+    const expiresAt = new Date(now.getTime() + WHATSAPP_PENDING_TTL_MS);
     await tx.insert(whatsappPendingOperations).values({
-      userId: ownerUserId, type: FOOD_D1_WHATSAPP_PENDING_TYPE,
-      origin: FOOD_D1_WHATSAPP_PENDING_ORIGIN,
+      userId: ownerUserId, type: WHATSAPP_PENDING_TYPE,
+      origin: WHATSAPP_PENDING_ORIGIN,
       state: "active", version: 1, target: pending,
       dedupeKey: key(pending), expiresAt,
     });

@@ -4,6 +4,7 @@ import {
   type GenerateExternalImageAnnotationDependencies,
   type ImageAnnotationResponse,
 } from "../../_core/imageAnnotation";
+import { parseBase64DataUrl } from "../../_core/imageBase64";
 import type { MealProcessingResult } from "../../nutritionEngine";
 import {
   createLocalMealPhotoOverlay,
@@ -28,9 +29,8 @@ function formatFoodDescription(item: MealProcessingResult["items"][number]) {
 }
 
 export function imageDataFromDataUrl(dataUrl?: string) {
-  const match = dataUrl?.match(/^data:([^;]+);base64,(.+)$/u);
-  if (!match) return null;
-  return { mimeType: match[1], b64Json: match[2] };
+  const parsed = parseBase64DataUrl(dataUrl);
+  return parsed ? { mimeType: parsed.mimeType, b64Json: parsed.base64 } : null;
 }
 
 export function buildAnnotatedMealImagePrompt(processed: MealProcessingResult) {

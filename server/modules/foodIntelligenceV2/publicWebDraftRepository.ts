@@ -15,6 +15,11 @@ import {
 } from "./schemas";
 import { foodObservationSchema, type FoodObservation } from "./observationSchemas";
 import type { FoodD1CommitResult } from "./entrypointPersistenceRepository";
+import {
+  FOOD_SHA256_HEX_PATTERN,
+  haveEqualFoodEnvelopeRevisions,
+} from "./contracts";
+import { isD1V2Route } from "./entrypointRouting";
 
 export const FOOD_D1_WEB_DRAFT_TTL_MS = 30 * 60 * 1000;
 export const FOOD_D1_WEB_DRAFT_CLEANUP_INTERVAL_MS = 60 * 1000;
@@ -32,7 +37,7 @@ const confirmationSchema = foodD1WebDraftSchema.pick({
   draftId: true,
   operationKey: true,
 }).extend({
-  confirmationHash: z.string().regex(/^[a-f0-9]{64}$/),
+  confirmationHash: z.string().regex(FOOD_SHA256_HEX_PATTERN),
   committed: z.boolean(),
   replayed: z.boolean(),
   mealId: z.number().int().positive().nullable(),
@@ -60,6 +65,12 @@ export type FoodD1WebDraftRecord =
       confirmationHash: string;
       result: FoodD1CommitResult;
     };
+
+export function isConfirmedFoodD1WebDraft(
+  record: FoodD1WebDraftRecord | null | undefined,
+): record is Extract<FoodD1WebDraftRecord, { status: "confirmed" }> {
+  return Boolean(record && "confirmationHash" in record);
+}
 
 function isConfirmedDraftRow(row: {
   status: "pending" | "confirmed";
@@ -167,7 +178,7 @@ function assertPayloadScope(input: {
 }
 
 /** Reject a racing submission reusing the operation key with different intent. */
-function assertMatchingConcurrentWebDraft(
+function assertConcurrentWebDraftScope(
   existing: FoodD1WebDraftPayload,
   incoming: Omit<FoodD1WebDraftPayload, "draft"> & {
     draft: Omit<FoodD1WebDraft, "draftId" | "expiresAt">;
@@ -182,8 +193,7 @@ function assertMatchingConcurrentWebDraft(
       a.traceId !== b.traceId ||
       a.effectiveTimeZone !== b.effectiveTimeZone ||
       JSON.stringify(a.mealOperation) !== JSON.stringify(b.mealOperation) ||
-      (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
-        .some(key => a.revisions[key] !== b.revisions[key])) {
+      !haveEqualFoodEnvelopeRevisions(a.revisions, b.revisions)) {
     throw new Error("food-d1-public-web-draft-operation-scope-changed");
   }
 }
@@ -223,7 +233,7 @@ export async function saveFoodD1WebDraft(input: {
       .where(and(eq(foodD1OperationRoutes.ownerUserId, input.ownerUserId),
         eq(foodD1OperationRoutes.operationKey, input.operationKey)))
       .for("update").limit(1);
-    if (!pinned || pinned.resolver !== "v2") {
+    if (!pinned || !isD1V2Route(pinned.resolver)) {
       throw new Error("food-d1-web-draft-pinned-v2-route-required");
     }
     const [committed] = await tx.select({ observationId: foodD1OperationEffects.observationId })
@@ -267,7 +277,7 @@ export async function saveFoodD1WebDraft(input: {
         // Return the winning draft only when both callers have the same
         // immutable operation identity. Different provider observations for
         // the same input do not permit a second physical meal.
-        assertMatchingConcurrentWebDraft(stored, input.payload);
+        assertConcurrentWebDraftScope(stored, input.payload);
         return { status: "pending", payload: stored };
       }
       throw new Error("food-d1-web-draft-corrupt-row");
@@ -289,7 +299,7 @@ export async function saveFoodD1WebDraft(input: {
       .where(and(eq(foodD1WebDrafts.ownerUserId, input.ownerUserId),
         eq(foodD1WebDrafts.operationKey, input.operationKey)))
       .for("update").limit(1);
-    if (!created || created.status !== "pending" || !created.payloadJson) {
+    if (!created || !isPendingDraftRow(created)) {
       throw new Error("food-d1-web-draft-create-failed");
     }
     return {

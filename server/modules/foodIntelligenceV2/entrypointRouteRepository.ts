@@ -6,25 +6,32 @@ import { and, eq, sql } from "drizzle-orm";
 import { foodD1OperationRoutes } from "../../../drizzle/food-intelligence-v2-schema";
 import { getDb } from "../../db";
 import { D1_ENTRYPOINT_IDS } from "./entrypointMigration";
-import type { FoodD1PinnedRoute, FoodD1RouteStore } from "./entrypointRouting";
-
-const REVISION_KEYS = ["code", "knowledge", "lexicon", "policy", "resolver"] as const;
+import {
+  isD1RouteVersion,
+  type FoodD1PinnedRoute,
+  type FoodD1RouteStore,
+} from "./entrypointRouting";
+import {
+  isValidFoodSha256HexDigest,
+  parseFoodEnvelopeRevisions,
+} from "./contracts";
 
 function decodeRoute(row: typeof foodD1OperationRoutes.$inferSelect): FoodD1PinnedRoute {
-  let revisions: unknown;
-  try { revisions = JSON.parse(row.revisionsJson); }
+  let metadata: unknown;
+  try { metadata = JSON.parse(row.revisionsJson); }
   catch { throw new Error("food-d1-corrupt-pinned-revisions"); }
-  if (!revisions || typeof revisions !== "object" ||
-      REVISION_KEYS.some(key => typeof (revisions as Record<string, unknown>)[key] !== "string" ||
-        !(revisions as Record<string, string>)[key].trim())) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     throw new Error("food-d1-corrupt-pinned-revisions");
   }
+  const routeMetadata = metadata as Record<string, unknown>;
+  const versions = parseFoodEnvelopeRevisions(routeMetadata);
+  if (!versions) throw new Error("food-d1-corrupt-pinned-revisions");
   if (!D1_ENTRYPOINT_IDS.some(candidate => candidate === row.originEntrypoint) ||
-      (row.resolver !== "v1" && row.resolver !== "v2")) {
+      !isD1RouteVersion(row.resolver)) {
     throw new Error("food-d1-corrupt-pinned-owner");
   }
-  const operationScopeHash = (revisions as Record<string, unknown>).operationScopeHash;
-  if (typeof operationScopeHash !== "string" || !/^[a-f0-9]{64}$/.test(operationScopeHash)) {
+  const operationScopeHash = routeMetadata.operationScopeHash;
+  if (!isValidFoodSha256HexDigest(operationScopeHash)) {
     throw new Error("food-d1-corrupt-pinned-operation-scope");
   }
   return {
@@ -32,8 +39,7 @@ function decodeRoute(row: typeof foodD1OperationRoutes.$inferSelect): FoodD1Pinn
     operationKey: row.operationKey, ownerUserId: row.ownerUserId,
     originEntrypoint: row.originEntrypoint as FoodD1PinnedRoute["originEntrypoint"],
     resolver: row.resolver,
-    versions: Object.fromEntries(REVISION_KEYS.map(key => [key,
-      (revisions as Record<string, string>)[key]])) as FoodD1PinnedRoute["versions"],
+    versions,
   };
 }
 
@@ -41,10 +47,9 @@ function assertCandidate(candidate: FoodD1PinnedRoute): void {
   if (!candidate || !Number.isSafeInteger(candidate.ownerUserId) || candidate.ownerUserId <= 0 ||
       !candidate.operationKey || candidate.operationKey.length > 200 ||
       !D1_ENTRYPOINT_IDS.includes(candidate.originEntrypoint) ||
-      (candidate.resolver !== "v1" && candidate.resolver !== "v2") ||
-      !/^[a-f0-9]{64}$/.test(candidate.operationScopeHash) ||
-      !candidate.versions || REVISION_KEYS.some(key =>
-        typeof candidate.versions[key] !== "string" || !candidate.versions[key].trim())) {
+      !isD1RouteVersion(candidate.resolver) ||
+      !isValidFoodSha256HexDigest(candidate.operationScopeHash) ||
+      !parseFoodEnvelopeRevisions(candidate.versions)) {
     throw new Error("food-d1-invalid-pinned-route");
   }
 }

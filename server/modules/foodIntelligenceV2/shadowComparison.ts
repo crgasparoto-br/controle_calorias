@@ -8,10 +8,11 @@ import type { AiCapabilityAttemptMetric } from "../../_core/ai/observability";
 import type { FoodShadowV1Item, FoodShadowV1Snapshot } from "./shadowV1Snapshot";
 import type { FoodObservation, FoodResolutionDecision } from "./schemas";
 import { z } from "zod";
+import { FOOD_INPUT_TYPES, type FoodInputType } from "./contracts";
 import { abs, boundedShadowMacroDelta, costMetric, exactDifference, hasConsistentFoodShadowTimings, MAX_SHADOW_EVENT_COST_USD, MAX_SHADOW_TIMING_MS, metric, pairFoodShadowItems, persistedFamilyId, persistedVariantId, shadowMacroDifference } from "./shadowPairing";
 export { hasConsistentFoodShadowTimings, MAX_SHADOW_TIMING_MS } from "./shadowPairing";
 
-export type FoodShadowModality = "text" | "audio_transcript" | "image" | "multimodal";
+export type FoodShadowModality = FoodInputType;
 export type FoodShadowClass = "generic" | "commercial" | "quantity" | "label" | "ambiguous" | "unknown" | "mixed";
 export type FoodShadowEntrypoint = "web" | "whatsapp" | "meal_add" | "meal_edit" | "label_continuation" | "replay";
 export type FoodShadowOutcome = "resolved" | "partially_resolved" | "ambiguous" | "unknown" | "clarification" | "failed" | "not_compared";
@@ -79,7 +80,7 @@ export type FoodShadowEvent = {
 
 /** Typed telemetry dimensions; validators reject untrusted free-form labels. */
 const segmentation = z.object({
-  modality: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+  modality: z.enum(FOOD_INPUT_TYPES),
   entrypoint: z.enum(["web", "whatsapp", "meal_add", "meal_edit", "label_continuation", "replay"]),
   scenarioClass: z.enum(["generic", "commercial", "quantity", "label", "ambiguous", "unknown", "mixed"]),
 });

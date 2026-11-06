@@ -21,7 +21,7 @@ describe("#1308 D1 durable pending owner scalar contract", () => {
       "eq(foodD1OperationRoutes.ownerUserId, ownerUserId)",
       "eq(whatsappPendingOperations.userId, ownerUserId)",
       "checkedRow(rows[0], ownerUserId, now)",
-      "userId: ownerUserId, type: FOOD_D1_WHATSAPP_PENDING_TYPE",
+      "userId: ownerUserId, type: WHATSAPP_PENDING_TYPE",
       "checkedRow(saved, ownerUserId, now)",
     ]) {
       expect(stage).toContain(call);

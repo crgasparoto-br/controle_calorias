@@ -33,7 +33,7 @@ function props() {
     previewTotals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     onConfirm: vi.fn(),
     isConfirmPending: false,
-  } as const;
+  };
 }
 
 describe("D1 visual-role selection on meal registration", () => {

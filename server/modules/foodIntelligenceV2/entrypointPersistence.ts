@@ -88,11 +88,15 @@ export function prepareFoodD1NativeWrite(input: {
     }
     seen.add(item.observationId);
     const parsedDecision = parseFoodResolutionDecision(item.decision);
-    if (!parsedDecision.ok || item.decision.ownerUserId !== envelope.ownerUserId ||
-        item.decision.traceId !== envelope.traceId ||
-        !item.decision.observationIds.includes(item.observationId) ||
-        item.decision.knowledgeRevision !== envelope.revisions.knowledge ||
-        item.decision.policyVersion !== envelope.revisions.policy) {
+    if (!parsedDecision.ok) {
+      throw new Error("food-d1-native-decision-scope-mismatch");
+    }
+    const decision = parsedDecision.value;
+    if (decision.ownerUserId !== envelope.ownerUserId ||
+        decision.traceId !== envelope.traceId ||
+        !decision.observationIds.includes(item.observationId) ||
+        decision.knowledgeRevision !== envelope.revisions.knowledge ||
+        decision.policyVersion !== envelope.revisions.policy) {
       throw new Error("food-d1-native-decision-scope-mismatch");
     }
     if (item.disposition !== "ready") {
@@ -100,9 +104,9 @@ export function prepareFoodD1NativeWrite(input: {
       skipped.push({ observationId: item.observationId, reasonCodes: item.reasonCodes });
       continue;
     }
-    const { identity, quantity, nutrition } = item.decision;
+    const { identity, quantity, nutrition } = decision;
     if (identity.confidence !== null) confidences.push(identity.confidence);
-    if (item.decision.status !== "resolved" || nutrition.provisional || !nutrition.verified ||
+    if (decision.status !== "resolved" || nutrition.provisional || !nutrition.verified ||
         !nutrition.consumed || !nutrition.basis || nutrition.sourceId === null ||
         nutrition.profileId === null || identity.foodEntityId === null ||
         identity.variantId === null || !identity.canonicalName ||
@@ -112,7 +116,7 @@ export function prepareFoodD1NativeWrite(input: {
       throw new Error("food-d1-native-write-requires-grounded-grams-and-nutrition");
     }
     if (result.entrypoint === "nutrition_label" &&
-        !item.decision.evidence.some(evidence => evidence.origin === "nutrition_label" &&
+        !decision.evidence.some(evidence => evidence.origin === "nutrition_label" &&
           evidence.field.startsWith("nutrition.") && evidence.verified &&
           evidence.sourceId === nutrition.sourceId)) {
       throw new Error("food-d1-native-label-not-verified");
@@ -133,7 +137,7 @@ export function prepareFoodD1NativeWrite(input: {
     // A not-yet-persisted sibling is an existing pending observation, not a
     // new addition. The original manifest is checked again in the DB.
     if (result.entrypoint === "continuation" && targetItemId === null &&
-        item.decision.revision < 2) {
+        decision.revision < 2) {
       throw new Error("food-d1-native-uncontinued-deferred-sibling");
     }
     const units = quantity.unit && quantity.value !== null ?
@@ -143,10 +147,9 @@ export function prepareFoodD1NativeWrite(input: {
     // Snapshot contains no raw media, prompt, transcript or evidence payload.
     // The subsequent label/clarification must consume a previously verified
     // structured decision, not reverse-engineer a new one from display text.
-    // This is a bounded sanitized decision: no rawInput/media/transcript.
     const snapshot = JSON.stringify({ format: "food-v2", schemaVersion: 2,
-      decisionId: item.decision.decisionId, revision: item.decision.revision,
-      structuredDecision: item.decision,
+      decisionId: decision.decisionId, revision: decision.revision,
+      structuredDecision: decision,
       identity: { foodEntityId: identity.foodEntityId, variantId: identity.variantId,
         canonicalName: identity.canonicalName },
       nutrition: { profileId: nutrition.profileId, sourceId: nutrition.sourceId,
@@ -154,9 +157,7 @@ export function prepareFoodD1NativeWrite(input: {
       quantity: { value: units.value, unit: units.unit, grams: quantity.grams } });
     // MySQL TEXT is limited to 64 KiB; do not truncate an evidence decision
     // (which would silently corrupt the linked identity on later turns).
-    if (Buffer.byteLength(snapshot, "utf8") > 60000 ||
-        snapshot.includes('"rawInput"') ||
-        snapshot.includes('"normalizedInput"')) {
+    if (Buffer.byteLength(snapshot, "utf8") > 60000) {
       throw new Error("food-d1-native-structured-snapshot-unsafe");
     }
     items.push({ observationId: item.observationId, targetItemId,
