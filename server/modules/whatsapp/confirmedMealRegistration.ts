@@ -71,6 +71,67 @@ const defaultDependencies: ConfirmedMealRegistrationDependencies = {
   },
 };
 
+const PARTIAL_CONTINUATION_FALLBACK =
+  "Não consegui guardar uma pergunta de continuação. O registro seguro foi salvo; os itens listados permanecem fora da refeição. Para incluí-los, envie depois uma nova mensagem com a quantidade exata de cada item.";
+
+export async function requestPartialRegistrationContinuation(
+  input: {
+    userId: number;
+    originalText: string;
+    skippedItems: CountableFoodPendingItem[];
+    receivedAt: Date;
+    userTimezone: string;
+    inboundMessageId?: string | null;
+    meal: { id: number; mealLabel: string; occurredAt: Date | string | number };
+  },
+  requestClarification =
+    defaultDependencies.requestPartialRegistrationClarification,
+) {
+  const pendingItems = input.skippedItems.map(item => ({
+    segmentIndex: item.segmentIndex,
+    segment: item.segment,
+    foodName: item.foodName,
+    brand: item.brand,
+    count: item.count,
+    requestedUnit: item.requestedUnit,
+  }));
+
+  try {
+    const mealOccurredAt =
+      input.meal.occurredAt instanceof Date
+        ? input.meal.occurredAt
+        : new Date(input.meal.occurredAt);
+    const result = await requestClarification({
+      userId: input.userId,
+      originalText: input.originalText,
+      pendingItems,
+      currentPendingIndex: 0,
+      resolvedQuantities: pendingItems.map(() => null),
+      occurredAt: mealOccurredAt,
+      receivedAt: input.receivedAt,
+      userTimezone: input.userTimezone,
+      messageId: input.inboundMessageId ?? null,
+      expectedMealId: input.meal.id,
+      expectedMealLabel: input.meal.mealLabel,
+      expectedMealOccurredAt: mealOccurredAt.toISOString(),
+    });
+    if (
+      result.eventType === "whatsapp.food_clarification.requested" &&
+      Number.isSafeInteger(result.data?.pendingOperationId)
+    ) {
+      return { persisted: true as const, result, reply: result.reply };
+    }
+  } catch {
+    // O segmento seguro já foi salvo; a resposta abaixo não promete retomada.
+  }
+
+  return {
+    persisted: false as const,
+    result: null,
+    reply: PARTIAL_CONTINUATION_FALLBACK,
+  };
+}
+
 function safeClarificationPrompt(error: unknown) {
   if (
     error instanceof nutritionRuntime.MealInferenceError &&
@@ -226,43 +287,23 @@ export function createConfirmedMealRegistrationService(
             })),
           )
         : null;
-      let partialContinuation: WhatsappIntentResult | null = null;
-      if (skippedItems?.length) {
-        const pendingItems = skippedItems.map(item => ({
-          segmentIndex: item.segmentIndex,
-          segment: item.segment,
-          foodName: item.foodName,
-          brand: item.brand,
-          count: item.count,
-          requestedUnit: item.requestedUnit,
-        }));
-        try {
-          const mealOccurredAt = new Date(replyMeal.occurredAt);
-          partialContinuation = await deps.requestPartialRegistrationClarification({
-            userId: input.userId,
-            originalText: input.originalText,
-            pendingItems,
-            currentPendingIndex: 0,
-            resolvedQuantities: pendingItems.map(() => null),
-            occurredAt: mealOccurredAt,
-            receivedAt: input.receivedAt ?? input.occurredAt,
-            userTimezone: input.userTimezone,
-            messageId: input.inboundMessageId ?? null,
-            expectedMealId: replyMeal.id,
-            expectedMealLabel: replyMeal.mealLabel,
-            expectedMealOccurredAt: mealOccurredAt.toISOString(),
-          });
-        } catch {
-          partialContinuation = null;
-        }
-      }
-      const continuationPending =
-        partialContinuation?.eventType ===
-        "whatsapp.food_clarification.requested";
+      const partialContinuation = skippedItems?.length
+        ? await requestPartialRegistrationContinuation(
+            {
+              userId: input.userId,
+              originalText: input.originalText,
+              skippedItems,
+              receivedAt: input.receivedAt ?? input.occurredAt,
+              userTimezone: input.userTimezone,
+              inboundMessageId: input.inboundMessageId,
+              meal: replyMeal,
+            },
+            deps.requestPartialRegistrationClarification,
+          )
+        : null;
+      const continuationPending = partialContinuation?.persisted ?? false;
       const partialContinuationNotice = skippedItems?.length
-        ? continuationPending
-          ? partialContinuation?.reply
-          : "Não consegui guardar uma pergunta de continuação. O registro seguro foi salvo; os itens listados permanecem fora da refeição. Para incluí-los, envie depois uma nova mensagem com a quantidade exata de cada item."
+        ? partialContinuation?.reply ?? PARTIAL_CONTINUATION_FALLBACK
         : null;
 
       return {
@@ -286,8 +327,8 @@ export function createConfirmedMealRegistrationService(
                   partialRegistration: true,
                   omittedItemCount: skippedItems.length,
                   continuationPending,
-                  ...(continuationPending && partialContinuation?.data
-                    ? { continuation: partialContinuation.data }
+                  ...(continuationPending && partialContinuation?.result?.data
+                    ? { continuation: partialContinuation.result.data }
                     : {}),
                 }
               : {}),

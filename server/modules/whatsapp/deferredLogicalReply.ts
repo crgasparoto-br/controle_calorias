@@ -1,10 +1,13 @@
 import type { DomainLinkInput } from "../../repositories/whatsappConversationRepository";
+import type { CountableFoodPendingItem } from "../../countableFoodQuantity";
 import type { ResolvedRegistrationSegment } from "./countableFoodRegistrationGate";
 
 export type WhatsAppDeferredLogicalReply = {
   prefixBlocks: string[];
   domainLinks: DomainLinkInput[];
+  originalText?: string;
   resolvedSegments?: ResolvedRegistrationSegment[];
+  skippedItems?: CountableFoodPendingItem[];
 };
 
 const deferredByRequest = new WeakMap<object, Map<string, WhatsAppDeferredLogicalReply>>();

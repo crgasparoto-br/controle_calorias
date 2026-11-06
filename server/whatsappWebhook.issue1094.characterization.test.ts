@@ -773,7 +773,7 @@ function assertPersistedFactsMatchSnapshots(meal: any) {
 
 function assertPendingWasPersistedBeforeReply() {
   const pendingIndex = state.sequence.indexOf("pending-created");
-  const replyIndex = state.sequence.indexOf("reply-attempt");
+  const replyIndex = state.sequence.indexOf("user-reply-attempt");
   state.metrics.pendingReplyOrderChecks += 1;
   expect(pendingIndex).toBeGreaterThanOrEqual(0);
   expect(replyIndex).toBeGreaterThanOrEqual(0);
@@ -1781,11 +1781,19 @@ let activeLifecycle: SharedLifecycleState;
 let nextUserId = 9_400_000;
 
 function installNetworkBoundary() {
-  globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/messages")) {
+      const payload =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as { status?: unknown })
+          : null;
+      if (payload?.status === "read") {
+        state.sequence.push("read-receipt");
+        return new Response(null, { status: 200 });
+      }
       state.outboundReplies.push(url);
-      state.sequence.push("reply-attempt");
+      state.sequence.push("user-reply-attempt");
       if (state.sendReplyFailure) {
         return new Response(null, {
           status: 503,
@@ -2490,15 +2498,32 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(state.metrics.householdMeasureAttempts).toBe(1);
     expect(state.metrics.nutritionSearchAttempts).toBe(2);
     expect(state.metrics.nutritionSearchOutbound).toBe(1);
-    expect(state.metrics.pendingCreated).toBe(0);
+    expect(state.metrics.pendingCreated).toBe(1);
     expect(state.metrics.persistedMeals).toBe(1);
-    expect(state.pendingRows.size).toBe(0);
+    expect(state.pendingRows.size).toBe(1);
+    const pendingRows = readPendingRows();
+    expect(pendingRows).toHaveLength(1);
+    expect(pendingRows[0]?.state).toBe("active");
+    expect(pendingRows[0]?.target.resolutionContext).toMatchObject({
+      mode: "complete_partial_confirmed_text_meal",
+      originalText: inputText,
+      currentPendingIndex: 0,
+      pendingItems: [
+        expect.objectContaining({
+          segment: expect.stringMatching(/2 pedaços de bolo/i),
+          foodName: expect.stringMatching(/bolo/i),
+        }),
+      ],
+    });
     expect(Object.values(state.metrics.nutritionSearchByItem)).toEqual([
       { attempts: 1, outbound: 1 },
     ]);
     assertOpaqueSearchKeys([/Panco Premium/u]);
     const meals = await listUserMeals(nextUserId - 1);
     expect(meals).toHaveLength(1);
+    expect(
+      pendingRows[0]?.target.resolutionContext.expectedMealId
+    ).toBe(meals[0]?.id);
     expect(meals[0].items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ foodName: expect.stringMatching(/arroz/i) }),
@@ -2532,11 +2557,12 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     );
     expect(initialRetry.status).toBe(200);
     expect(state.metrics.householdMeasureAttempts).toBe(1);
-    expect(state.metrics.pendingCreated).toBe(0);
+    expect(state.metrics.pendingCreated).toBe(1);
     expect(state.metrics.persistedMeals).toBe(1);
     expect(state.metrics.nutritionSearchAttempts).toBe(2);
     expect(state.metrics.nutritionSearchOutbound).toBe(1);
     expect(state.outboundReplies).toHaveLength(outboundBeforeInitialRetry);
+    expect(readPendingRows()).toHaveLength(1);
 
     const incompatible = await post(
       activeUrl,
@@ -2550,7 +2576,8 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(incompatible.status).toBe(200);
     expect(state.metrics.pendingConsumed).toBe(0);
     expect(state.metrics.persistedMeals).toBe(1);
-    expect(state.pendingRows.size).toBe(0);
+    expect(state.pendingRows.size).toBe(1);
+    expect(readPendingRows()).toHaveLength(1);
     expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
     await finishScenario("12-mixed-partial", "registered");
   });
@@ -2676,16 +2703,35 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     );
     expect(initial.status).toBe(200);
     expect(state.metrics.householdMeasureAttempts).toBe(1);
-    expect(state.metrics.pendingCreated).toBe(0);
+    expect(state.metrics.pendingCreated).toBe(1);
     expect(state.metrics.persistedMeals).toBe(1);
     expect(state.pendingRows.size).toBe(0);
-    expect(readPendingRows()).toHaveLength(0);
-    expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
+    const initialPendingRows = readPendingRows();
+    expect(initialPendingRows).toHaveLength(1);
+    expect(initialPendingRows[0]?.target.resolutionContext).toMatchObject({
+      mode: "complete_partial_confirmed_text_meal",
+      originalText: inputText,
+      currentPendingIndex: 0,
+      pendingItems: [
+        expect.objectContaining({
+          segment: expect.stringMatching(/2 pedaços de bolo/i),
+          foodName: expect.stringMatching(/bolo/i),
+        }),
+      ],
+    });
+    const initialMeals = await listUserMeals(nextUserId - 1);
+    expect(initialMeals).toHaveLength(1);
+    expect(
+      initialPendingRows[0]?.target.resolutionContext.expectedMealId
+    ).toBe(initialMeals[0]?.id);
 
     await restartScenarioRuntime();
     expect(activeLifecycle).not.toBe(initialLifecycle);
     expect(state.pendingRows.size).toBe(0);
-    expect(readPendingRows()).toHaveLength(0);
+    expect(readPendingRows()).toHaveLength(1);
+    expect(readPendingRows()[0]?.target.resolutionContext.originalText).toBe(
+      inputText
+    );
     const outboundBeforeDurableRetry = state.outboundReplies.length;
     const pendingCreatedBeforeDurableRetry = state.metrics.pendingCreated;
     const persistedMealsBeforeDurableRetry = state.metrics.persistedMeals;
@@ -2707,7 +2753,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(state.metrics.nutritionSearchAttempts).toBe(
       searchAttemptsBeforeDurableRetry
     );
-    expect(readPendingRows()).toHaveLength(0);
+    expect(readPendingRows()).toHaveLength(1);
     expect(
       activeLifecycle.messages.filter(
         message => message.direction === "inbound"

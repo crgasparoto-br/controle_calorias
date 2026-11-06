@@ -1314,12 +1314,14 @@ async function tryHandleTextIntent(
     // para ambiguidade; o texto canônico segue direto ao pipeline nutricional.
     if (!result && hasCountableResolution && countableGate?.kind === "ready") {
       setWhatsAppDeferredLogicalReply(req, message.id, {
+        originalText: text,
         prefixBlocks: [
           ...(countableResolutionPrefix ? [countableResolutionPrefix] : []),
           ...(countableSkippedItemsPrefix ? [countableSkippedItemsPrefix] : []),
         ],
         domainLinks: [],
         resolvedSegments: countableGate.resolvedSegments,
+        skippedItems: countableGate.skippedItems,
       });
       return { passthroughText: countableGate.registrationText };
     }
@@ -1379,6 +1381,7 @@ async function tryHandleTextIntent(
           buildCountableSkippedItemsPrefixBlock(fallbackGate.skippedItems);
         if (fallbackResolutionPrefix || fallbackSkippedItemsPrefix) {
           setWhatsAppDeferredLogicalReply(req, message.id, {
+            originalText: text,
             prefixBlocks: [
               ...(fallbackResolutionPrefix ? [fallbackResolutionPrefix] : []),
               ...(fallbackSkippedItemsPrefix
@@ -1386,6 +1389,8 @@ async function tryHandleTextIntent(
                 : []),
             ],
             domainLinks: [],
+            resolvedSegments: fallbackGate.resolvedSegments,
+            skippedItems: fallbackGate.skippedItems,
           });
         }
         return {

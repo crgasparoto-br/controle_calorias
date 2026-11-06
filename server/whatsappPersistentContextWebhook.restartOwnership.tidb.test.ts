@@ -40,7 +40,12 @@ vi.mock("./modules/whatsapp/aiQuestionAssistant", async () => {
   >("./modules/whatsapp/aiQuestionAssistant");
   return {
     ...actual,
-    executeWhatsappAiQuestionIntent: vi.fn(async () => {
+    executeWhatsappAiQuestionIntent: vi.fn(async (
+      _userId: number,
+      input: Parameters<typeof actual.executeWhatsappAiQuestionIntent>[1],
+    ) => {
+      const text = input.text.trim();
+      if (!text.startsWith("/") && !text.includes("?")) return null;
       controls.questionCalls += 1;
       if (controls.crashQuestionAfterAck) {
         controls.crashQuestionAfterAck = false;
@@ -94,6 +99,9 @@ const { createDrizzleWhatsAppConversationRepository } = await import(
 );
 const { createDrizzleWhatsAppProcessingClaimRepository } = await import(
   "./repositories/whatsappProcessingClaimRepository"
+);
+const { createDrizzleWhatsAppPendingOperationRepository } = await import(
+  "./repositories/whatsappPendingOperationRepository"
 );
 const { createDrizzleWhatsAppQuestionRecoveryRepository } = await import(
   "./repositories/whatsappQuestionRecoveryRepository"
@@ -849,10 +857,10 @@ describeTidb(
         expect(initial.statusCode).toBe(200);
         expect(initial.body).toEqual({ ok: true, processed: 1 });
         expect(controls.processMealInput).toHaveBeenCalledTimes(1);
-        expect(controls.processMealInput.mock.calls[0][0].text).toMatch(
+        expect(controls.processMealInput.mock.calls[0]?.[0]?.text).toMatch(
           /banana nanica/i,
         );
-        expect(controls.processMealInput.mock.calls[0][0].text).not.toMatch(
+        expect(controls.processMealInput.mock.calls[0]?.[0]?.text).not.toMatch(
           /queijo prato/i,
         );
 
@@ -861,12 +869,15 @@ describeTidb(
         expect(mealsAfterInitial[0].items).toHaveLength(1);
         expect(mealsAfterInitial[0].items[0].foodName).toMatch(/banana nanica/i);
         const [activePartialRows] = await connection.execute<RowDataPacket[]>(
-          `SELECT id, state FROM whatsappPendingOperations
+          `SELECT id, state, target FROM whatsappPendingOperations
           WHERE userId = ? AND state = 'active'`,
           [fixture.userId],
         );
         expect(activePartialRows).toHaveLength(1);
         expect(activePartialRows[0].state).toBe("active");
+        expect(
+          activePartialRows[0].target.resolutionContext.originalText,
+        ).toBe(registrationText);
         const outboundBodiesAfterInitial = outboundPayloads.flatMap(payload =>
           typeof payload.text?.body === "string" ? [payload.text.body] : [],
         );
@@ -907,6 +918,15 @@ describeTidb(
         expect(finalMeals).toHaveLength(1);
         const finalMeal = finalMeals[0];
         expect(finalMeal.items).toHaveLength(2);
+        expect(
+          finalMeal.items.find(item => /queijo prato/i.test(item.foodName)),
+        ).toEqual(
+          expect.objectContaining({
+            quantity: 25,
+            unit: "g",
+            estimatedGrams: 25,
+          }),
+        );
         expect(finalMeal.items.map(item => item.foodName).join(" ")).toMatch(
           /banana nanica/i,
         );
@@ -941,6 +961,9 @@ describeTidb(
         );
         expect(outboundBodiesAfterCompletion.length).toBeGreaterThan(
           outboundBodiesAfterInitial.length,
+        );
+        expect(outboundBodiesAfterCompletion.join("\n")).toMatch(
+          /registro parcial concluído/i,
         );
 
         const sendsBeforeRedelivery = outboundPayloads.length;
@@ -1040,7 +1063,11 @@ describeTidb(
         );
         const [mussarelaRows] = await connection.execute<RowDataPacket[]>(
           `SELECT id FROM mealItems
-          WHERE mealId = ? AND (foodName LIKE '%mussarela%' OR canonicalName LIKE '%mussarela%')`,
+          WHERE mealId = ? AND (
+            LOWER(foodName) LIKE '%mussarela%' OR LOWER(canonicalName) LIKE '%mussarela%' OR
+            LOWER(foodName) LIKE '%muçarela%' OR LOWER(canonicalName) LIKE '%muçarela%' OR
+            LOWER(foodName) LIKE '%mozarela%' OR LOWER(canonicalName) LIKE '%mozarela%'
+          )`,
           [registeredMeal!.id]
         );
         expect(mussarelaRows).toHaveLength(1);

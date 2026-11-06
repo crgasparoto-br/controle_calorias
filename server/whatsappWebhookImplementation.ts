@@ -16,6 +16,7 @@ import {
 } from "./db";
 import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { requestPartialRegistrationContinuation } from "./modules/whatsapp/confirmedMealRegistration";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import {
@@ -1294,6 +1295,19 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
       }
       await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
+      const partialContinuation = deferredReply?.skippedItems?.length
+        ? await requestPartialRegistrationContinuation({
+            userId,
+            originalText:
+              deferredReply?.originalText?.trim() ||
+              getOriginalInboundText(req, message),
+            skippedItems: deferredReply.skippedItems,
+            receivedAt: occurredAt,
+            userTimezone,
+            inboundMessageId: message.id ?? null,
+            meal: replyMeal,
+          })
+        : null;
       setWhatsAppWebhookOutcome(res, "meal_registered");
 
       logInferenceEvent({
@@ -1343,11 +1357,14 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
               caption: "Imagem anotada com os alimentos identificados.",
             }
           : null;
+      const finalMealReplyText = partialContinuation
+        ? `${mealReplyText}\n\n${partialContinuation.reply}`
+        : mealReplyText;
       await acknowledgement?.beforeFinalReply();
       const delivery = await sendWhatsAppLogicalDomainReply({
         to: sourcePhone,
         userId,
-        replyText: composeFinalReply(mealReplyText),
+        replyText: composeFinalReply(finalMealReplyText),
         mealId: replyMeal.id,
         auxiliaryImage,
         lifecycleHandle,
