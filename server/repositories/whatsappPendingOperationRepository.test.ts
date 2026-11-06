@@ -1,21 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { whatsappPendingOperations } from "../../drizzle/schema";
-import { createDrizzleWhatsAppPendingOperationRepository } from "./whatsappPendingOperationRepository";
+import {
+  createDrizzleWhatsAppPendingOperationRepository,
+  PENDING_OPERATION_PROCESSING_LEASE_MS,
+} from "./whatsappPendingOperationRepository";
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
   ne: (col: { name: string }, val: unknown) => ({ __op: "ne", col, val }),
+  gt: (col: { name: string }, val: unknown) => ({ __op: "gt", col, val }),
+  gte: (col: { name: string }, val: unknown) => ({ __op: "gte", col, val }),
   lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
 }));
 
 type Row = Record<string, unknown>;
 type EqCondition = { __op: "eq" | "ne"; col: { name: string }; val: unknown };
-type LtCondition = { __op: "lt"; col: { name: string }; val: unknown };
+type CompareCondition = {
+  __op: "gt" | "gte" | "lt";
+  col: { name: string };
+  val: unknown;
+};
 type AndCondition = { __op: "and"; conditions: Condition[] };
+type OrCondition = { __op: "or"; conditions: Condition[] };
 type OrderCondition = { __op: "desc"; col: { name: string } };
-type Condition = EqCondition | LtCondition | AndCondition | OrderCondition;
+type Condition =
+  | EqCondition
+  | CompareCondition
+  | AndCondition
+  | OrCondition
+  | OrderCondition;
 
 /**
  * Fake DB que suporta `and()` combinando `eq()` e reporta `affectedRows` no
@@ -37,17 +53,27 @@ function createFakeDb(
       return row[condition.col.name] === condition.val;
     if (condition.__op === "ne")
       return row[condition.col.name] !== condition.val;
-    if (condition.__op === "lt") {
+    if (
+      condition.__op === "lt" ||
+      condition.__op === "gt" ||
+      condition.__op === "gte"
+    ) {
       const value =
         row[condition.col.name] instanceof Date
           ? (row[condition.col.name] as Date).getTime()
           : row[condition.col.name];
       const compareTo =
         condition.val instanceof Date ? condition.val.getTime() : condition.val;
-      return (value as number) < (compareTo as number);
+      return condition.__op === "lt"
+        ? (value as number) < (compareTo as number)
+        : condition.__op === "gt"
+          ? (value as number) > (compareTo as number)
+          : (value as number) >= (compareTo as number);
     }
     if (condition.__op === "and")
       return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or")
+      return condition.conditions.some(inner => matches(row, inner));
     return true;
   }
 
@@ -88,7 +114,7 @@ function createFakeDb(
 
   const db = {
     select: vi.fn(() => ({ from: vi.fn(() => createSelectChain()) })),
-      insert: vi.fn(() => ({
+    insert: vi.fn(() => ({
       values: vi.fn((payload: Row) => {
         if (
           payload.dedupeKey &&
@@ -301,7 +327,11 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
     const labelRequest = await repository.createPendingOperation({
       userId: 1,
       type: "nutrition_label_photo_request",
-      target: { kind: "nutrition_label_photo_request", mealId: 10, itemIndex: 0 },
+      target: {
+        kind: "nutrition_label_photo_request",
+        mealId: 10,
+        itemIndex: 0,
+      },
       origin: "nutritionLabelCandidateService",
       ttlMs: 60_000,
       now,
@@ -326,7 +356,9 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       "nutrition_label_photo_request",
       now
     );
-    expect(allActive?.map(operation => operation.id)).toEqual([labelRequest?.id]);
+    expect(allActive?.map(operation => operation.id)).toEqual([
+      labelRequest?.id,
+    ]);
   });
 
   it("não retorna pendência expirada", async () => {
@@ -392,6 +424,190 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
       expectedVersion: created!.version + 1,
     });
     expect(result.claimed).toBe(false);
+  });
+
+  it("converte lease abandonada em review_required e nunca repete automaticamente", async () => {
+    const { repository } = createRepository();
+    const now = new Date("2026-09-01T10:00:00.000Z");
+    const created = await repository.createPendingOperation({
+      userId: 1,
+      type: "meal_item_selection",
+      target: { continuation: { plan: "complete" } },
+      origin: "mealItemSelectionCallback",
+      ttlMs: 10 * 60 * 1000,
+      now,
+    });
+
+    const [first, racing] = await Promise.all([
+      repository.beginPendingOperationProcessing({
+        id: created!.id,
+        expectedVersion: created!.version,
+        now,
+      }),
+      repository.beginPendingOperationProcessing({
+        id: created!.id,
+        expectedVersion: created!.version,
+        now,
+      }),
+    ]);
+    expect([first.claimed, racing.claimed].filter(Boolean)).toHaveLength(1);
+    expect(first.claimed ? first.version : racing.version).toBe(2);
+
+    const duringLease = await repository.getActivePendingOperation(
+      1,
+      new Date(now.getTime() + 1)
+    );
+    expect(duringLease?.state).toBe("processing");
+
+    // A crash leaves the mutation outcome ambiguous; after the lease, the row
+    // is quarantined instead of reactivating a potentially applied increment.
+    const abandonedAt = new Date(
+      now.getTime() + PENDING_OPERATION_PROCESSING_LEASE_MS
+    );
+    const review = await repository.getActivePendingOperation(1, abandonedAt);
+    expect(review).toMatchObject({
+      state: "review_required",
+      version: 3,
+      id: created!.id,
+    });
+    const retry = await repository.beginPendingOperationProcessing({
+      id: review!.id,
+      expectedVersion: review!.version,
+      now: abandonedAt,
+    });
+    expect(retry).toEqual({ claimed: false });
+    expect(
+      await repository.getActivePendingOperation(1, abandonedAt)
+    ).toMatchObject({
+      state: "review_required",
+      version: 3,
+    });
+  });
+
+  it("libera uma falha comprovadamente sem mutação e conserva a pendência para retry", async () => {
+    const { repository } = createRepository();
+    const created = await repository.createPendingOperation({
+      userId: 1,
+      type: "meal_item_selection",
+      target: { continuation: { plan: "complete" } },
+      origin: "mealItemSelectionCallback",
+      ttlMs: 60_000,
+    });
+    const claim = await repository.beginPendingOperationProcessing({
+      id: created!.id,
+      expectedVersion: 1,
+    });
+    expect(claim.claimed).toBe(true);
+
+    expect(
+      await repository.releasePendingOperationProcessing({
+        id: created!.id,
+        expectedVersion: claim.version!,
+      })
+    ).toEqual({ released: true });
+    expect(await repository.getActivePendingOperation(1)).toMatchObject({
+      state: "active",
+      version: 3,
+      target: created!.target,
+    });
+  });
+
+  it("retém contexto em estado review_required quando o resultado da mutação é incerto", async () => {
+    const { repository } = createRepository();
+    const created = await repository.createPendingOperation({
+      userId: 1,
+      type: "meal_item_selection",
+      target: { continuation: { plan: "complete" } },
+      origin: "mealItemSelectionCallback",
+      ttlMs: 60_000,
+    });
+    const claim = await repository.beginPendingOperationProcessing({
+      id: created!.id,
+      expectedVersion: 1,
+    });
+
+    expect(
+      await repository.requirePendingOperationVerification({
+        id: created!.id,
+        expectedVersion: claim.version!,
+      })
+    ).toEqual({ required: true });
+    expect(await repository.getPendingOperationById(created!.id)).toMatchObject(
+      {
+        state: "review_required",
+        version: 3,
+        target: created!.target,
+      }
+    );
+    expect(await repository.getActivePendingOperation(1)).toMatchObject({
+      id: created!.id,
+      state: "review_required",
+      version: 3,
+    });
+  });
+
+  it("prioriza a revisão incerta sobre uma nova pendência do mesmo usuário", async () => {
+    const { db, repository } = createRepository();
+    const created = await repository.createPendingOperation({
+      userId: 34,
+      type: "meal_item_selection",
+      target: { action: "grams_delta" },
+      origin: "mealItemSelectionCallback",
+      ttlMs: 10 * 60 * 1000,
+    });
+    const claim = await repository.beginPendingOperationProcessing({
+      id: created!.id,
+      expectedVersion: created!.version,
+    });
+    await repository.requirePendingOperationVerification({
+      id: created!.id,
+      expectedVersion: claim.version!,
+    });
+
+    const newer = await repository.createPendingOperation({
+      userId: 34,
+      type: "another_operation",
+      target: {},
+      origin: "test",
+      ttlMs: 60_000,
+    });
+    expect(newer).not.toBeNull();
+    expect(db.insert).toHaveBeenCalledTimes(2);
+    expect(await repository.getActivePendingOperation(34)).toMatchObject({
+      id: created!.id,
+      state: "review_required",
+    });
+  });
+
+  it("expira a revisão ao atingir o TTL sem reabrir a claim", async () => {
+    const { repository } = createRepository();
+    const createdAt = new Date("2026-09-02T10:00:00.000Z");
+    const created = await repository.createPendingOperation({
+      userId: 33,
+      type: "meal_item_selection",
+      target: { action: "grams_delta" },
+      origin: "mealItemSelectionCallback",
+      ttlMs: 10 * 60 * 1000,
+      now: createdAt,
+    });
+    const claim = await repository.beginPendingOperationProcessing({
+      id: created!.id,
+      expectedVersion: 1,
+      now: createdAt,
+    });
+    const reviewAt = new Date(
+      createdAt.getTime() + PENDING_OPERATION_PROCESSING_LEASE_MS
+    );
+    await repository.getActivePendingOperation(33, reviewAt);
+
+    const afterTtl = new Date(createdAt.getTime() + 10 * 60 * 1000 + 1);
+    expect(await repository.getActivePendingOperation(33, afterTtl)).toBeNull();
+    expect(
+      await repository.getPendingOperationById(created!.id, afterTtl)
+    ).toMatchObject({
+      state: "expired",
+      version: claim.version! + 2,
+    });
   });
 
   it("cancela uma pendência ativa e ela deixa de estar disponível", async () => {
@@ -477,6 +693,147 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
         new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
       );
       expect(purged).toBe(0);
+    });
+  });
+
+  describe("expiração explícita de pendências (issue #997)", () => {
+    it("transiciona pendências expiradas em leituras genéricas e tipadas", async () => {
+      const { repository } = createRepository();
+      const createdAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const expiresAt = new Date(createdAt.getTime() + 60 * 60 * 1000);
+      const expiredReadAt = new Date(expiresAt.getTime() + 1);
+      const generic = await repository.createPendingOperation({
+        userId: 10,
+        type: "generic_expiry",
+        target: { key: "generic" },
+        origin: "test",
+        ttlMs: 60 * 60 * 1000,
+        now: createdAt,
+      });
+      const typed = await repository.createPendingOperation({
+        userId: 10,
+        type: "typed_expiry",
+        target: { key: "typed" },
+        origin: "test",
+        ttlMs: 60 * 60 * 1000,
+        now: createdAt,
+      });
+
+      expect(
+        await repository.getActivePendingOperation(10, expiredReadAt)
+      ).toBeNull();
+      expect(
+        await repository.getActivePendingOperationByType!(
+          10,
+          "typed_expiry",
+          expiredReadAt
+        )
+      ).toBeNull();
+      expect(
+        await repository.getPendingOperationById(generic!.id)
+      ).toMatchObject({
+        state: "expired",
+        version: 2,
+        dedupeKey: null,
+      });
+      expect(await repository.getPendingOperationById(typed!.id)).toMatchObject(
+        {
+          state: "expired",
+          version: 2,
+          dedupeKey: null,
+        }
+      );
+    });
+
+    it("transiciona a pendência expirada vista pela lista e encerra processing por CAS", async () => {
+      const { repository } = createRepository();
+      const createdAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const expiredReadAt = new Date(createdAt.getTime() + 60 * 60 * 1000 + 1);
+      const listed = await repository.createPendingOperation({
+        userId: 11,
+        type: "listed_expiry",
+        target: { key: "listed" },
+        origin: "test",
+        ttlMs: 60 * 60 * 1000,
+        now: createdAt,
+      });
+      const processing = await repository.createPendingOperation({
+        userId: 12,
+        type: "processing_expiry",
+        target: { key: "processing" },
+        origin: "test",
+        ttlMs: 60 * 60 * 1000,
+        now: createdAt,
+      });
+      const began = await repository.beginPendingOperationProcessing({
+        id: processing!.id,
+        expectedVersion: 1,
+        now: new Date(createdAt.getTime() + 10 * 60 * 1000),
+      });
+      expect(began).toEqual({ claimed: true, version: 2 });
+
+      expect(
+        await repository.listActivePendingOperationsByType!(
+          11,
+          "listed_expiry",
+          expiredReadAt
+        )
+      ).toEqual([]);
+      expect(
+        await repository.getActivePendingOperation(12, expiredReadAt)
+      ).toBeNull();
+      expect(
+        await repository.getPendingOperationById(listed!.id)
+      ).toMatchObject({ state: "expired", version: 2 });
+      expect(
+        await repository.getPendingOperationById(processing!.id)
+      ).toMatchObject({ state: "expired", version: 3 });
+    });
+
+    it("rejeita claim após TTL e purga a linha somente após a retenção do estado terminal", async () => {
+      const { repository } = createRepository();
+      const createdAt = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const created = await repository.createPendingOperation({
+        userId: 13,
+        type: "expired_claim",
+        target: {},
+        origin: "test",
+        ttlMs: 60 * 60 * 1000,
+        dedupeKey: "expired-claim-997",
+        now: createdAt,
+      });
+
+      expect(
+        await repository.claimPendingOperation({
+          id: created!.id,
+          expectedVersion: 1,
+        })
+      ).toEqual({ claimed: false });
+      expect(
+        await repository.getPendingOperationById(created!.id)
+      ).toMatchObject({
+        state: "expired",
+        version: 2,
+        dedupeKey: null,
+      });
+
+      const expirationObservedAt = new Date();
+      expect(
+        await repository.purgeInactiveOperations(
+          30,
+          new Date(expirationObservedAt.getTime() + 10 * 24 * 60 * 60 * 1000)
+        )
+      ).toBe(0);
+      expect(
+        await repository.getPendingOperationById(created!.id)
+      ).toMatchObject({ state: "expired" });
+      expect(
+        await repository.purgeInactiveOperations(
+          30,
+          new Date(expirationObservedAt.getTime() + 31 * 24 * 60 * 60 * 1000)
+        )
+      ).toBe(1);
+      expect(await repository.getPendingOperationById(created!.id)).toBeNull();
     });
   });
 

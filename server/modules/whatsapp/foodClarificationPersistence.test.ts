@@ -8,10 +8,13 @@ vi.mock("./mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReply: composeReplyMock,
 }));
 vi.mock("./mealConsolidationService", () => ({
-  consolidateWhatsAppMealAfterSave: vi.fn(async (_deps, meal) => ({ action: "created", meal })),
+  consolidateWhatsAppMealAfterSave: vi.fn(async (_deps, meal) => ({
+    action: "created",
+    meal,
+  })),
 }));
 
-import { persistResolvedFoodSafely } from "./foodClarificationPersistence";
+import { persistClarificationResultSafely } from "./foodClarificationPersistence";
 import type { PendingFoodClarificationTarget } from "./foodClarificationContract";
 
 const target: PendingFoodClarificationTarget = {
@@ -84,14 +87,16 @@ function createDependencies() {
       })) as any,
       getHabits: vi.fn(async () => []) as any,
       createMeal: createMeal as any,
-      listMeals: vi.fn(async (userId: number) => meals.filter(meal => meal.userId === userId)) as any,
+      listMeals: vi.fn(async (userId: number) =>
+        meals.filter(meal => meal.userId === userId)
+      ) as any,
       updateMeal: vi.fn() as any,
       removeMeal: vi.fn(async () => true) as any,
     },
   };
 }
 
-describe("persistResolvedFoodSafely", () => {
+describe("persistClarificationResultSafely", () => {
   beforeEach(() => {
     composeReplyMock.mockReset();
     composeReplyMock.mockResolvedValue("Resposta canônica");
@@ -101,13 +106,13 @@ describe("persistResolvedFoodSafely", () => {
     const { deps, createMeal } = createDependencies();
     deps.processFood.mockRejectedValueOnce(new Error("provider indisponível"));
 
-    const outcome = await persistResolvedFoodSafely(
+    const outcome = await persistClarificationResultSafely(
       deps,
       42,
       target,
       candidate,
       new Date("2026-07-21T15:00:00.000Z"),
-      "America/Sao_Paulo",
+      "America/Sao_Paulo"
     );
 
     expect(outcome).toEqual({ status: "safe_to_retry" });
@@ -118,25 +123,27 @@ describe("persistResolvedFoodSafely", () => {
     const { deps, createMeal } = createDependencies();
     composeReplyMock.mockRejectedValueOnce(new Error("formatter indisponível"));
 
-    const outcome = await persistResolvedFoodSafely(
+    const outcome = await persistClarificationResultSafely(
       deps,
       42,
       target,
       candidate,
       new Date("2026-07-21T15:00:00.000Z"),
-      "America/Sao_Paulo",
+      "America/Sao_Paulo"
     );
 
     expect(outcome.status).toBe("verification_required");
-    expect(outcome).toEqual(expect.objectContaining({
-      result: expect.objectContaining({
-        action: "food_clarification_unavailable",
-        data: expect.objectContaining({
-          verificationRequired: true,
-          retryBlockedToPreventDuplicate: true,
+    expect(outcome).toEqual(
+      expect.objectContaining({
+        result: expect.objectContaining({
+          action: "food_clarification_unavailable",
+          data: expect.objectContaining({
+            verificationRequired: true,
+            retryBlockedToPreventDuplicate: true,
+          }),
         }),
-      }),
-    }));
+      })
+    );
     expect(createMeal).toHaveBeenCalledTimes(1);
   });
 
@@ -182,21 +189,33 @@ describe("persistResolvedFoodSafely", () => {
       totals: { calories: 248, protein: 10, carbs: 42, fat: 4 },
     });
 
-    const outcome = await persistResolvedFoodSafely(
+    const outcome = await persistClarificationResultSafely(
       deps,
       42,
       multiUnitTarget,
       multiUnitCandidate,
       new Date("2026-07-21T15:00:00.000Z"),
-      "America/Sao_Paulo",
+      "America/Sao_Paulo"
     );
 
     expect(outcome.status).toBe("success");
-    expect(deps.processFood).toHaveBeenCalledWith(expect.objectContaining({
-      text: "100 g de Pão integral Wickbold",
-    }));
-    expect(createMeal).toHaveBeenCalledWith(42, expect.objectContaining({
-      items: [expect.objectContaining({ quantity: 100, unit: "g", estimatedGrams: 100, calories: 248 })],
-    }));
+    expect(deps.processFood).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "100 g de Pão integral Wickbold",
+      })
+    );
+    expect(createMeal).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            quantity: 100,
+            unit: "g",
+            estimatedGrams: 100,
+            calories: 248,
+          }),
+        ],
+      })
+    );
   });
 });

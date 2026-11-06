@@ -2,7 +2,7 @@
 
 - **Status:** PROPOSED / EM EVOLUÇÃO
 - **Data inicial:** 2026-10-02
-- **Versão da especificação (`specification_version`):** `2026-10-05-revisao-1296-3`; consolidação autorizada do núcleo sobre `82c117c95c9f05559d8ade634cabe731d8bb7208`. Substitui a revisão 2 somente nos requisitos alterados; snapshots anteriores desses requisitos exigem nova avaliação.
+- **Versão da especificação (`specification_version`):** `2026-11-05-revisao-1307-1`; formaliza a separação entre prontidão técnica, avaliação pós-deploy e aprovação operacional de #1307/#1308/#1335, preservando a consolidação do núcleo sobre `82c117c95c9f05559d8ade634cabe731d8bb7208`. Substitui `2026-10-05-revisao-1296-3` somente nos requisitos alterados; snapshots anteriores desses requisitos exigem nova avaliação.
 - **Branch de discussão:** `docs/food-intelligence-v2-adr`
 - **Base:** `develop`
 - **Escopo:** reconhecimento, resolução e governança de alimentos em entradas textuais, áudio/transcrição, imagem/OCR, rótulo nutricional e fluxos multimodais
@@ -1438,10 +1438,10 @@ Evidência do risco: o catálogo TACO embarcado possui 616 itens nomeados na gra
 
 | Gate                       | Momento                                    | Comportamento                                                                              |
 | -------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| **A — base mínima viável** | antes do shadow mode (§20, Fase C)         | **bloqueia** nos critérios de cobertura do consumo real e de corpus; **reporta** os demais |
+| **A — base mínima viável** | antes da primeira comparação shadow com dados reais, após o deploy técnico (§20; #1335) | **bloqueia** nos critérios de cobertura do consumo real e de corpus; **reporta** os demais |
 | **B — base completa**      | antes da remoção do legado (§8.13, Fase F) | bloqueia todos os critérios                                                                |
 
-A assimetria é deliberada: sem cobertura do consumo real e sem passar o corpus, o shadow mode mediria a base e não o resolvedor, produzindo conclusão errada sobre o V2. Por outro lado, exigir pureza total antes do shadow mode paralisa o programa por um problema que só os dados do shadow mode resolvem.
+A assimetria é deliberada: sem cobertura do consumo real e sem passar o corpus, o shadow com dados reais mediria a base e não o resolvedor, produzindo conclusão errada sobre o V2. Por outro lado, exigir pureza total antes do shadow mode paralisa o programa por um problema que só os dados do shadow mode resolvem. Preparação de código, testes sintéticos e CI podem ocorrer antes, mas não satisfazem Gate A nem constituem evidência de baseline real.
 
 #### 8.12.3. Critérios bloqueantes do Gate A
 
@@ -2653,6 +2653,16 @@ Percentuais, janelas, amostragem e limites operacionais de divergência/qualidad
 
 A migração deve ser incremental e observável.
 
+### Separação entre prontidão técnica e aprovação operacional
+
+O programa distingue três estados que não podem ser inferidos um do outro:
+
+- **Prontidão técnica (`TECHNICAL_READY`)**: contratos, código, adapters, migrações e controles do recorte técnico estão implementados; testes sintéticos discriminantes e checks remotos passaram no SHA exato; houve auditoria independente do recorte. Todas as flags de decisão V2, shadow e canário permanecem desativadas, e V1 continua como único owner produtivo. Esse estado não autoriza processamento de dados reais, comparação real V1×V2, alegação de baseline/acurácia/SLO operacional nem ativação.
+- **Avaliação operacional pós-deploy (`POST_DEPLOY_EVALUATION`)**: somente após a migração técnica integral e o deploy técnico em produção com as flags ainda desativadas, começa o work item #1335, sujeito a autorização/governança dos dados reais, corpus/base versionados, thresholds e método aprovados, oráculo independente e evidência auditável. A avaliação inclui Gate A offline; enquanto estiver pendente/em andamento, não equivale a aprovação e não autoriza shadow real. Gate A deve ser aprovado antes da primeira comparação shadow com dados reais.
+- **Aprovação operacional (`OPERATIONALLY_APPROVED`)**: resultado terminal para o escopo e a tupla imutável avaliados (SHA de código, ambiente/configuração, corpus/base, thresholds e método), emitido somente com evidência e revisão independentes. Autoriza apenas a transição explicitamente coberta pelo gate aprovado: Gate A pode liberar shadow real sem efeito no usuário, mas Gate B e os demais gates continuam obrigatórios antes de canário, cutover ou remoção do V1. Mudança material na tupla invalida a aprovação e exige nova avaliação; o rótulo nunca constitui autorização geral de rollout.
+
+Uma issue ou PR de escopo exclusivamente técnico pode concluir `TECHNICAL_READY` após seus critérios, checks exact-SHA e auditoria independente. Merge/fechamento não inicia automaticamente `POST_DEPLOY_EVALUATION`; o deploy com flags desativadas pode satisfazer apenas a pré-condição técnica dessa avaliação. Nenhuma dessas etapas equivale a `OPERATIONALLY_APPROVED`, marca Gate A/B como aprovados ou libera tráfego real, troca de owner, canário ou cutover. Os três estados e suas evidências devem permanecer registrados separadamente.
+
 ### Fase A — contrato e corpus
 
 - consolidar este ADR;
@@ -2670,15 +2680,15 @@ A migração deve ser incremental e observável.
 
 - quitar as entradas do livro de dívida arquitetural (§19.0.3) alcançadas por esta fase.
 
-### Fase C — resolver em shadow mode
+### Fase C — preparação técnica do comparador shadow (desativado)
 
-Processar a mesma entrada com o fluxo atual e o novo resolver sem mudar a persistência produtiva.
+Preparar o comparador e a telemetria e exercitá-los somente com fixtures sintéticas/dados de teste controlados, sem ler tráfego real nem mudar a persistência produtiva. V1 continua como único owner produtivo; shadow real permanece desativado.
 
-- exigir a aprovação do Gate A de §8.12 antes de iniciar a comparação;
+- Gate A de §8.12 é obrigatório antes da primeira comparação com dados reais/ativação do shadow real. Isso somente pode ocorrer após a migração técnica integral e o deploy com flags desativadas, conforme #1335; testes sintéticos anteriores não satisfazem Gate A;
 
-- migrar os cinco arquivos do grupo de leitura de §8.14.4, porque o shadow mode mede os leitores, não apenas o resolvedor;
+- migrar os cinco arquivos do grupo de leitura de §8.14.4 como preparação técnica; leitores não recalculam histórico e sua validação pré-operacional usa somente dados sintéticos/controlados;
 
-Comparar:
+Comparar nos testes sintéticos desta fase (a comparação real fica condicionada ao Gate A e ao fluxo pós-deploy de #1335):
 
 - identidade;
 - quantidade;
@@ -2690,7 +2700,7 @@ Comparar:
 
 ### Fase D — migração de entrypoints
 
-Migrar progressivamente:
+A migração dos entrypoints é prontidão técnica: manter todas as flags de decisão V2, shadow e canário desativadas e V1 como único owner produtivo. A conclusão desta fase não aprova Gate A/B nem permite comparação com tráfego real. Migrar progressivamente:
 
 1. registro textual;
 2. áudio/transcrição;
@@ -2719,6 +2729,10 @@ O roteador `entrypointRouting.ts` define a escolha V1/V2 fixada por operação e
 **Convergência texto/áudio/imagem no rascunho web:** observações de texto, transcrição e imagem com atributos materiais equivalentes são vinculadas por ocorrência antes de chamar o mesmo resolvedor, preservando origens e âncoras no contrato `FoodObservation` multimodal. Quantidade ausente na imagem não apaga quantidade explicitamente informada pelo usuário e não cria outra porção; afirmações materiais contraditórias entre canais falham fechado. Dois itens iguais na mesma modalidade não são colapsados; alimentos diferentes continuam como observações distintas e alegações contraditórias sobre o mesmo alimento bloqueiam o rascunho. O contrato exige prova de mais de uma modalidade e rejeita observações multimodais forjadas de origem única. Nenhuma regra de identidade nutricional ou macros é decidida pela camada do canal. A migração SQL `0058` de rascunhos foi adicionada ao gate TiDB sintético de upgrade/rollback, sem constituir Gate A real.
 
 **Limite atual da entrega preparatória (#1308, sem cutover):** as pontes V2 gated foram implementadas no código para texto/transcrição WhatsApp, imagem de prato/embalagem WhatsApp, rótulo posterior de item físico e continuidade durável entre mensagens, além de draft web multimodal, foto pública independente, adição/edição manual e simulador read-only. A visão/OCR produz superfícies com proveniência; a LCL, o resolvedor e o writer transacional são únicos, sem macros fixos no canal. O rótulo só pode atualizar um item V2 já salvo com decisão estruturada e evidência nutricional independentemente verificada para a foto exata; não serve para cadastrar um alimento novo sem alvo. A continuação não cria novos irmãos fora do manifesto e não pode reexecutar a decisão anterior por texto legado. Testes sintéticos unitários, cenários TiDB e um ciclo de retomada de pendência em **outro processo Node** foram adicionados para exercitar idempotência e autorização. Esses testes precisam ser executados no runner canônico, incluindo `pnpm check`, testes públicos e gate arquitetural no material HEAD exato; nenhum resultado foi observado como verde nesta revisão. Persistem dependências para auditabilidade: Gate A/B e baseline pós-deploy da #1335; #1307; integração/validação de consumidores §8.14.4 e E2E por canal; revisão independente em contexto separado; critérios de rollout e rollback autorizados. A ausência de provider de aprovação Gate A no código produtivo é intencional, não deve ser substituída por fixture ou flag. V1 permanece o único decisor produtivo. Não declarar fechamento da #1308 nem remover a V1 antes das provas e aprovações obrigatórias.
+
+### Gate operacional pós-deploy — Gate A/B e shadow real (#1335)
+
+Somente depois da migração técnica integral e do deploy técnico em produção, mantendo V2/shadow/canário desativados, pode começar a avaliação operacional com dados reais. Aplicar as pré-condições e evidências de #1335: autorização de dados e privacidade, dataset governado e versionado, thresholds/amostragem e oráculo independente. Executar Gate A offline primeiro; qualquer falha mantém o shadow real desativado. Após aprovação independente do Gate A, pode-se autorizar o shadow real, sem efeito no usuário, sem escrita/promoção V2 e com sink/retention aprovados. Gate B, rollback e as demais aprovações continuam bloqueando canário, cutover e remoção do V1.
 
 ### Fase E — governança e aprendizado
 

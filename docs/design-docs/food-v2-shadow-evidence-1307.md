@@ -1,9 +1,13 @@
 # Issue #1307 — shadow V1×V2, telemetria e prontidão
 
 **Estado: infraestrutura preparada, sem ativação produtiva.** Base inicial:
-`develop@4ff6202ec7e0b9a895791c3f930cefdc43b97e3e`. A issue #1307 não pode
-ser considerada aprovada, tampouco ter baseline real atribuído, sem o **Gate A**
-da ADR §8.12, os critérios abertos de §1.3 e auditoria independente.
+`develop@4ff6202ec7e0b9a895791c3f930cefdc43b97e3e`. A issue #1307 pode ser
+concluída somente como `TECHNICAL_READY`, depois de cumprir seus critérios
+técnicos, dependências e auditoria independente; isso não equivale a aprovação
+operacional nem permite atribuir baseline real. A `OPERATIONALLY_APPROVED` e a
+atribuição de baseline real dependem do **Gate A** da ADR §8.12, dos critérios
+abertos de §1.3 e da auditoria independente prevista para o escopo pós-deploy
+em #1335.
 
 Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 §§1.3, 8.12, 8.14, 19.7, 19.9 e 20/Fase C.
@@ -410,6 +414,11 @@ do livro de dívida.
 A decisão de produto de 29/10/2026 separou os testes reais pós-deploy técnico
 na issue #1335. Até então, o escopo desta entrega é a preparação verificável
 por CI/testes sintéticos, com V2 desativada, sem liberar Gate A ou shadow real.
+
+A conclusão/fechamento técnico da #1307, depois de satisfeitos seus critérios,
+dependências técnicas e auditoria, não marca Gate A/B como aprovados nem autoriza
+operação real. Esses estados e evidências permanecem exclusivamente no trabalho
+pós-deploy da #1335.
 
 **Não existe baseline V1×V2 de tráfego real nesta issue até aprovação.**
 `buildFoodShadowBaseline` agrega somente eventos sanitizados. Fixtures de

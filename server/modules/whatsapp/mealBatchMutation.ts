@@ -1,8 +1,9 @@
 import type { MealItemInput } from "../meals/schemas";
 import { assertLegacyMealProjectionSafe } from "../meals/foodV2Snapshot";
 import { updateMeal, type UpdateMealServiceOptions } from "../meals/service";
-
-const MEAL_UPDATE_SERVICE_OPTIONS = Symbol.for("controle_calorias.mealUpdateServiceOptions");
+import { MEAL_UPDATE_SERVICE_OPTIONS } from "../meals/mealUpdateOptions";
+import { getMealMutationPreImage } from "../meals/mealMutationToken";
+import { isSha256MutationToken } from "../persistenceTokens";
 
 export type MealBatchMutationSnapshot = {
   id: number;
@@ -10,6 +11,8 @@ export type MealBatchMutationSnapshot = {
   occurredAt: number | string | Date;
   notes?: string | null;
   items: MealItemInput[];
+  /** Exact raw persisted row fingerprint from the internal adjustment read. */
+  mutationPreImage?: string;
 };
 
 export type MealBatchMutationChange = {
@@ -23,9 +26,11 @@ export class MealBatchMutationError extends Error {
   readonly rollbackErrors: unknown[];
 
   constructor(originalError: unknown, rollbackErrors: unknown[]) {
-    super(rollbackErrors.length
-      ? "Falha ao atualizar todas as refeições e ao restaurar pelo menos uma alteração parcial."
-      : "Falha ao atualizar todas as refeições; as alterações parciais foram restauradas.");
+    super(
+      rollbackErrors.length
+        ? "Falha ao atualizar todas as refeições e ao restaurar pelo menos uma alteração parcial."
+        : "Falha ao atualizar todas as refeições; as alterações parciais foram restauradas."
+    );
     this.name = "MealBatchMutationError";
     this.rollbackSucceeded = rollbackErrors.length === 0;
     this.originalError = originalError;
@@ -35,24 +40,29 @@ export class MealBatchMutationError extends Error {
 
 function toUpdateInput(
   meal: MealBatchMutationSnapshot,
-  options?: UpdateMealServiceOptions,
+  options?: UpdateMealServiceOptions
 ) {
-  return Object.assign({
-    mealId: meal.id,
-    mealLabel: meal.mealLabel,
-    occurredAt: new Date(meal.occurredAt).toISOString(),
-    notes: meal.notes ?? undefined,
-    items: meal.items,
-  }, options ? { [MEAL_UPDATE_SERVICE_OPTIONS]: options } : {});
+  return Object.assign(
+    {
+      mealId: meal.id,
+      mealLabel: meal.mealLabel,
+      occurredAt: new Date(meal.occurredAt).toISOString(),
+      notes: meal.notes ?? undefined,
+      items: meal.items,
+    },
+    options ? { [MEAL_UPDATE_SERVICE_OPTIONS]: options } : {}
+  );
 }
 
 function compensableUpdateOptions(
-  finalizeBatch?: UpdateMealServiceOptions["finalizeBatch"],
+  expectedPreImage: string,
+  finalizeBatch?: UpdateMealServiceOptions["finalizeBatch"]
 ): UpdateMealServiceOptions {
   return {
     recordCatalogUsage: false,
     updateHabits: false,
     logEvent: false,
+    expectedPreImage,
     finalizeBatch,
   };
 }
@@ -61,10 +71,19 @@ function validateChanges(changes: MealBatchMutationChange[]) {
   const mealIds = new Set<number>();
   for (const change of changes) {
     if (change.before.id !== change.after.id) {
-      throw new Error("A atualização em lote não pode trocar a identidade da refeição.");
+      throw new Error(
+        "A atualização em lote não pode trocar a identidade da refeição."
+      );
     }
     if (mealIds.has(change.after.id)) {
-      throw new Error(`A refeição ${change.after.id} apareceu mais de uma vez na atualização em lote.`);
+      throw new Error(
+        `A refeição ${change.after.id} apareceu mais de uma vez na atualização em lote.`
+      );
+    }
+    if (!isSha256MutationToken(change.before.mutationPreImage)) {
+      throw new Error(
+        "A atualização em lote exige um pre-image persistido e verificável."
+      );
     }
     // Validate the entire batch before touching the first V1 meal. A later
     // physically bound V2 sibling cannot be faithfully rolled back by the V1
@@ -76,51 +95,82 @@ function validateChanges(changes: MealBatchMutationChange[]) {
 }
 
 /**
- * Aplica uma solicitação multirrefeição como uma unidade lógica.
- *
- * `updateMeal` mantém o pipeline canônico de catálogo, snapshots e hábitos. Como
- * esse pipeline ainda não expõe uma transação única entre refeições, qualquer
- * erro dispara compensação em ordem inversa, inclusive para a chamada que
- * lançou o erro (ela pode ter persistido a refeição antes de falhar em um efeito
- * complementar). O chamador só deve responder sucesso depois deste método.
+ * Applies a multi-meal request with per-meal compare-and-swap. A failed later
+ * write is compensated only if each committed meal still matches the exact
+ * post-image returned by its transaction; concurrent edits are never overwritten.
  */
 export async function updateMealsWithCompensation(
   userId: number,
-  changes: MealBatchMutationChange[],
+  changes: MealBatchMutationChange[]
 ) {
   validateChanges(changes);
   if (!changes.length) return [];
 
-  const attempted: MealBatchMutationChange[] = [];
+  const committed: Array<{
+    change: MealBatchMutationChange;
+    postImage: string;
+  }> = [];
   const updatedMeals: Awaited<ReturnType<typeof updateMeal>>[] = [];
+  let inFlight: MealBatchMutationChange | null = null;
 
   try {
     for (const [index, change] of changes.entries()) {
-      attempted.push(change);
-      const finalizeBatch = index === changes.length - 1
-        ? { meals: changes.map(item => ({ items: item.after.items })) }
-        : undefined;
-      updatedMeals.push(await updateMeal(
+      inFlight = change;
+      const finalizeBatch =
+        index === changes.length - 1
+          ? { meals: changes.map(item => ({ items: item.after.items })) }
+          : undefined;
+      const updatedMeal = await updateMeal(
         userId,
-        toUpdateInput(change.after, compensableUpdateOptions(finalizeBatch)),
-      ));
+        toUpdateInput(
+          change.after,
+          compensableUpdateOptions(
+            change.before.mutationPreImage!,
+            finalizeBatch
+          )
+        )
+      );
+      const postImage = getMealMutationPreImage(updatedMeal);
+      if (!isSha256MutationToken(postImage)) {
+        throw new Error(
+          "A atualização não retornou confirmação do post-image persistido."
+        );
+      }
+      committed.push({ change, postImage });
+      updatedMeals.push(updatedMeal);
+      inFlight = null;
     }
     return updatedMeals;
   } catch (error) {
     const rollbackErrors: unknown[] = [];
-    const rollbackChanges = [...attempted].reverse();
-    for (const [index, change] of rollbackChanges.entries()) {
+    if (inFlight) {
+      // The call may have committed before its acknowledgement was lost. Do
+      // not guess its post-image or blindly write the old meal back over it.
+      rollbackErrors.push(
+        new Error(
+          "Mutation outcome unverified; post-image CAS token unavailable."
+        )
+      );
+    }
+
+    for (const [index, entry] of [...committed].reverse().entries()) {
       try {
-        const finalizeBatch = index === rollbackChanges.length - 1
-          ? {
-              meals: attempted.map(item => ({ items: item.before.items })),
-              recordCatalogUsage: false,
-              throwOnHabitFailure: true,
-            }
-          : undefined;
+        const finalizeBatch =
+          index === committed.length - 1
+            ? {
+                meals: committed.map(item => ({
+                  items: item.change.before.items,
+                })),
+                recordCatalogUsage: false,
+                throwOnHabitFailure: true,
+              }
+            : undefined;
         await updateMeal(
           userId,
-          toUpdateInput(change.before, compensableUpdateOptions(finalizeBatch)),
+          toUpdateInput(
+            entry.change.before,
+            compensableUpdateOptions(entry.postImage, finalizeBatch)
+          )
         );
       } catch (rollbackError) {
         rollbackErrors.push(rollbackError);
@@ -131,7 +181,8 @@ export async function updateMealsWithCompensation(
 }
 
 export function describeMealBatchMutationFailure(error: unknown) {
-  const rollbackSucceeded = error instanceof MealBatchMutationError && error.rollbackSucceeded;
+  const rollbackSucceeded =
+    error instanceof MealBatchMutationError && error.rollbackSucceeded;
   return {
     rollbackSucceeded,
     userMessage: rollbackSucceeded

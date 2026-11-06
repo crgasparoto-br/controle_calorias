@@ -9,6 +9,7 @@ import {
 import { executeWhatsappContextualFoodReplacementIntent } from "./contextualFoodReplacementIntent";
 import { prepareWhatsappCountableFoodRegistration } from "./countableFoodRegistrationGate";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
+import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
@@ -21,7 +22,6 @@ import { parseReportPeriod } from "./intent/dateTime";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
   handleMealItemMultiAdjustment,
-  handleMealItemMultiIncrement,
   handleMealItemReplacement,
   handleQuantityCorrectionIntent,
 } from "./intent/gramsAdjustmentHandlers";
@@ -31,7 +31,6 @@ import {
   parseFoodAdditionIntent,
   parseFoodReplacementIntents,
   parseMealItemGramsAdjustmentMulti,
-  parseMealItemGramsIncrementMulti,
   parseMealItemGramsReplacement,
   parseQuantityCorrectionIntent,
   parseSnackSuggestionIntent,
@@ -216,15 +215,25 @@ function looksLikeMealIntentDecisionText(text: string) {
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized) return false;
-  if (/\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre|adicionar|adicione|inclua|lance|lancar)\b/.test(normalized)) {
+  if (
+    /\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre|adicionar|adicione|inclua|lance|lancar)\b/.test(
+      normalized
+    )
+  ) {
     return false;
   }
-  if (/\b(o que|oque)\s+(?:eu\s+)?(?:posso\s+)?comer\b/.test(normalized)
-    || /\b(?:posso|devo)\s+comer\b/.test(normalized)
-    || /\b(?:sugestao|sugira|sugerir|dica|ideia|orientacao|recomenda|recomende|indicacao|indique|monte|monta|montar)\b/.test(normalized)) {
+  if (
+    /\b(o que|oque)\s+(?:eu\s+)?(?:posso\s+)?comer\b/.test(normalized) ||
+    /\b(?:posso|devo)\s+comer\b/.test(normalized) ||
+    /\b(?:sugestao|sugira|sugerir|dica|ideia|orientacao|recomenda|recomende|indicacao|indique|monte|monta|montar)\b/.test(
+      normalized
+    )
+  ) {
     return false;
   }
-  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
+  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(
+    normalized
+  );
 }
 
 async function executeResumedFoodRegistration(
@@ -284,13 +293,14 @@ async function executeResumedFoodRegistration(
     );
   }
 
-  const countableClarification = await resolveUnsafeKnownCountableFoodRegistration(
-    userId,
-    input,
-    text,
-    receivedAt,
-    userTimeZone,
-  );
+  const countableClarification =
+    await resolveUnsafeKnownCountableFoodRegistration(
+      userId,
+      input,
+      text,
+      receivedAt,
+      userTimeZone
+    );
   if (countableClarification) return countableClarification;
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
@@ -470,13 +480,14 @@ async function executeWhatsappTextIntentAttributed(
     );
   }
 
-  const countableClarification = await resolveUnsafeKnownCountableFoodRegistration(
-    userId,
-    input,
-    text,
-    receivedAt,
-    userTimeZone,
-  );
+  const countableClarification =
+    await resolveUnsafeKnownCountableFoodRegistration(
+      userId,
+      input,
+      text,
+      receivedAt,
+      userTimeZone
+    );
   if (countableClarification) return countableClarification;
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
@@ -488,14 +499,14 @@ async function executeWhatsappTextIntentAttributed(
       buildFoodMutationContext(userId, input, text, receivedAt)
     );
 
-  const gramsIncrements = parseMealItemGramsIncrementMulti(text);
-  if (gramsIncrements) {
-    return withCanonicalGramsMetadata(
-      await handleMealItemMultiIncrement(userId, gramsIncrements, {
-        timeZone: userTimeZone,
-      })
-    );
-  }
+  const gramsIncrement = await executeWhatsappGramsIncrementIntent(userId, {
+    text,
+    receivedAt,
+    userTimezone: userTimeZone,
+    messageId:
+      input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId(),
+  });
+  if (gramsIncrement) return withCanonicalGramsMetadata(gramsIncrement);
 
   const gramsAdjustments = parseMealItemGramsAdjustmentMulti(text);
   if (gramsAdjustments) {
@@ -536,11 +547,15 @@ async function executeWhatsappTextIntentAttributed(
 
 export async function executeWhatsappTextIntent(
   userId: number,
-  input: WhatsappIntentInput,
+  input: WhatsappIntentInput
 ): Promise<WhatsappIntentResult | null> {
   await ensureCurrentIrreversibleEffectAllowed();
   return runWithAiUsageScope(
-    { userId, conversationId: input.messageId ?? getCurrentWhatsappInboundExternalMessageId() },
-    () => executeWhatsappTextIntentAttributed(userId, input),
+    {
+      userId,
+      conversationId:
+        input.messageId ?? getCurrentWhatsappInboundExternalMessageId(),
+    },
+    () => executeWhatsappTextIntentAttributed(userId, input)
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "./replyMessages";
 import { buildMealSemanticContract } from "../../mealSemanticContract";
 import type { WhatsappIntentResult } from "./intent/types";
+import type { CountableFoodPendingItem } from "../../countableFoodQuantity";
 import {
   prepareWhatsappCountableFoodRegistration,
   type ResolvedRegistrationSegment,
@@ -39,6 +40,7 @@ import { runFoodD1Migration } from "../foodIntelligenceV2/entrypointRunner";
 import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
 import { getCurrentWhatsappInboundContentType,
   getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
+import type { RequestPartialConfirmedTextMealQuantityInput } from "./foodQuantityClarificationTypes";
 
 export type ConfirmedMealRegistrationOutcome =
   | { status: "registered"; result: WhatsappIntentResult }
@@ -46,6 +48,20 @@ export type ConfirmedMealRegistrationOutcome =
   | { status: "details_needed"; prompt: string; detail: string; context?: nutritionRuntime.MealInferenceErrorContext }
   | { status: "safe_to_retry"; prompt: string; detail: string }
   | { status: "blocked_after_possible_mutation"; prompt: string; detail: string };
+
+export type ConfirmedWhatsAppMealRegistrationInput = {
+  userId: number;
+  registrationText: string;
+  originalText: string;
+  occurredAt: Date;
+  receivedAt?: Date;
+  userTimezone: string;
+  inboundMessageId?: string | null;
+  /** Only a validated, previously persisted V1 pending owner may set this. */
+  legacyV1Pending?: boolean;
+  skipCountablePreflight?: boolean;
+  resolvedSegments?: ResolvedRegistrationSegment[];
+};
 
 type ConfirmedMealRegistrationDependencies = {
   processMeal: typeof nutritionRuntime.processMealInput;
@@ -56,6 +72,9 @@ type ConfirmedMealRegistrationDependencies = {
   getGoalProgress: typeof goalProgressRuntime.getWhatsAppMealGoalProgress;
   prepareCountableFoodRegistration: typeof prepareWhatsappCountableFoodRegistration;
   tryRunD1Registration: typeof tryRunPublicFoodD1WhatsAppRegistration;
+  requestPartialRegistrationClarification: (
+    input: RequestPartialConfirmedTextMealQuantityInput,
+  ) => Promise<WhatsappIntentResult>;
 };
 
 type Meal = Awaited<ReturnType<typeof dbRuntime.listUserMeals>>[number];
@@ -213,7 +232,74 @@ const defaultDependencies: ConfirmedMealRegistrationDependencies = {
     goalProgressRuntime.getWhatsAppMealGoalProgress(userId, occurredAt, timeZone),
   prepareCountableFoodRegistration: input => prepareWhatsappCountableFoodRegistration(input),
   tryRunD1Registration: input => tryRunPublicFoodD1WhatsAppRegistration(input),
+  requestPartialRegistrationClarification: async input => {
+    const {
+      requestWhatsappPartialConfirmedTextMealQuantityClarification,
+    } = await import("./foodQuantityClarification");
+    return requestWhatsappPartialConfirmedTextMealQuantityClarification(input);
+  },
 };
+
+const PARTIAL_CONTINUATION_FALLBACK =
+  "Não consegui guardar uma pergunta de continuação. O registro seguro foi salvo; os itens listados permanecem fora da refeição. Para incluí-los, envie depois uma nova mensagem com a quantidade exata de cada item.";
+
+export async function requestPartialRegistrationContinuation(
+  input: {
+    userId: number;
+    originalText: string;
+    skippedItems: CountableFoodPendingItem[];
+    receivedAt: Date;
+    userTimezone: string;
+    inboundMessageId?: string | null;
+    meal: { id: number; mealLabel: string; occurredAt: Date | string | number };
+  },
+  requestClarification =
+    defaultDependencies.requestPartialRegistrationClarification,
+) {
+  const pendingItems = input.skippedItems.map(item => ({
+    segmentIndex: item.segmentIndex,
+    segment: item.segment,
+    foodName: item.foodName,
+    brand: item.brand,
+    count: item.count,
+    requestedUnit: item.requestedUnit,
+  }));
+
+  try {
+    const mealOccurredAt =
+      input.meal.occurredAt instanceof Date
+        ? input.meal.occurredAt
+        : new Date(input.meal.occurredAt);
+    const result = await requestClarification({
+      userId: input.userId,
+      originalText: input.originalText,
+      pendingItems,
+      currentPendingIndex: 0,
+      resolvedQuantities: pendingItems.map(() => null),
+      occurredAt: mealOccurredAt,
+      receivedAt: input.receivedAt,
+      userTimezone: input.userTimezone,
+      messageId: input.inboundMessageId ?? null,
+      expectedMealId: input.meal.id,
+      expectedMealLabel: input.meal.mealLabel,
+      expectedMealOccurredAt: mealOccurredAt.toISOString(),
+    });
+    if (
+      result.eventType === "whatsapp.food_clarification.requested" &&
+      Number.isSafeInteger(result.data?.pendingOperationId)
+    ) {
+      return { persisted: true as const, result, reply: result.reply };
+    }
+  } catch {
+    // O segmento seguro já foi salvo; a resposta abaixo não promete retomada.
+  }
+
+  return {
+    persisted: false as const,
+    result: null,
+    reply: PARTIAL_CONTINUATION_FALLBACK,
+  };
+}
 
 function safeClarificationPrompt(error: unknown) {
   if (
@@ -231,18 +317,9 @@ export function createConfirmedMealRegistrationService(
 ) {
   const deps = { ...defaultDependencies, ...overrides };
 
-  return async function execute(input: {
-    userId: number;
-    registrationText: string;
-    originalText: string;
-    occurredAt: Date;
-    userTimezone: string;
-    inboundMessageId?: string | null;
-    /** Only a validated, previously persisted V1 pending owner may set this. */
-    legacyV1Pending?: boolean;
-    skipCountablePreflight?: boolean;
-    resolvedSegments?: ResolvedRegistrationSegment[];
-  }): Promise<ConfirmedMealRegistrationOutcome> {
+  return async function execute(
+    input: ConfirmedWhatsAppMealRegistrationInput,
+  ): Promise<ConfirmedMealRegistrationOutcome> {
     // Retain V1 ownership for an already materialized clarification/decision.
     // For new registrations, only messageLifecycle may tag text versus audio:
     // neither a transcript nor a user DTO is allowed to claim provenance.
@@ -259,7 +336,7 @@ export function createConfirmedMealRegistrationService(
         const migrated = await deps.tryRunD1Registration({
           userId: input.userId, originalText: input.registrationText,
           externalMessageId: currentInboundId,
-          modality, receivedAt: input.occurredAt,
+          modality, receivedAt: input.receivedAt ?? input.occurredAt,
           timeZone: input.userTimezone,
         });
         if (migrated) return { status: "registered", result: migrated };
@@ -274,13 +351,14 @@ export function createConfirmedMealRegistrationService(
     try {
       let registrationText = input.registrationText;
       let resolvedSegments = input.resolvedSegments;
+      let skippedItems: CountableFoodPendingItem[] | undefined;
       if (!input.skipCountablePreflight) {
         const prepared = await deps.prepareCountableFoodRegistration({
           userId: input.userId,
           text: input.registrationText,
           originalText: input.originalText,
           inboundMessageId: input.inboundMessageId,
-          receivedAt: input.occurredAt,
+          receivedAt: input.receivedAt ?? input.occurredAt,
           userTimezone: input.userTimezone,
           resolvedSegments: input.resolvedSegments,
         });
@@ -289,6 +367,7 @@ export function createConfirmedMealRegistrationService(
         }
         registrationText = prepared.registrationText;
         resolvedSegments = prepared.resolvedSegments ?? resolvedSegments;
+        skippedItems = prepared.skippedItems;
       }
 
       const processingInput = {
@@ -393,13 +472,43 @@ export function createConfirmedMealRegistrationService(
               goalProgress,
               timeZone: input.userTimezone,
             });
+      const partialWarning = skippedItems?.length
+        ? buildWhatsAppPartialRegistrationWarning(
+            skippedItems.map(item => ({
+              segment: item.segment,
+              reason:
+                item.identityClarification?.message ??
+                "Não encontrei uma gramatura ou porção segura. Informe o peso ou volume correspondente.",
+            })),
+          )
+        : null;
+      const partialContinuation = skippedItems?.length
+        ? await requestPartialRegistrationContinuation(
+            {
+              userId: input.userId,
+              originalText: input.originalText,
+              skippedItems,
+              receivedAt: input.receivedAt ?? input.occurredAt,
+              userTimezone: input.userTimezone,
+              inboundMessageId: input.inboundMessageId,
+              meal: replyMeal,
+            },
+            deps.requestPartialRegistrationClarification,
+          )
+        : null;
+      const continuationPending = partialContinuation?.persisted ?? false;
+      const partialContinuationNotice = skippedItems?.length
+        ? partialContinuation?.reply ?? PARTIAL_CONTINUATION_FALLBACK
+        : null;
 
       return {
         status: "registered",
         result: {
           handled: true,
           action: "meal_item_added",
-          reply,
+          reply: [reply, partialWarning, partialContinuationNotice]
+            .filter((part): part is string => Boolean(part))
+            .join("\n\n"),
           eventType: "whatsapp.meal_intent_decision.registered",
           detail:
             "Texto original processado pelo pipeline nutricional canônico em modo de consumo confirmado e estado recarregado antes da resposta.",
@@ -408,6 +517,16 @@ export function createConfirmedMealRegistrationService(
             originalTextPreserved: true,
             originalTextResumed: true,
             ambiguityReclassified: false,
+            ...(skippedItems?.length
+              ? {
+                  partialRegistration: true,
+                  omittedItemCount: skippedItems.length,
+                  continuationPending,
+                  ...(continuationPending && partialContinuation?.result?.data
+                    ? { continuation: partialContinuation.result.data }
+                    : {}),
+                }
+              : {}),
           },
         },
       };

@@ -276,7 +276,9 @@ Testes de regressão devem provar que a operação recebe provider/modelo corret
 
 ## Continuação de medidas contáveis com marca
 
-A identidade comercial é resolvida antes de pedir gramatura. A ausência de pesquisa ou evidência específica preserva a pendência canônica de identidade; não libera macros genéricos. A continuação textual preserva os resultados dos itens já resolvidos e a data/timezone originais. A resposta só reivindica a pendência exata esperada, evitando que replay de uma pergunta antiga consuma outra operação. Falha ao criar a pendência bloqueia o registro sem persistência parcial. Ver contrato e regressões em [medidas contáveis no WhatsApp](design-docs/whatsapp-countable-measure-passthrough.md).
+Identidade comercial não comprovada preserva a pendência canônica de identidade e continua bloqueando o lote inteiro; ausência de pesquisa ou evidência específica não libera macros genéricos. Quando uma medida contável de produto com marca exige quantidade, a continuação textual preserva os resultados dos itens já resolvidos e as datas/timezone originais. A resposta só reivindica a pendência exata esperada, evitando que replay de uma pergunta antiga consuma outra operação.
+
+Na política B específica do registro textual inicial misto da #997, uma pendência exclusivamente quantitativa pode coexistir com itens independentes já seguros: esses itens podem ser salvos, enquanto os omitidos ficam fora da refeição e recebem continuação durável. Se a criação dessa continuação falhar depois do save seguro, a resposta deve informar que não há pendência persistida e orientar o usuário a reenviar os itens omitidos com quantidades explícitas; não se pode afirmar que a retomada ficou guardada. Essa exceção não se aplica à identidade comercial não comprovada nem altera o contrato separado de registro por imagem. Ver contrato e regressões em [medidas contáveis no WhatsApp](design-docs/whatsapp-countable-measure-passthrough.md).
 
 ## Resolução canônica de item alimentar (#1244)
 

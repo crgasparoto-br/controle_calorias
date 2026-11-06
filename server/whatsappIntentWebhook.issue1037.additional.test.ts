@@ -52,6 +52,18 @@ vi.mock("./modules/whatsapp/webhookUtils", () => ({
   getWhatsAppInteractiveReplyId: () => null,
   isWhatsAppMessageForConfiguredChannel: () => true,
   resolveWhatsAppMessageOccurredAt: (message: any) => new Date(Number(message.timestamp ?? 0) * 1000),
+  resolveWhatsAppTextIntentInput: (message: any) => {
+    const text = message.text?.body?.trim() || "";
+    const replyId =
+      message.interactive?.button_reply?.id?.trim() ||
+      message.interactive?.list_reply?.id?.trim();
+    return {
+      text,
+      canInterpretText: Boolean(
+        (text || replyId) && !message.image?.id && !message.audio?.id
+      ),
+    };
+  },
   getExtractedWhatsAppMessageKey: (message: any) => `${message.entryIndex}:${message.changeIndex}:${message.messageIndex}`,
   extractWhatsAppWebhookMessages: (payload: any) => (payload?.entry ?? []).flatMap((entry: any, entryIndex: number) =>
     (entry?.changes ?? []).flatMap((change: any, changeIndex: number) =>

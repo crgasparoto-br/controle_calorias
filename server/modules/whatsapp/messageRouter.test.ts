@@ -2,14 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  gte: (col: { name: string }, val: unknown) => ({ __op: "gte", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
 }));
 
 type FakeDbRow = Record<string, unknown>;
 type FakeDbCondition =
-  | { __op: "eq"; col: { name: string }; val: unknown }
-  | { __op: "and"; conditions: FakeDbCondition[] }
+  | { __op: "eq" | "gte" | "lt"; col: { name: string }; val: unknown }
+  | { __op: "and" | "or"; conditions: FakeDbCondition[] }
   | { __op: "desc"; col: { name: string } };
 
 function createFakePendingOperationDb() {
@@ -18,8 +21,21 @@ function createFakePendingOperationDb() {
 
   function matches(row: FakeDbRow, condition?: FakeDbCondition): boolean {
     if (!condition) return true;
-    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
-    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "eq")
+      return row[condition.col.name] === condition.val;
+    if (condition.__op === "gte" || condition.__op === "lt") {
+      const value = (item: unknown) =>
+        item instanceof Date
+          ? item.getTime()
+          : new Date(String(item)).getTime();
+      return condition.__op === "gte"
+        ? value(row[condition.col.name]) >= value(condition.val)
+        : value(row[condition.col.name]) < value(condition.val);
+    }
+    if (condition.__op === "and")
+      return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or")
+      return condition.conditions.some(inner => matches(row, inner));
     return true;
   }
 
@@ -34,9 +50,15 @@ function createFakePendingOperationDb() {
     };
     const chain: any = {
       from: vi.fn(() => chain),
-      where: vi.fn((condition: FakeDbCondition) => { whereCondition = condition; return chain; }),
+      where: vi.fn((condition: FakeDbCondition) => {
+        whereCondition = condition;
+        return chain;
+      }),
       orderBy: vi.fn(() => chain),
-      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+      limit: vi.fn((value: number) => {
+        limitValue = value;
+        return Promise.resolve(resolve());
+      }),
     };
     return chain;
   }
@@ -53,7 +75,10 @@ function createFakePendingOperationDb() {
     update: vi.fn(() => {
       let setPayload: FakeDbRow = {};
       const chain: any = {
-        set: vi.fn((payload: FakeDbRow) => { setPayload = payload; return chain; }),
+        set: vi.fn((payload: FakeDbRow) => {
+          setPayload = payload;
+          return chain;
+        }),
         where: vi.fn((condition: FakeDbCondition) => {
           const matching = rows.filter(row => matches(row, condition));
           for (const row of matching) Object.assign(row, setPayload);
@@ -79,14 +104,16 @@ vi.mock("../../db", () => ({
 const executeWhatsappAiQuestionIntentMock = vi.fn();
 const shouldAcknowledgeWhatsappAiQuestionMock = vi.fn();
 vi.mock("./aiQuestionAssistant", () => ({
-  isWhatsappAiQuestionText: (text?: string | null) => Boolean(text?.trim().startsWith("/")),
+  isWhatsappAiQuestionText: (text?: string | null) =>
+    Boolean(text?.trim().startsWith("/")),
   shouldAcknowledgeWhatsappAiQuestion: shouldAcknowledgeWhatsappAiQuestionMock,
   executeWhatsappAiQuestionIntent: executeWhatsappAiQuestionIntentMock,
 }));
 
 const sendWhatsAppAiQuestionAcknowledgementMock = vi.fn();
 vi.mock("./questionAcknowledgement", () => ({
-  sendWhatsAppAiQuestionAcknowledgement: sendWhatsAppAiQuestionAcknowledgementMock,
+  sendWhatsAppAiQuestionAcknowledgement:
+    sendWhatsAppAiQuestionAcknowledgementMock,
 }));
 
 const handlePendingWhatsAppConfirmationMock = vi.fn();
@@ -121,7 +148,9 @@ vi.mock("./periodReportClarification", () => ({
 }));
 
 const { resolveWhatsAppPrecedenceGate } = await import("./messageRouter");
-const { createDrizzleWhatsAppPendingOperationRepository } = await import("../../repositories/whatsappPendingOperationRepository");
+const { createDrizzleWhatsAppPendingOperationRepository } = await import(
+  "../../repositories/whatsappPendingOperationRepository"
+);
 
 const repository = createDrizzleWhatsAppPendingOperationRepository({
   getDb: async () => fakeDb,
@@ -168,17 +197,24 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     });
 
     expect(decision).toEqual(expect.objectContaining({ step: "ai_question" }));
-    expect(executeWhatsappAiQuestionIntentMock).toHaveBeenCalledWith(1, expect.objectContaining({
-      externalMessageId: "wamid.current",
-    }));
+    expect(executeWhatsappAiQuestionIntentMock).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        externalMessageId: "wamid.current",
+      })
+    );
     expect(executeWhatsappDeleteIntentMock).not.toHaveBeenCalled();
   });
 
   it("inicia ACK e IA em paralelo e só libera a resposta final depois da tentativa de ACK", async () => {
     let resolveAck!: (value: boolean) => void;
     let resolveAi!: (value: typeof aiQuestionResult) => void;
-    const ackPromise = new Promise<boolean>(resolve => { resolveAck = resolve; });
-    const aiPromise = new Promise<typeof aiQuestionResult>(resolve => { resolveAi = resolve; });
+    const ackPromise = new Promise<boolean>(resolve => {
+      resolveAck = resolve;
+    });
+    const aiPromise = new Promise<typeof aiQuestionResult>(resolve => {
+      resolveAi = resolve;
+    });
     sendWhatsAppAiQuestionAcknowledgementMock.mockReturnValue(ackPromise);
     executeWhatsappAiQuestionIntentMock.mockReturnValue(aiPromise);
 
@@ -206,11 +242,15 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     expect(settled).toBe(false);
 
     resolveAck(true);
-    await expect(decisionPromise).resolves.toEqual(expect.objectContaining({ step: "ai_question" }));
+    await expect(decisionPromise).resolves.toEqual(
+      expect.objectContaining({ step: "ai_question" })
+    );
   });
 
   it("continua a pergunta quando o ACK falha", async () => {
-    sendWhatsAppAiQuestionAcknowledgementMock.mockRejectedValue(new Error("falha sintética"));
+    sendWhatsAppAiQuestionAcknowledgementMock.mockRejectedValue(
+      new Error("falha sintética")
+    );
     executeWhatsappAiQuestionIntentMock.mockResolvedValue(aiQuestionResult);
 
     const decision = await resolveWhatsAppPrecedenceGate({
@@ -244,22 +284,37 @@ describe("resolveWhatsAppPrecedenceGate", () => {
   it("resolve exclusão antes da confirmação genérica e dos parsers alimentares", async () => {
     executeWhatsappDeleteIntentMock.mockResolvedValue(deleteResult);
 
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 2, text: "Excluir o Registrar" });
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId: 2,
+      text: "Excluir o Registrar",
+    });
 
     expect(decision).toEqual({ step: "delete_intent", result: deleteResult });
-    expect(executeWhatsappDeleteIntentMock).toHaveBeenCalledWith(2, expect.objectContaining({
-      text: "Excluir o Registrar",
-      entrypoint: "messageRouter.precedenceGate",
-    }));
+    expect(executeWhatsappDeleteIntentMock).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({
+        text: "Excluir o Registrar",
+        entrypoint: "messageRouter.precedenceGate",
+      })
+    );
     expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
   });
 
   it("resolve resposta curta de pendência destrutiva no mesmo gate", async () => {
-    executeWhatsappDeleteIntentMock.mockResolvedValue({ ...deleteResult, action: "meal_deleted", reply: "Excluído." });
+    executeWhatsappDeleteIntentMock.mockResolvedValue({
+      ...deleteResult,
+      action: "meal_deleted",
+      reply: "Excluído.",
+    });
 
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 3, text: "sim" });
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId: 3,
+      text: "sim",
+    });
 
-    expect(decision).toEqual(expect.objectContaining({ step: "delete_intent" }));
+    expect(decision).toEqual(
+      expect.objectContaining({ step: "delete_intent" })
+    );
     expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
   });
 
@@ -278,14 +333,22 @@ describe("resolveWhatsAppPrecedenceGate", () => {
       detail: "detalhe",
     });
 
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 4, text: "sim" });
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId: 4,
+      text: "sim",
+    });
 
-    expect(decision).toEqual(expect.objectContaining({ step: "generic_confirmation" }));
+    expect(decision).toEqual(
+      expect.objectContaining({ step: "generic_confirmation" })
+    );
     expect(handlePendingWhatsAppConfirmationMock).toHaveBeenCalled();
   });
 
   it("segue para o pipeline quando nenhuma precedência trata a mensagem", async () => {
-    const decision = await resolveWhatsAppPrecedenceGate({ userId: 5, text: "100g de arroz" });
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId: 5,
+      text: "100g de arroz",
+    });
 
     expect(decision).toEqual({ step: "continue_pipeline" });
     expect(executeWhatsappDeleteIntentMock).toHaveBeenCalled();
@@ -310,7 +373,9 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     });
 
     expect(decision).toEqual({ step: "continue_pipeline" });
-    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("superseded");
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+      "superseded"
+    );
   });
 
   it("substitui pendência de identidade da imagem ao receber adição datada", async () => {
@@ -331,7 +396,9 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     });
 
     expect(decision).toEqual({ step: "continue_pipeline" });
-    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("superseded");
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+      "superseded"
+    );
   });
 
   it("não substitui pendência alimentar para água sem quantidade", async () => {
@@ -352,7 +419,9 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     });
 
     expect(decision).not.toEqual({ step: "continue_pipeline" });
-    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("active");
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+      "active"
+    );
   });
 
   it("não substitui pendência alimentar para item sem quantidade", async () => {
@@ -373,6 +442,8 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     });
 
     expect(decision).not.toEqual({ step: "continue_pipeline" });
-    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("active");
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+      "active"
+    );
   });
 });

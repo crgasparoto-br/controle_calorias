@@ -6,6 +6,7 @@ import {
 } from "../replyMessages";
 import { composeWhatsAppMealActionReply, composeWhatsAppMealActionReplies } from "../mealActionReplyComposer";
 import { listMeals, updateMeal, updateMealWithHouseholdMeasureLearning } from "../../meals/service";
+import { getMealMutationPreImage } from "../../meals/mealMutationToken";
 import { buildUserLearnedHouseholdMeasurePreference } from "../../../householdMeasureResolutionPersistence";
 import type { MealItemInput } from "../../meals/schemas";
 import {
@@ -95,6 +96,7 @@ function toBatchSnapshot(meal: MealRecord | MutableMealRecord) {
     mealLabel: meal.mealLabel,
     occurredAt: meal.occurredAt,
     notes: meal.notes,
+    mutationPreImage: getMealMutationPreImage(meal) ?? undefined,
     items: [...(meal.items ?? [])] as MealItemInput[],
   };
 }
@@ -228,7 +230,7 @@ async function ambiguousTargetReply(input: {
 }
 
 export async function handleQuantityCorrectionIntent(userId: number, correction: QuantityCorrectionIntent): Promise<WhatsappIntentResult> {
-  const latestMeal = (await listMeals(userId))[0];
+  const latestMeal = (await listMeals(userId, { adjustmentRead: true }))[0];
   if (!latestMeal?.items?.length) {
     return {
       handled: true,
@@ -318,7 +320,7 @@ async function updateLatestMealItemGrams(input: {
   detail: string;
   timeZone: string;
 }) {
-  const meals = await listMeals(input.userId);
+  const meals = await listMeals(input.userId, { adjustmentRead: true });
   if (!meals.length) {
     return {
       handled: true,
@@ -401,7 +403,7 @@ async function handleMultiGramsChange(input: {
   mealLabel?: string | null;
   timeZone: string;
 }): Promise<WhatsappIntentResult> {
-  const allMeals = await listMeals(input.userId);
+  const allMeals = await listMeals(input.userId, { adjustmentRead: true });
   const normalizedMealLabel = input.mealLabel
     ?.normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -477,7 +479,7 @@ async function handleMultiGramsChange(input: {
     });
   }
 
-  if (pending.length) {
+  if (pending.length && !notFound.length) {
     const [firstPending, ...remainingPending] = pending;
     return ambiguousTargetReply({
       userId: input.userId,
@@ -496,17 +498,17 @@ async function handleMultiGramsChange(input: {
     });
   }
 
-  if (!applied.length) {
+  if (!applied.length || notFound.length > 0) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppItemNotFoundReplyMessage({
+      reply: `${buildWhatsAppItemNotFoundReplyMessage({
         target: notFound.join(", ") || "esses alimentos",
         context: explicitContext ?? "nas refeições de hoje",
         instruction: input.mealLabel
           ? `Me diga quais itens da refeição ${input.mealLabel} devo ajustar.`
           : "Me diga quais itens devo ajustar.",
-      }),
+      })} Nada foi alterado; corrija os itens e reenvie o comando completo.`,
       eventType: "whatsapp.intent.clarification_needed",
       detail: input.mealLabel
         ? `${input.detailPrefix} sem alimentos compatíveis na refeição ${input.mealLabel}.`

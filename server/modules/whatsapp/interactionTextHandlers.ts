@@ -69,7 +69,7 @@ type ResolvedInteractionLike = {
 
 function normalizeResolvedInteraction(
   value: ResolvedInteractionLike,
-  fallbackAction: string,
+  fallbackAction: string
 ): WhatsappInteractionTextResult {
   return {
     ...value,
@@ -107,22 +107,32 @@ function normalizePeriodLabel(value: string) {
 function parsePeriodAction(text: string) {
   const normalized = normalizePeriodLabel(text);
   if (isStandaloneWhatsappCancellationWord(normalized)) return "cancel";
-  return WHATSAPP_PERIOD_REPORT_OPTIONS.find(option => {
-    const token = option.action.replace("period:", "");
-    const canonical = new Set([
-      normalizePeriodLabel(token),
-      normalizePeriodLabel(option.title),
-      normalizePeriodLabel(option.intentText),
-    ]);
-    return canonical.has(normalized);
-  })?.action ?? null;
+  return (
+    WHATSAPP_PERIOD_REPORT_OPTIONS.find(option => {
+      const token = option.action.replace("period:", "");
+      const canonical = new Set([
+        normalizePeriodLabel(token),
+        normalizePeriodLabel(option.title),
+        normalizePeriodLabel(option.intentText),
+      ]);
+      return canonical.has(normalized);
+    })?.action ?? null
+  );
 }
 
 function parseScopeAction(text: string) {
   const normalized = normalizeStandaloneWhatsappCommand(text);
   if (isStandaloneWhatsappCancellationWord(normalized)) return "cancel";
-  if (/^(?:apenas|somente|so)(?:\s+compativeis)?$/.test(normalized) || normalized === "1") return "confirm";
-  if (/^(?:todos|todas)(?:\s+recentes)?$/.test(normalized) || normalized === "2") return "confirm_all";
+  if (
+    /^(?:apenas|somente|so)(?:\s+compativeis)?$/.test(normalized) ||
+    normalized === "1"
+  )
+    return "confirm";
+  if (
+    /^(?:todos|todas)(?:\s+recentes)?$/.test(normalized) ||
+    normalized === "2"
+  )
+    return "confirm_all";
   return null;
 }
 
@@ -133,16 +143,25 @@ function parseConfirmationAction(text: string) {
   return null;
 }
 
-export function classifyDeleteText(target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+export function classifyDeleteText(
+  target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
   const raw = text?.trim() ?? "";
   const normalized = normalizeStandaloneWhatsappCommand(raw);
   const pending = target as { kind?: string; candidates?: unknown[] };
   if (isStandaloneWhatsappCancellationWord(normalized)) return "resolve";
   if (pending?.kind === "selection") {
     const index = parseBareIndex(raw);
-    return index !== null && index >= 0 && index < (pending.candidates?.length ?? 0) ? "resolve" : "invalid";
+    return index !== null &&
+      index >= 0 &&
+      index < (pending.candidates?.length ?? 0)
+      ? "resolve"
+      : "invalid";
   }
-  return isStandaloneWhatsappConfirmationWord(normalized) ? "resolve" : "invalid";
+  return isStandaloneWhatsappConfirmationWord(normalized)
+    ? "resolve"
+    : "invalid";
 }
 
 export async function resolveDeleteText(input: WhatsappInteractionTextInput) {
@@ -152,21 +171,38 @@ export async function resolveDeleteText(input: WhatsappInteractionTextInput) {
     timeZone: input.userTimezone,
     entrypoint: "pendingInteractionGate",
   });
-  return resolved ? normalizeResolvedInteraction(resolved, "delete_intent_resolved") : null;
+  return resolved
+    ? normalizeResolvedInteraction(resolved, "delete_intent_resolved")
+    : null;
 }
 
-export function classifyMealItemSelectionText(target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+export function classifyMealItemSelectionText(
+  target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
   const raw = text?.trim() ?? "";
   const normalized = normalizeStandaloneWhatsappCommand(raw);
   const pending = target as { candidates?: unknown[] };
   if (isStandaloneWhatsappCancellationWord(normalized)) return "resolve";
   const index = parseBareIndex(raw);
-  return index !== null && index >= 0 && index < (pending.candidates?.length ?? 0) ? "resolve" : "invalid";
+  return index !== null &&
+    index >= 0 &&
+    index < (pending.candidates?.length ?? 0)
+    ? "resolve"
+    : "invalid";
 }
 
-export async function resolveMealItemSelectionText(input: WhatsappInteractionTextInput) {
-  const resolved = await resolveTextMealItemSelection(input.userId, input.text);
-  return resolved ? normalizeResolvedInteraction(resolved, "meal_item_selection_resolved") : null;
+export async function handleMealItemChoiceText(
+  input: WhatsappInteractionTextInput
+) {
+  const resolved = await resolveTextMealItemSelection(
+    input.userId,
+    input.text,
+    input.receivedAt
+  );
+  return resolved
+    ? normalizeResolvedInteraction(resolved, "meal_item_selection_resolved")
+    : null;
 }
 
 function parseGenericConfirmationAction(target: unknown, text?: string | null) {
@@ -176,16 +212,29 @@ function parseGenericConfirmationAction(target: unknown, text?: string | null) {
     : parseConfirmationAction(text ?? "");
 }
 
-export function classifyGenericConfirmationText(target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+export function classifyGenericConfirmationText(
+  target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
   return parseGenericConfirmationAction(target, text) ? "resolve" : "invalid";
 }
 
-export async function resolveGenericConfirmationText(input: WhatsappInteractionTextInput) {
+export async function resolveGenericConfirmationText(
+  input: WhatsappInteractionTextInput
+) {
   const target = input.pendingOperation.target as { decision?: string };
   if (target.decision !== "reclassify_scope") {
-    const message: WhatsAppWebhookMessage = { text: { body: input.text ?? "" } };
-    const completed = await handlePendingWhatsAppConfirmation(message, input.userId);
-    return completed ? normalizeResolvedInteraction(completed, "confirmation_resolved") : null;
+    const message: WhatsAppWebhookMessage = {
+      text: { body: input.text ?? "" },
+    };
+    const completed = await handlePendingWhatsAppConfirmation(
+      message,
+      input.userId,
+      input.receivedAt
+    );
+    return completed
+      ? normalizeResolvedInteraction(completed, "confirmation_resolved")
+      : null;
   }
 
   const action = parseScopeAction(input.text ?? "");
@@ -194,101 +243,142 @@ export async function resolveGenericConfirmationText(input: WhatsappInteractionT
     input.userId,
     PENDING_CONFIRMATION_TYPE,
     action,
-    input.receivedAt,
+    input.receivedAt
   );
   if (claim.status !== "claimed") return null;
   const completed = await completeWhatsappGenericConfirmationCallback(
     input.userId,
     claim.pendingOperation,
-    action,
+    action
   );
   return normalizeResolvedInteraction(
     completed,
-    action === "cancel" ? "confirmation_cancelled" : "confirmation_resolved",
+    action === "cancel" ? "confirmation_cancelled" : "confirmation_resolved"
   );
 }
 
-export function classifyPeriodReportText(_target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+export function classifyPeriodReportText(
+  _target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
   return parsePeriodAction(text ?? "") ? "resolve" : "invalid";
 }
 
-export async function resolvePeriodReportText(input: WhatsappInteractionTextInput) {
+export async function resolvePeriodReportText(
+  input: WhatsappInteractionTextInput
+) {
   const action = parsePeriodAction(input.text ?? "");
   if (!action) return null;
   const claim = await claimWhatsAppTextPendingOperation(
     input.userId,
     PENDING_PERIOD_REPORT_TYPE,
     action,
-    input.receivedAt,
+    input.receivedAt
   );
   if (claim.status !== "claimed") return null;
-  const completed = await completeWhatsappPeriodReportCallback(input.userId, action, input.receivedAt);
-  return normalizeResolvedInteraction(completed, action === "cancel" ? "period_report_cancelled" : "period_report");
+  const completed = await completeWhatsappPeriodReportCallback(
+    input.userId,
+    action,
+    input.receivedAt
+  );
+  return normalizeResolvedInteraction(
+    completed,
+    action === "cancel" ? "period_report_cancelled" : "period_report"
+  );
 }
 
-export function classifyIntentClarificationText(_target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+export function classifyIntentClarificationText(
+  _target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
   return parseIntentClarificationTextAction(text) ? "resolve" : "invalid";
 }
 
-export async function resolveIntentClarificationText(input: WhatsappInteractionTextInput) {
+export async function resolveIntentClarificationText(
+  input: WhatsappInteractionTextInput
+) {
   const completed = await resolveWhatsappIntentClarificationText({
     userId: input.userId,
     pendingOperation: input.pendingOperation,
     text: input.text,
     receivedAt: input.receivedAt,
   });
-  return completed ? normalizeResolvedInteraction(completed, "intent_clarification_resolved") : null;
+  return completed
+    ? normalizeResolvedInteraction(completed, "intent_clarification_resolved")
+    : null;
 }
 
-export function classifyProfessionalAccessText(_target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+export function classifyProfessionalAccessText(
+  _target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
   if (isStandaloneWhatsappCancellationWord(text)) return "resolve";
-  const normalized = normalizeStandaloneWhatsappCommand(text ?? "").toUpperCase();
-  return /\b(?:AUTORIZAR|AUTORIZO|APROVAR|APROVO|ACEITAR|ACEITO|NEGAR|NEGO|RECUSAR|RECUSO)\b/.test(normalized)
+  const normalized = normalizeStandaloneWhatsappCommand(
+    text ?? ""
+  ).toUpperCase();
+  return /\b(?:AUTORIZAR|AUTORIZO|APROVAR|APROVO|ACEITAR|ACEITO|NEGAR|NEGO|RECUSAR|RECUSO)\b/.test(
+    normalized
+  )
     ? "resolve"
     : "invalid";
 }
 
-export async function resolveProfessionalAccessText(input: WhatsappInteractionTextInput) {
+export async function resolveProfessionalAccessText(
+  input: WhatsappInteractionTextInput
+) {
   const service = await import("../professionals/service");
   if (isStandaloneWhatsappCancellationWord(input.text)) {
     const claim = await claimWhatsAppTextPendingOperation(
       input.userId,
       PENDING_PROFESSIONAL_ACCESS_TYPE,
       PROFESSIONAL_ACCESS_CANCEL_ACTION,
-      input.receivedAt,
+      input.receivedAt
     );
     if (claim.status !== "claimed") return null;
     const completed = await service.completeWhatsAppProfessionalAccessCallback(
       input.userId,
       claim.pendingOperation,
-      PROFESSIONAL_ACCESS_CANCEL_ACTION,
+      PROFESSIONAL_ACCESS_CANCEL_ACTION
     );
-    return normalizeResolvedInteraction(completed, "professional_access_resolved");
+    return normalizeResolvedInteraction(
+      completed,
+      "professional_access_resolved"
+    );
   }
-  const decision = service.parseProfessionalAccessWhatsappDecision(input.text ?? "");
+  const decision = service.parseProfessionalAccessWhatsappDecision(
+    input.text ?? ""
+  );
   if (!decision) return null;
   const action = decision === "approved" ? "authorize" : "reject";
   const claim = await claimWhatsAppTextPendingOperation(
     input.userId,
     PENDING_PROFESSIONAL_ACCESS_TYPE,
     action,
-    input.receivedAt,
+    input.receivedAt
   );
   if (claim.status !== "claimed") return null;
   const completed = await service.completeWhatsAppProfessionalAccessCallback(
     input.userId,
     claim.pendingOperation,
-    action,
+    action
   );
-  return normalizeResolvedInteraction(completed, "professional_access_resolved");
+  return normalizeResolvedInteraction(
+    completed,
+    "professional_access_resolved"
+  );
 }
 
-export function classifyFoodClarificationText(target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+export function classifyFoodClarificationText(
+  target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
   if (!isPendingFoodClarificationTarget(target)) return "invalid";
   if (isStandaloneWhatsappCancellationWord(text)) return "resolve";
 
   if (target.pendingKind === "identity") {
-    return text?.trim() && !isCompleteWhatsappCommand(text) ? "resolve" : "invalid";
+    return text?.trim() && !isCompleteWhatsappCommand(text)
+      ? "resolve"
+      : "invalid";
   }
 
   if (target.pendingKind === "quantity") {
@@ -296,7 +386,10 @@ export function classifyFoodClarificationText(target: unknown, text?: string | n
   } else if (target.pendingKind === "confirmation") {
     if (isStandaloneWhatsappConfirmationWord(text)) return "resolve";
   } else {
-    const selection = parseFoodClarificationSelectionReply(text, target.candidates.length);
+    const selection = parseFoodClarificationSelectionReply(
+      text,
+      target.candidates.length
+    );
     if (selection !== null) return "resolve";
   }
 
@@ -321,3 +414,4 @@ export async function resolveFoodClarificationText(input: WhatsappInteractionTex
   );
   return presented ? normalizeResolvedInteraction(presented, "food_clarification_resolved") : null;
 }
+export const resolveMealItemSelectionText = handleMealItemChoiceText;

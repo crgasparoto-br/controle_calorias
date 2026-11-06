@@ -99,6 +99,7 @@ async function executeCoffeeRegistration(
     registrationText,
     originalText: input.text,
     occurredAt: input.receivedAt,
+    receivedAt: input.receivedAt,
     userTimezone: input.userTimezone,
     inboundMessageId: input.messageId,
   });

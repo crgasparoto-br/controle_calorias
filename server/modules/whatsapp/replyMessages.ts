@@ -187,6 +187,7 @@ export function buildWhatsAppPartialRegistrationWarning(
   return buildWhatsAppAuxiliaryReplyMessage({
     title: skippedItems.length === 1 ? "Item não registrado" : "Itens não registrados",
     lines: [
+      "O registro ficou parcial.",
       "Registrei os demais alimentos válidos da mensagem.",
       "Não registrei:",
       ...skippedItems.map(item => `• ${item.segment}: ${item.reason}`),

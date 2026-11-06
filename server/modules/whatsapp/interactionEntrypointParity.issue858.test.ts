@@ -16,13 +16,19 @@ describe("paridade dos entrypoints da interação WhatsApp (#858)", () => {
 
   it("reapresentação no webhook preserva a mesma pendência ativa", () => {
     const webhook = source("server/whatsappIntentWebhook.ts");
-    expect(webhook).toContain('precedenceGate.result.eventType === "whatsapp.interaction.pending_represented"');
-    expect(webhook).toMatch(/if \(!preservePendingAfterReplay\)\s*\{\s*await clearPendingTextIntentContext\(userId\);/s);
+    expect(webhook).toContain(
+      'precedenceGate.result.eventType === "whatsapp.interaction.pending_represented"'
+    );
+    expect(webhook).toMatch(
+      /if \(!preservePendingAfterReplay\)\s*\{\s*await clearPendingTextIntentContext\(userId, occurredAt\);/s
+    );
   });
 
   it("simulador usa o mesmo gate persistente antes da chamada nutricional", () => {
     const simulator = source("server/modules/whatsapp/service.ts");
-    const gateCall = simulator.indexOf("await resolvePendingWhatsappFoodClarification(");
+    const gateCall = simulator.indexOf(
+      "await resolvePendingWhatsappFoodClarification("
+    );
     const nutritionCall = simulator.lastIndexOf("await processMealDraft(");
     expect(gateCall).toBeGreaterThanOrEqual(0);
     expect(nutritionCall).toBeGreaterThan(gateCall);
@@ -32,7 +38,9 @@ describe("paridade dos entrypoints da interação WhatsApp (#858)", () => {
     const webhook = source("server/whatsappWebhook.ts");
     const executor = source("server/modules/whatsapp/intentActions.ts");
     expect(webhook).toContain("canInterpretAudioTranscriptIntent");
-    expect(webhook).toMatch(/executeWhatsappTextIntent\(userId,\s*\{\s*text:\s*prepared\.transcript/s);
+    expect(webhook).toMatch(
+      /executeWhatsappTextIntent\(userId,\s*\{\s*text:\s*prepared\.transcript/s
+    );
     expect(executor).toContain("requestScopedInbound");
     expect(executor).toContain("resolveWhatsAppPrecedenceGate");
     expect(executor).toContain("pendingOnly: true");
@@ -48,7 +56,9 @@ describe("paridade dos entrypoints da interação WhatsApp (#858)", () => {
     ];
     for (const producer of producers) {
       const content = source(producer);
-      expect(content, producer).not.toMatch(/\b(?:buttonsReply|listReply)\s*\(/);
+      expect(content, producer).not.toMatch(
+        /\b(?:buttonsReply|listReply)\s*\(/
+      );
       expect(content, producer).toContain("buildWhatsappClosedDecisionReply");
     }
   });

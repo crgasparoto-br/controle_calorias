@@ -129,6 +129,10 @@ export type MealDraftItem = {
   /** Set by the trusted reader only when a V2 snapshot is bound to the physical item. */
   v2SnapshotVerified?: true;
   foodId?: number;
+  /** Persisted governed-catalog identity used by internal adjustment reads. */
+  foodVariantId?: number | null;
+  nutritionProfileId?: number | null;
+  foodPortionId?: number | null;
   foodCatalogId?: number | null;
   portionId?: number;
   portionQuantity?: number;

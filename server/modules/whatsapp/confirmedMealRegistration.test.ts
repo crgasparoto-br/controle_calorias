@@ -150,17 +150,21 @@ describe("issue #899 orchestration regressions", () => {
       } as any,
     }));
     const processMeal = vi.fn(async (input: { text?: string | null }) => processed(input.text ?? ""));
+    const createDraft = vi.fn(() => ({ draftId: "must-not-be-created" } as any));
     const service = createConfirmedMealRegistrationService({
       prepareCountableFoodRegistration,
       processMeal,
       getHabits: vi.fn(async () => []),
+      createDraft,
     });
 
+    const receivedAt = new Date("2026-11-05T12:00:00.000Z");
     const result = await service({
       userId: 899,
       registrationText: "2 fatias de pão de forma Panco",
       originalText: "2 fatias de pão de forma Panco",
-      occurredAt: new Date("2026-07-24T10:00:00.000Z"),
+      occurredAt: receivedAt,
+      receivedAt,
       userTimezone: "America/Sao_Paulo",
     });
 
@@ -170,8 +174,10 @@ describe("issue #899 orchestration regressions", () => {
       text: "2 fatias de pão de forma Panco",
       originalText: "2 fatias de pão de forma Panco",
       userTimezone: "America/Sao_Paulo",
+      receivedAt,
     }));
     expect(processMeal).not.toHaveBeenCalled();
+    expect(createDraft).not.toHaveBeenCalled();
   });
 
   it("distingue falta de dado, falha recuperável e falha após mutação possível", async () => {
@@ -286,5 +292,162 @@ describe("issue #899 orchestration regressions", () => {
     });
 
     expect(result.step).toBe("continue_pipeline");
+  });
+});
+
+describe("issue #997 initial partial countable registration", () => {
+  it("persists only safe items and explicitly lists the omitted item in the reply", async () => {
+    const safeItem = {
+      foodName: "Banana nanica",
+      canonicalName: "Banana nanica",
+      portionText: "80 g",
+      servings: 1,
+      estimatedGrams: 80,
+      calories: 71,
+      protein: 0.9,
+      carbs: 18.3,
+      fat: 0.2,
+      fiber: 2.6,
+      confidence: 0.9,
+      source: "catalog" as const,
+    };
+    const skippedItems = [{
+      segmentIndex: 1,
+      segment: "2 ovos cozidos",
+      foodName: "ovos cozidos",
+      count: 2,
+      requestedUnit: "un",
+    }];
+    const prepareCountableFoodRegistration = vi.fn(async () => ({
+      kind: "ready" as const,
+      registrationText: "80 g de banana nanica",
+      resolutions: [],
+      skippedItems,
+    }));
+    const confirmMeal = vi.fn(async ({ items }: { items: unknown[] }) => ({
+      ...savedMeal(),
+      items,
+    } as any));
+    const requestPartialRegistrationClarification = vi.fn(async () => ({
+      handled: true as const,
+      action: "food_clarification_requested",
+      reply: "Informe somente o peso dos ovos, por exemplo 100 g.",
+      eventType: "whatsapp.food_clarification.requested",
+      detail: "Pendência parcial persistida.",
+      data: { pendingOperationId: 99701 },
+    }));
+    const service = createConfirmedMealRegistrationService({
+      prepareCountableFoodRegistration,
+      processMeal: vi.fn(async input => ({
+        ...processed(input.text ?? ""),
+        items: [safeItem],
+        totals: { calories: 71, protein: 0.9, carbs: 18.3, fat: 0.2 },
+      })) as any,
+      getHabits: vi.fn(async () => []),
+      createDraft: vi.fn(() => ({ draftId: "draft-997-partial" } as any)),
+      confirmMeal: confirmMeal as any,
+      consolidateMeal: vi.fn(async (_deps, meal) => ({
+        action: "created",
+        meal,
+      })) as any,
+      getGoalProgress: vi.fn(async () => undefined) as any,
+      requestPartialRegistrationClarification,
+    });
+
+    const receivedAt = new Date("2026-11-05T12:02:00.000Z");
+    const result = await service({
+      userId: 997,
+      registrationText: "1 banana nanica, 2 ovos cozidos",
+      originalText: "1 banana nanica, 2 ovos cozidos",
+      occurredAt: new Date("2026-11-05T12:00:00.000Z"),
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      inboundMessageId: "wamid.issue997.original",
+    });
+
+    expect(result.status).toBe("registered");
+    expect(confirmMeal).toHaveBeenCalledWith(expect.objectContaining({
+      items: [safeItem],
+    }));
+    if (result.status !== "registered") throw new Error("unreachable");
+    expect(result.result.reply).toContain("Banana nanica");
+    expect(result.result.reply).toContain("O registro ficou parcial.");
+    expect(result.result.reply).toContain("2 ovos cozidos");
+    expect(result.result.reply).toContain("Informe o peso ou volume correspondente.");
+    expect(result.result.reply).toContain("Informe somente o peso dos ovos");
+    expect(result.result.data).toEqual(expect.objectContaining({
+      partialRegistration: true,
+      omittedItemCount: 1,
+      continuationPending: true,
+      continuation: { pendingOperationId: 99701 },
+    }));
+    expect(requestPartialRegistrationClarification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 997,
+        originalText: "1 banana nanica, 2 ovos cozidos",
+        currentPendingIndex: 0,
+        resolvedQuantities: [null],
+        receivedAt,
+        messageId: "wamid.issue997.original",
+        expectedMealId: 89901,
+        expectedMealLabel: "Café da manhã",
+        pendingItems: [expect.objectContaining({
+          segment: "2 ovos cozidos",
+          foodName: "ovos cozidos",
+          count: 2,
+        })],
+      }),
+    );
+  });
+
+  it("não promete continuação persistente se a pergunta não puder ser salva", async () => {
+    const skippedItems = [{
+      segmentIndex: 1,
+      segment: "2 ovos cozidos",
+      foodName: "ovos cozidos",
+      count: 2,
+      requestedUnit: "un",
+    }];
+    const service = createConfirmedMealRegistrationService({
+      prepareCountableFoodRegistration: vi.fn(async () => ({
+        kind: "ready" as const,
+        registrationText: "80 g de banana nanica",
+        resolutions: [],
+        skippedItems,
+      })),
+      processMeal: vi.fn(async input => ({
+        ...processed(input.text ?? ""),
+        items: [skippedItems.length ? processed("banana").items[0] : undefined],
+      })) as any,
+      getHabits: vi.fn(async () => []),
+      createDraft: vi.fn(() => ({ draftId: "draft-997-partial-no-continuation" } as any)),
+      confirmMeal: vi.fn(async () => savedMeal()) as any,
+      consolidateMeal: vi.fn(async (_deps, meal) => ({ action: "created", meal })) as any,
+      getGoalProgress: vi.fn(async () => undefined) as any,
+      requestPartialRegistrationClarification: vi.fn(async () => ({
+        handled: true,
+        action: "food_clarification_unavailable",
+        reply: "Não foi possível guardar a pergunta.",
+        eventType: "whatsapp.food_clarification.persistence_unavailable",
+        detail: "fixture",
+      })),
+    });
+
+    const result = await service({
+      userId: 997,
+      registrationText: "1 banana nanica, 2 ovos cozidos",
+      originalText: "1 banana nanica, 2 ovos cozidos",
+      occurredAt: new Date("2026-11-05T12:00:00.000Z"),
+      receivedAt: new Date("2026-11-05T12:02:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result.status).toBe("registered");
+    if (result.status !== "registered") throw new Error("unreachable");
+    expect(result.result.reply).toContain("O registro seguro foi salvo");
+    expect(result.result.data).toEqual(expect.objectContaining({
+      partialRegistration: true,
+      continuationPending: false,
+    }));
   });
 });

@@ -12,14 +12,17 @@ vi.mock("../meals/service", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  gte: (col: { name: string }, val: unknown) => ({ __op: "gte", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
 }));
 
 type FakeDbRow = Record<string, unknown>;
 type FakeDbCondition =
-  | { __op: "eq"; col: { name: string }; val: unknown }
-  | { __op: "and"; conditions: FakeDbCondition[] }
+  | { __op: "eq" | "gte" | "lt"; col: { name: string }; val: unknown }
+  | { __op: "and" | "or"; conditions: FakeDbCondition[] }
   | { __op: "desc"; col: { name: string } };
 
 function createFakePendingOperationDb() {
@@ -28,8 +31,21 @@ function createFakePendingOperationDb() {
 
   function matches(row: FakeDbRow, condition?: FakeDbCondition): boolean {
     if (!condition) return true;
-    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
-    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "eq")
+      return row[condition.col.name] === condition.val;
+    if (condition.__op === "gte" || condition.__op === "lt") {
+      const value = (item: unknown) =>
+        item instanceof Date
+          ? item.getTime()
+          : new Date(String(item)).getTime();
+      return condition.__op === "gte"
+        ? value(row[condition.col.name]) >= value(condition.val)
+        : value(row[condition.col.name]) < value(condition.val);
+    }
+    if (condition.__op === "and")
+      return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or")
+      return condition.conditions.some(inner => matches(row, inner));
     return true;
   }
 
@@ -44,9 +60,15 @@ function createFakePendingOperationDb() {
     };
     const chain: any = {
       from: vi.fn(() => chain),
-      where: vi.fn((condition: FakeDbCondition) => { whereCondition = condition; return chain; }),
+      where: vi.fn((condition: FakeDbCondition) => {
+        whereCondition = condition;
+        return chain;
+      }),
       orderBy: vi.fn(() => chain),
-      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+      limit: vi.fn((value: number) => {
+        limitValue = value;
+        return Promise.resolve(resolve());
+      }),
     };
     return chain;
   }
@@ -63,7 +85,10 @@ function createFakePendingOperationDb() {
     update: vi.fn(() => {
       let setPayload: FakeDbRow = {};
       const chain: any = {
-        set: vi.fn((payload: FakeDbRow) => { setPayload = payload; return chain; }),
+        set: vi.fn((payload: FakeDbRow) => {
+          setPayload = payload;
+          return chain;
+        }),
         where: vi.fn((condition: FakeDbCondition) => {
           const matching = rows.filter(row => matches(row, condition));
           for (const row of matching) Object.assign(row, setPayload);
@@ -94,17 +119,52 @@ const latestMeal = {
   occurredAt: "2026-06-23T15:00:00.000Z",
   notes: "foto",
   items: [
-    { foodName: "Arroz", portionText: "100 g", calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-    { foodName: "Frango", portionText: "120 g", calories: 190, protein: 35, carbs: 0, fat: 4 },
+    {
+      foodName: "Arroz",
+      portionText: "100 g",
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+    },
+    {
+      foodName: "Frango",
+      portionText: "120 g",
+      calories: 190,
+      protein: 35,
+      carbs: 0,
+      fat: 4,
+    },
   ],
 };
 
 const namedMeal = {
   ...latestMeal,
   items: [
-    { foodName: "Bife entrecote", portionText: "150 g", calories: 330, protein: 32, carbs: 0, fat: 22 },
-    { foodName: "Banana prata", portionText: "1 unidade", calories: 80, protein: 1, carbs: 20, fat: 0.2 },
-    { foodName: "Queijo Minas Padrão Fatiado", portionText: "30 g", calories: 90, protein: 6, carbs: 1, fat: 7 },
+    {
+      foodName: "Bife entrecote",
+      portionText: "150 g",
+      calories: 330,
+      protein: 32,
+      carbs: 0,
+      fat: 22,
+    },
+    {
+      foodName: "Banana prata",
+      portionText: "1 unidade",
+      calories: 80,
+      protein: 1,
+      carbs: 20,
+      fat: 0.2,
+    },
+    {
+      foodName: "Queijo Minas Padrão Fatiado",
+      portionText: "30 g",
+      calories: 90,
+      protein: 6,
+      carbs: 1,
+      fat: 7,
+    },
   ],
 };
 
@@ -120,73 +180,121 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([latestMeal]);
     removeMealMock.mockResolvedValue(undefined);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "exclua refeição fotografada", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
-    const confirmation = await executeWhatsappDeleteIntent(42, { text: "SIM" });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "exclua refeição fotografada",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
+    const confirmation = await executeWhatsappDeleteIntent(42, {
+      text: "SIM",
+      receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+    });
 
-    expect(request).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      eventType: "whatsapp.intent.delete_meal_confirmation_requested",
-    }));
+    expect(request).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        eventType: "whatsapp.intent.delete_meal_confirmation_requested",
+      })
+    );
     expect(request?.reply).toContain("Toque em Confirmar");
     expect(removeMealMock).toHaveBeenCalledWith(42, 10);
-    expect(confirmation).toEqual(expect.objectContaining({
-      action: "meal_deleted",
-      eventType: "whatsapp.intent.meal_deleted",
-    }));
+    expect(confirmation).toEqual(
+      expect.objectContaining({
+        action: "meal_deleted",
+        eventType: "whatsapp.intent.meal_deleted",
+      })
+    );
   });
 
   it("cancela exclusao pendente quando usuario responde cancelar", async () => {
     listMealsMock.mockResolvedValue([latestMeal]);
 
-    await executeWhatsappDeleteIntent(42, { text: "remover refeição", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
-    const cancellation = await executeWhatsappDeleteIntent(42, { text: "cancelar" });
+    await executeWhatsappDeleteIntent(42, {
+      text: "remover refeição",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
+    const cancellation = await executeWhatsappDeleteIntent(42, {
+      text: "cancelar",
+      receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+    });
 
     expect(removeMealMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
-    expect(cancellation).toEqual(expect.objectContaining({
-      action: "delete_cancelled",
-      eventType: "whatsapp.intent.delete_cancelled",
-    }));
+    expect(cancellation).toEqual(
+      expect.objectContaining({
+        action: "delete_cancelled",
+        eventType: "whatsapp.intent.delete_cancelled",
+      })
+    );
   });
 
   it("remove ultimo alimento apos confirmacao por mensagem", async () => {
     listMealsMock.mockResolvedValue([latestMeal]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ ...latestMeal, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      ...latestMeal,
+      ...input,
+    }));
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "apagar o último alimento", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
-    const confirmation = await executeWhatsappDeleteIntent(42, { text: "autorizo" });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "apagar o último alimento",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
+    const confirmation = await executeWhatsappDeleteIntent(42, {
+      text: "autorizo",
+      receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+    });
 
-    expect(request).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      eventType: "whatsapp.intent.delete_food_confirmation_requested",
-    }));
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 10,
-      items: [latestMeal.items[0]],
-    }));
-    expect(confirmation).toEqual(expect.objectContaining({
-      action: "meal_item_deleted",
-      eventType: "whatsapp.intent.meal_item_deleted",
-    }));
+    expect(request).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        eventType: "whatsapp.intent.delete_food_confirmation_requested",
+      })
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 10,
+        items: [latestMeal.items[0]],
+      })
+    );
+    expect(confirmation).toEqual(
+      expect.objectContaining({
+        action: "meal_item_deleted",
+        eventType: "whatsapp.intent.meal_item_deleted",
+      })
+    );
   });
 
   it("encontra alimento por nome exato e nao pede quantidade", async () => {
     listMealsMock.mockResolvedValue([namedMeal]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ ...namedMeal, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      ...namedMeal,
+      ...input,
+    }));
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Exclua o bife entrecote", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
-    const confirmation = await executeWhatsappDeleteIntent(42, { text: "sim" });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Exclua o bife entrecote",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
+    const confirmation = await executeWhatsappDeleteIntent(42, {
+      text: "sim",
+      receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+    });
 
     expect(request?.reply).toContain("Encontrei o item Bife entrecote");
     expect(request?.reply).not.toContain("quantidade");
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 10,
-      items: [namedMeal.items[1], namedMeal.items[2]],
-    }));
-    expect(confirmation).toEqual(expect.objectContaining({
-      action: "meal_item_deleted",
-      data: expect.objectContaining({ removedFoodName: "Bife entrecote" }),
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 10,
+        items: [namedMeal.items[1], namedMeal.items[2]],
+      })
+    );
+    expect(confirmation).toEqual(
+      expect.objectContaining({
+        action: "meal_item_deleted",
+        data: expect.objectContaining({ removedFoodName: "Bife entrecote" }),
+      })
+    );
     // Fonte de verdade da resposta (issue #783): mostra a refeição recarregada com os itens restantes e totais atuais,
     // não apenas o item removido.
     expect(confirmation?.reply).toContain("Removi Bife entrecote");
@@ -199,7 +307,10 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
   it("encontra alimento por nome parcial quando ha um unico candidato", async () => {
     listMealsMock.mockResolvedValue([namedMeal]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Remova a banana", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Remova a banana",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
 
     expect(request?.reply).toContain("Encontrei o item Banana prata");
     expect(request?.reply).not.toContain("quantidade");
@@ -208,9 +319,14 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
   it("encontra alimento por duas palavras parciais", async () => {
     listMealsMock.mockResolvedValue([namedMeal]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Tire o queijo Minas", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Tire o queijo Minas",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
 
-    expect(request?.reply).toContain("Encontrei o item Queijo Minas Padrão Fatiado");
+    expect(request?.reply).toContain(
+      "Encontrei o item Queijo Minas Padrão Fatiado"
+    );
     expect(request?.reply).not.toContain("quantidade");
   });
 
@@ -228,25 +344,60 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       occurredAt: "2026-07-07T22:40:00.000Z",
       notes: "texto",
       items: [
-        { foodName: "Sleepy Koala Chocolate", canonicalName: "Chocolate", portionText: "15 g", calories: 80, protein: 1, carbs: 10, fat: 4 },
-        { foodName: "Pêra", canonicalName: "Pêra", portionText: "120 g", calories: 70, protein: 0.4, carbs: 18, fat: 0.2 },
+        {
+          foodName: "Sleepy Koala Chocolate",
+          canonicalName: "Chocolate",
+          portionText: "15 g",
+          calories: 80,
+          protein: 1,
+          carbs: 10,
+          fat: 4,
+        },
+        {
+          foodName: "Pêra",
+          canonicalName: "Pêra",
+          portionText: "120 g",
+          calories: 70,
+          protein: 0.4,
+          carbs: 18,
+          fat: 0.2,
+        },
       ],
     };
     listMealsMock.mockResolvedValue([imageMeal, dinnerMeal]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ ...dinnerMeal, ...input }));
-
-    const request = await executeWhatsappDeleteIntent(42, { text: "Excluir o chocolate", receivedAt: new Date("2026-07-07T23:30:00.000Z") });
-    const confirmation = await executeWhatsappDeleteIntent(42, { text: "sim" });
-
-    expect(request?.reply).toContain("Encontrei o item Sleepy Koala Chocolate em Jantar");
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 98,
-      items: [dinnerMeal.items[1]],
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      ...dinnerMeal,
+      ...input,
     }));
-    expect(confirmation).toEqual(expect.objectContaining({
-      action: "meal_item_deleted",
-      data: expect.objectContaining({ mealId: 98, removedFoodName: "Sleepy Koala Chocolate" }),
-    }));
+
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Excluir o chocolate",
+      receivedAt: new Date("2026-07-07T23:30:00.000Z"),
+    });
+    const confirmation = await executeWhatsappDeleteIntent(42, {
+      text: "sim",
+      receivedAt: new Date("2026-07-07T23:31:00.000Z"),
+    });
+
+    expect(request?.reply).toContain(
+      "Encontrei o item Sleepy Koala Chocolate em Jantar"
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 98,
+        items: [dinnerMeal.items[1]],
+      })
+    );
+    expect(confirmation).toEqual(
+      expect.objectContaining({
+        action: "meal_item_deleted",
+        data: expect.objectContaining({
+          mealId: 98,
+          removedFoodName: "Sleepy Koala Chocolate",
+        }),
+      })
+    );
   });
 
   it("considera canonicalName e nomes preservados na busca por alimento", async () => {
@@ -256,35 +407,67 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       occurredAt: "2026-07-07T22:40:00.000Z",
       notes: "texto",
       items: [
-        { foodName: "Sleepy Koala Chocolate", canonicalName: "Chocolate", portionText: "15 g", calories: 80, protein: 1, carbs: 10, fat: 4 },
+        {
+          foodName: "Sleepy Koala Chocolate",
+          canonicalName: "Chocolate",
+          portionText: "15 g",
+          calories: 80,
+          protein: 1,
+          carbs: 10,
+          fat: 4,
+        },
       ],
     };
     listMealsMock.mockResolvedValue([dinnerMeal]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Remover koala", receivedAt: new Date("2026-07-07T23:30:00.000Z") });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Remover koala",
+      receivedAt: new Date("2026-07-07T23:30:00.000Z"),
+    });
 
     expect(request?.reply).toContain("Encontrei o item Sleepy Koala Chocolate");
   });
 
   it("pede esclarecimento quando o nome combina com multiplos candidatos", async () => {
-    listMealsMock.mockResolvedValue([{
-      ...latestMeal,
-      items: [
-        { foodName: "Queijo Minas", portionText: "30 g", calories: 80, protein: 5, carbs: 1, fat: 6 },
-        { foodName: "Queijo prato", portionText: "30 g", calories: 100, protein: 6, carbs: 1, fat: 8 },
-      ],
-    }]);
+    listMealsMock.mockResolvedValue([
+      {
+        ...latestMeal,
+        items: [
+          {
+            foodName: "Queijo Minas",
+            portionText: "30 g",
+            calories: 80,
+            protein: 5,
+            carbs: 1,
+            fat: 6,
+          },
+          {
+            foodName: "Queijo prato",
+            portionText: "30 g",
+            calories: 100,
+            protein: 6,
+            carbs: 1,
+            fat: 8,
+          },
+        ],
+      },
+    ]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Remova o queijo", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Remova o queijo",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
 
-    expect(request).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      eventType: "whatsapp.intent.delete_food_selection_requested",
-      data: expect.objectContaining({
-        candidateCount: 2,
-        destructiveActionBlocked: true,
-      }),
-    }));
+    expect(request).toEqual(
+      expect.objectContaining({
+        action: "clarification_needed",
+        eventType: "whatsapp.intent.delete_food_selection_requested",
+        data: expect.objectContaining({
+          candidateCount: 2,
+          destructiveActionBlocked: true,
+        }),
+      })
+    );
     expect(request?.reply).toContain("mais de um alimento parecido");
     expect(request?.reply).toContain("1. Queijo Minas");
     expect(request?.reply).toContain("2. Queijo prato");
@@ -293,7 +476,9 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
   it("mantem ajuste de quantidade fora do fluxo de remocao inteira", async () => {
     listMealsMock.mockResolvedValue([namedMeal]);
 
-    const request = await executeWhatsappDeleteIntent(42, { text: "Remova 20g do bife entrecote" });
+    const request = await executeWhatsappDeleteIntent(42, {
+      text: "Remova 20g do bife entrecote",
+    });
 
     expect(request).toBeNull();
     expect(updateMealMock).not.toHaveBeenCalled();
@@ -305,42 +490,69 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     listMealsMock.mockResolvedValue([singleItemMeal]);
     removeMealMock.mockResolvedValue(undefined);
 
-    await executeWhatsappDeleteIntent(42, { text: "remover esse alimento", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
-    const confirmation = await executeWhatsappDeleteIntent(42, { text: "pode remover" });
+    await executeWhatsappDeleteIntent(42, {
+      text: "remover esse alimento",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
+    const confirmation = await executeWhatsappDeleteIntent(42, {
+      text: "pode remover",
+      receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+    });
 
     expect(removeMealMock).toHaveBeenCalledWith(42, 10);
     expect(updateMealMock).not.toHaveBeenCalled();
-    expect(confirmation).toEqual(expect.objectContaining({
-      action: "meal_deleted",
-      eventType: "whatsapp.intent.meal_deleted_after_last_item_removed",
-    }));
+    expect(confirmation).toEqual(
+      expect.objectContaining({
+        action: "meal_deleted",
+        eventType: "whatsapp.intent.meal_deleted_after_last_item_removed",
+      })
+    );
   });
 
   it("apenas uma de duas confirmacoes concorrentes exclui a refeicao (issue #766)", async () => {
     listMealsMock.mockResolvedValue([latestMeal]);
     removeMealMock.mockResolvedValue(undefined);
 
-    await executeWhatsappDeleteIntent(42, { text: "exclua refeição fotografada", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
+    await executeWhatsappDeleteIntent(42, {
+      text: "exclua refeição fotografada",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
 
     const [first, second] = await Promise.all([
-      executeWhatsappDeleteIntent(42, { text: "SIM" }),
-      executeWhatsappDeleteIntent(42, { text: "SIM" }),
+      executeWhatsappDeleteIntent(42, {
+        text: "SIM",
+        receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+      }),
+      executeWhatsappDeleteIntent(42, {
+        text: "SIM",
+        receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+      }),
     ]);
 
-    const applied = [first, second].filter(result => result?.action === "meal_deleted");
+    const applied = [first, second].filter(
+      result => result?.action === "meal_deleted"
+    );
     expect(applied).toHaveLength(1);
     expect(removeMealMock).toHaveBeenCalledTimes(1);
   });
 
   it("item excluido entre a pergunta e a confirmacao retorna resposta graciosa", async () => {
     listMealsMock.mockResolvedValueOnce([latestMeal]);
-    await executeWhatsappDeleteIntent(42, { text: "remover esse alimento", receivedAt: new Date("2026-06-23T16:00:00.000Z") });
+    await executeWhatsappDeleteIntent(42, {
+      text: "remover esse alimento",
+      receivedAt: new Date("2026-06-23T16:00:00.000Z"),
+    });
 
     // No momento da confirmação, o item já não existe mais na refeição (excluído por outro fluxo).
     listMealsMock.mockResolvedValueOnce([{ ...latestMeal, items: [] }]);
-    const confirmation = await executeWhatsappDeleteIntent(42, { text: "pode remover" });
+    const confirmation = await executeWhatsappDeleteIntent(42, {
+      text: "pode remover",
+      receivedAt: new Date("2026-06-23T16:01:00.000Z"),
+    });
 
-    expect(confirmation).toEqual(expect.objectContaining({ action: "clarification_needed" }));
+    expect(confirmation).toEqual(
+      expect.objectContaining({ action: "clarification_needed" })
+    );
     expect(updateMealMock).not.toHaveBeenCalled();
     expect(removeMealMock).not.toHaveBeenCalled();
   });
@@ -352,12 +564,29 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       occurredAt: "2026-06-23T08:43:00.000Z",
       notes: null,
       items: [
-        { foodName: "Café", portionText: "200 ml", calories: 5, protein: 0.3, carbs: 0, fat: 0 },
-        { foodName: "Pão francês", portionText: "50 g", calories: 150, protein: 5, carbs: 28, fat: 1.5 },
+        {
+          foodName: "Café",
+          portionText: "200 ml",
+          calories: 5,
+          protein: 0.3,
+          carbs: 0,
+          fat: 0,
+        },
+        {
+          foodName: "Pão francês",
+          portionText: "50 g",
+          calories: 150,
+          protein: 5,
+          carbs: 28,
+          fat: 1.5,
+        },
       ],
     };
     listMealsMock.mockResolvedValue([breakfast]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ ...breakfast, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      ...breakfast,
+      ...input,
+    }));
 
     const request = await executeWhatsappDeleteIntent(42, {
       text: "Excluir o café",
@@ -365,10 +594,12 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     });
 
     expect(request?.reply).toContain("Encontrei o item Café em Café da manhã");
-    expect(request).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_food_confirmation_requested",
-      data: expect.objectContaining({ mealId: 20 }),
-    }));
+    expect(request).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_food_confirmation_requested",
+        data: expect.objectContaining({ mealId: 20 }),
+      })
+    );
     expect(removeMealMock).not.toHaveBeenCalled();
   });
 
@@ -379,12 +610,29 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       occurredAt: "2026-06-23T08:43:00.000Z",
       notes: null,
       items: [
-        { foodName: "Café", portionText: "200 ml", calories: 5, protein: 0.3, carbs: 0, fat: 0 },
-        { foodName: "Pão francês", portionText: "50 g", calories: 150, protein: 5, carbs: 28, fat: 1.5 },
+        {
+          foodName: "Café",
+          portionText: "200 ml",
+          calories: 5,
+          protein: 0.3,
+          carbs: 0,
+          fat: 0,
+        },
+        {
+          foodName: "Pão francês",
+          portionText: "50 g",
+          calories: 150,
+          protein: 5,
+          carbs: 28,
+          fat: 1.5,
+        },
       ],
     };
     listMealsMock.mockResolvedValueOnce([breakfast]);
-    updateMealMock.mockImplementation(async (_userId, input) => ({ ...breakfast, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({
+      ...breakfast,
+      ...input,
+    }));
 
     const request = await executeWhatsappDeleteIntent(42, {
       text: "Excluir o café",
@@ -395,7 +643,10 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     // 1ª chamada dentro da confirmação: localiza o item ainda presente para removê-lo.
     listMealsMock.mockResolvedValueOnce([breakfast]);
     // 2ª chamada: usada pela lista do dia reenviada após a exclusão, já sem o café (persistência simulada).
-    const breakfastAfterDeletion = { ...breakfast, items: [breakfast.items[1]] };
+    const breakfastAfterDeletion = {
+      ...breakfast,
+      items: [breakfast.items[1]],
+    };
     listMealsMock.mockResolvedValueOnce([breakfastAfterDeletion]);
 
     const confirmation = await executeWhatsappDeleteIntent(42, {
@@ -403,14 +654,18 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       receivedAt: new Date("2026-06-23T09:01:00.000Z"),
     });
 
-    expect(confirmation).toEqual(expect.objectContaining({ action: "meal_item_deleted" }));
+    expect(confirmation).toEqual(
+      expect.objectContaining({ action: "meal_item_deleted" })
+    );
     expect(confirmation?.interactiveReply?.messages).toHaveLength(2);
     expect(confirmation?.interactiveReply?.messages[0]).toEqual(
-      expect.objectContaining({ type: "text", body: confirmation?.reply }),
+      expect.objectContaining({ type: "text", body: confirmation?.reply })
     );
     const dayListMessage = confirmation?.interactiveReply?.messages[1];
     expect(dayListMessage?.type).toBe("text");
-    expect((dayListMessage as { body: string }).body).toContain("Alimentos registrados hoje");
+    expect((dayListMessage as { body: string }).body).toContain(
+      "Alimentos registrados hoje"
+    );
     expect((dayListMessage as { body: string }).body).toContain("Pão francês");
     expect((dayListMessage as { body: string }).body).not.toContain("Café —");
   });
@@ -421,7 +676,16 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       mealLabel: "Café da manhã",
       occurredAt: "2026-06-23T08:43:00.000Z",
       notes: null,
-      items: [{ foodName: "Café", portionText: "200 ml", calories: 5, protein: 0.3, carbs: 0, fat: 0 }],
+      items: [
+        {
+          foodName: "Café",
+          portionText: "200 ml",
+          calories: 5,
+          protein: 0.3,
+          carbs: 0,
+          fat: 0,
+        },
+      ],
     };
     listMealsMock.mockResolvedValue([breakfast]);
     removeMealMock.mockResolvedValue(undefined);
@@ -431,10 +695,12 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       receivedAt: new Date("2026-06-23T09:00:00.000Z"),
     });
 
-    expect(request).toEqual(expect.objectContaining({
-      eventType: "whatsapp.intent.delete_meal_confirmation_requested",
-      data: expect.objectContaining({ mealId: 21 }),
-    }));
+    expect(request).toEqual(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.delete_meal_confirmation_requested",
+        data: expect.objectContaining({ mealId: 21 }),
+      })
+    );
     expect(request?.reply).toContain("Encontrei a refeição: Café da manhã");
   });
 });

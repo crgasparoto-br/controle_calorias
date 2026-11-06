@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDrizzleWhatsAppPendingOperationRepository } from "./whatsappPendingOperationRepository";
+import {
+  createDrizzleWhatsAppPendingOperationRepository,
+  PENDING_OPERATION_PROCESSING_LEASE_MS,
+} from "./whatsappPendingOperationRepository";
 
 const originalEnv = { ...process.env };
 
@@ -94,7 +97,9 @@ describe("WhatsApp pending operation production persistence policy", () => {
   });
 
   it("fails closed when the database provider throws instead of returning null", async () => {
-    const { onWarning, repository } = createUnavailableRepository({ throws: true });
+    const { onWarning, repository } = createUnavailableRepository({
+      throws: true,
+    });
 
     await expect(
       repository.createPendingOperation({
@@ -132,6 +137,63 @@ describe("WhatsApp pending operation production persistence policy", () => {
     await second.repository.claimPendingOperation({
       id: created!.id,
       expectedVersion: created!.version,
+    });
+  });
+
+  it("does not replay an abandoned processing lease and blocks new operations during review", async () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.ALLOW_MEMORY_PERSISTENCE;
+    const first = createUnavailableRepository();
+    const second = createUnavailableRepository();
+    const createdAt = new Date("2026-09-03T10:00:00.000Z");
+    const created = await first.repository.createPendingOperation({
+      userId: 4904,
+      type: "meal_item_selection",
+      target: { action: "grams_delta" },
+      origin: "mealItemSelectionCallback",
+      ttlMs: 15 * 60 * 1000,
+      now: createdAt,
+    });
+    const claim = await first.repository.beginPendingOperationProcessing({
+      id: created!.id,
+      expectedVersion: created!.version,
+      now: createdAt,
+    });
+    const reviewAt = new Date(
+      createdAt.getTime() + PENDING_OPERATION_PROCESSING_LEASE_MS
+    );
+
+    expect(
+      await second.repository.getActivePendingOperation(4904, reviewAt)
+    ).toMatchObject({
+      state: "review_required",
+      version: claim.version! + 1,
+    });
+    const blockedByReview = await second.repository.createPendingOperation({
+      userId: 4904,
+      type: "another_operation",
+      target: {},
+      origin: "test",
+      ttlMs: 60_000,
+      now: reviewAt,
+    });
+    expect(blockedByReview).not.toBeNull();
+    expect(
+      await second.repository.getActivePendingOperation(4904, reviewAt)
+    ).toMatchObject({
+      id: created!.id,
+      state: "review_required",
+    });
+
+    const afterTtl = new Date(createdAt.getTime() + 15 * 60 * 1000 + 1);
+    expect(
+      await second.repository.getActivePendingOperation(4904, afterTtl)
+    ).toBeNull();
+    expect(
+      await second.repository.getPendingOperationById(created!.id, afterTtl)
+    ).toMatchObject({
+      state: "expired",
+      version: claim.version! + 2,
     });
   });
 });

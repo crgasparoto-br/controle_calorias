@@ -14,12 +14,35 @@ const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const createManualMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
+const attachTestMealMutationToken = vi.hoisted(
+  () => (value: unknown, token: string) => {
+    if (!value || typeof value !== "object") return value;
+    const symbol = Symbol.for("controle_calorias.mealMutationPreImage");
+    if (!Object.prototype.hasOwnProperty.call(value, symbol)) {
+      Object.defineProperty(value, symbol, {
+        value: token,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    return value;
+  }
+);
 /** Cenário mutável da pesquisa de medida caseira (#1278). */
 const householdMeasureScenario = vi.hoisted(() => ({
   peraEvidenceUnusable: false,
 }));
-const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock, releaseMessageForRetryMock } = vi.hoisted(() => ({
-  beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+const {
+  beginInboundMessageMock,
+  recordOutboundReplyMock,
+  recordDomainLinkMock,
+  markMessageProcessedMock,
+  releaseMessageForRetryMock,
+} = vi.hoisted(() => ({
+  beginInboundMessageMock: vi.fn(async () => ({
+    conversationId: 1,
+    messageId: 1,
+  })),
   recordOutboundReplyMock: vi.fn(async () => undefined),
   recordDomainLinkMock: vi.fn(async () => undefined),
   markMessageProcessedMock: vi.fn(async () => undefined),
@@ -41,14 +64,19 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
   lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
+  lte: (col: { name: string }, val: unknown) => ({ __op: "lte", col, val }),
+  gt: (col: { name: string }, val: unknown) => ({ __op: "gt", col, val }),
+  gte: (col: { name: string }, val: unknown) => ({ __op: "gte", col, val }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
 }));
 
 type FakeDbRow = Record<string, unknown>;
 type FakeDbCondition =
   | { __op: "eq"; col: { name: string }; val: unknown }
-  | { __op: "and"; conditions: FakeDbCondition[] }
+  | { __op: "lt" | "lte" | "gt" | "gte"; col: { name: string }; val: unknown }
+  | { __op: "and" | "or"; conditions: FakeDbCondition[] }
   | { __op: "desc"; col: { name: string } };
 
 function createFakePendingOperationDb() {
@@ -57,8 +85,29 @@ function createFakePendingOperationDb() {
 
   function matches(row: FakeDbRow, condition?: FakeDbCondition): boolean {
     if (!condition) return true;
-    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
-    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "eq")
+      return row[condition.col.name] === condition.val;
+    if (condition.__op === "and")
+      return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or")
+      return condition.conditions.some(inner => matches(row, inner));
+    if (["lt", "lte", "gt", "gte"].includes(condition.__op)) {
+      const left = row[condition.col.name];
+      const leftTime =
+        left instanceof Date
+          ? left.getTime()
+          : new Date(String(left)).getTime();
+      const rightTime =
+        condition.val instanceof Date
+          ? condition.val.getTime()
+          : new Date(String(condition.val)).getTime();
+      if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime))
+        return false;
+      if (condition.__op === "lt") return leftTime < rightTime;
+      if (condition.__op === "lte") return leftTime <= rightTime;
+      if (condition.__op === "gt") return leftTime > rightTime;
+      return leftTime >= rightTime;
+    }
     return true;
   }
 
@@ -73,9 +122,15 @@ function createFakePendingOperationDb() {
     };
     const chain: any = {
       from: vi.fn(() => chain),
-      where: vi.fn((condition: FakeDbCondition) => { whereCondition = condition; return chain; }),
+      where: vi.fn((condition: FakeDbCondition) => {
+        whereCondition = condition;
+        return chain;
+      }),
       orderBy: vi.fn(() => chain),
-      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+      limit: vi.fn((value: number) => {
+        limitValue = value;
+        return Promise.resolve(resolve());
+      }),
     };
     return chain;
   }
@@ -92,7 +147,10 @@ function createFakePendingOperationDb() {
     update: vi.fn(() => {
       let setPayload: FakeDbRow = {};
       const chain: any = {
-        set: vi.fn((payload: FakeDbRow) => { setPayload = payload; return chain; }),
+        set: vi.fn((payload: FakeDbRow) => {
+          setPayload = payload;
+          return chain;
+        }),
         where: vi.fn((condition: FakeDbCondition) => {
           const matching = rows.filter(row => matches(row, condition));
           for (const row of matching) Object.assign(row, setPayload);
@@ -133,87 +191,106 @@ vi.mock("./whatsappConfig", () => ({
 }));
 
 vi.mock("./_core/ai/domainTextResponse", async importOriginal => {
-  const actual = await importOriginal<typeof import("./_core/ai/domainTextResponse")>();
+  const actual =
+    await importOriginal<typeof import("./_core/ai/domainTextResponse")>();
   return {
     ...actual,
-    createDomainTextResponse: vi.fn(async (_provider: unknown, request: any) => {
-      const prompt = request.input?.[0]?.content?.[0]?.text ?? "";
-      const measureResponse = (foodName: string, foodTypeName: string, grams: number) => {
-        const url = `https://example.test/${foodTypeName}-unidade`;
-        const evidence = `1 unidade de ${foodTypeName} pesa ${grams} g.`;
-        return {
-          id: `measure-${foodTypeName}`,
-          outputText: JSON.stringify({
-            found: true,
-            references: [{
-              matchedFoodName: foodName,
-              foodTypeName,
-              brandName: "",
-              measureUnit: "unidade",
-              measureQuantity: 1,
-              grams,
-              referenceKind: "same_food_type",
-              describesTypicalMeasure: false,
-              sourceUrl: url,
-              evidence,
-            }],
-          }),
-          webSearch: {
-            executed: true,
-            searchCount: 1,
-            sources: [{ url, title: `${foodName} natural`, supportingText: [evidence] }],
-          },
-          raw: {},
-        };
-      };
-
-      if (/p[eê]ra packans/i.test(prompt)) {
-        if (householdMeasureScenario.peraEvidenceUnusable) {
-          const url = "https://example.test/pera-packhams";
-          const evidence = "Pêra é uma fruta rica em fibras e água.";
+    createDomainTextResponse: vi.fn(
+      async (_provider: unknown, request: any) => {
+        const prompt = request.input?.[0]?.content?.[0]?.text ?? "";
+        const measureResponse = (
+          foodName: string,
+          foodTypeName: string,
+          grams: number
+        ) => {
+          const url = `https://example.test/${foodTypeName}-unidade`;
+          const evidence = `1 unidade de ${foodTypeName} pesa ${grams} g.`;
           return {
-            id: "measure-pera-unverifiable",
+            id: `measure-${foodTypeName}`,
             outputText: JSON.stringify({
               found: true,
-              references: [{
-                matchedFoodName: "Pêra Packhams",
-                foodTypeName: "pêra packhams",
-                brandName: "",
-                measureUnit: "unidade",
-                measureQuantity: 1,
-                grams: 150,
-                referenceKind: "same_food_type",
-                describesTypicalMeasure: false,
-                sourceUrl: url,
-                evidence,
-              }],
+              references: [
+                {
+                  matchedFoodName: foodName,
+                  foodTypeName,
+                  brandName: "",
+                  measureUnit: "unidade",
+                  measureQuantity: 1,
+                  grams,
+                  referenceKind: "same_food_type",
+                  describesTypicalMeasure: false,
+                  sourceUrl: url,
+                  evidence,
+                },
+              ],
             }),
             webSearch: {
               executed: true,
               searchCount: 1,
-              sources: [{ url, title: "Pêra", supportingText: [evidence] }],
+              sources: [
+                {
+                  url,
+                  title: `${foodName} natural`,
+                  supportingText: [evidence],
+                },
+              ],
             },
             raw: {},
           };
+        };
+
+        if (/p[eê]ra packans/i.test(prompt)) {
+          if (householdMeasureScenario.peraEvidenceUnusable) {
+            const url = "https://example.test/pera-packhams";
+            const evidence = "Pêra é uma fruta rica em fibras e água.";
+            return {
+              id: "measure-pera-unverifiable",
+              outputText: JSON.stringify({
+                found: true,
+                references: [
+                  {
+                    matchedFoodName: "Pêra Packhams",
+                    foodTypeName: "pêra packhams",
+                    brandName: "",
+                    measureUnit: "unidade",
+                    measureQuantity: 1,
+                    grams: 150,
+                    referenceKind: "same_food_type",
+                    describesTypicalMeasure: false,
+                    sourceUrl: url,
+                    evidence,
+                  },
+                ],
+              }),
+              webSearch: {
+                executed: true,
+                searchCount: 1,
+                sources: [{ url, title: "Pêra", supportingText: [evidence] }],
+              },
+              raw: {},
+            };
+          }
+          if (!/refer[eê]ncia can[oô]nica.*pera/i.test(prompt)) {
+            return {
+              id: "measure-pera-without-reference",
+              outputText: JSON.stringify({ found: false, references: [] }),
+              webSearch: { executed: true, searchCount: 1, sources: [] },
+              raw: {},
+            };
+          }
+          return measureResponse("Pêra", "pêra", 150);
         }
-        if (!/refer[eê]ncia can[oô]nica.*pera/i.test(prompt)) {
-          return {
-            id: "measure-pera-without-reference",
-            outputText: JSON.stringify({ found: false, references: [] }),
-            webSearch: { executed: true, searchCount: 1, sources: [] },
-            raw: {},
-          };
-        }
-        return measureResponse("Pêra", "pêra", 150);
+        if (/banana nanica/i.test(prompt))
+          return measureResponse("Banana", "banana", 80);
+        return actual.createDomainTextResponse(_provider as never, request);
       }
-      if (/banana nanica/i.test(prompt)) return measureResponse("Banana", "banana", 80);
-      return actual.createDomainTextResponse(_provider as never, request);
-    }),
+    ),
   };
 });
 
 vi.mock("./householdMeasureResolutionStore", async importOriginal => {
-  const actual = await importOriginal<typeof import("./householdMeasureResolutionStore")>();
+  const actual =
+    await importOriginal<typeof import("./householdMeasureResolutionStore")>();
   return {
     ...actual,
     loadPersistedHouseholdMeasureResolution: vi.fn(async () => null),
@@ -239,12 +316,22 @@ vi.mock("./modules/whatsapp/userMeasurementReplyContext", () => ({
 }));
 
 vi.mock("./modules/meals/service", () => ({
-  listMeals: listMealsMock,
-  updateMeal: updateMealMock,
+  listMeals: async (...args: unknown[]) => {
+    const meals = await listMealsMock(...args);
+    const options = args[1] as { adjustmentRead?: boolean } | undefined;
+    return options?.adjustmentRead && Array.isArray(meals)
+      ? meals.map(meal => attachTestMealMutationToken(meal, "a".repeat(64)))
+      : meals;
+  },
+  updateMeal: async (...args: unknown[]) =>
+    attachTestMealMutationToken(await updateMealMock(...args), "b".repeat(64)),
   createManualMeal: createManualMealMock,
 }));
 
-const { __resetWhatsAppTextIntentContextForTests, handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const {
+  __resetWhatsAppTextIntentContextForTests,
+  handleWhatsAppWebhookWithTextIntent,
+} = await import("./whatsappIntentWebhook");
 const { createDrizzleWhatsAppPendingOperationRepository } = await import(
   "./repositories/whatsappPendingOperationRepository"
 );
@@ -316,7 +403,10 @@ function createResponse(): MockResponse {
   };
 }
 
-function createTextWebhookRequest(text: string, options: { id?: string; timestamp?: string } = {}) {
+function createTextWebhookRequest(
+  text: string,
+  options: { id?: string; timestamp?: string } = {}
+) {
   return {
     body: {
       entry: [
@@ -382,37 +472,53 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
     listUserExercisesMock.mockResolvedValue([]);
-    createWaterLogMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      id: 91,
-      userId: 42,
-      ...input,
-    }));
-    updateUserCurrentWeightMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      userId: 42,
-      ...input,
-    }));
-    getWhatsAppWeightVariationMock.mockResolvedValue({ variationKg: null, previousWeightKg: null });
+    createWaterLogMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 91,
+        userId: 42,
+        ...input,
+      })
+    );
+    updateUserCurrentWeightMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        userId: 42,
+        ...input,
+      })
+    );
+    getWhatsAppWeightVariationMock.mockResolvedValue({
+      variationKg: null,
+      previousWeightKg: null,
+    });
     getWhatsAppUserTimeZoneMock.mockResolvedValue("America/Sao_Paulo");
-    ensureWhatsAppWeightEntryMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      entry: { id: 92, userId: 42, ...input },
-      created: true,
-    }));
+    ensureWhatsAppWeightEntryMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        entry: { id: 92, userId: 42, ...input },
+        created: true,
+      })
+    );
     tryCreateQuickEditLinkForMealMock.mockResolvedValue(null);
-    createManualMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      id: 1271,
-      userId: 42,
-      ...input,
-    }));
-    handleWhatsAppWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
-    global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const payload = init?.body ? JSON.parse(String(init.body)) : {};
-      sentPayloads.push(payload);
-      const text = payload?.text?.body ?? payload?.interactive?.body?.text;
-      if (text) {
-        sentMessages.push(text);
+    createManualMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 1271,
+        userId: 42,
+        ...input,
+      })
+    );
+    handleWhatsAppWebhookMock.mockImplementation(
+      async (_req, res: MockResponse) =>
+        res.status(200).json({ ok: true, processed: 1 })
+    );
+    global.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const payload = init?.body ? JSON.parse(String(init.body)) : {};
+        sentPayloads.push(payload);
+        const text = payload?.text?.body ?? payload?.interactive?.body?.text;
+        if (text) {
+          sentMessages.push(text);
+        }
+        return { ok: true, json: async () => ({}) } as Response;
       }
-      return { ok: true, json: async () => ({}) } as Response;
-    }) as typeof fetch;
+    ) as typeof fetch;
   });
 
   it("registra hidratação pela intenção nova e não delega para criação de refeição", async () => {
@@ -431,22 +537,32 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       occurredAt: expect.stringMatching(/^2026-06-02T/),
     });
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.water_logged",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.water_logged",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
-    expect(beginInboundMessageMock).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 42,
-      externalMessageId: "water-yesterday",
-      contentType: "text",
-    }));
+    expect(beginInboundMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 42,
+        externalMessageId: "water-yesterday",
+        contentType: "text",
+      })
+    );
     expect(recordOutboundReplyMock).toHaveBeenCalledWith(
       { conversationId: 1, messageId: 1 },
-      expect.objectContaining({ userId: 42, text: expect.stringContaining("Registrei 500 ml de água") }),
+      expect.objectContaining({
+        userId: 42,
+        text: expect.stringContaining("Registrei 500 ml de água"),
+      })
     );
-    expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+    expect(markMessageProcessedMock).toHaveBeenCalledWith({
+      conversationId: 1,
+      messageId: 1,
+    });
   });
 
   it("libera o retry e preserva a confirmação QUESTION quando o provider rejeita o primeiro envio", async () => {
@@ -471,8 +587,16 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
         totals: { calories: 195, protein: 4.1, carbs: 42, fat: 0.5 },
       },
       actions: [
-        { id: "calculate", label: "Calcular", effect: "calculate_suggestion_once" },
-        { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+        {
+          id: "calculate",
+          label: "Calcular",
+          effect: "calculate_suggestion_once",
+        },
+        {
+          id: "cancel",
+          label: "Cancelar",
+          effect: "cancel_without_persistence",
+        },
       ],
     };
     const pending = await repository.createPendingOperation({
@@ -486,40 +610,63 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     });
     expect(pending).not.toBeNull();
 
-    global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const payload = init?.body ? JSON.parse(String(init.body)) : {};
-      sentPayloads.push(payload);
-      return {
-        ok: false,
-        status: 503,
-        statusText: "Service Unavailable",
-        text: async () => "temporary",
-        json: async () => ({ error: "temporary" }),
-      } as Response;
-    }) as typeof fetch;
+    global.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const payload = init?.body ? JSON.parse(String(init.body)) : {};
+        sentPayloads.push(payload);
+        return {
+          ok: false,
+          status: 503,
+          statusText: "Service Unavailable",
+          text: async () => "temporary",
+          json: async () => ({ error: "temporary" }),
+        } as Response;
+      }
+    ) as typeof fetch;
     const firstResponse = createResponse();
     await handleWhatsAppWebhookWithTextIntent(
-      createTextWebhookRequest("sim", { id: "question-delivery-retry", timestamp: "1780488000" }) as never,
-      firstResponse as never,
+      createTextWebhookRequest("sim", {
+        id: "question-delivery-retry",
+        timestamp: "1780488000",
+      }) as never,
+      firstResponse as never
     );
 
     expect(firstResponse.statusCode).toBe(503);
-    expect(firstResponse.body).toEqual(expect.objectContaining({ retryable: true }));
-    expect(releaseMessageForRetryMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+    expect(firstResponse.body).toEqual(
+      expect.objectContaining({ retryable: true })
+    );
+    expect(releaseMessageForRetryMock).toHaveBeenCalledWith({
+      conversationId: 1,
+      messageId: 1,
+    });
     expect(markMessageProcessedMock).not.toHaveBeenCalled();
-    expect(await repository.getActivePendingOperation(42, new Date("2026-06-03T12:01:00.000Z"))).toEqual(
-      expect.objectContaining({ type: "question_meal_calculation", state: "active" }),
+    expect(
+      await repository.getActivePendingOperation(
+        42,
+        new Date("2026-06-03T12:01:00.000Z")
+      )
+    ).toEqual(
+      expect.objectContaining({
+        type: "question_meal_calculation",
+        state: "active",
+      })
     );
 
-    global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const payload = init?.body ? JSON.parse(String(init.body)) : {};
-      sentPayloads.push(payload);
-      return { ok: true, status: 200, json: async () => ({}) } as Response;
-    }) as typeof fetch;
+    global.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const payload = init?.body ? JSON.parse(String(init.body)) : {};
+        sentPayloads.push(payload);
+        return { ok: true, status: 200, json: async () => ({}) } as Response;
+      }
+    ) as typeof fetch;
     const retryResponse = createResponse();
     await handleWhatsAppWebhookWithTextIntent(
-      createTextWebhookRequest("sim", { id: "question-delivery-retry", timestamp: "1780488000" }) as never,
-      retryResponse as never,
+      createTextWebhookRequest("sim", {
+        id: "question-delivery-retry",
+        timestamp: "1780488000",
+      }) as never,
+      retryResponse as never
     );
 
     expect(retryResponse.statusCode).toBe(200);
@@ -539,23 +686,35 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(res.statusCode).toBe(200);
     // Água registrada exatamente uma vez.
     expect(createWaterLogMock).toHaveBeenCalledTimes(1);
-    expect(createWaterLogMock).toHaveBeenCalledWith(42, expect.objectContaining({ amountMl: 300 }));
+    expect(createWaterLogMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ amountMl: 300 })
+    );
     // O intent webhook não envia outbound próprio para a água: o bloco entra
     // como prefixo diferido da resposta nutricional do webhook base.
     expect(sentMessages).toHaveLength(0);
     expect(handleWhatsAppWebhookMock).toHaveBeenCalledTimes(1);
     const forwardedReq = handleWhatsAppWebhookMock.mock.calls[0][0];
-    const forwardedText = forwardedReq.body.entry[0].changes[0].value.messages[0].text.body;
+    const forwardedText =
+      forwardedReq.body.entry[0].changes[0].value.messages[0].text.body;
     expect(forwardedText).toContain("pão francês");
     expect(forwardedText).not.toContain("água");
 
-    const { getWhatsAppDeferredLogicalReply, composeWhatsAppDeferredReplyText } = await import("./modules/whatsapp/deferredLogicalReply");
-    const deferred = getWhatsAppDeferredLogicalReply(forwardedReq, "water-food-mixed");
+    const {
+      getWhatsAppDeferredLogicalReply,
+      composeWhatsAppDeferredReplyText,
+    } = await import("./modules/whatsapp/deferredLogicalReply");
+    const deferred = getWhatsAppDeferredLogicalReply(
+      forwardedReq,
+      "water-food-mixed"
+    );
     expect(deferred).not.toBeNull();
     expect(deferred?.prefixBlocks.join("\n")).toContain("Água registrada");
     expect(deferred?.domainLinks).toEqual([{ waterLogId: 91 }]);
     const composed = composeWhatsAppDeferredReplyText(deferred, "🍽️ *Almoço*");
-    expect(composed.indexOf("Água registrada")).toBeLessThan(composed.indexOf("🍽️ *Almoço*"));
+    expect(composed.indexOf("Água registrada")).toBeLessThan(
+      composed.indexOf("🍽️ *Almoço*")
+    );
   });
 
   it("registra peso pela intenção textual e não delega para criação de refeição", async () => {
@@ -576,11 +735,13 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     });
     expect(createWaterLogMock).not.toHaveBeenCalled();
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.weight_logged",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.weight_logged",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("⚖️ *Peso registrado*");
     expect(sentMessages.at(-1)).toContain("*Peso:* 80,5 kg");
     expect(sentMessages.at(-1)).toContain("*Variação:* primeiro registro");
@@ -601,7 +762,13 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
         inboundMessageId: "old-meal-message",
         prompt: "Precisa ajustar algum alimento?",
         attempts: 1,
-        actions: [{ id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" }],
+        actions: [
+          {
+            id: "cancel",
+            label: "Cancelar",
+            effect: "cancel_without_persistence",
+          },
+        ],
       },
       state: "consumed",
       version: 2,
@@ -628,11 +795,15 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(sentMessages.at(-1)).toContain("⚖️ *Peso registrado*");
     expect(sentMessages.at(-1)).toContain("*Peso:* 68,7 kg");
-    expect(sentMessages.at(-1)).not.toContain("Essa pergunta não está mais disponível");
+    expect(sentMessages.at(-1)).not.toContain(
+      "Essa pergunta não está mais disponível"
+    );
   });
 
   it("pede esclarecimento para peso sem valor e não delega para criação de refeição", async () => {
-    const req = createTextWebhookRequest("peso", { id: "weight-clarification" });
+    const req = createTextWebhookRequest("peso", {
+      id: "weight-clarification",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
@@ -641,16 +812,20 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(updateUserCurrentWeightMock).not.toHaveBeenCalled();
     expect(createWaterLogMock).not.toHaveBeenCalled();
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.intent.clarification_needed",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.intent.clarification_needed",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("preciso do valor em kg");
   });
 
   it("pede esclarecimento para água sem quantidade e não delega para criação de refeição", async () => {
-    const req = createTextWebhookRequest("adicionar água ontem", { id: "water-clarification" });
+    const req = createTextWebhookRequest("adicionar água ontem", {
+      id: "water-clarification",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
@@ -658,50 +833,111 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(res.statusCode).toBe(200);
     expect(createWaterLogMock).not.toHaveBeenCalled();
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.intent.clarification_needed",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.intent.clarification_needed",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("preciso da quantidade");
   });
 
   it("ajusta refeição existente e não delega para inferência nutricional", async () => {
-    listMealsMock.mockResolvedValue([{ id: 10, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 10, ...input }));
-    const req = createTextWebhookRequest("reduzir 50 gramas do arroz", { id: "reduce-rice" });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 10,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest("reduzir 50 gramas do arroz", {
+      id: "reduce-rice",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 10,
-      items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 100, portionText: "100 g", calories: 130 })],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 10,
+        items: [
+          expect.objectContaining({
+            foodName: "Arroz branco",
+            estimatedGrams: 100,
+            portionText: "100 g",
+            calories: 130,
+          }),
+        ],
+      })
+    );
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
-    expect(sentMessages.some(message => message.includes("de 150 g para 100 g"))).toBe(true);
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_grams_adjusted",
+      })
+    );
+    expect(
+      sentMessages.some(message => message.includes("de 150 g para 100 g"))
+    ).toBe(true);
   });
 
   it("envia botão de edição rápida ao ajustar refeição existente por texto", async () => {
-    listMealsMock.mockResolvedValue([{ id: 10, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 10, ...input }));
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 10,
+        ...input,
+      })
+    );
     tryCreateQuickEditLinkForMealMock.mockResolvedValue({
       token: "token-test",
       url: "https://app.example.com/quick-edit/token-test",
       expiresAt: new Date("2026-06-04T12:00:00.000Z").toISOString(),
     });
-    const req = createTextWebhookRequest("reduzir 50 gramas do arroz", { id: "reduce-rice-quick-edit" });
+    const req = createTextWebhookRequest("reduzir 50 gramas do arroz", {
+      id: "reduce-rice-quick-edit",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(tryCreateQuickEditLinkForMealMock).toHaveBeenCalledWith({ userId: 42, mealId: 10 });
+    expect(tryCreateQuickEditLinkForMealMock).toHaveBeenCalledWith({
+      userId: 42,
+      mealId: 10,
+    });
     const lastPayload = sentPayloads.at(-1);
     expect(lastPayload?.interactive?.type).toBe("cta_url");
-    expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe("Editar refeição");
-    expect(lastPayload?.interactive?.action?.parameters?.url).toBe("https://app.example.com/quick-edit/token-test");
-    expect(sentMessages.some(message => message.includes("de 150 g para 100 g"))).toBe(true);
+    expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe(
+      "Editar refeição"
+    );
+    expect(lastPayload?.interactive?.action?.parameters?.url).toBe(
+      "https://app.example.com/quick-edit/token-test"
+    );
+    expect(
+      sentMessages.some(message => message.includes("de 150 g para 100 g"))
+    ).toBe(true);
   });
 
   it("diminui gramas de alimento registrado em refeição anterior à última", async () => {
@@ -730,22 +966,65 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       calories: 46,
     };
     listMealsMock.mockResolvedValue([
-      { id: 33, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T15:20:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [honeyItem] },
-      { id: 32, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T15:10:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [yogurtItem] },
-      { id: 31, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [bananaPrataItem] },
+      {
+        id: 33,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T15:20:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [honeyItem],
+      },
+      {
+        id: 32,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T15:10:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [yogurtItem],
+      },
+      {
+        id: 31,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [bananaPrataItem],
+      },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: (input as { mealId: number }).mealId, ...input }));
-    const req = createTextWebhookRequest("Diminuir 70g da banana", { id: "reduce-banana-older-meal" });
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: (input as { mealId: number }).mealId,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest("Diminuir 70g da banana", {
+      id: "reduce-banana-older-meal",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 31,
-      items: [expect.objectContaining({ foodName: "Banana prata", estimatedGrams: 109, portionText: "109 g" })],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 31,
+        items: [
+          expect.objectContaining({
+            foodName: "Banana prata",
+            estimatedGrams: 109,
+            portionText: "109 g",
+          }),
+        ],
+      })
+    );
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_grams_adjusted",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("de 179 g para 109 g");
   });
 
@@ -759,87 +1038,200 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       carbs: 28,
       fat: 0.3,
     };
-    listMealsMock.mockResolvedValue([{ id: 10, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [currentRiceItem] }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 10, ...input }));
-    const req = createTextWebhookRequest("somar 45g ao arroz", { id: "increment-rice" });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [currentRiceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 10,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest("somar 45g ao arroz", {
+      id: "increment-rice",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 10,
-      items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 145, portionText: "145 g", calories: 188.5 })],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 10,
+        items: [
+          expect.objectContaining({
+            foodName: "Arroz branco",
+            estimatedGrams: 145,
+            portionText: "145 g",
+            calories: 188.5,
+          }),
+        ],
+      })
+    );
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_grams_adjusted",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("de 100 g para 145 g");
     expect(sentMessages.at(-1)).toContain("recalculei os macros");
   });
 
   it("aumenta gramas na refeição citada pelo nome mesmo quando não é a última", async () => {
     listMealsMock.mockResolvedValue([
-      { id: 35, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T15:30:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [bananaItem] },
-      { id: 34, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] },
+      {
+        id: 35,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T15:30:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [bananaItem],
+      },
+      {
+        id: 34,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: (input as { mealId: number }).mealId, ...input }));
-    const req = createTextWebhookRequest("aumentar 30g do arroz do almoço", { id: "increment-rice-labeled-meal" });
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: (input as { mealId: number }).mealId,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest("aumentar 30g do arroz do almoço", {
+      id: "increment-rice-labeled-meal",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 34,
-      items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 180, portionText: "180 g" })],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 34,
+        items: [
+          expect.objectContaining({
+            foodName: "Arroz branco",
+            estimatedGrams: 180,
+            portionText: "180 g",
+          }),
+        ],
+      })
+    );
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_grams_adjusted",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("de 150 g para 180 g");
   });
 
   it("mantém adição de alimento com refeição nomeada no fluxo de adição, sem tratar como incremento", async () => {
     listMealsMock.mockResolvedValue([
-      { id: 36, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] },
+      {
+        id: 36,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: (input as { mealId: number }).mealId, ...input }));
-    const req = createTextWebhookRequest("Adicionar 100g de feijão no almoço", { id: "add-beans-to-lunch" });
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: (input as { mealId: number }).mealId,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest("Adicionar 100g de feijão no almoço", {
+      id: "add-beans-to-lunch",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", eventType: "whatsapp.intent.meal_item_added" }));
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 36,
-      items: [riceItem, expect.objectContaining({ estimatedGrams: 100 })],
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        eventType: "whatsapp.intent.meal_item_added",
+      })
+    );
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 36,
+        items: [riceItem, expect.objectContaining({ estimatedGrams: 100 })],
+      })
+    );
   });
 
   it("reutiliza a referência natural no fluxo público de adição de fruta qualificada", async () => {
     listMealsMock.mockResolvedValue([
-      { id: 1196, userId: 42, mealLabel: "Lanche da tarde", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] },
+      {
+        id: 1196,
+        userId: 42,
+        mealLabel: "Lanche da tarde",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 1196, ...input }));
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 1196,
+        ...input,
+      })
+    );
     const req = createTextWebhookRequest(
       "Adicionar ao lanche da tarde 1 pêra packans e 1 banana nanica",
-      { id: "issue-1196-public-addition" },
+      { id: "issue-1196-public-addition" }
     );
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 1196,
-      items: [
-        riceItem,
-        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 150 }),
-        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
-      ],
-    }));
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.meal_item_added",
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 1196,
+        items: [
+          riceItem,
+          expect.objectContaining({
+            foodName: "pêra packans",
+            estimatedGrams: 150,
+          }),
+          expect.objectContaining({
+            foodName: "banana nanica",
+            estimatedGrams: 80,
+          }),
+        ],
+      })
+    );
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_added",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("pêra packans");
   });
 
@@ -847,7 +1239,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     listMealsMock.mockResolvedValue([]);
     const req = createTextWebhookRequest(
       "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
-      { id: "issue-1271-configured-meal", timestamp: "1790855700" },
+      { id: "issue-1271-configured-meal", timestamp: "1790855700" }
     );
     const res = createResponse();
 
@@ -855,22 +1247,33 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
-    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealLabel: "lanche da tarde",
-      occurredAt: "2026-09-30T18:00:00.000Z",
-      items: [
-        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 150 }),
-        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
-      ],
-    }));
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.meal_item_added",
-    }));
+    expect(createManualMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealLabel: "lanche da tarde",
+        occurredAt: "2026-09-30T18:00:00.000Z",
+        items: [
+          expect.objectContaining({
+            foodName: "pêra packans",
+            estimatedGrams: 150,
+          }),
+          expect.objectContaining({
+            foodName: "banana nanica",
+            estimatedGrams: 80,
+          }),
+        ],
+      })
+    );
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_added",
+      })
+    );
     expect(recordDomainLinkMock).toHaveBeenCalledWith(
       { conversationId: 1, messageId: 1 },
-      expect.objectContaining({ mealId: 1271 }),
+      expect.objectContaining({ mealId: 1271 })
     );
     expect(sentMessages.at(-1)).toContain("pêra packans");
     expect(sentMessages.at(-1)).toContain("banana nanica");
@@ -882,22 +1285,33 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     listMealsMock.mockResolvedValue([]);
     const req = createTextWebhookRequest(
       "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
-      { id: "issue-1278-pear-base-average", timestamp: "1790855700" },
+      { id: "issue-1278-pear-base-average", timestamp: "1790855700" }
     );
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealLabel: "lanche da tarde",
-      occurredAt: "2026-09-30T18:00:00.000Z",
-      items: [
-        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 178 }),
-        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
-      ],
-    }));
-    expect(sentMessages.at(-1)).not.toMatch(/Informe somente o peso|Não encontrei a refeição/i);
+    expect(createManualMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealLabel: "lanche da tarde",
+        occurredAt: "2026-09-30T18:00:00.000Z",
+        items: [
+          expect.objectContaining({
+            foodName: "pêra packans",
+            estimatedGrams: 178,
+          }),
+          expect.objectContaining({
+            foodName: "banana nanica",
+            estimatedGrams: 80,
+          }),
+        ],
+      })
+    );
+    expect(sentMessages.at(-1)).not.toMatch(
+      /Informe somente o peso|Não encontrei a refeição/i
+    );
     expect(sentMessages.at(-1)).toContain("pêra packans");
   });
 
@@ -912,163 +1326,358 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
         items: [riceItem],
       },
     ]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
-      id: (input as { mealId: number }).mealId,
-      ...input,
-    }));
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: (input as { mealId: number }).mealId,
+        ...input,
+      })
+    );
     const req = createTextWebhookRequest(
       "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
-      { id: "issue-1271-existing-meal", timestamp: "1790855700" },
+      { id: "issue-1271-existing-meal", timestamp: "1790855700" }
     );
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(createManualMealMock).not.toHaveBeenCalled();
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 1270,
-      items: [
-        riceItem,
-        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 150 }),
-        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
-      ],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 1270,
+        items: [
+          riceItem,
+          expect.objectContaining({
+            foodName: "pêra packans",
+            estimatedGrams: 150,
+          }),
+          expect.objectContaining({
+            foodName: "banana nanica",
+            estimatedGrams: 80,
+          }),
+        ],
+      })
+    );
   });
 
   it("substitui gramas do alimento existente e não delega para inferência nutricional", async () => {
-    listMealsMock.mockResolvedValue([{ id: 13, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [bananaItem, riceItem] }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 13, ...input }));
-    const req = createTextWebhookRequest("Mudar banana para 79g", { id: "replace-banana-grams" });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 13,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [bananaItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 13,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest("Mudar banana para 79g", {
+      id: "replace-banana-grams",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 13,
-      mealLabel: "Lanche",
-      items: [expect.objectContaining({ foodName: "Banana", estimatedGrams: 79, portionText: "79 g", calories: 69.8 }), riceItem],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 13,
+        mealLabel: "Lanche",
+        items: [
+          expect.objectContaining({
+            foodName: "Banana",
+            estimatedGrams: 79,
+            portionText: "79 g",
+            calories: 69.8,
+          }),
+          riceItem,
+        ],
+      })
+    );
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_grams_adjusted",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("de 120 g para 79 g");
   });
 
   it("troca alimento existente, recalcula macros e não delega para inferência nutricional", async () => {
-    listMealsMock.mockResolvedValue([{ id: 14, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(), notes: "Registro por imagem", items: [mayonnaiseItem, riceItem] }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 14, ...input }));
-    const req = createTextWebhookRequest("troque a maionese por requeijão", { id: "replace-food" });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 14,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro por imagem",
+        items: [mayonnaiseItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 14,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest("troque a maionese por requeijão", {
+      id: "replace-food",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 14,
-      mealLabel: "Lanche",
-      items: [
-        // #1194: requeijão usa a referência TACO, não o placeholder 150/6/15/5 (45 kcal em 30 g).
-        expect.objectContaining({ foodName: "requeijão", canonicalName: "Queijo, requeijão, cremoso", estimatedGrams: 30, calories: 77.1, protein: 2.9, carbs: 0.7, fat: 7, source: "catalog" }),
-        expect.objectContaining(riceItem),
-      ],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 14,
+        mealLabel: "Lanche",
+        items: [
+          // #1194: requeijão usa a referência TACO, não o placeholder 150/6/15/5 (45 kcal em 30 g).
+          expect.objectContaining({
+            foodName: "requeijão",
+            canonicalName: "Queijo, requeijão, cremoso",
+            estimatedGrams: 30,
+            calories: 77.1,
+            protein: 2.9,
+            carbs: 0.7,
+            fat: 7,
+            source: "catalog",
+          }),
+          expect.objectContaining(riceItem),
+        ],
+      })
+    );
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_replaced" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_replaced",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("Maionese → requeijão");
     expect(sentMessages.at(-1)).toContain("77,1 kcal");
   });
 
   it("adiciona café sem açúcar à refeição existente e não delega para inferência nutricional", async () => {
-    listMealsMock.mockResolvedValue([{ id: 12, userId: 42, mealLabel: "Café da manhã", occurredAt: new Date("2026-06-03T10:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 12, ...input }));
-    const req = createTextWebhookRequest("Adicionar 3 xícaras de café sem açúcar a refeição café da manhã", { id: "add-coffee" });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 12,
+        userId: 42,
+        mealLabel: "Café da manhã",
+        occurredAt: new Date("2026-06-03T10:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(
+      async (_userId: number, input: Record<string, unknown>) => ({
+        id: 12,
+        ...input,
+      })
+    );
+    const req = createTextWebhookRequest(
+      "Adicionar 3 xícaras de café sem açúcar a refeição café da manhã",
+      { id: "add-coffee" }
+    );
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 12,
-      mealLabel: "Café da manhã",
-      items: [riceItem, expect.objectContaining({ foodName: "Café sem açúcar", portionText: "3 xícaras (600 ml)", calories: 6 })],
-    }));
+    expect(updateMealMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        mealId: 12,
+        mealLabel: "Café da manhã",
+        items: [
+          riceItem,
+          expect.objectContaining({
+            foodName: "Café sem açúcar",
+            portionText: "3 xícaras (600 ml)",
+            calories: 6,
+          }),
+        ],
+      })
+    );
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_added" }));
-    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (600 ml) de café sem açúcar");
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_item_added",
+      })
+    );
+    expect(sentMessages.at(-1)).toContain(
+      "Adicionei 3 xícaras (600 ml) de café sem açúcar"
+    );
   });
 
   it("envia sugestão de lanche e não delega para inferência nutricional", async () => {
-    const req = createTextWebhookRequest("Me dê uma sugestão para o lanche da tarde", { id: "snack-suggestion" });
+    const req = createTextWebhookRequest(
+      "Me dê uma sugestão para o lanche da tarde",
+      { id: "snack-suggestion" }
+    );
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_suggestion" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.meal_suggestion",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("Sugestão para o lanche da tarde");
   });
 
   it("envia relatório do período considerando calorias gastas em exercícios", async () => {
-    listMealsMock.mockResolvedValue([{ id: 20, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), items: [riceItem] }]);
-    listUserExercisesMock.mockResolvedValue([{ id: 30, userId: 42, activityType: "Corrida", durationMinutes: 30, caloriesBurned: 300, occurredAt: new Date("2026-06-03T16:00:00.000Z").getTime() }]);
-    const req = createTextWebhookRequest("Me envie um resumo da semana", { id: "week-report" });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        items: [riceItem],
+      },
+    ]);
+    listUserExercisesMock.mockResolvedValue([
+      {
+        id: 30,
+        userId: 42,
+        activityType: "Corrida",
+        durationMinutes: 30,
+        caloriesBurned: 300,
+        occurredAt: new Date("2026-06-03T16:00:00.000Z").getTime(),
+      },
+    ]);
+    const req = createTextWebhookRequest("Me envie um resumo da semana", {
+      id: "week-report",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.period_report",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("*Resumo de semana*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
     expect(sentMessages.at(-1)).toContain("• *Almoço*");
-    expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
+    expect(sentMessages.at(-1)).toContain(
+      "195 kcal | P 4,1 g | C 42 g | G 0,5 g"
+    );
     expect(sentMessages.at(-1)).not.toContain("Total consumido:");
-    expect(sentMessages.at(-1)).toContain("*Meta:* não disponível para este período");
+    expect(sentMessages.at(-1)).toContain(
+      "*Meta:* não disponível para este período"
+    );
     expect(sentMessages.at(-1)).toContain("*Consumo:* 195 kcal");
     expect(sentMessages.at(-1)).not.toContain("Meta estimada");
     expect(sentMessages.at(-1)).not.toContain("Meta ajustada");
   });
 
   it("interpreta Resumo sem período como relatório de hoje", async () => {
-    listMealsMock.mockResolvedValue([{ id: 20, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), items: [riceItem] }]);
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        items: [riceItem],
+      },
+    ]);
     const req = createTextWebhookRequest("Resumo", { id: "summary-today" });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.period_report",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("*Resumo de hoje*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
     expect(sentMessages.at(-1)).toContain("• *Almoço*");
-    expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
+    expect(sentMessages.at(-1)).toContain(
+      "195 kcal | P 4,1 g | C 42 g | G 0,5 g"
+    );
     expect(sentMessages.at(-1)).not.toContain("Total consumido:");
-    expect(sentMessages.at(-1)).toContain("*Meta:* não disponível para este período");
+    expect(sentMessages.at(-1)).toContain(
+      "*Meta:* não disponível para este período"
+    );
     expect(sentMessages.at(-1)).toContain("*Consumo:* 195 kcal");
     expect(sentMessages.at(-1)).not.toContain("Meta estimada");
     expect(sentMessages.at(-1)).not.toContain("Meta ajustada");
   });
 
   it("mantém contexto de resumo para pedidos ambíguos que não sejam apenas Resumo", async () => {
-    listMealsMock.mockResolvedValue([{ id: 20, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), items: [riceItem] }]);
-    const askSummary = createTextWebhookRequest("Me envie um resumo", { id: "summary-without-period" });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        items: [riceItem],
+      },
+    ]);
+    const askSummary = createTextWebhookRequest("Me envie um resumo", {
+      id: "summary-without-period",
+    });
     const askResponse = createResponse();
 
-    await handleWhatsAppWebhookWithTextIntent(askSummary as never, askResponse as never);
+    await handleWhatsAppWebhookWithTextIntent(
+      askSummary as never,
+      askResponse as never
+    );
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(sentMessages.at(-1)).toContain("Me diga o período");
 
-    const periodAnswer = createTextWebhookRequest("Hoje", { id: "summary-period-answer" });
+    const periodAnswer = createTextWebhookRequest("Hoje", {
+      id: "summary-period-answer",
+    });
     const periodResponse = createResponse();
 
-    await handleWhatsAppWebhookWithTextIntent(periodAnswer as never, periodResponse as never);
+    await handleWhatsAppWebhookWithTextIntent(
+      periodAnswer as never,
+      periodResponse as never
+    );
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenLastCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
+    expect(logInferenceEventMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.period_report",
+      })
+    );
     expect(sentMessages.at(-1)).toContain("*Resumo de hoje*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
   });
 
   it("mantém bebida com volume explícito no fluxo normal de inferência", async () => {
-    const req = createTextWebhookRequest("200ml guaraná antártica", { id: "guarana-volume" });
+    const req = createTextWebhookRequest("200ml guaraná antártica", {
+      id: "guarana-volume",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
@@ -1077,14 +1686,18 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(updateUserCurrentWeightMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
     expect(handleWhatsAppWebhookMock).toHaveBeenCalledOnce();
-    expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
-      eventType: "whatsapp.intent.food_not_found",
-    }));
+    expect(logInferenceEventMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "whatsapp.intent.food_not_found",
+      })
+    );
     expect(sentMessages).toEqual([]);
   });
 
   it("mantém texto comum de refeição no fluxo normal de inferência", async () => {
-    const req = createTextWebhookRequest("almocei arroz, feijão e frango", { id: "regular-meal" });
+    const req = createTextWebhookRequest("almocei arroz, feijão e frango", {
+      id: "regular-meal",
+    });
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);

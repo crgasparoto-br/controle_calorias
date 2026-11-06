@@ -6,8 +6,23 @@ const updateMealMock = vi.fn();
 const requestLatestFoodCorrectionQuantityMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
+const attachTestMealMutationToken = vi.hoisted(
+  () => (value: unknown, token: string) => {
+    if (!value || typeof value !== "object") return value;
+    const symbol = Symbol.for("controle_calorias.mealMutationPreImage");
+    if (!Object.prototype.hasOwnProperty.call(value, symbol)) {
+      Object.defineProperty(value, symbol, {
+        value: token,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    return value;
+  }
+);
 
-vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
+vi.mock("../../nutritionEngine", () => ({
+  resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
 }));
 vi.mock("../../db", () => ({
@@ -22,8 +37,15 @@ vi.mock("./foodQuantityClarification", () => ({
 }));
 
 vi.mock("../meals/service", () => ({
-  listMeals: listMealsMock,
-  updateMeal: updateMealMock,
+  listMeals: async (...args: unknown[]) => {
+    const meals = await listMealsMock(...args);
+    const options = args[1] as { adjustmentRead?: boolean } | undefined;
+    return options?.adjustmentRead && Array.isArray(meals)
+      ? meals.map(meal => attachTestMealMutationToken(meal, "a".repeat(64)))
+      : meals;
+  },
+  updateMeal: async (...args: unknown[]) =>
+    attachTestMealMutationToken(await updateMealMock(...args), "b".repeat(64)),
 }));
 
 const { executeWhatsappContextualFoodReplacementIntent } = await import(

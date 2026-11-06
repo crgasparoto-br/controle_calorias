@@ -83,6 +83,18 @@ vi.mock("./modules/whatsapp/webhookUtils", () => ({
   getWhatsAppInteractiveReplyId: () => null,
   isWhatsAppMessageForConfiguredChannel: () => true,
   resolveWhatsAppMessageOccurredAt: (message: any) => new Date(Number(message.timestamp ?? 0) * 1000),
+  resolveWhatsAppTextIntentInput: (message: any) => {
+    const text = message.text?.body?.trim() || "";
+    const replyId =
+      message.interactive?.button_reply?.id?.trim() ||
+      message.interactive?.list_reply?.id?.trim();
+    return {
+      text,
+      canInterpretText: Boolean(
+        (text || replyId) && !message.image?.id && !message.audio?.id
+      ),
+    };
+  },
   getExtractedWhatsAppMessageKey: (message: any) => `${message.entryIndex}:${message.changeIndex}:${message.messageIndex}`,
   extractWhatsAppWebhookMessages: (payload: any) => {
     const output: any[] = [];
@@ -442,7 +454,7 @@ describe("issue #1037 — passthrough de medidas contáveis no WhatsApp", () => 
     expect(source).toContain("prepareWhatsappCountableFoodRegistration");
     expect(source).toContain("resolveUnsafeKnownCountableFoodRegistration");
     expect(source).toMatch(
-      /const countableClarification = await resolveUnsafeKnownCountableFoodRegistration\([\s\S]*?if \(countableClarification\) return countableClarification;/,
+      /const\s+countableClarification\s*=\s*await\s+resolveUnsafeKnownCountableFoodRegistration\([\s\S]*?if \(countableClarification\) return countableClarification;/,
     );
   });
 });

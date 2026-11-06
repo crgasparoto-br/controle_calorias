@@ -37,14 +37,26 @@ export type WhatsAppInteractiveCallbackResult = {
 };
 
 export type WhatsAppPrecedenceGateResult =
-  | { step: "ai_question"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappAiQuestionIntent>>> }
+  | {
+      step: "ai_question";
+      result: NonNullable<
+        Awaited<ReturnType<typeof executeWhatsappAiQuestionIntent>>
+      >;
+    }
   | { step: "interactive_callback"; result: WhatsAppInteractiveCallbackResult }
-  | { step: "delete_intent"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>> }
+  | {
+      step: "delete_intent";
+      result: NonNullable<
+        Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>
+      >;
+    }
   | { step: "generic_confirmation"; result: WhatsAppInteractiveCallbackResult }
   | { step: "pending_interaction"; result: WhatsAppInteractiveCallbackResult }
   | { step: "continue_pipeline" };
 
-function buildUnavailableInteractiveCallbackResult(reason = "invalid_or_unavailable"): WhatsAppInteractiveCallbackResult {
+function buildUnavailableInteractiveCallbackResult(
+  reason = "invalid_or_unavailable"
+): WhatsAppInteractiveCallbackResult {
   return {
     handled: true,
     reply: buildWhatsAppCallbackUnavailableReplyMessage(),
@@ -61,11 +73,13 @@ function buildUnavailableInteractiveCallbackResult(reason = "invalid_or_unavaila
 function isExpectedInteractiveAction(
   type: string,
   action: string,
-  pendingOperation: WhatsAppPendingOperationRecord,
+  pendingOperation: WhatsAppPendingOperationRecord
 ) {
   const description = describeWhatsappRegisteredInteraction(pendingOperation);
-  if (!description || description.interaction.pendingType !== type) return false;
-  if (description.interaction.classification === "open" && action !== "cancel") return false;
+  if (!description || description.interaction.pendingType !== type)
+    return false;
+  if (description.interaction.classification === "open" && action !== "cancel")
+    return false;
   return isExpectedWhatsappRegisteredAction(type, action, pendingOperation);
 }
 
@@ -74,16 +88,24 @@ async function resolveWhatsAppInteractiveCallback(
   interactiveReplyId: string,
   receivedAt?: Date,
   sourcePhone?: string | null,
-  userTimezone?: string | null,
+  userTimezone?: string | null
 ): Promise<WhatsAppInteractiveCallbackResult> {
-  const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt, {
-    sourcePhone,
-    expectedTypes: listWhatsappRegisteredPendingTypes(),
-    isExpectedAction: isExpectedInteractiveAction,
-  });
-  if (claim.status !== "claimed") return buildUnavailableInteractiveCallbackResult(claim.status);
+  const claim = await claimWhatsAppInteractiveCallback(
+    userId,
+    interactiveReplyId,
+    receivedAt,
+    {
+      sourcePhone,
+      expectedTypes: listWhatsappRegisteredPendingTypes(),
+      isExpectedAction: isExpectedInteractiveAction,
+    }
+  );
+  if (claim.status !== "claimed")
+    return buildUnavailableInteractiveCallbackResult(claim.status);
 
-  const description = describeWhatsappRegisteredInteraction(claim.pendingOperation);
+  const description = describeWhatsappRegisteredInteraction(
+    claim.pendingOperation
+  );
   const completed = await completeWhatsappRegisteredCallback({
     userId,
     pendingOperation: claim.pendingOperation,
@@ -91,15 +113,19 @@ async function resolveWhatsAppInteractiveCallback(
     receivedAt,
     userTimezone,
   });
-  if (!completed) return buildUnavailableInteractiveCallbackResult("unregistered_dispatch");
+  if (!completed)
+    return buildUnavailableInteractiveCallbackResult("unregistered_dispatch");
   const completedResult = completed as WhatsAppInteractiveCallbackResult;
   const lifecycle = claim.action === "cancel" ? "cancelled" : "consumed";
   const sourceInteractionId = description?.interaction.id ?? null;
-  const downstreamInteractionId = typeof completedResult.data?.interactionId === "string"
-    ? completedResult.data.interactionId
-    : null;
+  const downstreamInteractionId =
+    typeof completedResult.data?.interactionId === "string"
+      ? completedResult.data.interactionId
+      : null;
   const transitionedToAnotherInteraction = Boolean(
-    downstreamInteractionId && sourceInteractionId && downstreamInteractionId !== sourceInteractionId,
+    downstreamInteractionId &&
+      sourceInteractionId &&
+      downstreamInteractionId !== sourceInteractionId
   );
 
   return {
@@ -111,7 +137,9 @@ async function resolveWhatsAppInteractiveCallback(
       component: description?.component ?? null,
       actionCount: description?.actions.length ?? null,
       lifecycle,
-      transitionedToInteractionId: transitionedToAnotherInteraction ? downstreamInteractionId : null,
+      transitionedToInteractionId: transitionedToAnotherInteraction
+        ? downstreamInteractionId
+        : null,
     })}`,
     data: transitionedToAnotherInteraction
       ? {
@@ -119,8 +147,10 @@ async function resolveWhatsAppInteractiveCallback(
           sourcePendingOperationId: claim.pendingOperation.id,
           sourcePendingType: claim.pendingOperation.type,
           sourceInteractionId,
-          sourceInteractionOrigin: description?.interaction.origin ?? claim.pendingOperation.origin,
-          sourceInteractionClassification: description?.interaction.classification ?? null,
+          sourceInteractionOrigin:
+            description?.interaction.origin ?? claim.pendingOperation.origin,
+          sourceInteractionClassification:
+            description?.interaction.classification ?? null,
           sourceInteractionComponent: description?.component ?? null,
           sourceInteractionActionCount: description?.actions.length ?? null,
           sourceInteractionLifecycle: lifecycle,
@@ -139,7 +169,7 @@ async function resolveWhatsAppInteractiveCallback(
   };
 }
 
-export async function resolveWhatsAppPrecedenceGate(input: {
+export async function enforceWhatsAppMessagePrecedence(input: {
   userId: number;
   text?: string | null;
   receivedAt?: Date;
@@ -158,16 +188,16 @@ export async function resolveWhatsAppPrecedenceGate(input: {
       input.interactiveReplyId,
       input.receivedAt,
       input.sourcePhone,
-      input.userTimezone,
+      input.userTimezone
     );
     return { step: "interactive_callback", result };
   }
 
   if (!input.pendingOnly && isWhatsappAiQuestionText(input.text)) {
     const acknowledgementPromise =
-      input.sourcePhone
-      && input.messageId
-      && shouldAcknowledgeWhatsappAiQuestion(input.text)
+      input.sourcePhone &&
+      input.messageId &&
+      shouldAcknowledgeWhatsappAiQuestion(input.text)
         ? sendWhatsAppAiQuestionAcknowledgement({
             to: input.sourcePhone,
             sourceMessageId: input.messageId,
@@ -176,12 +206,13 @@ export async function resolveWhatsAppPrecedenceGate(input: {
 
     const result = await runWithAiUsageScope(
       { userId: input.userId, conversationId: input.messageId },
-      () => executeWhatsappAiQuestionIntent(input.userId, {
-        text: input.text,
-        receivedAt: input.receivedAt,
-        userTimezone: input.userTimezone,
-        externalMessageId: input.messageId,
-      }),
+      () =>
+        executeWhatsappAiQuestionIntent(input.userId, {
+          text: input.text,
+          receivedAt: input.receivedAt,
+          userTimezone: input.userTimezone,
+          externalMessageId: input.messageId,
+        })
     );
 
     if (acknowledgementPromise) {
@@ -207,7 +238,9 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
     messageId: input.messageId,
     skipStalePendingResponse: input.skipStalePendingResponse,
-    skipActivePendingForExplicitFoodAddition: isExplicitFoodAdditionCommand(input.text),
+    skipActivePendingForExplicitFoodAddition: isExplicitFoodAdditionCommand(
+      input.text
+    ),
   });
   if (pendingInteraction) {
     if (pendingInteraction.eventType.startsWith("whatsapp.action_")) {
@@ -218,3 +251,4 @@ export async function resolveWhatsAppPrecedenceGate(input: {
 
   return { step: "continue_pipeline" };
 }
+export const resolveWhatsAppPrecedenceGate = enforceWhatsAppMessagePrecedence;

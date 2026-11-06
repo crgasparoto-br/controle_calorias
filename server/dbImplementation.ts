@@ -1,14 +1,30 @@
 import crypto from "node:crypto";
 import { createPool, type Pool } from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, NutritionGoal, User, WeightEntry } from "../drizzle/schema";
+import {
+  InsertUser,
+  NutritionGoal,
+  User,
+  WeightEntry,
+} from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
+import {
+  addMealTotals,
+  calculateDayTotals,
+  calculateMealTotals,
+  roundNutritionValue,
+} from "../shared/mealTotals";
 import { clearMealItemsSourceMedia } from "./mealItemImageProvenance";
 import { assertLegacyMealProjectionSafe } from "./modules/meals/foodV2Snapshot";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
-import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, getUtcRangeForInclusiveLocalDateRange, getUtcRangeForLocalDate, getWeekDateKeys } from "../shared/timeZone";
+import {
+  DEFAULT_APP_TIME_ZONE,
+  getDateKeyInTimeZone,
+  getUtcRangeForInclusiveLocalDateRange,
+  getUtcRangeForLocalDate,
+  getWeekDateKeys,
+} from "../shared/timeZone";
 import type { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
 import { createDrizzleAccountRepository } from "./repositories/accountRepository";
 import { createDrizzleAppSecretsRepository } from "./repositories/appSecretsRepository";
@@ -18,6 +34,8 @@ import { createDrizzleGamificationRepository } from "./repositories/gamification
 import { createDrizzleHabitsRepository } from "./repositories/habitsRepository";
 import { createDrizzleLogsRepository } from "./repositories/logsRepository";
 import { createDrizzleMealsRepository } from "./repositories/mealsRepository";
+import { createConfirmedMealPersistence } from "./modules/meals/confirmedMealPersistence";
+import { createConfirmedMealMutations } from "./modules/meals/confirmedMealMutations";
 import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
 import { createDrizzleNutritionGoalsRepository } from "./repositories/nutritionGoalsRepository";
 import { createProfessionalGoalPrivacyRepository } from "./repositories/professionalGoalPrivacyRepository";
@@ -26,15 +44,29 @@ import { createDrizzleUsersRepository } from "./repositories/usersRepository";
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
 import { createDrizzleWeightRepository } from "./repositories/weightRepository";
 import { createDrizzleWhatsAppRepository } from "./repositories/whatsappRepository";
-import { createFoodsService, normalizeCatalogText, type FoodSearchItem, type FoodUpsertInput } from "./modules/foods/catalog";
+import {
+  createFoodsService,
+  normalizeCatalogText,
+  type FoodSearchItem,
+  type FoodUpsertInput,
+} from "./modules/foods/catalog";
 import { createUsersService } from "./modules/users/service";
 import type { AdminActivitiesInput } from "./modules/admin/schemas";
-import { createExercisesService, sumExercises } from "./modules/exercises/store";
-import { createGamificationService, BADGE_DEFINITIONS } from "./modules/gamification/store";
+import {
+  createExercisesService,
+  sumExercises,
+} from "./modules/exercises/store";
+import {
+  createGamificationService,
+  BADGE_DEFINITIONS,
+} from "./modules/gamification/store";
 import { createGoalsService, type GoalInput } from "./modules/goals/store";
 import { createPrivacyService } from "./modules/privacy/service";
 import { createWaterService, sumWater } from "./modules/water/store";
-import { decryptAppSecretValue as decryptAppSecretPayload, encryptAppSecretValue as encryptAppSecretPayload } from "./modules/appSecrets/encryption";
+import {
+  decryptAppSecretValue as decryptAppSecretPayload,
+  encryptAppSecretValue as encryptAppSecretPayload,
+} from "./modules/appSecrets/encryption";
 import { safeLogDetail } from "./privacy";
 
 export { BADGE_DEFINITIONS };
@@ -110,7 +142,10 @@ export async function getWhatsAppAccessToken() {
     try {
       return decryptAppSecretValue(stored.valueEncrypted);
     } catch (error) {
-      console.warn("[Database] Failed to decrypt WhatsApp access token, falling back to environment:", error);
+      console.warn(
+        "[Database] Failed to decrypt WhatsApp access token, falling back to environment:",
+        error
+      );
     }
   }
 
@@ -134,7 +169,10 @@ export async function getAdminWhatsAppTokenStatus(): Promise<AdminWhatsAppTokenS
         updatedByUserId: stored.updatedByUserId ?? null,
       };
     } catch (error) {
-      console.warn("[Database] Failed to decrypt admin WhatsApp token status:", error);
+      console.warn(
+        "[Database] Failed to decrypt admin WhatsApp token status:",
+        error
+      );
     }
   }
 
@@ -168,7 +206,10 @@ export async function getAdminWhatsAppTokenStatus(): Promise<AdminWhatsAppTokenS
   };
 }
 
-export async function upsertAdminWhatsAppAccessToken(input: { value: string; updatedByUserId: number }) {
+export async function upsertAdminWhatsAppAccessToken(input: {
+  value: string;
+  updatedByUserId: number;
+}) {
   const normalizedValue = input.value.trim();
   if (normalizedValue.length < 20) {
     throw new Error("Informe um token de acesso do WhatsApp válido.");
@@ -186,7 +227,11 @@ export async function upsertAdminWhatsAppAccessToken(input: { value: string; upd
   }
 
   const encryptedValue = encryptAppSecretValue(normalizedValue);
-  await appSecretsRepository.upsert(WHATSAPP_ACCESS_TOKEN_SECRET_KEY, encryptedValue, input.updatedByUserId);
+  await appSecretsRepository.upsert(
+    WHATSAPP_ACCESS_TOKEN_SECRET_KEY,
+    encryptedValue,
+    input.updatedByUserId
+  );
 
   process.env.WHATSAPP_ACCESS_TOKEN = normalizedValue;
   return getAdminWhatsAppTokenStatus();
@@ -232,7 +277,9 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       const client = createRuntimeDatabaseClient(process.env.DATABASE_URL);
-        _db = (typeof client === "string" ? drizzle(client) : drizzle(client)) as unknown as typeof _db;
+      _db = (typeof client === "string"
+        ? drizzle(client)
+        : drizzle(client)) as unknown as typeof _db;
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -250,9 +297,15 @@ export function getWhatsAppPhoneNumberVariants(phoneNumber: string) {
   if (!normalizedPhoneNumber) return [];
 
   const variants = [normalizedPhoneNumber];
-  if (normalizedPhoneNumber.startsWith("55") && normalizedPhoneNumber.length > 11) {
+  if (
+    normalizedPhoneNumber.startsWith("55") &&
+    normalizedPhoneNumber.length > 11
+  ) {
     variants.push(normalizedPhoneNumber.slice(2));
-  } else if (!normalizedPhoneNumber.startsWith("55") && normalizedPhoneNumber.length >= 10) {
+  } else if (
+    !normalizedPhoneNumber.startsWith("55") &&
+    normalizedPhoneNumber.length >= 10
+  ) {
     variants.push(`55${normalizedPhoneNumber}`);
   }
   return [...new Set(variants)];
@@ -280,12 +333,22 @@ export async function getUserIdByWhatsappPhone(phoneNumber: string) {
 
   const db = await getDb();
   if (!db) {
-    return whatsappConnectionStore.find(row => phoneNumberVariants.includes(row.phoneNumber) && row.status === "active")?.userId ?? null;
+    return (
+      whatsappConnectionStore.find(
+        row =>
+          phoneNumberVariants.includes(row.phoneNumber) &&
+          row.status === "active"
+      )?.userId ?? null
+    );
   }
 
-  const rows = (await Promise.all(
-    phoneNumberVariants.map(variant => whatsappRepository.findAllByPhoneNumber(variant)),
-  )).flat();
+  const rows = (
+    await Promise.all(
+      phoneNumberVariants.map(variant =>
+        whatsappRepository.findAllByPhoneNumber(variant)
+      )
+    )
+  ).flat();
   return rows.find(row => row.status === "active")?.userId ?? null;
 }
 
@@ -296,15 +359,26 @@ export async function upsertUserWhatsappConnection(input: {
 }) {
   const normalizedPhoneNumber = normalizeWhatsAppPhoneNumber(input.phoneNumber);
   if (normalizedPhoneNumber.length < 10 || normalizedPhoneNumber.length > 16) {
-    throw new Error("Informe um número de WhatsApp válido com DDD e código do país quando necessário.");
+    throw new Error(
+      "Informe um número de WhatsApp válido com DDD e código do país quando necessário."
+    );
   }
 
-  const normalizedDisplayName = input.displayName?.trim() ? input.displayName.trim() : null;
+  const normalizedDisplayName = input.displayName?.trim()
+    ? input.displayName.trim()
+    : null;
   const db = await getDb();
   if (!db) {
-    const activeConflict = whatsappConnectionStore.find(row => row.phoneNumber === normalizedPhoneNumber && row.userId !== input.userId && row.status !== "disabled");
+    const activeConflict = whatsappConnectionStore.find(
+      row =>
+        row.phoneNumber === normalizedPhoneNumber &&
+        row.userId !== input.userId &&
+        row.status !== "disabled"
+    );
     if (activeConflict) {
-      throw new Error("Este telefone de origem já está vinculado a outro usuário.");
+      throw new Error(
+        "Este telefone de origem já está vinculado a outro usuário."
+      );
     }
 
     const now = new Date();
@@ -337,17 +411,25 @@ export async function upsertUserWhatsappConnection(input: {
 
     const saved = await getUserWhatsappConnection(input.userId);
     if (!saved) {
-      throw new Error("Não foi possível recuperar o contato do WhatsApp após o salvamento.");
+      throw new Error(
+        "Não foi possível recuperar o contato do WhatsApp após o salvamento."
+      );
     }
 
     return saved;
   }
 
-  const conflictingRows = await whatsappRepository.findAllByPhoneNumber(normalizedPhoneNumber);
+  const conflictingRows = await whatsappRepository.findAllByPhoneNumber(
+    normalizedPhoneNumber
+  );
 
-  const activeConflict = conflictingRows.find(row => row.userId !== input.userId && row.status !== "disabled");
+  const activeConflict = conflictingRows.find(
+    row => row.userId !== input.userId && row.status !== "disabled"
+  );
   if (activeConflict) {
-    throw new Error("Este telefone de origem já está vinculado a outro usuário.");
+    throw new Error(
+      "Este telefone de origem já está vinculado a outro usuário."
+    );
   }
 
   const userRows = await whatsappRepository.findAllByUserId(input.userId);
@@ -374,7 +456,9 @@ export async function upsertUserWhatsappConnection(input: {
 
   const saved = await getUserWhatsappConnection(input.userId);
   if (!saved) {
-    throw new Error("Não foi possível recuperar o contato do WhatsApp após o salvamento.");
+    throw new Error(
+      "Não foi possível recuperar o contato do WhatsApp após o salvamento."
+    );
   }
 
   return saved;
@@ -412,6 +496,7 @@ type SavedMeal = {
   items: MealDraftItem[];
   media: SavedMedia[];
   createdAt: number;
+  mutationPreImage?: string;
 };
 
 type FavoriteMeal = {
@@ -494,12 +579,23 @@ function emptyQualityIndicators(waterMl = 0): QualityIndicators {
 
 function calculateRegularityScore(meals: SavedMeal[]) {
   if (!meals.length) return 0;
-  const labels = new Set(meals.map(meal => normalizeCatalogText(meal.mealLabel)));
-  const hasMainMeal = ["cafe da manha", "almoco", "jantar"].filter(label => labels.has(label)).length;
-  return Math.min(Math.round(((Math.min(meals.length, 4) / 4) * 60) + ((hasMainMeal / 3) * 40)), 100);
+  const labels = new Set(
+    meals.map(meal => normalizeCatalogText(meal.mealLabel))
+  );
+  const hasMainMeal = ["cafe da manha", "almoco", "jantar"].filter(label =>
+    labels.has(label)
+  ).length;
+  return Math.min(
+    Math.round((Math.min(meals.length, 4) / 4) * 60 + (hasMainMeal / 3) * 40),
+    100
+  );
 }
 
-async function calculateQualityIndicators(userId: number, meals: SavedMeal[], waterMl = 0): Promise<QualityIndicators> {
+async function calculateQualityIndicators(
+  userId: number,
+  meals: SavedMeal[],
+  waterMl = 0
+): Promise<QualityIndicators> {
   if (!meals.length) {
     return emptyQualityIndicators(waterMl);
   }
@@ -510,23 +606,25 @@ async function calculateQualityIndicators(userId: number, meals: SavedMeal[], wa
     foodsByName.set(normalizeCatalogText(food.name), food);
   }
 
-  const quality = meals.reduce(
-    (acc, meal) => {
-      for (const item of meal.items) {
-        acc.proteinGrams += Number(item.protein || 0);
-        const food = foodsByName.get(normalizeCatalogText(item.canonicalName)) ?? foodsByName.get(normalizeCatalogText(item.foodName));
-        if (!food) continue;
+  const quality = meals.reduce((acc, meal) => {
+    for (const item of meal.items) {
+      acc.proteinGrams += Number(item.protein || 0);
+      const food =
+        foodsByName.get(normalizeCatalogText(item.canonicalName)) ??
+        foodsByName.get(normalizeCatalogText(item.foodName));
+      if (!food) continue;
 
-        const servingFactor = food.servingSize > 0 && item.estimatedGrams > 0 ? item.estimatedGrams / food.servingSize : item.servings || 1;
-        acc.fiberGrams += Number(food.fiber || 0) * servingFactor;
-        if (food.isFruit) acc.fruitServings += servingFactor;
-        if (food.isVegetable) acc.vegetableServings += servingFactor;
-        if (food.isUltraProcessed) acc.ultraProcessedServings += servingFactor;
-      }
-      return acc;
-    },
-    emptyQualityIndicators(waterMl),
-  );
+      const servingFactor =
+        food.servingSize > 0 && item.estimatedGrams > 0
+          ? item.estimatedGrams / food.servingSize
+          : item.servings || 1;
+      acc.fiberGrams += Number(food.fiber || 0) * servingFactor;
+      if (food.isFruit) acc.fruitServings += servingFactor;
+      if (food.isVegetable) acc.vegetableServings += servingFactor;
+      if (food.isUltraProcessed) acc.ultraProcessedServings += servingFactor;
+    }
+    return acc;
+  }, emptyQualityIndicators(waterMl));
 
   quality.mealCount = meals.length;
   quality.regularityScore = calculateRegularityScore(meals);
@@ -561,7 +659,8 @@ const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
-const professionalGoalPrivacyRepository = createProfessionalGoalPrivacyRepository({ getDb });
+const professionalGoalPrivacyRepository =
+  createProfessionalGoalPrivacyRepository({ getDb });
 const goalsService = createGoalsService({
   nutritionGoalsRepository,
   onEvent: logInferenceEvent,
@@ -636,6 +735,15 @@ const gamificationRepository = createDrizzleGamificationRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+export async function listUserMeals(
+  userId: number,
+  options: { adjustmentRead?: boolean } = {}
+) {
+  return confirmedMealMutations.listUserMeals(userId, options);
+}
+export async function listFavoriteMeals(userId: number) {
+  return confirmedMealMutations.listFavoriteMeals(userId);
+}
 const gamificationService = createGamificationService({
   gamificationRepository,
   getDb,
@@ -647,7 +755,8 @@ const gamificationService = createGamificationService({
   onWarning: logPersistenceWarning,
 });
 export const getUserGamification = gamificationService.getUserGamification;
-export const updateUserGamificationSettings = gamificationService.updateUserGamificationSettings;
+export const updateUserGamificationSettings =
+  gamificationService.updateUserGamificationSettings;
 const foodCatalogRepository = createDrizzleFoodCatalogRepository({
   getDb,
   onWarning: logPersistenceWarning,
@@ -668,7 +777,8 @@ const accountRepository = createDrizzleAccountRepository({ getDb });
 
 const foodsService = createFoodsService({
   foodCatalogRepository,
-  findMealItemsWithDates: userId => mealsRepository.findItemsWithMealDates(userId),
+  findMealItemsWithDates: userId =>
+    mealsRepository.findItemsWithMealDates(userId),
   getUserMealsMemory: userId => mealStore.get(userId) ?? [],
   getDb,
   onWarning: logPersistenceWarning,
@@ -680,6 +790,21 @@ export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
 export const createUserFood = foodsService.createUserFood;
 export const updateUserFood = foodsService.updateUserFood;
 const resolveFoodCatalogIds = foodsService.resolveFoodCatalogIds;
+const confirmedMealPersistence = createConfirmedMealPersistence({
+  getDb,
+  mealsRepository,
+  resolveFoodCatalogIds,
+  editCatalogCandidates,
+  parseJsonArray,
+  logPersistenceWarning,
+});
+const {
+  persistInferenceToDb,
+  persistMealToDb,
+  updateMealInDb,
+  deleteMealFromDb,
+  loadMealsFromDb,
+} = confirmedMealPersistence;
 
 // Edits need catalogue identity only. Hide draft classification from this
 // read-only preflight so the canonical resolver can neither manufacture an
@@ -691,7 +816,10 @@ function editCatalogCandidates(items: MealDraftItem[]): MealDraftItem[] {
 
 export type { FoodSearchItem, FoodUpsertInput } from "./modules/foods/catalog";
 
-function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
+function parseJsonArray<T>(
+  value: string | null | undefined,
+  fallback: T[]
+): T[] {
   if (!value) return fallback;
   try {
     const parsed = JSON.parse(value) as T[];
@@ -701,97 +829,19 @@ function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[]
   }
 }
 
-function parseJsonObject(value: string | null | undefined, fallback: Record<string, unknown>): Record<string, unknown> {
+function parseJsonObject(
+  value: string | null | undefined,
+  fallback: Record<string, unknown>
+): Record<string, unknown> {
   if (!value) return fallback;
   try {
     const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : fallback;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : fallback;
   } catch {
     return fallback;
   }
-}
-
-async function persistInferenceToDb(draft: PendingInference) {
-  await mealsRepository.insertInference({
-    draftId: draft.draftId,
-    userId: draft.userId,
-    source: draft.source,
-    sourceText: draft.processed.sourceText,
-    transcript: draft.processed.transcript,
-    media: draft.media,
-    reasoning: draft.processed.reasoning,
-    confidence: draft.processed.confidence,
-    items: draft.processed.items,
-    totals: draft.processed.totals,
-  });
-}
-
-async function persistMealToDb(
-  meal: SavedMeal,
-  legacyD1Receipt?: { operationKey: string; operationScopeHash: string },
-): Promise<boolean> {
-  const db = await getDb();
-  if (!db) {
-    if (legacyD1Receipt) throw new Error("food-d1-legacy-receipt-db-unavailable");
-    return false;
-  }
-  const receipt = legacyD1Receipt ? { ...legacyD1Receipt, replayed: false } : undefined;
-
-  const resolvedCatalogIds = meal.items.length
-    ? await resolveFoodCatalogIds(meal.items, meal.userId)
-    : new Map<string, number>();
-
-  const insertedMealId = await mealsRepository.persistMeal({
-    meal: {
-      userId: meal.userId,
-      source: meal.source,
-      mealLabel: meal.mealLabel,
-      notes: meal.notes,
-      sourceText: meal.sourceText,
-      transcript: meal.transcript,
-      confidence: meal.confidence,
-      occurredAt: meal.occurredAt,
-    },
-    items: meal.items,
-    media: meal.media,
-    resolvedCatalogIds,
-    legacyD1Receipt: receipt,
-  });
-
-  meal.id = insertedMealId || meal.id;
-  return receipt?.replayed === true;
-}
-
-async function updateMealInDb(meal: SavedMeal) {
-  const db = await getDb();
-  if (!db) return false;
-
-  // A failed replacement must not manufacture a catalog entry from the old
-  // item's nutrition before the locked repository validates its identity.
-  const resolvedCatalogIds = meal.items.length
-    ? await resolveFoodCatalogIds(editCatalogCandidates(meal.items), meal.userId)
-    : new Map<string, number>();
-
-  await mealsRepository.persistMealUpdate({
-    meal: {
-      id: meal.id,
-      userId: meal.userId,
-      mealLabel: meal.mealLabel,
-      notes: meal.notes,
-      confidence: meal.confidence,
-      occurredAt: meal.occurredAt,
-    },
-    items: meal.items,
-    resolvedCatalogIds,
-  });
-  return true;
-}
-
-async function deleteMealFromDb(userId: number, mealId: number) {
-  const db = await getDb();
-  if (!db) return;
-
-  await mealsRepository.deleteMeal(userId, mealId);
 }
 
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
@@ -813,17 +863,11 @@ type OccurredAtRange = {
   endAt?: Date;
 };
 
-type MealLoadOptions = OccurredAtRange & {
-  includeMedia?: boolean;
-};
-
-function buildOccurredAtRange(date: string, timeZone = DEFAULT_APP_TIME_ZONE): Required<OccurredAtRange> {
+function buildOccurredAtRange(
+  date: string,
+  timeZone = DEFAULT_APP_TIME_ZONE
+): Required<OccurredAtRange> {
   return getUtcRangeForLocalDate(date, timeZone);
-}
-
-async function loadMealsFromDb(userId: number, options: MealLoadOptions = {}) {
-  const dbMeals = await mealsRepository.findConfirmedByUserId(userId, options);
-  return dbMeals as SavedMeal[] | null;
 }
 
 async function loadWeightEntriesFromDb(userId: number) {
@@ -853,33 +897,50 @@ async function loadHabitsFromDb(userId: number) {
 
     aggregate.set(row.foodName, {
       foodName: row.foodName,
-      typicalMealLabel: lastSeenAt >= current.lastSeenAt ? row.typicalMealLabel ?? current.typicalMealLabel : current.typicalMealLabel,
-      preferredPortionGrams: lastSeenAt >= current.lastSeenAt ? row.preferredPortionGrams : current.preferredPortionGrams,
-      notes: lastSeenAt >= current.lastSeenAt ? row.notes ?? current.notes : current.notes,
+      typicalMealLabel:
+        lastSeenAt >= current.lastSeenAt
+          ? (row.typicalMealLabel ?? current.typicalMealLabel)
+          : current.typicalMealLabel,
+      preferredPortionGrams:
+        lastSeenAt >= current.lastSeenAt
+          ? row.preferredPortionGrams
+          : current.preferredPortionGrams,
+      notes:
+        lastSeenAt >= current.lastSeenAt
+          ? (row.notes ?? current.notes)
+          : current.notes,
       occurrenceCount: current.occurrenceCount + row.occurrenceCount,
       lastSeenAt: Math.max(current.lastSeenAt, lastSeenAt),
     });
   }
 
-  return Array.from(aggregate.values()).sort((a, b) => b.occurrenceCount - a.occurrenceCount || b.lastSeenAt - a.lastSeenAt);
+  return Array.from(aggregate.values()).sort(
+    (a, b) =>
+      b.occurrenceCount - a.occurrenceCount || b.lastSeenAt - a.lastSeenAt
+  );
 }
 
 async function loadRecentLogsFromDb() {
   const rows = await logsRepository.findRecent(20);
   if (!rows) return null;
 
-  return rows.map(row => ({
-    id: String(row.id),
-    userId: row.userId ?? undefined,
-    origin: row.origin,
-    status: row.status,
-    eventType: row.eventType,
-    detail: row.detail,
-    createdAt: new Date(row.createdAt).getTime(),
-  } satisfies AdminLogEntry));
+  return rows.map(
+    row =>
+      ({
+        id: String(row.id),
+        userId: row.userId ?? undefined,
+        origin: row.origin,
+        status: row.status,
+        eventType: row.eventType,
+        detail: row.detail,
+        createdAt: new Date(row.createdAt).getTime(),
+      }) satisfies AdminLogEntry
+  );
 }
 
-export async function getHabitSnapshots(userId: number): Promise<HabitSnapshot[]> {
+export async function getHabitSnapshots(
+  userId: number
+): Promise<HabitSnapshot[]> {
   const dbHabits = await loadHabitsFromDb(userId);
   const habits = dbHabits ?? habitStore.get(userId) ?? [];
   if (dbHabits) {
@@ -898,7 +959,12 @@ export async function getHabitSnapshots(userId: number): Promise<HabitSnapshot[]
     }));
 }
 
-export function createPendingMealInference(userId: number, source: "web" | "whatsapp", processed: MealProcessingResult, media: SavedMedia[] = []) {
+export function createPendingMealInference(
+  userId: number,
+  source: "web" | "whatsapp",
+  processed: MealProcessingResult,
+  media: SavedMedia[] = []
+) {
   const draftId = crypto.randomUUID();
   const draft: PendingInference = {
     draftId,
@@ -924,53 +990,15 @@ export function getPendingInference(draftId: string) {
   return inferenceStore.get(draftId);
 }
 
-export async function getPendingInferenceFromDb(draftId: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-
-  try {
-    const row = await mealsRepository.findInferenceByDraftId(draftId);
-    if (!row) return undefined;
-
-    const requestText = row.sourceText ?? row.requestSummary ?? "";
-    const items = parseJsonArray<MealDraftItem>(row.itemsJson, []);
-    const rawTotals = row.totalsJson ? JSON.parse(row.totalsJson) as Record<string, number> : {};
-    const mealLabel = requestText.split(/[,.!?\n]/)[0]?.trim() || items[0]?.foodName || "Refeição";
-
-    return {
-      draftId: row.draftId,
-      userId: row.userId,
-      source: row.source,
-      processed: {
-        sourceText: requestText,
-        transcript: row.transcript ?? undefined,
-        reasoning: row.reasoning ?? "",
-        confidence: row.confidence,
-        detectedMealLabel: mealLabel,
-        needsConfirmation: true,
-        items,
-        totals: {
-          calories: Number(rawTotals.calories ?? 0),
-          protein: Number(rawTotals.protein ?? 0),
-          carbs: Number(rawTotals.carbs ?? 0),
-          fat: Number(rawTotals.fat ?? 0),
-        },
-      },
-      media: parseJsonArray<SavedMedia>(row.mediaJson, []),
-      createdAt: new Date(row.createdAt).getTime(),
-    } satisfies PendingInference;
-  } catch (error) {
-    logPersistenceWarning("Pending inference rehydration skipped", error);
-    return undefined;
-  }
-}
-
 async function updateHabitsFromMeal(meal: SavedMeal) {
-  const existing = (await loadHabitsFromDb(meal.userId)) ?? habitStore.get(meal.userId) ?? [];
+  const existing =
+    (await loadHabitsFromDb(meal.userId)) ?? habitStore.get(meal.userId) ?? [];
   const next = [...existing];
 
   for (const item of meal.items) {
-    const matchIndex = next.findIndex(habit => habit.foodName === item.canonicalName);
+    const matchIndex = next.findIndex(
+      habit => habit.foodName === item.canonicalName
+    );
     if (matchIndex >= 0) {
       next[matchIndex] = {
         ...next[matchIndex],
@@ -997,6 +1025,45 @@ async function updateHabitsFromMeal(meal: SavedMeal) {
   await persistHabitsToDb(meal.userId, ordered);
 }
 
+const confirmedMealMutations = createConfirmedMealMutations({
+  mealStore,
+  inferenceStore,
+  favoriteMealStore,
+  nextMealId: () => mealIdSequence++,
+  nextFavoriteMealId: () => favoriteMealIdSequence++,
+  loadMealsFromDb,
+  persistMealToDb,
+  updateMealInDb,
+  deleteMealFromDb,
+  updateHabitsFromMeal,
+  rebuildUserMealHabits,
+  assertLegacyMealProjectionSafe,
+  syncHabitsMealLabelFromMeals,
+  clearMealItemsSourceMedia,
+  getDb,
+  mealsRepository,
+  parseJsonArray,
+  sumMealItems,
+  calculateDayTotals,
+  buildOccurredAtRange,
+  getDateKeyInTimeZone: (value, timeZone) => getDateKeyInTimeZone(value, timeZone),
+  getUtcRangeForInclusiveLocalDateRange: (startDate, endDate, timeZone) =>
+    getUtcRangeForInclusiveLocalDateRange(startDate, endDate, timeZone),
+  defaultTimeZone: DEFAULT_APP_TIME_ZONE,
+  logPersistenceWarning,
+  logInferenceEvent,
+});
+export const confirmPendingMeal = confirmedMealMutations.confirmPendingMeal;
+export const listUserMealsByDate = confirmedMealMutations.listUserMealsByDate;
+export const listUserMealsInRange = confirmedMealMutations.listUserMealsInRange;
+export const getUserDayMealTotals = confirmedMealMutations.getUserDayMealTotals;
+export const createUserManualMeal = confirmedMealMutations.createUserManualMeal;
+export const copyUserMeal = confirmedMealMutations.copyUserMeal;
+export const saveFavoriteMeal = confirmedMealMutations.saveFavoriteMeal;
+export const relabelUserMeals = confirmedMealMutations.relabelUserMeals;
+export const loadPendingMealDraftFromDb =
+  confirmedMealPersistence.loadPendingMealDraftFromDb;
+
 /** Rebuilds derived habits idempotently after a compensable meal batch. */
 export async function rebuildUserMealHabits(userId: number) {
   const meals = await listUserMeals(userId);
@@ -1010,32 +1077,46 @@ export async function rebuildUserMealHabits(userId: number) {
       const isLatest = !existing || meal.occurredAt >= existing.lastSeenAt;
       byFoodName.set(foodName, {
         foodName,
-        typicalMealLabel: isLatest ? meal.mealLabel : existing?.typicalMealLabel,
-        preferredPortionGrams: isLatest ? item.estimatedGrams : existing?.preferredPortionGrams ?? item.estimatedGrams,
-        notes: isLatest ? `Última porção confirmada: ${item.portionText}` : existing?.notes,
+        typicalMealLabel: isLatest
+          ? meal.mealLabel
+          : existing?.typicalMealLabel,
+        preferredPortionGrams: isLatest
+          ? item.estimatedGrams
+          : (existing?.preferredPortionGrams ?? item.estimatedGrams),
+        notes: isLatest
+          ? `Última porção confirmada: ${item.portionText}`
+          : existing?.notes,
         occurrenceCount: (existing?.occurrenceCount ?? 0) + 1,
         lastSeenAt: isLatest ? meal.occurredAt : existing!.lastSeenAt,
       });
     }
   }
 
-  const rebuilt = [...byFoodName.values()].sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+  const rebuilt = [...byFoodName.values()].sort(
+    (a, b) => b.lastSeenAt - a.lastSeenAt
+  );
   await persistHabitsToDb(userId, rebuilt);
   habitStore.set(userId, rebuilt);
   return rebuilt;
 }
 
-async function syncHabitsMealLabelFromMeals(userId: number, mealsToSync: SavedMeal[]) {
+async function syncHabitsMealLabelFromMeals(
+  userId: number,
+  mealsToSync: SavedMeal[]
+) {
   if (!mealsToSync.length) {
     return;
   }
 
-  const existing = (await loadHabitsFromDb(userId)) ?? habitStore.get(userId) ?? [];
+  const existing =
+    (await loadHabitsFromDb(userId)) ?? habitStore.get(userId) ?? [];
   const next = [...existing];
 
   for (const meal of mealsToSync) {
     for (const item of meal.items) {
-      const matchIndex = next.findIndex(habit => habit.foodName === item.canonicalName);
+      const matchIndex = next.findIndex(
+        habit => habit.foodName === item.canonicalName
+      );
       if (matchIndex < 0) {
         continue;
       }
@@ -1055,311 +1136,14 @@ async function syncHabitsMealLabelFromMeals(userId: number, mealsToSync: SavedMe
   await persistHabitsToDb(userId, ordered);
 }
 
-export async function confirmPendingMeal(input: {
-  draftId: string;
-  userId: number;
-  mealLabel: string;
-  occurredAt: string;
-  notes?: string;
-  items: MealDraftItem[];
-}) {
-  const pending = inferenceStore.get(input.draftId);
-  if (!pending || pending.userId !== input.userId) {
-    throw new Error("Rascunho de inferência não encontrado.");
-  }
-
-  const savedMeal: SavedMeal = {
-    id: mealIdSequence++,
-    userId: input.userId,
-    source: pending.source,
-    mealLabel: input.mealLabel,
-    status: "confirmed",
-    occurredAt: new Date(input.occurredAt).getTime(),
-    notes: input.notes,
-    sourceText: pending.processed.sourceText,
-    transcript: pending.processed.transcript,
-    confidence: pending.processed.confidence,
-    items: input.items,
-    media: pending.media,
-    createdAt: Date.now(),
-  };
-
-  const mealsForUser = (await loadMealsFromDb(input.userId)) ?? mealStore.get(input.userId) ?? [];
-  await persistMealToDb(savedMeal);
-  mealStore.set(input.userId, [savedMeal, ...mealsForUser.filter(meal => meal.id !== savedMeal.id)]);
-  inferenceStore.delete(input.draftId);
-  await updateHabitsFromMeal(savedMeal);
-
-  try {
-    const { recordNutritionLabelCandidates } = await import("./nutritionLabelCandidateService");
-    await recordNutritionLabelCandidates({
-      userId: savedMeal.userId,
-      mealId: savedMeal.id,
-      sourceText: savedMeal.sourceText,
-      items: savedMeal.items,
-    });
-  } catch (error) {
-    logPersistenceWarning("Nutrition label candidate persistence skipped", error);
-  }
-
-  // Aprendizado silencioso de aliases pessoais: se o texto original difere do
-  // nome canônico, registra o mapeamento para uso futuro sem intervenção do usuário.
-  if (savedMeal.sourceText && savedMeal.source === "whatsapp") {
-    const { learnPersonalFoodAlias } = await import("./modules/whatsapp/personalFoodAliasStore");
-    for (const item of savedMeal.items) {
-      learnPersonalFoodAlias({
-        userId: savedMeal.userId,
-        aliasText: savedMeal.sourceText,
-        canonicalName: item.canonicalName,
-        canonicalSlug: item.source === "catalog" ? item.canonicalName : undefined,
-      });
-    }
-  }
-
-  logInferenceEvent({
-    userId: input.userId,
-    origin: pending.source,
-    status: "success",
-    eventType: "meal.confirmed",
-    detail: `Refeição ${savedMeal.mealLabel} confirmada e salva com ${savedMeal.items.length} itens.`,
-  });
-  return savedMeal;
-}
-
-export async function listUserMeals(userId: number) {
-  const dbMeals = await loadMealsFromDb(userId);
-  const mealsForUser = dbMeals ?? mealStore.get(userId) ?? [];
-  if (dbMeals) {
-    mealStore.set(userId, dbMeals);
-  }
-
-  return mealsForUser
-    .slice()
-    .sort((a, b) => b.occurredAt - a.occurredAt)
-    .map(meal => ({
-      ...meal,
-      totals: sumMealItems(meal.items),
-    }));
-}
-
-export async function listUserMealsByDate(
-  userId: number,
-  date: string,
-  options: { includeMedia?: boolean; timeZone?: string } = {},
-) {
-  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
-  const range = buildOccurredAtRange(date, timeZone);
-  const dbMeals = await loadMealsFromDb(userId, { ...range, includeMedia: options.includeMedia });
-  const mealsForUser = dbMeals ?? mealStore.get(userId) ?? [];
-
-  return mealsForUser
-    .filter(meal => getDateKeyInTimeZone(meal.occurredAt, timeZone) === date)
-    .slice()
-    .sort((a, b) => b.occurredAt - a.occurredAt)
-    .map(meal => ({
-      ...meal,
-      totals: sumMealItems(meal.items),
-    }));
-}
-
-export async function listUserMealsInRange(
-  userId: number,
-  startDate: string,
-  endDate: string,
-  options: { includeMedia?: boolean; timeZone?: string } = {},
-) {
-  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
-  const { startAt, endAt } = getUtcRangeForInclusiveLocalDateRange(startDate, endDate, timeZone);
-
-  const dbMeals = await loadMealsFromDb(userId, { startAt, endAt, includeMedia: options.includeMedia });
-  const mealsForUser = dbMeals ?? mealStore.get(userId) ?? [];
-
-  return mealsForUser
-    .filter(meal => {
-      const key = getDateKeyInTimeZone(meal.occurredAt, timeZone);
-      return key >= startDate && key <= endDate;
-    })
-    .slice()
-    .sort((a, b) => b.occurredAt - a.occurredAt)
-    .map(meal => ({
-      ...meal,
-      totals: sumMealItems(meal.items),
-    }));
-}
-
-export async function getUserDayMealTotals(userId: number, date: string, timeZone = DEFAULT_APP_TIME_ZONE) {
-  const key = date || dateKey(new Date(), timeZone);
-  const mealsOnDay = await listUserMealsByDate(userId, key, { timeZone });
-  return {
-    date: key,
-    meals: mealsOnDay,
-    totals: calculateDayTotals(mealsOnDay),
-  };
-}
-
-export async function createUserManualMeal(input: {
-  userId: number;
-  mealLabel: string;
-  occurredAt: string;
-  notes?: string;
-  items: MealDraftItem[];
-  legacyD1Receipt?: { operationKey: string; operationScopeHash: string };
-}) {
-  assertLegacyMealProjectionSafe(input.items);
-  const savedMeal: SavedMeal = {
-    id: mealIdSequence++,
-    userId: input.userId,
-    source: "web",
-    mealLabel: input.mealLabel,
-    status: "confirmed",
-    occurredAt: new Date(input.occurredAt).getTime(),
-    notes: input.notes,
-    sourceText: input.notes ?? "Registro manual",
-    transcript: undefined,
-    confidence: 1,
-    items: input.items,
-    media: [],
-    createdAt: Date.now(),
-  };
-
-  const current = await listUserMeals(input.userId);
-  const replayed = await persistMealToDb(savedMeal, input.legacyD1Receipt);
-  if (replayed) {
-    // A completed transaction is authoritative after restart: neither the
-    // in-process cache nor the habit counters may be advanced twice.
-    const committed = (await loadMealsFromDb(input.userId))?.find(meal => meal.id === savedMeal.id);
-    if (!committed) throw new Error("food-d1-legacy-receipt-meal-unavailable");
-    // If the original request committed the meal but failed during the
-    // subsequent derived-habit update, a retry must repair that projection.
-    // Rebuild is idempotent and must not increment a historical count twice.
-    await rebuildUserMealHabits(input.userId);
-    return { ...committed, totals: sumMealItems(committed.items) };
-  }
-  mealStore.set(input.userId, [savedMeal, ...current.filter(meal => meal.id !== savedMeal.id)]);
-  await updateHabitsFromMeal(savedMeal);
-  logInferenceEvent({
-    userId: input.userId,
-    origin: "web",
-    status: "success",
-    eventType: "meal.manual_created",
-    detail: `Refeição manual ${savedMeal.mealLabel} criada com ${savedMeal.items.length} itens.`,
-  });
-  return { ...savedMeal, totals: sumMealItems(savedMeal.items) };
-}
-
-export async function copyUserMeal(input: {
-  userId: number;
-  mealId: number;
-  occurredAt: string;
-  mealLabel?: string;
-}) {
-  const current = await listUserMeals(input.userId);
-  const sourceMeal = current.find(meal => meal.id === input.mealId);
-  if (!sourceMeal) {
-    throw new Error("Refeição de origem não encontrada.");
-  }
-
-  return createUserManualMeal({
-    userId: input.userId,
-    mealLabel: input.mealLabel?.trim() || sourceMeal.mealLabel,
-    occurredAt: input.occurredAt,
-    notes: sourceMeal.notes,
-    items: clearMealItemsSourceMedia(sourceMeal.items),
-  });
-}
-
-export async function listFavoriteMeals(userId: number) {
-  const db = await getDb();
-  if (db) {
-    try {
-      const rows = await mealsRepository.findFavoritesByUserId(userId);
-      const favorites = rows.map(row => ({
-        id: row.id,
-        userId: row.userId,
-        name: row.name,
-        mealLabel: row.mealLabel,
-        notes: row.notes ?? undefined,
-        items: parseJsonArray<MealDraftItem>(row.itemsJson, []),
-        createdAt: new Date(row.createdAt).getTime(),
-      }));
-      favoriteMealStore.set(userId, favorites);
-      return favorites
-        .sort((a, b) => b.createdAt - a.createdAt)
-        .map(meal => ({
-          ...meal,
-          totals: sumMealItems(meal.items),
-        }));
-    } catch (error) {
-      logPersistenceWarning("Meal favorites read skipped", error);
-    }
-  }
-
-  return (favoriteMealStore.get(userId) ?? [])
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .map(meal => ({
-      ...meal,
-      totals: sumMealItems(meal.items),
-    }));
-}
-
-export async function saveFavoriteMeal(input: {
-  userId: number;
-  mealId: number;
-  name?: string;
-}) {
-  const current = await listUserMeals(input.userId);
-  const meal = current.find(item => item.id === input.mealId);
-  if (!meal) {
-    throw new Error("Refeição não encontrada para favoritar.");
-  }
-  assertLegacyMealProjectionSafe(meal.items);
-
-  const favorite: FavoriteMeal = {
-    id: favoriteMealIdSequence++,
-    userId: input.userId,
-    name: input.name?.trim() || meal.mealLabel,
-    mealLabel: meal.mealLabel,
-    notes: meal.notes,
-    items: clearMealItemsSourceMedia(meal.items),
-    createdAt: Date.now(),
-  };
-
-  const favorites = favoriteMealStore.get(input.userId) ?? [];
-  favoriteMealStore.set(input.userId, [favorite, ...favorites.filter(item => item.name !== favorite.name)]);
-
-  const db = await getDb();
-  if (db) {
-    try {
-      await mealsRepository.upsertFavorite({
-        userId: input.userId,
-        name: favorite.name,
-        mealLabel: favorite.mealLabel,
-        notes: favorite.notes,
-        itemsJson: JSON.stringify(favorite.items),
-      });
-    } catch (error) {
-      logPersistenceWarning("Meal favorite persistence skipped", error);
-    }
-  }
-
-  logInferenceEvent({
-    userId: input.userId,
-    origin: "web",
-    status: "success",
-    eventType: "meal.favorite_saved",
-    detail: `Refeição favorita ${favorite.name} salva com ${favorite.items.length} itens.`,
-  });
-
-  return { ...favorite, totals: sumMealItems(favorite.items) };
-}
-
 export async function reuseFavoriteMeal(input: {
   userId: number;
   favoriteMealId: number;
   occurredAt: string;
 }) {
-  const favorite = (await listFavoriteMeals(input.userId)).find(item => item.id === input.favoriteMealId);
+  const favorite = (await listFavoriteMeals(input.userId)).find(
+    item => item.id === input.favoriteMealId
+  );
   if (!favorite) {
     throw new Error("Refeição favorita não encontrada.");
   }
@@ -1376,16 +1160,20 @@ export async function reuseFavoriteMeal(input: {
 export type UpdateUserMealOptions = {
   updateHabits?: boolean;
   logEvent?: boolean;
+  expectedPreImage?: string;
 };
 
-export async function updateUserMeal(input: {
-  userId: number;
-  mealId: number;
-  mealLabel: string;
-  occurredAt: string;
-  notes?: string;
-  items: MealDraftItem[];
-}, options: UpdateUserMealOptions = {}) {
+export async function updateUserMeal(
+  input: {
+    userId: number;
+    mealId: number;
+    mealLabel: string;
+    occurredAt: string;
+    notes?: string;
+    items: MealDraftItem[];
+  },
+  options: UpdateUserMealOptions = {}
+) {
   const current = await listUserMeals(input.userId);
   const existing = current.find(meal => meal.id === input.mealId);
   if (!existing) {
@@ -1401,18 +1189,37 @@ export async function updateUserMeal(input: {
     items: input.items,
   };
 
-  const persisted = await updateMealInDb(updatedMeal);
-  if (persisted) {
+  const persistence = await updateMealInDb(
+    updatedMeal,
+    options.expectedPreImage
+  );
+  if (persistence.persisted) {
     // Re-read authoritative calculated nutrition, not the old macros the V1
     // edit payload carried. Public totals, cache and habit learning must agree.
-    const saved = (await loadMealsFromDb(input.userId))?.find(meal => meal.id === updatedMeal.id);
-    if (!saved) throw new Error("Refeição confirmada não encontrada após atualização.");
-    updatedMeal.items = saved.items;
+    if (options.expectedPreImage) {
+      if (typeof persistence.mutationPreImage !== "string") {
+        throw new Error(
+          "Meal persistence did not return its post-image CAS token."
+        );
+      }
+      updatedMeal.mutationPreImage = persistence.mutationPreImage;
+    } else {
+      const saved = (await loadMealsFromDb(input.userId))?.find(
+        meal => meal.id === updatedMeal.id
+      );
+      if (!saved)
+        throw new Error("Refeição confirmada não encontrada após atualização.");
+      updatedMeal.items = saved.items;
+    }
   }
-  mealStore.set(
-    input.userId,
-    current.map(meal => (meal.id === input.mealId ? updatedMeal : meal)).sort((a, b) => b.occurredAt - a.occurredAt),
-  );
+  if (!options.expectedPreImage) {
+    mealStore.set(
+      input.userId,
+      current
+        .map(meal => (meal.id === input.mealId ? updatedMeal : meal))
+        .sort((a, b) => b.occurredAt - a.occurredAt)
+    );
+  }
   if (options.updateHabits !== false) {
     await updateHabitsFromMeal(updatedMeal);
   }
@@ -1444,12 +1251,16 @@ export async function updateUserMealItem(input: {
       mealLabel: input.mealLabel,
       occurredAt: input.occurredAt,
       notes: input.sourceMeal.notes,
-      items: input.sourceMeal.items.map((item, index) => index === input.itemIndex ? input.updatedItem : item),
+      items: input.sourceMeal.items.map((item, index) =>
+        index === input.itemIndex ? input.updatedItem : item
+      ),
     });
   }
 
   const resolvedCatalogIds = await resolveFoodCatalogIds(
-    editCatalogCandidates([input.updatedItem]), input.userId);
+    editCatalogCandidates([input.updatedItem]),
+    input.userId
+  );
   await mealsRepository.updateMealItem({
     userId: input.userId,
     meal: input.sourceMeal,
@@ -1464,15 +1275,20 @@ export async function updateUserMealItem(input: {
     ...input.sourceMeal,
     mealLabel: input.mealLabel,
     occurredAt: new Date(input.occurredAt).getTime(),
-    items: input.sourceMeal.items.map((item, index) => index === input.itemIndex ? input.updatedItem : item),
+    items: input.sourceMeal.items.map((item, index) =>
+      index === input.itemIndex ? input.updatedItem : item
+    ),
   };
   const current = await listUserMeals(input.userId);
   const savedItemMeal = current.find(meal => meal.id === updatedMeal.id);
-  if (!savedItemMeal) throw new Error("Refeição confirmada não encontrada após atualização.");
+  if (!savedItemMeal)
+    throw new Error("Refeição confirmada não encontrada após atualização.");
   updatedMeal.items = savedItemMeal.items;
   mealStore.set(
     input.userId,
-    current.map(meal => meal.id === updatedMeal.id ? updatedMeal : meal).sort((a, b) => b.occurredAt - a.occurredAt),
+    current
+      .map(meal => (meal.id === updatedMeal.id ? updatedMeal : meal))
+      .sort((a, b) => b.occurredAt - a.occurredAt)
   );
   await rebuildUserMealHabits(input.userId);
   logInferenceEvent({
@@ -1495,7 +1311,9 @@ export async function moveUserMealItem(input: {
 }) {
   const db = await getDb();
   if (!db) {
-    const remainingItems = input.sourceMeal.items.filter((_, index) => index !== input.itemIndex);
+    const remainingItems = input.sourceMeal.items.filter(
+      (_, index) => index !== input.itemIndex
+    );
     const movedMeal = await createUserManualMeal({
       userId: input.userId,
       mealLabel: input.targetMealLabel,
@@ -1519,7 +1337,9 @@ export async function moveUserMealItem(input: {
   }
 
   const resolvedCatalogIds = await resolveFoodCatalogIds(
-    editCatalogCandidates([input.updatedItem]), input.userId);
+    editCatalogCandidates([input.updatedItem]),
+    input.userId
+  );
   const targetOccurredAt = new Date(input.occurredAt).getTime();
   const result = await mealsRepository.moveMealItem({
     userId: input.userId,
@@ -1536,7 +1356,9 @@ export async function moveUserMealItem(input: {
   if (!result) return null;
 
   const currentMeals = await listUserMeals(input.userId);
-  const movedMeal = currentMeals.find(meal => meal.id === result.targetMealId) ?? {
+  const movedMeal = currentMeals.find(
+    meal => meal.id === result.targetMealId
+  ) ?? {
     id: result.targetMealId,
     userId: input.userId,
     source: "web" as const,
@@ -1549,9 +1371,13 @@ export async function moveUserMealItem(input: {
     media: [],
     createdAt: Date.now(),
   };
-  const updatedSourceMeal = currentMeals.find(meal => meal.id === input.sourceMeal.id) ?? {
+  const updatedSourceMeal = currentMeals.find(
+    meal => meal.id === input.sourceMeal.id
+  ) ?? {
     ...input.sourceMeal,
-    items: input.sourceMeal.items.filter((_, index) => index !== input.itemIndex),
+    items: input.sourceMeal.items.filter(
+      (_, index) => index !== input.itemIndex
+    ),
   };
 
   mealStore.set(input.userId, currentMeals);
@@ -1559,54 +1385,11 @@ export async function moveUserMealItem(input: {
 
   return {
     meal: { ...movedMeal, totals: sumMealItems(movedMeal.items) },
-    sourceMeal: { ...updatedSourceMeal, totals: sumMealItems(updatedSourceMeal.items) },
+    sourceMeal: {
+      ...updatedSourceMeal,
+      totals: sumMealItems(updatedSourceMeal.items),
+    },
   };
-}
-
-export async function relabelUserMeals(input: {
-  userId: number;
-  mealIds: number[];
-  mealLabel: string;
-  origin?: "web" | "whatsapp";
-}) {
-  const origin = input.origin ?? "web";
-  const current = await listUserMeals(input.userId);
-  const targetIds = new Set(input.mealIds);
-  const existingMeals = current.filter(meal => targetIds.has(meal.id));
-
-  if (!existingMeals.length) {
-    throw new Error("Nenhuma refeição encontrada para reclassificação.");
-  }
-
-  const updatedMeals = existingMeals.map(meal => ({
-    ...meal,
-    mealLabel: input.mealLabel,
-  }));
-
-  mealStore.set(
-    input.userId,
-    current
-      .map(meal => updatedMeals.find(updated => updated.id === meal.id) ?? meal)
-      .sort((a, b) => b.occurredAt - a.occurredAt),
-  );
-
-  for (const meal of updatedMeals) {
-    await updateMealInDb(meal);
-  }
-
-  await syncHabitsMealLabelFromMeals(input.userId, updatedMeals);
-  logInferenceEvent({
-    userId: input.userId,
-    origin,
-    status: "success",
-    eventType: "meal.reclassified",
-    detail: `${updatedMeals.length} refeição(ões) reclassificada(s) para ${input.mealLabel}.`,
-  });
-
-  return updatedMeals.map(meal => ({
-    ...meal,
-    totals: sumMealItems(meal.items),
-  }));
 }
 
 export async function removeUserMeal(userId: number, mealId: number) {
@@ -1617,7 +1400,10 @@ export async function removeUserMeal(userId: number, mealId: number) {
   }
 
   await deleteMealFromDb(userId, mealId);
-  mealStore.set(userId, current.filter(meal => meal.id !== mealId));
+  mealStore.set(
+    userId,
+    current.filter(meal => meal.id !== mealId)
+  );
   logInferenceEvent({
     userId,
     origin: "web",
@@ -1628,7 +1414,10 @@ export async function removeUserMeal(userId: number, mealId: number) {
   return { success: true };
 }
 
-export async function getWeeklySummary(userId: number, timeZone = DEFAULT_APP_TIME_ZONE) {
+export async function getWeeklySummary(
+  userId: number,
+  timeZone = DEFAULT_APP_TIME_ZONE
+) {
   const goal = await getUserNutritionGoal(userId);
   const waterGoal = await getUserWaterGoal(userId);
   const mealsForUser = await listUserMeals(userId);
@@ -1636,37 +1425,52 @@ export async function getWeeklySummary(userId: number, timeZone = DEFAULT_APP_TI
   const waterLogsForUser = await listUserWaterLogs(userId);
   const dateKeys = getWeekDateKeys(new Date(), timeZone);
 
-  return Promise.all(dateKeys.map(async (key, index) => {
-    const dailyMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt), timeZone) === key);
-    const dailyExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt)), timeZone) === key);
-    const dailyWaterLogs = waterLogsForUser.filter(log => dateKey(new Date(Number(log.occurredAt)), timeZone) === key);
-    const totals = sumMeals(dailyMeals);
-    const burnedCalories = sumExercises(dailyExercises);
-    const waterConsumedMl = sumWater(dailyWaterLogs);
-    const quality = await calculateQualityIndicators(userId, dailyMeals, waterConsumedMl);
-    const planned = goal.days[index] ?? goal.today;
+  return Promise.all(
+    dateKeys.map(async (key, index) => {
+      const dailyMeals = mealsForUser.filter(
+        meal => dateKey(new Date(meal.occurredAt), timeZone) === key
+      );
+      const dailyExercises = exercisesForUser.filter(
+        exercise =>
+          dateKey(new Date(Number(exercise.occurredAt)), timeZone) === key
+      );
+      const dailyWaterLogs = waterLogsForUser.filter(
+        log => dateKey(new Date(Number(log.occurredAt)), timeZone) === key
+      );
+      const totals = sumMeals(dailyMeals);
+      const burnedCalories = sumExercises(dailyExercises);
+      const waterConsumedMl = sumWater(dailyWaterLogs);
+      const quality = await calculateQualityIndicators(
+        userId,
+        dailyMeals,
+        waterConsumedMl
+      );
+      const planned = goal.days[index] ?? goal.today;
 
-    return {
-      date: key,
-      label: planned.shortLabel,
-      calories: round(totals.calories),
-      protein: round(totals.protein),
-      carbs: round(totals.carbs),
-      fat: round(totals.fat),
-      exerciseCalories: round(burnedCalories),
-      netCalories: round(totals.calories - burnedCalories),
-      waterConsumedMl: round(waterConsumedMl),
-      waterGoalMl: waterGoal.dailyTargetMl,
-      quality,
-      goalCalories: planned.calories,
-      goalProtein: planned.proteinGrams,
-      goalCarbs: planned.carbsGrams,
-      goalFat: planned.fatGrams,
-    };
-  }));
+      return {
+        date: key,
+        label: planned.shortLabel,
+        calories: round(totals.calories),
+        protein: round(totals.protein),
+        carbs: round(totals.carbs),
+        fat: round(totals.fat),
+        exerciseCalories: round(burnedCalories),
+        netCalories: round(totals.calories - burnedCalories),
+        waterConsumedMl: round(waterConsumedMl),
+        waterGoalMl: waterGoal.dailyTargetMl,
+        quality,
+        goalCalories: planned.calories,
+        goalProtein: planned.proteinGrams,
+        goalCarbs: planned.carbsGrams,
+        goalFat: planned.fatGrams,
+      };
+    })
+  );
 }
 
-function classifyWeeklyDay(day: Awaited<ReturnType<typeof getWeeklySummary>>[number]) {
+function classifyWeeklyDay(
+  day: Awaited<ReturnType<typeof getWeeklySummary>>[number]
+) {
   if (day.calories <= 0) return "no_data" as const;
   const ratio = day.goalCalories ? day.calories / day.goalCalories : 0;
   if (ratio > 1.05) return "above" as const;
@@ -1689,41 +1493,57 @@ export async function listUserWeightEntries(userId: number) {
   const onboardingProfile = usersService.getOnboardingProfileMemory(userId);
   if (!onboardingProfile?.currentWeightKg) return [];
 
-  return [{
-    id: 0,
-    userId,
-    weightKg: onboardingProfile.currentWeightKg,
-    measuredAt: onboardingProfile.completedAt,
-    notes: "Peso informado no onboarding.",
-    createdAt: onboardingProfile.completedAt,
-    updatedAt: onboardingProfile.completedAt,
-  } satisfies WeightEntry];
+  return [
+    {
+      id: 0,
+      userId,
+      weightKg: onboardingProfile.currentWeightKg,
+      measuredAt: onboardingProfile.completedAt,
+      notes: "Peso informado no onboarding.",
+      createdAt: onboardingProfile.completedAt,
+      updatedAt: onboardingProfile.completedAt,
+    } satisfies WeightEntry,
+  ];
 }
 
-export async function getWeeklyProgress(userId: number, timeZone = DEFAULT_APP_TIME_ZONE) {
+export async function getWeeklyProgress(
+  userId: number,
+  timeZone = DEFAULT_APP_TIME_ZONE
+) {
   const [days, weights] = await Promise.all([
     getWeeklySummary(userId, timeZone),
     listUserWeightEntries(userId),
   ]);
 
   const totalCalories = round(days.reduce((acc, day) => acc + day.calories, 0));
-  const totalGoalCalories = round(days.reduce((acc, day) => acc + day.goalCalories, 0));
-  const totalExerciseCalories = round(days.reduce((acc, day) => acc + day.exerciseCalories, 0));
-  const totalNetCalories = round(days.reduce((acc, day) => acc + day.netCalories, 0));
+  const totalGoalCalories = round(
+    days.reduce((acc, day) => acc + day.goalCalories, 0)
+  );
+  const totalExerciseCalories = round(
+    days.reduce((acc, day) => acc + day.exerciseCalories, 0)
+  );
+  const totalNetCalories = round(
+    days.reduce((acc, day) => acc + day.netCalories, 0)
+  );
   const averageCalories = round(totalCalories / Math.max(days.length, 1));
-  const averageProtein = round(days.reduce((acc, day) => acc + day.protein, 0) / Math.max(days.length, 1));
+  const averageProtein = round(
+    days.reduce((acc, day) => acc + day.protein, 0) / Math.max(days.length, 1)
+  );
   const daysByStatus = days.reduce(
     (acc, day) => {
       const status = classifyWeeklyDay(day);
       acc[status] += 1;
       return acc;
     },
-    { within: 0, above: 0, below: 0, no_data: 0 },
+    { within: 0, above: 0, below: 0, no_data: 0 }
   );
 
   const sortedWeights = weights
     .slice()
-    .sort((a, b) => new Date(a.measuredAt).getTime() - new Date(b.measuredAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(a.measuredAt).getTime() - new Date(b.measuredAt).getTime()
+    )
     .map(entry => ({
       id: entry.id,
       date: dateKey(new Date(entry.measuredAt), timeZone),
@@ -1766,27 +1586,48 @@ export async function getWeeklyProgress(userId: number, timeZone = DEFAULT_APP_T
       entries: sortedWeights,
       firstWeightKg: firstWeight?.weightKg ?? null,
       lastWeightKg: lastWeight?.weightKg ?? null,
-      deltaKg: firstWeight && lastWeight ? round(lastWeight.weightKg - firstWeight.weightKg) : null,
+      deltaKg:
+        firstWeight && lastWeight
+          ? round(lastWeight.weightKg - firstWeight.weightKg)
+          : null,
       hasData: sortedWeights.length > 0,
     },
   };
 }
 
-export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_APP_TIME_ZONE) {
+export async function getDashboardSnapshot(
+  userId: number,
+  timeZone = DEFAULT_APP_TIME_ZONE
+) {
   const goal = await getUserNutritionGoal(userId);
   const waterGoal = await getUserWaterGoal(userId);
   const mealsForUser = await listUserMeals(userId);
   const exercisesForUser = await listUserExercises(userId);
   const waterLogsForUser = await listUserWaterLogs(userId);
   const todayKey = dateKey(new Date(), timeZone);
-  const todaysMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt), timeZone) === todayKey);
-  const todaysExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt)), timeZone) === todayKey);
-  const todaysWaterLogs = waterLogsForUser.filter(log => dateKey(new Date(Number(log.occurredAt)), timeZone) === todayKey);
+  const todaysMeals = mealsForUser.filter(
+    meal => dateKey(new Date(meal.occurredAt), timeZone) === todayKey
+  );
+  const todaysExercises = exercisesForUser.filter(
+    exercise =>
+      dateKey(new Date(Number(exercise.occurredAt)), timeZone) === todayKey
+  );
+  const todaysWaterLogs = waterLogsForUser.filter(
+    log => dateKey(new Date(Number(log.occurredAt)), timeZone) === todayKey
+  );
   const todayTotals = sumMeals(todaysMeals);
   const todayBurnedCalories = sumExercises(todaysExercises);
   const todayWaterMl = sumWater(todaysWaterLogs);
-  const todayQuality = await calculateQualityIndicators(userId, todaysMeals, todayWaterMl);
-  const todayAdjustedGoalCalories = calculateAdjustedGoalCalories(goal.today.calories, todayBurnedCalories, goal.today.includeExerciseCalories);
+  const todayQuality = await calculateQualityIndicators(
+    userId,
+    todaysMeals,
+    todayWaterMl
+  );
+  const todayAdjustedGoalCalories = calculateAdjustedGoalCalories(
+    goal.today.calories,
+    todayBurnedCalories,
+    goal.today.includeExerciseCalories
+  );
 
   const [weekly, habits] = await Promise.all([
     getWeeklySummary(userId, timeZone),
@@ -1795,8 +1636,14 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
   const gamification = await getUserGamification(userId, weekly, timeZone);
 
   const weeklyConsumed = addMealTotals(weekly);
-  const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + Number(day.exerciseCalories ?? 0), 0);
-  const weeklyWaterMl = weekly.reduce((acc, day) => acc + Number(day.waterConsumedMl ?? 0), 0);
+  const weeklyBurnedCalories = weekly.reduce(
+    (acc, day) => acc + Number(day.exerciseCalories ?? 0),
+    0
+  );
+  const weeklyWaterMl = weekly.reduce(
+    (acc, day) => acc + Number(day.waterConsumedMl ?? 0),
+    0
+  );
 
   return {
     goal,
@@ -1808,7 +1655,9 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
         fat: goal.today.fatGrams,
         label: goal.today.label,
       },
-      consumed: Object.fromEntries(Object.entries(todayTotals).map(([key, value]) => [key, round(value)])),
+      consumed: Object.fromEntries(
+        Object.entries(todayTotals).map(([key, value]) => [key, round(value)])
+      ),
       burned: {
         calories: round(todayBurnedCalories),
       },
@@ -1820,7 +1669,9 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
       quality: todayQuality,
       net: {
         calories: round(todayTotals.calories - todayBurnedCalories),
-        remainingToGoal: round(todayAdjustedGoalCalories - todayTotals.calories),
+        remainingToGoal: round(
+          todayAdjustedGoalCalories - todayTotals.calories
+        ),
       },
       remaining: {
         calories: round(goal.today.calories - todayTotals.calories),
@@ -1828,7 +1679,11 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
         carbs: round(goal.today.carbsGrams - todayTotals.carbs),
         fat: round(goal.today.fatGrams - todayTotals.fat),
       },
-      adherence: round(goal.today.calories ? Math.min((todayTotals.calories / goal.today.calories) * 100, 100) : 0),
+      adherence: round(
+        goal.today.calories
+          ? Math.min((todayTotals.calories / goal.today.calories) * 100, 100)
+          : 0
+      ),
     },
     week: {
       planned: {
@@ -1837,14 +1692,22 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
         carbs: round(goal.weeklyTotals.carbsGrams),
         fat: round(goal.weeklyTotals.fatGrams),
       },
-      consumed: Object.fromEntries(Object.entries(weeklyConsumed).map(([key, value]) => [key, round(value)])),
+      consumed: Object.fromEntries(
+        Object.entries(weeklyConsumed).map(([key, value]) => [
+          key,
+          round(value),
+        ])
+      ),
       burned: {
         calories: round(weeklyBurnedCalories),
       },
       water: {
         consumedMl: round(weeklyWaterMl),
         goalMl: waterGoal.dailyTargetMl * 7,
-        remainingMl: Math.max(waterGoal.dailyTargetMl * 7 - round(weeklyWaterMl), 0),
+        remainingMl: Math.max(
+          waterGoal.dailyTargetMl * 7 - round(weeklyWaterMl),
+          0
+        ),
       },
       quality: weekly.reduce(
         (acc, day) => ({
@@ -1852,16 +1715,25 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
           fiberGrams: round(acc.fiberGrams + day.quality.fiberGrams),
           waterMl: round(acc.waterMl + day.quality.waterMl),
           fruitServings: round(acc.fruitServings + day.quality.fruitServings),
-          vegetableServings: round(acc.vegetableServings + day.quality.vegetableServings),
-          ultraProcessedServings: round(acc.ultraProcessedServings + day.quality.ultraProcessedServings),
+          vegetableServings: round(
+            acc.vegetableServings + day.quality.vegetableServings
+          ),
+          ultraProcessedServings: round(
+            acc.ultraProcessedServings + day.quality.ultraProcessedServings
+          ),
           mealCount: acc.mealCount + day.quality.mealCount,
-          regularityScore: round(acc.regularityScore + day.quality.regularityScore / 7),
+          regularityScore: round(
+            acc.regularityScore + day.quality.regularityScore / 7
+          ),
         }),
-        emptyQualityIndicators(0),
+        emptyQualityIndicators(0)
       ),
       net: {
         calories: round(weeklyConsumed.calories - weeklyBurnedCalories),
-        remainingToGoal: round(goal.weeklyTotals.calories - (weeklyConsumed.calories - weeklyBurnedCalories)),
+        remainingToGoal: round(
+          goal.weeklyTotals.calories -
+            (weeklyConsumed.calories - weeklyBurnedCalories)
+        ),
       },
       remaining: {
         calories: round(goal.weeklyTotals.calories - weeklyConsumed.calories),
@@ -1869,7 +1741,14 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
         carbs: round(goal.weeklyTotals.carbsGrams - weeklyConsumed.carbs),
         fat: round(goal.weeklyTotals.fatGrams - weeklyConsumed.fat),
       },
-      adherence: round(goal.weeklyTotals.calories ? Math.min((weeklyConsumed.calories / goal.weeklyTotals.calories) * 100, 100) : 0),
+      adherence: round(
+        goal.weeklyTotals.calories
+          ? Math.min(
+              (weeklyConsumed.calories / goal.weeklyTotals.calories) * 100,
+              100
+            )
+          : 0
+      ),
     },
     weekly,
     meals: mealsForUser.slice(0, 8),
@@ -1890,7 +1769,12 @@ export async function getKnownUsers(): Promise<AdminUserSummary[]> {
     if (allUsers) {
       return allUsers.map(({ hasProfessionalProfile, ...user }) => ({
         ...user,
-        profile: user.role === "admin" ? "admin" : hasProfessionalProfile ? "professional" : "user",
+        profile:
+          user.role === "admin"
+            ? "admin"
+            : hasProfessionalProfile
+              ? "professional"
+              : "user",
       }));
     }
   }
@@ -1916,20 +1800,23 @@ export async function getAdminSnapshot() {
   const db = await getDb();
   const whatsappToken = await getAdminWhatsAppTokenStatus();
   const attentionWindowTo = new Date();
-  const attentionWindowFrom = new Date(attentionWindowTo.getTime() - 24 * 60 * 60 * 1000);
+  const attentionWindowFrom = new Date(
+    attentionWindowTo.getTime() - 24 * 60 * 60 * 1000
+  );
 
   if (db) {
     try {
-      const [mealsCount, recentLogs, logsCount, attentionCountLast24h] = await Promise.all([
-        mealsRepository.countConfirmed(),
-        loadRecentLogsFromDb(),
-        logsRepository.count(),
-        logsRepository.countByRange({
-          from: attentionWindowFrom,
-          to: attentionWindowTo,
-          statuses: ["warning", "error"],
-        }),
-      ]);
+      const [mealsCount, recentLogs, logsCount, attentionCountLast24h] =
+        await Promise.all([
+          mealsRepository.countConfirmed(),
+          loadRecentLogsFromDb(),
+          logsRepository.count(),
+          logsRepository.countByRange({
+            from: attentionWindowFrom,
+            to: attentionWindowTo,
+            statuses: ["warning", "error"],
+          }),
+        ]);
 
       return {
         usage: {
@@ -1941,7 +1828,12 @@ export async function getAdminSnapshot() {
         },
         users: usersList,
         whatsappToken,
-        recentInferenceLogs: recentLogs ?? adminLogStore.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
+        recentInferenceLogs:
+          recentLogs ??
+          adminLogStore
+            .slice()
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 20),
       };
     } catch (error) {
       logPersistenceWarning("Admin read skipped", error);
@@ -1964,41 +1856,76 @@ export async function getAdminSnapshot() {
     },
     users: usersList,
     whatsappToken,
-    recentInferenceLogs: adminLogStore.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
+    recentInferenceLogs: adminLogStore
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 20),
   };
 }
 
-type AdminActivityCategory = Exclude<AdminActivitiesInput["eventTypeCategory"], "all">;
+type AdminActivityCategory = Exclude<
+  AdminActivitiesInput["eventTypeCategory"],
+  "all"
+>;
 
 function adminActivityCategory(eventType: string): AdminActivityCategory {
-  if (eventType.startsWith("ai.") || eventType.includes("inference")) return "ai";
+  if (eventType.startsWith("ai.") || eventType.includes("inference"))
+    return "ai";
   if (eventType.startsWith("meal.")) return "meal";
   if (eventType.startsWith("whatsapp.")) return "whatsapp";
-  if (eventType.startsWith("foods.") || eventType.startsWith("nutrition_label_candidate.")) return "foods";
+  if (
+    eventType.startsWith("foods.") ||
+    eventType.startsWith("nutrition_label_candidate.")
+  )
+    return "foods";
   if (eventType.startsWith("water.")) return "water";
   if (eventType.startsWith("exercise.")) return "exercise";
   return "system";
 }
 
-function getAdminActivityRange(period: AdminActivitiesInput["period"], nowMs: number) {
+function getAdminActivityRange(
+  period: AdminActivitiesInput["period"],
+  nowMs: number
+) {
   const to = new Date(nowMs);
   if (period === "today") {
-    const today = getUtcRangeForLocalDate(getDateKeyInTimeZone(to, DEFAULT_APP_TIME_ZONE), DEFAULT_APP_TIME_ZONE);
+    const today = getUtcRangeForLocalDate(
+      getDateKeyInTimeZone(to, DEFAULT_APP_TIME_ZONE),
+      DEFAULT_APP_TIME_ZONE
+    );
     return { from: today.startAt, to };
   }
-  const durationMs = period === "24h" ? 24 * 60 * 60 * 1000 : period === "7d" ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+  const durationMs =
+    period === "24h"
+      ? 24 * 60 * 60 * 1000
+      : period === "7d"
+        ? 7 * 24 * 60 * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000;
   return { from: new Date(nowMs - durationMs), to };
 }
 
-function matchesAdminActivity(log: AdminLogEntry, input: AdminActivitiesInput, range: { from: Date; to: Date }) {
+function matchesAdminActivity(
+  log: AdminLogEntry,
+  input: AdminActivitiesInput,
+  range: { from: Date; to: Date }
+) {
   const createdAt = new Date(log.createdAt);
   if (createdAt < range.from || createdAt >= range.to) return false;
   if (input.status !== "all" && log.status !== input.status) return false;
   if (input.origin !== "all" && log.origin !== input.origin) return false;
-  if (input.eventTypeCategory !== "all" && adminActivityCategory(log.eventType) !== input.eventTypeCategory) return false;
+  if (
+    input.eventTypeCategory !== "all" &&
+    adminActivityCategory(log.eventType) !== input.eventTypeCategory
+  )
+    return false;
   if (input.search) {
     const search = input.search.toLocaleLowerCase("pt-BR");
-    if (!`${log.eventType} ${log.detail}`.toLocaleLowerCase("pt-BR").includes(search)) return false;
+    if (
+      !`${log.eventType} ${log.detail}`
+        .toLocaleLowerCase("pt-BR")
+        .includes(search)
+    )
+      return false;
   }
   return true;
 }
@@ -2013,22 +1940,26 @@ export async function getAdminActivities(input: AdminActivitiesInput) {
     search: input.search || undefined,
     status: input.status === "all" ? undefined : input.status,
     origin: input.origin === "all" ? undefined : input.origin,
-    eventTypeCategory: input.eventTypeCategory === "all" ? undefined : input.eventTypeCategory,
+    eventTypeCategory:
+      input.eventTypeCategory === "all" ? undefined : input.eventTypeCategory,
     offset,
     limit: input.pageSize,
   });
 
   if (persisted) {
     return {
-      items: persisted.rows.map(row => ({
-        id: String(row.id),
-        userId: row.userId ?? undefined,
-        origin: row.origin,
-        status: row.status,
-        eventType: row.eventType,
-        detail: row.detail,
-        createdAt: new Date(row.createdAt).getTime(),
-      } satisfies AdminLogEntry)),
+      items: persisted.rows.map(
+        row =>
+          ({
+            id: String(row.id),
+            userId: row.userId ?? undefined,
+            origin: row.origin,
+            status: row.status,
+            eventType: row.eventType,
+            detail: row.detail,
+            createdAt: new Date(row.createdAt).getTime(),
+          }) satisfies AdminLogEntry
+      ),
       total: persisted.total,
       availableTotal: persisted.availableTotal,
       page: input.page,
@@ -2039,8 +1970,22 @@ export async function getAdminActivities(input: AdminActivitiesInput) {
     };
   }
 
-  const available = adminLogStore.filter(log => matchesAdminActivity(log, { ...input, search: "", status: "all", origin: "all", eventTypeCategory: "all" }, range));
-  const filtered = adminLogStore.filter(log => matchesAdminActivity(log, input, range)).sort((left, right) => right.createdAt - left.createdAt);
+  const available = adminLogStore.filter(log =>
+    matchesAdminActivity(
+      log,
+      {
+        ...input,
+        search: "",
+        status: "all",
+        origin: "all",
+        eventTypeCategory: "all",
+      },
+      range
+    )
+  );
+  const filtered = adminLogStore
+    .filter(log => matchesAdminActivity(log, input, range))
+    .sort((left, right) => right.createdAt - left.createdAt);
   return {
     items: filtered.slice(offset, offset + input.pageSize),
     total: filtered.length,
@@ -2053,7 +1998,9 @@ export async function getAdminActivities(input: AdminActivitiesInput) {
   };
 }
 
-export function logInferenceEvent(entry: Omit<AdminLogEntry, "id" | "createdAt">) {
+export function logInferenceEvent(
+  entry: Omit<AdminLogEntry, "id" | "createdAt">
+) {
   const created: AdminLogEntry = {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
@@ -2067,12 +2014,17 @@ export function logInferenceEvent(entry: Omit<AdminLogEntry, "id" | "createdAt">
 const privacyService = createPrivacyService({
   getDb,
   findUserById: userId => usersRepository.findById(userId),
-  findProfileByUserId: userId => userProfileRepository.findProfileByUserId(userId),
-  getOnboardingProfileMemory: userId => usersService.getOnboardingProfileMemory(userId),
-  findPreferencesByUserId: userId => userProfileRepository.findPreferencesByUserId(userId),
-  findRestrictionsByUserId: userId => userProfileRepository.findRestrictionsByUserId(userId),
+  findProfileByUserId: userId =>
+    userProfileRepository.findProfileByUserId(userId),
+  getOnboardingProfileMemory: userId =>
+    usersService.getOnboardingProfileMemory(userId),
+  findPreferencesByUserId: userId =>
+    userProfileRepository.findPreferencesByUserId(userId),
+  findRestrictionsByUserId: userId =>
+    userProfileRepository.findRestrictionsByUserId(userId),
   getStoredNutritionGoals,
-  listProfessionalGoalData: userId => professionalGoalPrivacyRepository.listExportData(userId),
+  listProfessionalGoalData: userId =>
+    professionalGoalPrivacyRepository.listExportData(userId),
   listUserMeals,
   listFavoriteMeals: userId => favoriteMealStore.get(userId) ?? [],
   listUserExercises,
@@ -2097,15 +2049,21 @@ const privacyService = createPrivacyService({
       }
     },
     userId => {
-      for (let index = whatsappConnectionStore.length - 1; index >= 0; index -= 1) {
-        if (whatsappConnectionStore[index].userId === userId) whatsappConnectionStore.splice(index, 1);
+      for (
+        let index = whatsappConnectionStore.length - 1;
+        index >= 0;
+        index -= 1
+      ) {
+        if (whatsappConnectionStore[index].userId === userId)
+          whatsappConnectionStore.splice(index, 1);
       }
     },
   ],
 });
 
 export const exportUserPrivacyData = privacyService.exportUserPrivacyData;
-export const requestUserAccountDeletion = privacyService.requestUserAccountDeletion;
+export const requestUserAccountDeletion =
+  privacyService.requestUserAccountDeletion;
 
 export function buildSavedMedia(input: Omit<SavedMedia, "id">) {
   return {
