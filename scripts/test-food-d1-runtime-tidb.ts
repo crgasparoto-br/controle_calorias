@@ -339,6 +339,13 @@ try {
   driftDecision.quantity = {
     ...driftDecision.quantity, value: 3, grams: 60,
   };
+  const gramsEvidence = driftDecision.evidence.find(
+    evidence => evidence.evidenceId === "ev-grams",
+  );
+  if (!gramsEvidence) {
+    throw new Error("CI quantity drift fixture requires grams evidence");
+  }
+  gramsEvidence.value = 60;
   if (!driftDecision.nutrition.consumed) {
     throw new Error("CI verified label fixture requires consumed nutrition");
   }
@@ -347,6 +354,7 @@ try {
     consumed: {
       ...driftDecision.nutrition.consumed,
       calories: 162, protein: 7.2, carbs: 1.8, fat: 13.8,
+      sodiumMg: 540,
     },
   };
   await assert.rejects(
