@@ -44,6 +44,7 @@ import {
   getWhatsAppInteractiveReplyId,
   isWhatsAppMessageForConfiguredChannel,
   resolveWhatsAppMessageOccurredAt,
+  resolveWhatsAppTextIntentInput,
   stripDiacritics,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
@@ -135,18 +136,6 @@ const UNKNOWN_FOOD_REPLY = [
   "Me envie com mais detalhes, como marca, porção ou uma foto do rótulo, para eu conseguir registrar corretamente.",
   "Exemplo: 1 unidade de bisnaguinha Panco ou 30 g de queijo.",
 ].join("\n\n");
-
-function getTextBody(message: WhatsAppWebhookMessage) {
-  return message.text?.body?.trim() || "";
-}
-
-function canInterpretTextIntent(message: WhatsAppWebhookMessage) {
-  return Boolean(
-    (getTextBody(message) || getWhatsAppInteractiveReplyId(message)) &&
-      !message.image?.id &&
-      !message.audio?.id
-  );
-}
 
 function normalizeText(value: string) {
   return collapseWhitespace(
@@ -679,17 +668,15 @@ async function tryHandleTextIntent(
   message: ExtractedWhatsAppWebhookMessage
 ): Promise<TextIntentHandlingResult> {
   const sourcePhone = message.from || "unknown";
-  if (
-    !isWhatsAppMessageForConfiguredChannel(message) ||
-    !canInterpretTextIntent(message)
-  )
-    return false;
+  if (!isWhatsAppMessageForConfiguredChannel(message)) return false;
+  const textIntentInput = resolveWhatsAppTextIntentInput(message);
+  if (!textIntentInput.canInterpretText) return false;
   if (wasTextIntentMessageAlreadyHandled(message.id)) return true;
 
   const userId = await getUserIdByWhatsappPhone(sourcePhone);
   if (!userId) return false;
 
-  const text = getTextBody(message);
+  const text = textIntentInput.text;
   const occurredAt = resolveWhatsAppMessageOccurredAt(message);
   const occurredAtMs = occurredAt.getTime();
   const lifecycleHandle = await beginInboundMessage({
