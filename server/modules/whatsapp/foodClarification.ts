@@ -304,7 +304,8 @@ async function handlePendingClarificationReply(
       .resolutionContext?.mode;
     if (
       (resolutionMode === "complete_mixed_increment_plan" ||
-        resolutionMode === "complete_confirmed_text_meal") &&
+        resolutionMode === "complete_confirmed_text_meal" ||
+        resolutionMode === "complete_partial_confirmed_text_meal") &&
       !estimateGramsFromQuantity(quantity.quantity, quantity.unit)
     ) {
       return reprompt(

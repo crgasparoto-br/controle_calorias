@@ -191,7 +191,12 @@ async function loadSavedMeals(
   options: MealLoadRange = {}
 ): ReturnType<MealsRepository["findConfirmedByUserId"]> {
   const db = await deps.getDb();
-  if (!db) return null;
+  if (!db) {
+    if (options.adjustmentRead) {
+      throw new Error("Persistent meal read unavailable for adjustment");
+    }
+    return null;
+  }
 
   try {
     const predicates = [
@@ -313,6 +318,7 @@ async function loadSavedMeals(
     return builtMeals;
   } catch (error) {
     deps.onWarning("Meal read skipped", error);
+    if (options.adjustmentRead) throw error;
     return null;
   }
 }

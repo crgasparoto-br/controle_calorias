@@ -799,6 +799,165 @@ describeTidb(
       }
     }, 20_000);
 
+    it("salva segmentos seguros, retoma omissões após restart e conclui uma única vez", async () => {
+      const databaseUrl = process.env.DATABASE_URL?.trim();
+      expect(databaseUrl).toBeTruthy();
+      const connection = await mysql.createConnection(databaseUrl!);
+
+      try {
+        const fixture = await createPersistedQuestionFixture(connection);
+        const { listMealsForAdjustment, getDayTotals } = await import(
+          "./modules/meals/service"
+        );
+        const { buildHeuristicItem } = await import("./mealItemBuilders");
+        const { calculateMealTotals } = await import("../shared/mealTotals");
+        const registrationMessageId = `wamid.issue997.partial.${Date.now()}`;
+        const registrationText = "80 g banana nanica, 1 fatia queijo prato";
+        const registrationTimestamp = String(Math.floor(Date.now() / 1000));
+        controls.crashNextDownstream = false;
+        controls.processMealInput.mockImplementation(
+          async (input: { text?: string }) => {
+            const text = input.text ?? "";
+            if (/queijo prato/i.test(text)) {
+              throw new Error(
+                `item omitido por quantidade foi enviado antes da clarificação: ${text}`
+              );
+            }
+            const items = [buildHeuristicItem(text)];
+            return {
+              detectedMealLabel: "Refeição",
+              sourceText: text,
+              confidence: 0.95,
+              needsConfirmation: false,
+              reasoning: "Fixture determinística de registro misto para issue #997.",
+              items,
+              totals: calculateMealTotals(items),
+            } as never;
+          }
+        );
+
+        const initialPayload = createPayload(
+          fixture.phoneNumber,
+          registrationMessageId,
+          registrationText,
+          registrationTimestamp,
+        );
+        const initial = await deliver(
+          createRuntime(`runtime-partial-initial-${Date.now()}`),
+          initialPayload,
+        );
+        expect(initial.statusCode).toBe(200);
+        expect(initial.body).toEqual({ ok: true, processed: 1 });
+        expect(controls.processMealInput).toHaveBeenCalledTimes(1);
+        expect(controls.processMealInput.mock.calls[0][0].text).toMatch(
+          /banana nanica/i,
+        );
+        expect(controls.processMealInput.mock.calls[0][0].text).not.toMatch(
+          /queijo prato/i,
+        );
+
+        const mealsAfterInitial = await listMealsForAdjustment(fixture.userId);
+        expect(mealsAfterInitial).toHaveLength(1);
+        expect(mealsAfterInitial[0].items).toHaveLength(1);
+        expect(mealsAfterInitial[0].items[0].foodName).toMatch(/banana nanica/i);
+        const [activePartialRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT id, state FROM whatsappPendingOperations
+          WHERE userId = ? AND state = 'active'`,
+          [fixture.userId],
+        );
+        expect(activePartialRows).toHaveLength(1);
+        expect(activePartialRows[0].state).toBe("active");
+        const outboundBodiesAfterInitial = outboundPayloads.flatMap(payload =>
+          typeof payload.text?.body === "string" ? [payload.text.body] : [],
+        );
+        expect(outboundBodiesAfterInitial.some(body => /registro ficou parcial/i.test(body))).toBe(true);
+        expect(outboundBodiesAfterInitial.some(body => /queijo prato/i.test(body))).toBe(true);
+
+        controls.processMealInput.mockImplementation(
+          async (input: { text?: string }) => {
+            const text = input.text ?? "25 g de queijo prato";
+            const items = [buildHeuristicItem(text)];
+            return {
+              detectedMealLabel: "Refeição",
+              sourceText: text,
+              confidence: 0.95,
+              needsConfirmation: false,
+              reasoning: "Fixture determinística após clarificação explícita.",
+              items,
+              totals: calculateMealTotals(items),
+            } as never;
+          }
+        );
+        const answerMessageId = `wamid.issue997.partial-answer.${Date.now()}`;
+        const answerPayload = createPayload(
+          fixture.phoneNumber,
+          answerMessageId,
+          "25 g",
+          String(Math.floor(Date.now() / 1000)),
+        );
+        const resumed = await deliver(
+          createRuntime(`runtime-partial-resumed-${Date.now()}`),
+          answerPayload,
+        );
+        expect(resumed.statusCode).toBe(200);
+        expect(resumed.body).toEqual({ ok: true, processed: 1 });
+        expect(controls.processMealInput).toHaveBeenCalledTimes(2);
+
+        const finalMeals = await listMealsForAdjustment(fixture.userId);
+        expect(finalMeals).toHaveLength(1);
+        const finalMeal = finalMeals[0];
+        expect(finalMeal.items).toHaveLength(2);
+        expect(finalMeal.items.map(item => item.foodName).join(" ")).toMatch(
+          /banana nanica/i,
+        );
+        expect(finalMeal.items.map(item => item.foodName).join(" ")).toMatch(
+          /queijo prato/i,
+        );
+        const [activeRowsAfterCompletion] = await connection.execute<RowDataPacket[]>(
+          `SELECT id FROM whatsappPendingOperations
+          WHERE userId = ? AND state = 'active'`,
+          [fixture.userId],
+        );
+        expect(activeRowsAfterCompletion).toHaveLength(0);
+
+        const expectedTotals = calculateMealTotals(finalMeal.items);
+        const dateParts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Sao_Paulo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).formatToParts(new Date(finalMeal.occurredAt));
+        const datePart = (type: string) =>
+          dateParts.find(part => part.type === type)?.value ?? "";
+        const localDate = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
+        const daySummary = await getDayTotals(
+          fixture.userId,
+          localDate,
+          "America/Sao_Paulo",
+        );
+        expect(daySummary.totals).toEqual(expectedTotals);
+        const outboundBodiesAfterCompletion = outboundPayloads.flatMap(payload =>
+          typeof payload.text?.body === "string" ? [payload.text.body] : [],
+        );
+        expect(outboundBodiesAfterCompletion.length).toBeGreaterThan(
+          outboundBodiesAfterInitial.length,
+        );
+
+        const sendsBeforeRedelivery = outboundPayloads.length;
+        await deliver(
+          createRuntime(`runtime-partial-redelivery-${Date.now()}`),
+          answerPayload,
+        );
+        const afterRedelivery = await listMealsForAdjustment(fixture.userId);
+        expect(afterRedelivery).toHaveLength(1);
+        expect(afterRedelivery[0].items).toHaveLength(2);
+        expect(outboundPayloads).toHaveLength(sendsBeforeRedelivery);
+        expect(controls.processMealInput).toHaveBeenCalledTimes(2);
+      } finally {
+        await connection.end();
+      }
+    }, 20_000);
+
     it("registra pelo serviço real e ajusta via webhook sem duplicar na redelivery", async () => {
       const databaseUrl = process.env.DATABASE_URL?.trim();
       expect(databaseUrl).toBeTruthy();
@@ -822,9 +981,11 @@ describeTidb(
           "45g requeijão catupiry light",
           "3 xícaras de café sem açúcar",
         ].join("\n");
-        // This integration exercises the real countable gate, registration service,
-        // TiDB persistence/reload, and adjustment webhook. Only model inference is
-        // deterministic here; it does not claim to test a live provider pipeline.
+        // W07 oracle boundary: mixed initial registration starts at the real
+        // registration service, not the public initial webhook. That public route
+        // is covered separately above for all-pending/zero-save behavior. Here the
+        // gate, TiDB persistence/reload, and adjustment webhook are real; inference
+        // is deterministic and this case does not claim live-provider coverage.
         controls.processMealInput.mockImplementation(
           async (input: { text?: string }) => {
             const text = input.text ?? "";
@@ -1106,9 +1267,13 @@ describeTidb(
           dateParts.find(part => part.type === type)?.value ?? "";
         const localDate = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
         const { getDayTotals } = await import("./modules/meals/service");
-        expect(
-          await getDayTotals(fixture.userId, localDate, "America/Sao_Paulo")
-        ).toEqual(expectedFinalTotals);
+        const daySummary = await getDayTotals(
+          fixture.userId,
+          localDate,
+          "America/Sao_Paulo"
+        );
+        expect(daySummary.date).toBe(localDate);
+        expect(daySummary.totals).toEqual(expectedFinalTotals);
       } finally {
         if (globalPortionFixture) {
           await deleteGlobalPortionFixture(connection, globalPortionFixture);

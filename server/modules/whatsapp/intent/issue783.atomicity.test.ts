@@ -124,6 +124,28 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
     expect(result.action).toBe("clarification_needed");
   });
 
+  it("issue #997: não aplica incrementos quando qualquer alvo do comando não existe", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        mealLabel: "Jantar",
+        occurredAt: "2026-07-12T22:00:00.000Z",
+        items: [item("Arroz branco", 100)],
+      },
+    ]);
+
+    const result = await handleMealItemMultiIncrement(42, [
+      { targetFood: "arroz", gramsDelta: 20 },
+      { targetFood: "presunto", gramsDelta: 15 },
+    ]);
+
+    expect(result.action).toBe("clarification_needed");
+    expect(result.reply).toContain("presunto");
+    expect(result.reply).toContain("Nada foi alterado");
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(createPendingMealItemSelectionMock).not.toHaveBeenCalled();
+  });
+
   it("encadeia todas as ambiguidades de gramas da mesma mensagem", async () => {
     listMealsMock.mockResolvedValue([
       {

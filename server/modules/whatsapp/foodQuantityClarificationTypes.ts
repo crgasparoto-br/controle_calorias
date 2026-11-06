@@ -1,6 +1,4 @@
-import type {
-  CoffeeServingQuantity,
-} from "../../coffeeSugarNutrition";
+import type { CoffeeServingQuantity } from "../../coffeeSugarNutrition";
 import type { MealDraftItem } from "../../nutritionEngine";
 import type { MealSemanticContract } from "../../nutritionEngineTypes";
 import type { CanonicalFoodAdditionItem } from "./intent/canonicalFoodAdditionResolution";
@@ -144,6 +142,37 @@ export type ConfirmedTextMealQuantityContext = {
   resolvedSegments?: ResolvedRegistrationSegment[];
 };
 
+export type PartialConfirmedTextMealQuantityContext = {
+  mode: "complete_partial_confirmed_text_meal";
+  originalText: string;
+  pendingItems: ConfirmedTextMealPendingItem[];
+  currentPendingIndex: number;
+  resolvedQuantities: Array<{ quantity: number; unit: string } | null>;
+  occurredAt: string;
+  receivedAt: string;
+  inboundMessageId?: string | null;
+  userTimezone: string;
+  expectedMealId: number;
+  expectedMealLabel: string;
+  expectedMealOccurredAt: string;
+};
+
+export type RequestPartialConfirmedTextMealQuantityInput = {
+  userId: number;
+  originalText: string;
+  pendingItems: ConfirmedTextMealPendingItem[];
+  currentPendingIndex: number;
+  resolvedQuantities: Array<{ quantity: number; unit: string } | null>;
+  occurredAt: Date;
+  receivedAt: Date;
+  userTimezone: string;
+  messageId?: string | null;
+  expectedMealId: number;
+  expectedMealLabel: string;
+  expectedMealOccurredAt: string;
+  instructionText?: string;
+};
+
 export type FoodAdditionQuantityContext = {
   mode: "complete_food_addition";
   originalText: string;
@@ -164,6 +193,7 @@ export type FoodQuantityResolutionContext =
   | CaloricComplementQuantityContext
   | MealItemIncrementQuantityContext
   | ConfirmedTextMealQuantityContext
+  | PartialConfirmedTextMealQuantityContext
   | FoodAdditionQuantityContext;
 
 export type FoodQuantityClarificationTarget = PendingFoodClarificationTarget & {

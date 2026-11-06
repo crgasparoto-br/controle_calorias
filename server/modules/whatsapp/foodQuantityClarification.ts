@@ -32,6 +32,8 @@ import type {
   FoodQuantityResolutionContext,
   ImageMealIdentityContext,
   ImageMealMediaReference,
+  PartialConfirmedTextMealQuantityContext,
+  RequestPartialConfirmedTextMealQuantityInput,
 } from "./foodQuantityClarificationTypes";
 export type {
   CaloricComplementCompanionReplacement,
@@ -47,6 +49,8 @@ export type {
   ImageMealQuantityContext,
   MealItemCorrectionContext,
   MealItemIncrementQuantityContext,
+  PartialConfirmedTextMealQuantityContext,
+  RequestPartialConfirmedTextMealQuantityInput,
   ResolvedCaloricComplement,
   ResolvedCaloricComplementReplacement,
 } from "./foodQuantityClarificationTypes";
@@ -517,12 +521,13 @@ export function createFoodQuantityClarificationService(
       messageId?: string | null;
       instructionText?: string;
       resolvedSegments?: ResolvedRegistrationSegment[];
-    }) =>
-      createQuantityClarification({
+    }) => {
+      const receivedAt = input.receivedAt ?? input.occurredAt;
+      return createQuantityClarification({
         userId: input.userId,
         foodName: input.foodName,
         originalText: input.originalText,
-        receivedAt: input.receivedAt ?? new Date(),
+        receivedAt,
         messageId: input.messageId,
         resolutionContext: {
           mode: "complete_confirmed_text_meal",
@@ -531,7 +536,7 @@ export function createFoodQuantityClarificationService(
           pendingItems: input.pendingItems.map(item => ({ ...item })),
           currentPendingIndex: input.currentPendingIndex,
           occurredAt: input.occurredAt.toISOString(),
-          receivedAt: (input.receivedAt ?? new Date()).toISOString(),
+          receivedAt: receivedAt.toISOString(),
           inboundMessageId: input.messageId ?? null,
           userTimezone: input.userTimezone,
           resolvedSegments: input.resolvedSegments,
@@ -539,7 +544,42 @@ export function createFoodQuantityClarificationService(
         instructionText:
           input.instructionText ??
           `Não encontrei uma porção contável segura para ${input.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g. Não vou assumir 100 g.`,
-      }),
+      });
+    },
+    requestPartialConfirmedTextMealQuantity: (
+      input: RequestPartialConfirmedTextMealQuantityInput,
+    ) => {
+      const current = input.pendingItems[input.currentPendingIndex];
+      if (!current) throw new Error("Item omitido da refeição parcial não existe.");
+      const context: PartialConfirmedTextMealQuantityContext = {
+        mode: "complete_partial_confirmed_text_meal",
+        originalText: input.originalText,
+        pendingItems: input.pendingItems.map(item => ({ ...item })),
+        currentPendingIndex: input.currentPendingIndex,
+        resolvedQuantities: input.resolvedQuantities.map(item =>
+          item ? { ...item } : null,
+        ),
+        occurredAt: input.occurredAt.toISOString(),
+        receivedAt: input.receivedAt.toISOString(),
+        inboundMessageId: input.messageId ?? null,
+        userTimezone: input.userTimezone,
+        expectedMealId: input.expectedMealId,
+        expectedMealLabel: input.expectedMealLabel,
+        expectedMealOccurredAt: input.expectedMealOccurredAt,
+      };
+      return createQuantityClarification({
+        userId: input.userId,
+        foodName: current.foodName,
+        originalText: input.originalText,
+        count: current.count,
+        receivedAt: input.receivedAt,
+        messageId: input.messageId,
+        resolutionContext: context,
+        instructionText:
+          input.instructionText ??
+          `O registro ficou parcial. Para incluir ${current.segment}, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
+      });
+    },
     requestFoodAdditionQuantity: (input: {
       userId: number;
       foodName: string;
@@ -614,6 +654,9 @@ export function createFoodQuantityClarificationService(
   };
 }
 
+export type FoodQuantityClarificationService =
+  ReturnType<typeof createFoodQuantityClarificationService>;
+
 const defaultService = createFoodQuantityClarificationService();
 export const requestWhatsappImageFoodQuantityClarification =
   defaultService.requestImageFoodQuantity;
@@ -629,5 +672,7 @@ export const requestWhatsappMealItemIncrementQuantityClarification =
   defaultService.requestMealItemIncrementQuantity;
 export const requestWhatsappConfirmedTextMealQuantityClarification =
   defaultService.requestConfirmedTextMealQuantity;
+export const requestWhatsappPartialConfirmedTextMealQuantityClarification =
+  defaultService.requestPartialConfirmedTextMealQuantity;
 export const requestWhatsappFoodAdditionQuantityClarification =
   defaultService.requestFoodAdditionQuantity;

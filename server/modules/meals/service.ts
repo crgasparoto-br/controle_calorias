@@ -62,6 +62,7 @@ import {
   createMealMutationCoordinator,
   type UpdateMealServiceOptions,
 } from "./mealMutationCoordinator";
+import { attachMealMutationPreImage } from "./mealMutationToken";
 export { getMealMutationPreImage } from "./mealMutationToken";
 export { MEAL_UPDATE_SERVICE_OPTIONS } from "./mealUpdateOptions";
 
@@ -311,7 +312,16 @@ export async function listMeals(
   userId: number,
   options: { adjustmentRead?: boolean } = {}
 ) {
-  return (await listUserMeals(userId, options)).map(decorateMealWithImageUrl);
+  const meals = await listUserMeals(userId, options);
+  return meals.map(meal => {
+    const { mutationPreImage, ...publicMeal } = meal;
+    const decorated = decorateMealWithImageUrl(publicMeal);
+    if (!options.adjustmentRead) return decorated;
+    if (typeof mutationPreImage !== "string") {
+      throw new Error("Persistent adjustment read is missing its CAS pre-image.");
+    }
+    return attachMealMutationPreImage(decorated, mutationPreImage);
+  });
 }
 
 /** Internal mutation projection; this is not registered as a public procedure. */

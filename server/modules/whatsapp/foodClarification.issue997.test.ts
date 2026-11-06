@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
+import { calculateMealTotals } from "../../../shared/mealTotals";
+import { attachMealMutationPreImage } from "../meals/mealMutationToken";
+import { MEAL_UPDATE_SERVICE_OPTIONS } from "../meals/mealUpdateOptions";
 import { createFoodQuantityClarificationService } from "./foodQuantityClarification";
 import { createWhatsappFoodClarificationService } from "./foodClarification";
 
@@ -329,6 +332,44 @@ describe("issue #997 persistent mixed increment clarification", () => {
     }
   );
 
+  it("resposta sem massa/volume não consome a continuação do registro parcial", async () => {
+    const { repository, rows, claimPendingOperation } = createRepository();
+    const occurredAt = new Date("2026-11-05T12:00:00.000Z");
+    const clarification = createFoodQuantityClarificationService({ repository });
+    await clarification.requestPartialConfirmedTextMealQuantity({
+      userId: 997,
+      originalText: "1 banana nanica, 1 ovo cozido",
+      pendingItems: [
+        {
+          segmentIndex: 1,
+          segment: "1 ovo cozido",
+          foodName: "ovo cozido",
+          count: 1,
+          requestedUnit: "un",
+        },
+      ],
+      currentPendingIndex: 0,
+      resolvedQuantities: [null],
+      occurredAt,
+      receivedAt: new Date("2026-11-05T12:02:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+      expectedMealId: 99701,
+      expectedMealLabel: "Café da manhã",
+      expectedMealOccurredAt: occurredAt.toISOString(),
+    });
+
+    const result = await clarificationHandler(repository).handle({
+      userId: 997,
+      text: "1 unidade",
+      receivedAt: new Date("2026-11-05T12:03:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result?.action).toBe("food_clarification_reprompted");
+    expect(claimPendingOperation).not.toHaveBeenCalled();
+    expect([...rows.values()][0].state).toBe("active");
+  });
+
   it("duas respostas concorrentes/retry continuam o plano exatamente uma vez", async () => {
     mocks.continuePlan.mockClear();
     const { repository, claimPendingOperation } = createRepository();
@@ -366,5 +407,191 @@ describe("issue #997 persistent mixed increment clarification", () => {
     expect([first?.action, retry?.action]).toContain(
       "meal_item_grams_adjusted"
     );
+  });
+
+  it("retoma o registro parcial após reinício sem recalcular nem duplicar os itens seguros", async () => {
+    const { repository, rows } = createRepository();
+    const occurredAt = new Date("2026-11-05T12:00:00.000Z");
+    const firstReceivedAt = new Date("2026-11-05T12:02:00.000Z");
+    const secondReceivedAt = new Date("2026-11-05T12:03:00.000Z");
+    const safeItem = {
+      foodName: "Banana nanica",
+      canonicalName: "Banana nanica",
+      portionText: "80 g",
+      quantity: 80,
+      unit: "g",
+      estimatedGrams: 80,
+      calories: 71,
+      protein: 0.9,
+      carbs: 18.3,
+      fat: 0.2,
+      fiber: 2.6,
+      source: "catalog",
+    };
+    let meal: any = {
+      id: 99701,
+      userId: 997,
+      mealLabel: "Café da manhã",
+      occurredAt,
+      notes: "1 banana nanica, 2 ovos cozidos, 1 fatia de presunto",
+      items: [safeItem],
+    };
+    const preImage = "a".repeat(64);
+    const listMeals = vi.fn(async (_userId: number, options?: { adjustmentRead?: boolean }) =>
+      options?.adjustmentRead
+        ? [attachMealMutationPreImage({ ...meal }, preImage)]
+        : [meal]
+    );
+    const processFood = vi.fn(async ({ text }: { text: string }) => {
+      const match = text.match(/^([\d,.]+)\s*(g|ml)\s+de\s+(.+)$/i);
+      if (!match) throw new Error("fixture esperava quantidade explícita");
+      const quantity = Number(match[1].replace(",", "."));
+      const unit = match[2].toLowerCase();
+      const foodName = match[3];
+      return {
+        items: [{
+          ...safeItem,
+          foodName,
+          canonicalName: foodName,
+          portionText: `${quantity} ${unit}`,
+          quantity,
+          unit,
+          estimatedGrams: quantity,
+          calories: quantity * 1.5,
+          protein: quantity * 0.1,
+          carbs: quantity * 0.2,
+          fat: quantity * 0.05,
+          fiber: 0,
+        }],
+        totals: { calories: quantity * 1.5, protein: 0, carbs: 0, fat: 0 },
+      } as any;
+    });
+    const updateMeal = vi.fn(async (_userId: number, input: any) => {
+      meal = { ...meal, ...input, occurredAt: new Date(input.occurredAt) };
+      return meal;
+    });
+    const handler = createWhatsappFoodClarificationService({
+      repository,
+      processFood: processFood as never,
+      getHabits: vi.fn(async () => []) as never,
+      createMeal: vi.fn() as never,
+      listMeals: listMeals as never,
+      updateMeal: updateMeal as never,
+      removeMeal: vi.fn() as never,
+      createWhatsappMeal: vi.fn(async () => meal) as never,
+    });
+    const continuation = createFoodQuantityClarificationService({ repository });
+    const pendingItems = [
+      {
+        segmentIndex: 1,
+        segment: "2 ovos cozidos",
+        foodName: "ovos cozidos",
+        brand: null,
+        count: 2,
+        requestedUnit: "un",
+      },
+      {
+        segmentIndex: 2,
+        segment: "1 fatia de presunto",
+        foodName: "presunto",
+        brand: null,
+        count: 1,
+        requestedUnit: "fatia",
+      },
+    ];
+    await continuation.requestPartialConfirmedTextMealQuantity({
+      userId: 997,
+      originalText: "1 banana nanica, 2 ovos cozidos, 1 fatia de presunto",
+      pendingItems,
+      currentPendingIndex: 0,
+      resolvedQuantities: [null, null],
+      occurredAt,
+      receivedAt: firstReceivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "wamid.issue997.partial-origin",
+      expectedMealId: meal.id,
+      expectedMealLabel: meal.mealLabel,
+      expectedMealOccurredAt: occurredAt.toISOString(),
+    });
+
+    const firstReply = await handler.handle({
+      userId: 997,
+      text: "100 g",
+      receivedAt: firstReceivedAt,
+      messageId: "wamid.issue997.partial-reply-1",
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(firstReply?.action).toBe("food_clarification_requested");
+    expect(updateMeal).not.toHaveBeenCalled();
+    const secondPending = [...rows.values()].sort(
+      (left, right) => right.id - left.id,
+    )[0];
+    expect(secondPending.createdAt).toEqual(firstReceivedAt);
+    expect(secondPending.target.inboundMessageId).toBe(
+      "wamid.issue997.partial-origin",
+    );
+    expect(secondPending.target.resolutionContext).toMatchObject({
+      mode: "complete_partial_confirmed_text_meal",
+      currentPendingIndex: 1,
+      resolvedQuantities: [{ quantity: 100, unit: "g" }, null],
+      expectedMealId: 99701,
+    });
+
+    const resumedHandler = createWhatsappFoodClarificationService({
+      repository,
+      processFood: processFood as never,
+      getHabits: vi.fn(async () => []) as never,
+      createMeal: vi.fn() as never,
+      listMeals: listMeals as never,
+      updateMeal: updateMeal as never,
+      removeMeal: vi.fn() as never,
+      createWhatsappMeal: vi.fn(async () => meal) as never,
+    });
+    const completed = await resumedHandler.handle({
+      userId: 997,
+      text: "30 g",
+      receivedAt: secondReceivedAt,
+      messageId: "wamid.issue997.partial-reply-2",
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(completed).toEqual(expect.objectContaining({
+      action: "food_clarification_completed",
+      eventType: "whatsapp.food_clarification.partial_confirmed_text_meal.completed",
+      data: expect.objectContaining({
+        mealId: 99701,
+        addedItemCount: 2,
+        partialRegistration: false,
+      }),
+    }));
+    expect(updateMeal).toHaveBeenCalledTimes(1);
+    expect(updateMeal).toHaveBeenCalledWith(997, expect.objectContaining({
+      mealId: 99701,
+      items: [
+        safeItem,
+        expect.objectContaining({ foodName: "ovos cozidos", quantity: 100 }),
+        expect.objectContaining({ foodName: "presunto", quantity: 30 }),
+      ],
+    }));
+    expect(updateMeal.mock.calls[0][1][MEAL_UPDATE_SERVICE_OPTIONS]).toEqual({
+      expectedPreImage: preImage,
+    });
+    expect(meal.items[0]).toEqual(safeItem);
+    expect(meal.items.filter((item: any) => item.foodName === "Banana nanica")).toHaveLength(1);
+    expect(processFood).toHaveBeenCalledTimes(2);
+    expect(calculateMealTotals(meal.items)).toEqual({
+      calories: 266,
+      protein: 13.9,
+      carbs: 44.3,
+      fat: 6.7,
+    });
+
+    await resumedHandler.handle({
+      userId: 997,
+      text: "30 g",
+      receivedAt: secondReceivedAt,
+      messageId: "wamid.issue997.partial-reply-2",
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(updateMeal).toHaveBeenCalledTimes(1);
   });
 });

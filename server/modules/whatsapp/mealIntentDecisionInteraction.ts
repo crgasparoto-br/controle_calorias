@@ -301,7 +301,9 @@ export async function completeWhatsappMealIntentDecisionCallback(input: {
     registrationText: target.originalText,
     originalText: target.originalText,
     occurredAt: input.receivedAt ?? new Date(),
+    receivedAt: input.receivedAt ?? new Date(),
     userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+    inboundMessageId: target.inboundMessageId,
   });
 
   if (outcome.status === "clarification_requested") return outcome.result;

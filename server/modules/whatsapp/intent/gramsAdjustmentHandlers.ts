@@ -479,7 +479,7 @@ async function handleMultiGramsChange(input: {
     });
   }
 
-  if (pending.length) {
+  if (pending.length && !notFound.length) {
     const [firstPending, ...remainingPending] = pending;
     return ambiguousTargetReply({
       userId: input.userId,
@@ -498,17 +498,17 @@ async function handleMultiGramsChange(input: {
     });
   }
 
-  if (!applied.length) {
+  if (!applied.length || notFound.length > 0) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppItemNotFoundReplyMessage({
+      reply: `${buildWhatsAppItemNotFoundReplyMessage({
         target: notFound.join(", ") || "esses alimentos",
         context: explicitContext ?? "nas refeições de hoje",
         instruction: input.mealLabel
           ? `Me diga quais itens da refeição ${input.mealLabel} devo ajustar.`
           : "Me diga quais itens devo ajustar.",
-      }),
+      })} Nada foi alterado; corrija os itens e reenvie o comando completo.`,
       eventType: "whatsapp.intent.clarification_needed",
       detail: input.mealLabel
         ? `${input.detailPrefix} sem alimentos compatíveis na refeição ${input.mealLabel}.`

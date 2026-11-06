@@ -483,69 +483,6 @@ async function persistMixedIncrementPlanContinuation(
   });
 }
 
-async function persistResolvedConfirmedTextMeal(
-  deps: FoodClarificationDependencies,
-  userId: number,
-  target: FoodQuantityClarificationTarget,
-  explicitQuantity?: { quantity: number; unit: string },
-): Promise<WhatsappIntentResult> {
-  const context = target.resolutionContext;
-  if (!context || context.mode !== "complete_confirmed_text_meal" || !explicitQuantity) {
-    throw new Error("Contexto da refeição textual ou quantidade ausente.");
-  }
-  const grams = estimateGramsFromQuantity(explicitQuantity.quantity, explicitQuantity.unit);
-  if (!grams || grams <= 0) {
-    throw new Error("A quantidade da refeição textual deve ser informada em massa ou volume.");
-  }
-  const current = context.pendingItems[context.currentPendingIndex];
-  if (!current) throw new Error("Item pendente da refeição textual não existe.");
-
-  const registrationSegments = [...context.registrationSegments];
-  registrationSegments[current.segmentIndex] = `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${current.foodName}`;
-  const nextPendingIndex = context.currentPendingIndex + 1;
-  const nextPending = context.pendingItems[nextPendingIndex];
-
-  if (nextPending) {
-    const clarification = createFoodQuantityClarificationService({ repository: deps.repository });
-    return clarification.requestConfirmedTextMealQuantity({
-      userId,
-      foodName: nextPending.foodName,
-      originalText: context.originalText,
-      registrationSegments,
-      pendingItems: context.pendingItems,
-      currentPendingIndex: nextPendingIndex,
-      resolvedSegments: context.resolvedSegments,
-      occurredAt: new Date(context.occurredAt),
-      receivedAt: new Date(),
-      userTimezone: context.userTimezone,
-      messageId: context.inboundMessageId ?? null,
-      instructionText: `Para concluir a refeição sem assumir 100 g para ${nextPending.segment}, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
-    });
-  }
-
-  const { executeConfirmedWhatsAppMealRegistration } = await import("./confirmedMealRegistration");
-  const outcome = await executeConfirmedWhatsAppMealRegistration({
-    userId,
-    registrationText: registrationSegments.join("\n"),
-    originalText: context.originalText,
-    occurredAt: new Date(context.occurredAt),
-    userTimezone: context.userTimezone,
-    skipCountablePreflight: true,
-    resolvedSegments: context.resolvedSegments,
-  });
-  if (outcome.status === "registered" || outcome.status === "clarification_requested") {
-    return outcome.result;
-  }
-  return {
-    handled: true,
-    action: "clarification_needed",
-    reply: outcome.prompt,
-    eventType: "whatsapp.food_clarification.confirmed_text_meal_incomplete",
-    detail: outcome.detail,
-    data: { originalTextPreserved: true },
-  };
-}
-
 async function persistClarificationResultAddition(
   deps: FoodClarificationDependencies,
   userId: number,
@@ -638,14 +575,70 @@ async function persistClarificationResult(
       occurredAt
     );
   }
+  const resolutionMode = quantityTarget.resolutionContext?.mode;
   if (
-    quantityTarget.resolutionContext?.mode === "complete_confirmed_text_meal"
+    resolutionMode === "complete_confirmed_text_meal" ||
+    resolutionMode === "complete_partial_confirmed_text_meal"
   ) {
-    return persistResolvedConfirmedTextMeal(
+    const {
+      advanceConfirmedTextMealQuantity,
+      continuePartialConfirmedTextMealQuantity,
+    } = await import("./foodConfirmedTextMealPersistence");
+    const clarification = createFoodQuantityClarificationService({
+      repository: deps.repository,
+    });
+    const services = {
+      requestConfirmedTextMealQuantity: (input: Parameters<
+        typeof clarification.requestConfirmedTextMealQuantity
+      >[0]) => clarification.requestConfirmedTextMealQuantity(input),
+      requestPartialConfirmedTextMealQuantity: (input: Parameters<
+        typeof clarification.requestPartialConfirmedTextMealQuantity
+      >[0]) => clarification.requestPartialConfirmedTextMealQuantity(input),
+      registerConfirmedTextMeal: async (input: Parameters<
+        typeof import("./confirmedMealRegistration").executeConfirmedWhatsAppMealRegistration
+      >[0]) => {
+        const { executeConfirmedWhatsAppMealRegistration } = await import(
+          "./confirmedMealRegistration"
+        );
+        return executeConfirmedWhatsAppMealRegistration(input);
+      },
+      composeActionReply: (input: {
+        userId: number;
+        meal: ExistingMeal;
+        title: string;
+        actionLines: string[];
+        registeredAt: Date;
+        timeZone: string;
+      }) =>
+        composeWhatsAppMealActionReply({
+          userId: input.userId,
+          meal: input.meal,
+          options: {
+            title: input.title,
+            actionLines: input.actionLines,
+            mealResultState: "updated",
+            registeredAt: input.registeredAt,
+            timeZone: input.timeZone,
+          },
+        }),
+    };
+    if (resolutionMode === "complete_confirmed_text_meal") {
+      return advanceConfirmedTextMealQuantity(
+        deps,
+        userId,
+        quantityTarget,
+        explicitQuantity,
+        occurredAt,
+        services,
+      );
+    }
+    return continuePartialConfirmedTextMealQuantity(
       deps,
       userId,
       quantityTarget,
-      explicitQuantity
+      explicitQuantity,
+      occurredAt,
+      services,
     );
   }
   if (quantityTarget.resolutionContext?.mode === "complete_food_addition") {

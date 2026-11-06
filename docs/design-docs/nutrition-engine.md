@@ -95,6 +95,8 @@ evidência explícita do usuário/imagem
 - **Paridade.** `projectFoodResolution` projeta qualquer item resolvido em `FoodResolutionResult` (`identity`, `quantity`, `nutrition`, `clarification` com `missingField` `identity`/`variant`/`nutrition`/`quantity`). Testes de paridade comparam essa projeção entre entrypoints; resposta textual, IDs, timestamps e persistência ficam fora da comparação.
 - **Monotonicidade.** Um fato estruturado aceito (produto comercial, porção canônica, massa explícita) prevalece sobre re-inferência a partir de texto formatado. A gramatura reescrita (`50 g de ovo frito`) transporta a decisão de quantidade sem remover o preparo.
 
+No escopo específico de medidas contáveis da issue #997, a conversão para gramas aceita somente massa/volume explícitos ou porção canônica segura; as estimativas `researched_exact`, `user_learned`, `usual_average` e `contextual_estimate` não substituem uma porção `fatia`/`unidade` ausente. Esse recorte mantém a precedência explícita dos ACs #997-04/#997-06 e não altera a política geral de estimativas para as demais interações.
+
 ## Compatibilidade semântica de variantes
 
 - Todo candidato final deve passar pelo mesmo guard semântico, independentemente de vir do catálogo estático ou persistido, alias pessoal, TACO, busca semântica, busca web ou fluxo do WhatsApp.

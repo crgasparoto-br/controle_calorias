@@ -10,6 +10,7 @@ const getPendingInferenceMock = vi.fn();
 const loadPendingMealDraftFromDbMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const logInferenceEventMock = vi.fn();
+const listUserMealsMock = vi.fn();
 
 vi.mock("../../storage", () => ({
   storagePut: storagePutMock,
@@ -34,7 +35,7 @@ vi.mock("../../db", () => ({
   getPendingInference: getPendingInferenceMock,
   loadPendingMealDraftFromDb: loadPendingMealDraftFromDbMock,
   listFavoriteMeals: vi.fn(),
-  listUserMeals: vi.fn(),
+  listUserMeals: listUserMealsMock,
   logInferenceEvent: logInferenceEventMock,
   removeUserMeal: vi.fn(),
   reuseFavoriteMeal: vi.fn(),
@@ -42,7 +43,13 @@ vi.mock("../../db", () => ({
   updateUserMeal: vi.fn(),
 }));
 
-const { MealDraftNotFoundError, confirmMeal, processMealDraft } = await import("./service");
+const {
+  MealDraftNotFoundError,
+  confirmMeal,
+  getMealMutationPreImage,
+  listMeals,
+  processMealDraft,
+} = await import("./service");
 
 function buildProcessedResult(overrides: Record<string, unknown> = {}) {
   return {
@@ -118,10 +125,53 @@ describe("meals service characterization", () => {
     loadPendingMealDraftFromDbMock.mockReset();
     confirmPendingMealMock.mockReset();
     logInferenceEventMock.mockReset();
+    listUserMealsMock.mockReset();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("preserva o pre-image de adjustmentRead como token não enumerável e sem expô-lo no meal", async () => {
+    const token = "a".repeat(64);
+    listUserMealsMock.mockResolvedValue([
+      {
+        id: 501,
+        userId: 42,
+        mealLabel: "Jantar",
+        occurredAt: Date.parse("2026-04-25T12:00:00.000Z"),
+        notes: "refeição de teste",
+        items: [],
+        media: [{ mediaType: "image", storageUrl: "https://storage.test/meal.jpg" }],
+        mutationPreImage: token,
+      },
+    ]);
+
+    const [meal] = await listMeals(42, { adjustmentRead: true });
+
+    expect(getMealMutationPreImage(meal)).toBe(token);
+    expect(meal).not.toHaveProperty("mutationPreImage");
+    expect(Object.keys(meal)).not.toContain("mutationPreImage");
+    expect(listUserMealsMock).toHaveBeenCalledWith(42, {
+      adjustmentRead: true,
+    });
+  });
+
+  it("bloqueia adjustmentRead quando o repository não devolve pre-image", async () => {
+    listUserMealsMock.mockResolvedValue([
+      {
+        id: 502,
+        userId: 42,
+        mealLabel: "Jantar",
+        occurredAt: Date.parse("2026-04-25T12:00:00.000Z"),
+        notes: "refeição de teste",
+        items: [],
+      },
+    ]);
+
+    await expect(listMeals(42, { adjustmentRead: true })).rejects.toThrow(
+      "Persistent adjustment read is missing its CAS pre-image."
+    );
   });
 
   it("processa rascunho por texto sem chamar transcricao ou upload de midia", async () => {

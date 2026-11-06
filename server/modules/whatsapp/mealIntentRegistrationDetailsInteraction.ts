@@ -280,7 +280,7 @@ async function recreateAfterSafeFailure(input: {
   });
 }
 
-export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
+async function handleWhatsappMealIntentRegistrationDetailsText(input: {
   userId: number;
   pendingOperation: WhatsAppPendingOperationRecord;
   text?: string | null;
@@ -403,6 +403,7 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
     occurredAt: context
       ? new Date(context.occurredAt)
       : (input.receivedAt ?? new Date()),
+    receivedAt: input.receivedAt ?? new Date(),
     userTimezone:
       context?.userTimezone || input.userTimezone || DEFAULT_APP_TIME_ZONE,
     resolvedSegments: context?.resolvedSegments,
@@ -450,6 +451,9 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
     data: { retryRequiresFullMessage: true, originalTextPreserved: true },
   };
 }
+
+export const resolveWhatsappMealIntentRegistrationDetailsText =
+  handleWhatsappMealIntentRegistrationDetailsText;
 
 export function rebuildWhatsappMealIntentRegistrationDetails(
   pendingOperation: WhatsAppPendingOperationRecord,
