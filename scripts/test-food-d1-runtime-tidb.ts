@@ -874,11 +874,11 @@ try {
 
   // Leave a DIFFERENT original operation pending at process exit. The
   // subsequent test file runs in a new Node process and must recover it.
-  const restartEnvelope: FoodOperationEnvelope = {
+  const whatsappRestartEnvelope: FoodOperationEnvelope = {
     ...pendingEnvelope, idempotencyKey: "ci-d1-whatsapp-restart-pending",
   };
   await routeFoodD1Operation({
-    envelope: restartEnvelope, authenticatedUserId: userId,
+    envelope: whatsappRestartEnvelope, authenticatedUserId: userId,
     entrypoint: "text", source: "whatsapp",
     store: createFoodD1RouteDbStore(), expectedAuditedBaseSha: expectedSha,
     verifyGates: async () => approval, enabled: true,
@@ -886,7 +886,7 @@ try {
     runV2: async () => "synthetic-d1-pending-restart-route",
   });
   const restartPayload = {
-    ...pendingPayload, envelope: restartEnvelope,
+    ...pendingPayload, envelope: whatsappRestartEnvelope,
   };
   const toRecover = await stageFoodD1WhatsAppPending(restartPayload);
   assert.equal((await readActiveFoodD1WhatsAppPending(userId))?.id, toRecover.id,
