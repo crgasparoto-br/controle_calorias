@@ -253,6 +253,20 @@ async function applyReadyPlan(
     .filter(meal => changed.has(meal.id))
     .map(meal => ({ before: originalById.get(meal.id)!, after: snapshot(meal) }));
 
+  if (changes.length > 1) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: buildWhatsAppClarificationReplyMessage(
+        "Para manter o ajuste composto atômico, indique uma única refeição. Nada foi alterado."
+      ),
+      eventType: "whatsapp.intent.meal_item_increment_plan_multi_meal_blocked",
+      detail:
+        "Plano com alvos em várias refeições bloqueado antes da primeira escrita porque o contrato não permite estado parcial após crash.",
+      data: { affectedMealIds: changes.map(change => change.after.id) },
+    };
+  }
+
   try {
     const updatedMeals = await updateMealsWithCompensation(userId, changes);
     return {
@@ -331,7 +345,7 @@ async function requestItemChoice(
     };
   });
 
-  return createPendingMealItemSelection(
+  const result = await createPendingMealItemSelection(
     userId,
     {
       targetFood: firstOperation.targetFood,
@@ -347,6 +361,9 @@ async function requestItemChoice(
     },
     receivedAt,
   );
+  if (!Number.isSafeInteger(result.data?.pendingOperationId))
+    throw new Error("A próxima seleção do plano misto não foi persistida.");
+  return result;
 }
 
 export async function continueMixedMealItemIncrementPlan(
@@ -444,7 +461,7 @@ export async function continueMixedMealItemIncrementPlan(
       }
     }
 
-    return requestWhatsappMealItemIncrementQuantityClarification({
+    const clarification = await requestWhatsappMealItemIncrementQuantityClarification({
       userId,
       foodName: current.item.foodName,
       originalText: plan.originalText,
@@ -458,6 +475,9 @@ export async function continueMixedMealItemIncrementPlan(
         ? `Não encontrei uma conversão segura para ${operation.quantity} ${operation.unit} de ${current.item.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`
         : `Não consegui inferir a unidade de ${current.item.foodName} com segurança. Informe somente o incremento em gramas ou ml, por exemplo 20 g.`,
     });
+    if (!Number.isSafeInteger(clarification.data?.pendingOperationId))
+      throw new Error("A próxima quantidade do plano misto não foi persistida.");
+    return clarification;
   }
 
   return applyReadyPlan(userId, plan);

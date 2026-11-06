@@ -154,6 +154,15 @@ describe("issue #997 atomic mixed increment plan", () => {
       reply: "informe peso",
       eventType: "whatsapp.food_clarification.requested",
       detail: "pendente",
+      data: { pendingOperationId: 901 },
+    });
+    mocks.createSelection.mockResolvedValue({
+      handled: true,
+      action: "clarification_needed",
+      reply: "selecione",
+      eventType: "whatsapp.intent.meal_item_selection_requested",
+      detail: "pendente",
+      data: { pendingOperationId: 902 },
     });
   });
 
@@ -173,6 +182,30 @@ describe("issue #997 atomic mixed increment plan", () => {
     const persistedPlan = mocks.requestQuantity.mock.calls[0][0].plan;
     expect(persistedPlan.operations[0].gramsDelta).toBe(48);
     expect(persistedPlan.operations[1].gramsDelta).toBeUndefined();
+  });
+
+  it("bloqueia antes da primeira escrita quando um plano composto cruza refeições", async () => {
+    const breakfast = meal([item("Arroz branco", 100)]);
+    const dinner = {
+      ...meal([item("Feijão carioca", 80)]),
+      id: 20,
+      mealLabel: "Jantar",
+    };
+    mocks.listMeals.mockResolvedValue([breakfast, dinner]);
+
+    const result = await continueMixedMealItemIncrementPlan(42, {
+      ...basePlan,
+      operations: [
+        { targetFood: "Arroz branco", quantity: 10, unit: "g" },
+        { targetFood: "Feijão carioca", quantity: 15, unit: "g" },
+      ],
+    });
+
+    expect(result.eventType).toBe(
+      "whatsapp.intent.meal_item_increment_plan_multi_meal_blocked"
+    );
+    expect(result.data).toEqual({ affectedMealIds: [10, 20] });
+    expect(mocks.updateBatch).not.toHaveBeenCalled();
   });
 
   it("usa a porção persistida do alimento e o conversor canônico antes do lote", async () => {

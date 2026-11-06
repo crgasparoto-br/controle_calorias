@@ -38,6 +38,52 @@ function createRepository() {
     row.consumedAt = new Date();
     return { claimed: true };
   });
+  const beginPendingOperationProcessing = vi.fn(
+    async ({ id, expectedVersion, now = new Date() }) => {
+      const row = rows.get(id);
+      if (!row || row.state !== "active" || row.version !== expectedVersion)
+        return { claimed: false };
+      row.state = "processing";
+      row.version += 1;
+      row.updatedAt = now;
+      return { claimed: true, version: row.version };
+    }
+  );
+  const completePendingOperationProcessing = vi.fn(
+    async ({ id, expectedVersion, now = new Date() }) => {
+      const row = rows.get(id);
+      if (!row || row.state !== "processing" || row.version !== expectedVersion)
+        return { completed: false };
+      row.state = "consumed";
+      row.version += 1;
+      row.consumedAt = now;
+      row.updatedAt = now;
+      return { completed: true };
+    }
+  );
+  const releasePendingOperationProcessing = vi.fn(
+    async ({ id, expectedVersion, now = new Date() }) => {
+      const row = rows.get(id);
+      if (!row || row.state !== "processing" || row.version !== expectedVersion)
+        return { released: false };
+      row.state = "active";
+      row.version += 1;
+      row.updatedAt = now;
+      return { released: true };
+    }
+  );
+  const requirePendingOperationVerification = vi.fn(
+    async ({ id, expectedVersion, now = new Date() }) => {
+      const row = rows.get(id);
+      if (!row || row.state !== "processing" || row.version !== expectedVersion)
+        return { required: false };
+      row.state = "review_required";
+      row.version += 1;
+      row.consumedAt = now;
+      row.updatedAt = now;
+      return { required: true };
+    }
+  );
   const repository: WhatsAppPendingOperationRepository = {
     async createPendingOperation(input) {
       const now = input.now ?? new Date();
@@ -60,7 +106,7 @@ function createRepository() {
           .filter(
             row =>
               row.userId === userId &&
-              row.state === "active" &&
+              ["active", "processing", "review_required"].includes(row.state) &&
               row.expiresAt >= now
           )
           .sort((left, right) => right.id - left.id)[0] ?? null
@@ -70,6 +116,10 @@ function createRepository() {
       return rows.get(id) ?? null;
     },
     claimPendingOperation,
+    beginPendingOperationProcessing,
+    completePendingOperationProcessing,
+    releasePendingOperationProcessing,
+    requirePendingOperationVerification,
     async cancelPendingOperation(id) {
       const row = rows.get(id);
       if (!row || row.state !== "active") return { cancelled: false };
@@ -86,7 +136,15 @@ function createRepository() {
       return 0;
     },
   };
-  return { repository, rows, claimPendingOperation };
+  return {
+    repository,
+    rows,
+    claimPendingOperation,
+    beginPendingOperationProcessing,
+    completePendingOperationProcessing,
+    releasePendingOperationProcessing,
+    requirePendingOperationVerification,
+  };
 }
 
 function mixedPlan() {
@@ -114,13 +172,16 @@ function mixedPlan() {
   };
 }
 
-function clarificationHandler(repository: WhatsAppPendingOperationRepository) {
+function clarificationHandler(
+  repository: WhatsAppPendingOperationRepository,
+  listMeals?: (userId: number) => Promise<any[]>
+) {
   return createWhatsappFoodClarificationService({
     repository,
     processFood: vi.fn() as never,
     getHabits: vi.fn(async () => []) as never,
     createMeal: vi.fn() as never,
-    listMeals: vi.fn(async () => []) as never,
+    listMeals: listMeals ?? (vi.fn(async () => []) as never),
     updateMeal: vi.fn() as never,
     removeMeal: vi.fn() as never,
     createWhatsappMeal: vi.fn() as never,
@@ -372,7 +433,11 @@ describe("issue #997 persistent mixed increment clarification", () => {
 
   it("duas respostas concorrentes/retry continuam o plano exatamente uma vez", async () => {
     mocks.continuePlan.mockClear();
-    const { repository, claimPendingOperation } = createRepository();
+    const {
+      repository,
+      claimPendingOperation,
+      beginPendingOperationProcessing,
+    } = createRepository();
     const clarification = createFoodQuantityClarificationService({
       repository,
     });
@@ -402,11 +467,190 @@ describe("issue #997 persistent mixed increment clarification", () => {
       }),
     ]);
 
-    expect(claimPendingOperation).toHaveBeenCalledTimes(2);
+    expect(claimPendingOperation).not.toHaveBeenCalled();
+    expect(beginPendingOperationProcessing).toHaveBeenCalledTimes(1);
     expect(mocks.continuePlan).toHaveBeenCalledTimes(1);
     expect([first?.action, retry?.action]).toContain(
       "meal_item_grams_adjusted"
     );
+    expect([first?.action, retry?.action]).toContain(
+      "food_clarification_unavailable"
+    );
+  });
+
+  it("libera a mesma pendência após falha comprovadamente anterior à mutação", async () => {
+    mocks.continuePlan.mockClear();
+    const {
+      repository,
+      rows,
+      beginPendingOperationProcessing,
+      releasePendingOperationProcessing,
+      completePendingOperationProcessing,
+    } = createRepository();
+    const clarification = createFoodQuantityClarificationService({ repository });
+    await clarification.requestMealItemIncrementQuantity({
+      userId: 42,
+      foodName: "Presunto",
+      originalText: mixedPlan().originalText,
+      plan: mixedPlan(),
+      operationIndex: 1,
+      receivedAt: new Date("2026-08-22T20:00:00.000Z"),
+    });
+    mocks.continuePlan.mockRejectedValueOnce(new Error("falha antes da escrita"));
+
+    const handler = clarificationHandler(repository);
+    const first = await handler.handle({
+      userId: 42,
+      text: "20 g",
+      receivedAt: new Date("2026-08-22T20:01:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(first?.action).toBe("food_clarification_retryable_failure");
+    expect(beginPendingOperationProcessing).toHaveBeenCalledTimes(1);
+    expect(releasePendingOperationProcessing).toHaveBeenCalledTimes(1);
+    expect(completePendingOperationProcessing).not.toHaveBeenCalled();
+    expect([...rows.values()][0]).toMatchObject({ state: "active", version: 3 });
+
+    const retry = await handler.handle({
+      userId: 42,
+      text: "20 g",
+      receivedAt: new Date("2026-08-22T20:02:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(retry?.action).toBe("meal_item_grams_adjusted");
+    expect(mocks.continuePlan).toHaveBeenCalledTimes(2);
+    expect([...rows.values()][0].state).toBe("consumed");
+  });
+
+  it("marca review_required quando o efeito do plano não pode ser determinado", async () => {
+    mocks.continuePlan.mockClear();
+    const { repository, rows, requirePendingOperationVerification } =
+      createRepository();
+    const clarification = createFoodQuantityClarificationService({ repository });
+    await clarification.requestMealItemIncrementQuantity({
+      userId: 42,
+      foodName: "Presunto",
+      originalText: mixedPlan().originalText,
+      plan: mixedPlan(),
+      operationIndex: 1,
+      receivedAt: new Date("2026-08-22T20:00:00.000Z"),
+    });
+    const meals: any[] = [];
+    mocks.continuePlan.mockImplementationOnce(async () => {
+      meals.push({
+        id: 9001,
+        mealLabel: "Jantar",
+        occurredAt: new Date("2026-08-22T19:00:00.000Z"),
+        items: [],
+      });
+      throw new Error("falha após efeito potencial");
+    });
+
+    const result = await clarificationHandler(
+      repository,
+      vi.fn(async () => meals) as never
+    ).handle({
+      userId: 42,
+      text: "20 g",
+      receivedAt: new Date("2026-08-22T20:01:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result?.action).toBe("food_clarification_unavailable");
+    expect(result?.data).toEqual(
+      expect.objectContaining({
+        verificationRequired: true,
+        retryBlockedToPreventDuplicate: true,
+        pendingState: "review_required",
+      })
+    );
+    expect(requirePendingOperationVerification).toHaveBeenCalledTimes(1);
+    expect([...rows.values()][0].state).toBe("review_required");
+    expect(mocks.continuePlan).toHaveBeenCalledTimes(1);
+  });
+
+  it("bloqueia reentrada enquanto a resposta idêntica ainda está processing", async () => {
+    mocks.continuePlan.mockClear();
+    const { repository, rows, beginPendingOperationProcessing } =
+      createRepository();
+    const clarification = createFoodQuantityClarificationService({ repository });
+    await clarification.requestMealItemIncrementQuantity({
+      userId: 42,
+      foodName: "Presunto",
+      originalText: mixedPlan().originalText,
+      plan: mixedPlan(),
+      operationIndex: 1,
+      receivedAt: new Date("2026-08-22T20:00:00.000Z"),
+    });
+    const pending = [...rows.values()][0];
+    await beginPendingOperationProcessing({
+      id: pending.id,
+      expectedVersion: pending.version,
+      now: new Date("2026-08-22T20:01:00.000Z"),
+    });
+
+    const result = await clarificationHandler(repository).handle({
+      userId: 42,
+      text: "20 g",
+      receivedAt: new Date("2026-08-22T20:01:01.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result?.action).toBe("food_clarification_unavailable");
+    expect(result?.data).toEqual(
+      expect.objectContaining({
+        pendingState: "processing",
+        retryBlockedToPreventDuplicate: true,
+      })
+    );
+    expect(mocks.continuePlan).not.toHaveBeenCalled();
+  });
+
+  it("não repete automaticamente uma resposta idêntica em review_required", async () => {
+    mocks.continuePlan.mockClear();
+    const {
+      repository,
+      rows,
+      beginPendingOperationProcessing,
+      requirePendingOperationVerification,
+    } = createRepository();
+    const clarification = createFoodQuantityClarificationService({ repository });
+    await clarification.requestMealItemIncrementQuantity({
+      userId: 42,
+      foodName: "Presunto",
+      originalText: mixedPlan().originalText,
+      plan: mixedPlan(),
+      operationIndex: 1,
+      receivedAt: new Date("2026-08-22T20:00:00.000Z"),
+    });
+    const pending = [...rows.values()][0];
+    const claim = await beginPendingOperationProcessing({
+      id: pending.id,
+      expectedVersion: pending.version,
+      now: new Date("2026-08-22T20:01:00.000Z"),
+    });
+    await requirePendingOperationVerification({
+      id: pending.id,
+      expectedVersion: claim.version,
+      now: new Date("2026-08-22T20:02:00.000Z"),
+    });
+
+    const result = await clarificationHandler(repository).handle({
+      userId: 42,
+      text: "20 g",
+      receivedAt: new Date("2026-08-22T20:02:01.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result?.action).toBe("food_clarification_unavailable");
+    expect(result?.data).toEqual(
+      expect.objectContaining({
+        pendingState: "review_required",
+        retryBlockedToPreventDuplicate: true,
+      })
+    );
+    expect(mocks.continuePlan).not.toHaveBeenCalled();
   });
 
   it("retoma o registro parcial após reinício sem recalcular nem duplicar os itens seguros", async () => {

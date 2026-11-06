@@ -106,7 +106,8 @@ function buildCandidate(
 async function supersedeAllActive(
   repository: WhatsAppPendingOperationRepository,
   userId: number,
-  occurredAt: Date
+  occurredAt: Date,
+  continuationMessageId?: string | null
 ) {
   for (let index = 0; index < 20; index += 1) {
     const active = await repository.getActivePendingOperation(
@@ -114,6 +115,15 @@ async function supersedeAllActive(
       occurredAt
     );
     if (!active) return true;
+    if (active.state === "processing") {
+      const targetMessageId = (
+        active.target as { inboundMessageId?: unknown }
+      ).inboundMessageId;
+      return Boolean(
+        continuationMessageId && targetMessageId === continuationMessageId
+      );
+    }
+    if (active.state !== "active") return false;
     const transition = await repository.supersedePendingOperation(
       active.id,
       occurredAt
@@ -156,7 +166,12 @@ export function createFoodQuantityClarificationService(
     }
 
     if (
-      !(await supersedeAllActive(deps.repository, input.userId, occurredAt))
+      !(await supersedeAllActive(
+        deps.repository,
+        input.userId,
+        occurredAt,
+        input.resolutionContext ? input.messageId : null
+      ))
     ) {
       return result({
         action: "food_clarification_blocked",

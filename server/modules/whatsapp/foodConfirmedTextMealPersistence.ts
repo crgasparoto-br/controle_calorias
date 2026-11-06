@@ -68,7 +68,7 @@ export async function advanceConfirmedTextMealQuantity(
   const nextPending = context.pendingItems[nextPendingIndex];
 
   if (nextPending) {
-    return services.requestConfirmedTextMealQuantity({
+    const result = await services.requestConfirmedTextMealQuantity({
       userId,
       foodName: nextPending.foodName,
       originalText: context.originalText,
@@ -82,6 +82,12 @@ export async function advanceConfirmedTextMealQuantity(
       messageId: context.inboundMessageId ?? null,
       instructionText: `Para concluir a refeição sem assumir 100 g para ${nextPending.segment}, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
     });
+    if (
+      result.eventType !== "whatsapp.food_clarification.requested" ||
+      !Number.isSafeInteger(result.data?.pendingOperationId)
+    )
+      throw new Error("A próxima quantidade da refeição não foi persistida.");
+    return result;
   }
 
   const outcome = await services.registerConfirmedTextMeal({
@@ -137,7 +143,10 @@ async function requestPartialMealQuantity(
     expectedMealOccurredAt: context.expectedMealOccurredAt,
     instructionText: `O registro continua parcial. Para incluir ${current.segment}, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
   });
-  if (result.eventType !== "whatsapp.food_clarification.requested") {
+  if (
+    result.eventType !== "whatsapp.food_clarification.requested" ||
+    !Number.isSafeInteger(result.data?.pendingOperationId)
+  ) {
     throw new Error(
       "A próxima quantidade da refeição parcial não foi persistida."
     );

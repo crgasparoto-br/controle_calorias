@@ -261,9 +261,11 @@ Esses owners são uma decisão de leitura da baseline, não uma mudança de impl
 
 ### Persistência parcial no registro inicial e atomicidade do ajuste (#997)
 
-A decisão B da #997 separa dois efeitos. No **registro inicial** de uma refeição mista, podem ser persistidos os segmentos cuja identidade, quantidade e composição nutricional estejam resolvidas com segurança; o usuário deve ser informado explicitamente de quais itens foram omitidos, e a continuação de quantidade pendente deve permanecer durável. Identidade ou nutrição comercial não resolvida continua bloqueada: não se pode substituir o produto por macros genéricos nem afirmar que o item foi registrado. Se nenhum segmento puder ser salvo com segurança, persiste-se somente a pendência, sem refeição ou rascunho vazio.
+A decisão B da #997 separa dois efeitos. No **registro textual inicial** de uma refeição mista, podem ser persistidos os segmentos cuja identidade, quantidade e composição nutricional estejam resolvidas com segurança; o usuário deve ser informado explicitamente de quais itens foram omitidos, e a continuação de quantidade pendente deve permanecer durável. Se a continuação falhar ao ser criada depois do save seguro, a resposta deve dizer que ela não ficou persistida e orientar o reenvio explícito dos itens omitidos; não se afirma que existe retomada. Identidade ou nutrição comercial não resolvida continua bloqueada: não se pode substituir o produto por macros genéricos nem afirmar que o item foi registrado. Se nenhum segmento puder ser salvo com segurança, persiste-se somente a pendência, sem refeição ou rascunho vazio.
 
 Essa exceção não se estende a **ajustes compostos** de refeições existentes. Nenhuma operação do ajuste pode ser aplicada até que todas as operações sejam resolvidas e os alvos revalidados na escrita final; falha ou estado stale não pode deixar alterações parciais. Essa distinção substitui a proibição absoluta de qualquer persistência parcial na etapa inicial, sem relaxar o bloqueio comercial, a segurança de cada segmento ou a atomicidade dos ajustes.
+
+Para manter a atomicidade também após interrupção do processo, um comando composto da #997 só pode alterar uma refeição por operação transacional. Se os alvos resolvidos pertencerem a refeições diferentes, o comando é bloqueado antes da primeira escrita e o usuário deve indicar uma única refeição; não se tenta compensação sequencial entre transações independentes.
 
 ## Consolidação da Fase 2 — issue #1095
 
