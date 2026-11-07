@@ -805,6 +805,7 @@ try {
     traceId: pendingEnvelope.traceId,
     status: "partially_resolved", nextAction: "clarify",
     unresolvedFields: ["quantity"],
+    reasonCodes: ["quantity_missing"],
   };
   await routeFoodD1Operation({
     envelope: pendingEnvelope, authenticatedUserId: userId,
