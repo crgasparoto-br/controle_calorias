@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMealItemForSubmit, recalculateMealItemQuantityUnit } from "./mealFormState";
+import { matchesPinnedD1MealDestination, normalizeMealItemForSubmit, recalculateMealItemQuantityUnit, resolveSubmittedImageKind } from "./mealFormState";
 import type { MealItemState } from "./types";
 
 function buildItem(overrides: Partial<MealItemState> = {}): MealItemState {
@@ -20,6 +20,42 @@ function buildItem(overrides: Partial<MealItemState> = {}): MealItemState {
     ...overrides,
   };
 }
+
+describe("explicit image-role selection for D1 and legacy submissions", () => {
+  it("requires a deliberate choice whenever an image is attached", () => {
+    expect(resolveSubmittedImageKind(true, null)).toBeNull();
+    expect(resolveSubmittedImageKind(true, "plate_image")).toBe("plate_image");
+    expect(resolveSubmittedImageKind(true, "packaging")).toBe("packaging");
+    expect(resolveSubmittedImageKind(true, "nutrition_label")).toBe("nutrition_label");
+  });
+
+  it("cannot leak a previous image role into a text/audio-only submission", () => {
+    expect(resolveSubmittedImageKind(false, "packaging")).toBeUndefined();
+    expect(resolveSubmittedImageKind(false, null)).toBeUndefined();
+  });
+});
+
+describe("D1 web draft confirmation respects the original instant", () => {
+  const pinned = { mealLabel: "Almoço", occurredAt: "2026-11-04T15:00:00.000Z" };
+  it("permits identical destination and instant in a different ISO offset", () => {
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: " Almoço ", occurredAt: new Date("2026-11-04T12:00:00-03:00"),
+    }, pinned)).toBe(true);
+  });
+  it("blocks a different hour even when still on the same calendar day", () => {
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: "Almoço", occurredAt: new Date("2026-11-04T16:00:00.000Z"),
+    }, pinned)).toBe(false);
+  });
+  it("blocks changed meal name and invalid timestamps", () => {
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: "Jantar", occurredAt: new Date(pinned.occurredAt),
+    }, pinned)).toBe(false);
+    expect(matchesPinnedD1MealDestination({
+      mealLabel: "Almoço", occurredAt: new Date("invalid"),
+    }, pinned)).toBe(false);
+  });
+});
 
 describe("meal form quantity recalculation", () => {
   it("recalcula macros proporcionalmente ao alterar quantidade em gramas", () => {

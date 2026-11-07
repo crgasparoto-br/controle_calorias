@@ -31,6 +31,12 @@ export const foodPhotoSuggestedItemSchema = z.object({
 
 export const analyzeFoodPhotoSchema = z.object({
   image: mediaInputSchema.refine(Boolean, "Envie uma foto para análise."),
+  // Optional for existing V1 callers. Required as a set for a selected D1
+  // photo operation; no legacy image route may synthesize these values.
+  imageKind: z.enum(["plate_image", "packaging", "nutrition_label"]).optional(),
+  d1OperationId: z.string().trim().min(8).max(80).optional(),
+  mealLabel: mealLabelSchema.optional(),
+  occurredAt: z.string().min(1).optional(),
 });
 
 export const confirmFoodPhotoAnalysisSchema = z.object({

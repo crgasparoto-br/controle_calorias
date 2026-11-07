@@ -104,6 +104,175 @@ describe("nutrition router", () => {
     vi.useRealTimers();
   });
 
+  it("#1308 blocks selected web modalities before any V1 inference", async () => {
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const caller = appRouter.createCaller(createNutritionContext(13918));
+    const { processMealInput } = await import("./nutritionEngine");
+    const before = await caller.nutrition.meals.list();
+    const image = { base64: "YQ==", mimeType: "image/jpeg" };
+    const audio = { base64: "YQ==", mimeType: "audio/webm" };
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      for (const { selector, draft, error } of [
+        {
+          selector: "text",
+          draft: { text: "100 g de arroz" },
+          error: "food-d1-public-web-draft-operation-required",
+        },
+        {
+          selector: "audio_transcript",
+          draft: { audio },
+          error: "food-d1-public-web-draft-operation-required",
+        },
+        {
+          selector: "plate_image",
+          draft: { image },
+          error: "food-d1-public-web-image-role-required",
+        },
+        {
+          selector: "packaging",
+          draft: { image },
+          error: "food-d1-public-web-image-role-required",
+        },
+        {
+          selector: "nutrition_label",
+          draft: { image },
+          error: "food-d1-public-web-image-role-required",
+        },
+      ]) {
+        process.env.FOOD_V2_D1_ENTRYPOINTS = selector;
+        vi.mocked(processMealInput).mockClear();
+        await expect(
+          caller.nutrition.meals.processDraft({ source: "web", ...draft })
+        ).rejects.toThrow(error);
+        expect(processMealInput).not.toHaveBeenCalled();
+      }
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "plate_image";
+      vi.mocked(processMealInput).mockClear();
+      await expect(caller.nutrition.foodPhotoAnalysis.analyze({ image }))
+        .rejects.toThrow("food-d1-public-photo-explicit-kind-required");
+      // With an explicit visual role and operation, the existing public photo
+      // endpoint must still never reach V1 if the external Gate A is absent.
+      await expect(caller.nutrition.foodPhotoAnalysis.analyze({
+        image, imageKind: "plate_image", d1OperationId: "public-photo-d1-001",
+        mealLabel: "almoço", occurredAt: "2026-04-22T12:00",
+      })).rejects.toThrow();
+      expect(processMealInput).not.toHaveBeenCalled();
+      expect(await caller.nutrition.meals.list()).toEqual(before);
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
+  it("#1308 blocks public manual V2 addition without Gate A and never writes a V1 meal", async () => {
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const { processMealInput } = await import("./nutritionEngine");
+    const authenticated = appRouter.createCaller(createNutritionContext(13910));
+    const anonymous = appRouter.createCaller({
+      ...createNutritionContext(13911), user: null,
+    });
+    const input = {
+      mealLabel: "Almoço",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
+      d1OperationId: "manual-public-contract-1308",
+      items: [{
+        foodName: "Arroz", canonicalName: "Arroz", portionText: "100 g",
+        servings: 1, quantity: 100, unit: "g",
+        estimatedGrams: 100, calories: 9999, protein: 999,
+        carbs: 999, fat: 999, confidence: 1, source: "heuristic" as const,
+      }],
+    };
+    vi.mocked(processMealInput).mockClear();
+    try {
+      const before = await authenticated.nutrition.meals.list();
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
+      await expect(authenticated.nutrition.meals.createManual(input))
+        .rejects.toThrow("food-d1-public-addition-gate-unavailable");
+      await expect(anonymous.nutrition.meals.createManual(input))
+        .rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      const after = await authenticated.nutrition.meals.list();
+      expect(after).toEqual(before);
+      expect(processMealInput).not.toHaveBeenCalled();
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
+  it("#1308 rejects public item editing when selected V2 lacks independent Gate A", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(13912));
+    const created = await caller.nutrition.meals.createManual({
+      mealLabel: "Almoço",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
+      items: [{
+        foodName: "Arroz", canonicalName: "Arroz", portionText: "100 g",
+        quantity: 100, unit: "g", servings: 1,
+        estimatedGrams: 100, calories: 130, protein: 3,
+        carbs: 28, fat: 1, confidence: 1, source: "catalog",
+      }],
+    });
+    const before = await caller.nutrition.meals.list();
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "edit";
+      await expect(caller.nutrition.meals.updateItem({
+        mealId: created.id, itemIndex: 0, mealLabel: "Almoço",
+        d1OperationId: "edit-public-contract-1308",
+        item: {
+          foodName: "Feijão", canonicalName: "Feijão", portionText: "100 g",
+          quantity: 100, unit: "g", servings: 1,
+          estimatedGrams: 100, calories: 9999, protein: 999,
+          carbs: 999, fat: 999, confidence: 1, source: "heuristic",
+        },
+      })).rejects.toThrow("food-d1-public-edit-gate-unavailable");
+      expect(await caller.nutrition.meals.list()).toEqual(before);
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
+  it("#1308 keeps the authenticated public WhatsApp simulator fail-closed without independent Gate A", async () => {
+    const oldGlobal = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const { processMealInput } = await import("./nutritionEngine");
+    vi.mocked(processMealInput).mockClear();
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+      const authorizedCaller = appRouter.createCaller(createNutritionContext(13908));
+      await expect(authorizedCaller.nutrition.whatsapp.simulateInbound({
+        text: "150 g de frango", messageId: "ci-d1-auth-public-1308",
+      })).rejects.toThrow("food-d1-public-simulator-gate-unavailable");
+      expect(processMealInput).not.toHaveBeenCalled();
+
+      const anonymous = appRouter.createCaller({
+        ...createNutritionContext(13909), user: null,
+      });
+      await expect(anonymous.nutrition.whatsapp.simulateInbound({
+        text: "150 g de frango", messageId: "ci-d1-anon-public-1308",
+      })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      expect(processMealInput).not.toHaveBeenCalled();
+    } finally {
+      if (oldGlobal === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldGlobal;
+      if (oldSelector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelector;
+    }
+  });
+
   it("atualiza a meta padrão com exceções e reflete a regra efetiva no dashboard", async () => {
     const caller = appRouter.createCaller(createNutritionContext(501));
 
@@ -854,6 +1023,7 @@ describe("nutrition router", () => {
       },
     });
     const afterAnalysis = await caller.nutrition.meals.list();
+    if ("resolver" in analysis) throw new Error("legacy photo test unexpectedly entered V2");
 
     expect(analysis.status).toBe("analyzed");
     expect(analysis.suggestedItems.length).toBeGreaterThan(0);
@@ -898,6 +1068,7 @@ describe("nutrition router", () => {
         mimeType: "image/png",
       },
     });
+    if ("resolver" in analysis) throw new Error("legacy photo test unexpectedly entered V2");
     const rejected = await caller.nutrition.foodPhotoAnalysis.reject({ analysisId: analysis.id });
     const afterReject = await caller.nutrition.meals.list();
 

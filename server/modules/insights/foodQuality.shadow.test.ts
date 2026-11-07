@@ -19,6 +19,37 @@ describe("#1307 / Gate 19 — historical shadow readers", () => {
     expect(Object.prototype.hasOwnProperty.call(live.foodQualityItems[0], "historicalRef")).toBe(false);
   });
 
+  it("does not reclassify a public V2 item using a live catalog homonym", () => {
+    const v2 = { ...persisted(), v2SnapshotVerified: true as const, classification: null };
+    const liveCatalog = createFoodLookup([{
+      id: 500, name: "Pão", servingSize: 30, calories: 400,
+      protein: 9, carbs: 10, fat: 5, fiber: 9,
+      isFruit: true, isVegetable: false, isUltraProcessed: true,
+      processingLevel: "ultra_processed",
+    } as Parameters<typeof createFoodLookup>[0][number]]);
+    const snapshot = calculateQualityIndicators([
+      { mealLabel: "Lanche", items: [v2] },
+    ], 0, liveCatalog);
+    expect(snapshot.foodQualityItems).toMatchObject([{
+      historicalRef: "variant:101", calories: 85,
+      processingLevel: "unknown", isClassified: false,
+      unclassifiedReason: "unknown",
+    }]);
+    expect(snapshot.proteinGrams).toBe(3);
+    // A V1 shadow historicalRef is not proof of a physically verified V2 snapshot.
+    const v1Shadow = calculateQualityIndicators([
+      { mealLabel: "Lanche", items: [{ ...v2, v2SnapshotVerified: undefined }] },
+    ], 0, liveCatalog);
+    expect(v1Shadow.foodQualityItems[0].processingLevel).toBe("ultra_processed");
+    // V1 without a historical reference also retains the current-catalog behavior.
+    const legacy = calculateQualityIndicators([
+      { mealLabel: "Lanche", items: [{ ...v2, v2SnapshotVerified: undefined, historicalRef: undefined }] },
+    ], 0, liveCatalog);
+    expect(legacy.foodQualityItems[0].processingLevel).toBe("ultra_processed");
+    expect(legacy.foodQualityItems[0].isClassified).toBe(true);
+    expect(legacy.foodQualityItems[0].historicalRef).toBeUndefined();
+  });
+
   it("keeps the confirmed nutrition and category after the current catalog is changed", () => {
     const meal = [{ mealLabel: "Café da manhã", items: [persisted()] }];
     const before = calculateHistoricalQualityIndicators(meal, 0);

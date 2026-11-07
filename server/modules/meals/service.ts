@@ -21,6 +21,13 @@ import {
   updateUserMealItem,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
+import { buildLegacyManualRoute, tryRunFoodD1PublicManualAddition } from "../foodIntelligenceV2/publicManualAddition";
+import { assertNewMealLabelHasExistingTarget, assertUnmigratedFoodD1DraftOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
+import {
+  confirmFoodD1PublicWebDraft,
+  FoodD1WebDraftNotFoundError,
+  tryRunFoodD1PublicWebDraft,
+} from "../foodIntelligenceV2/publicWebDraft";
 import {
   associateMealItemsWithSourceMedia,
   clearMealItemSourceMedia,
@@ -43,6 +50,7 @@ import { runWithAiUsageScope } from "../../_core/ai/usageContext";
 import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import {
   ConfirmMealInput,
+  ConfirmFoodD1WebDraftInput,
   CopyMealInput,
   ManualMealInput,
   MediaInput,
@@ -72,6 +80,8 @@ export class MealDraftNotFoundError extends Error {
     this.name = "MealDraftNotFoundError";
   }
 }
+
+export { FoodD1WebDraftNotFoundError };
 
 type MealItemQuantityUnit = {
   quantity: number;
@@ -337,13 +347,32 @@ export async function getDayTotals(
   return getUserDayMealTotals(userId, date, timeZone);
 }
 
-export async function createManualMeal(userId: number, input: ManualMealInput) {
+export async function createManualMeal(
+  userId: number, input: ManualMealInput, timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  // Run before any legacy catalog preparation or irreversible V1 side effect.
+  // A missing Gate A never silently reroutes a selected V2 operation to V1.
+  const v2MealId = await tryRunFoodD1PublicManualAddition({
+    userId, meal: input, timeZone,
+  });
+  if (v2MealId !== null) {
+    const committed = (await listMeals(userId)).find(meal => meal.id === v2MealId);
+    if (!committed) throw new Error("food-d1-public-addition-committed-meal-unavailable");
+    return committed;
+  }
+  const { d1OperationId: _ignoredOperationId, ...legacyInput } = input;
+  const pinnedV1 = input.d1OperationId
+    ? buildLegacyManualRoute({ userId, meal: input, timeZone })
+    : null;
   await ensureCurrentIrreversibleEffectAllowed();
-  const items = await prepareMealItemsForSave(userId, input.items);
+  const items = await prepareMealItemsForSave(userId, legacyInput.items);
   await ensureCurrentIrreversibleEffectAllowed();
-  const meal = decorateMealWithImageUrl(
-    await createUserManualMeal({ userId, ...input, items })
-  );
+  const meal = decorateMealWithImageUrl(await createUserManualMeal({
+    userId, ...legacyInput, items,
+    ...(pinnedV1 ? { legacyD1Receipt: {
+      operationKey: pinnedV1.operationKey, operationScopeHash: pinnedV1.operationScopeHash,
+    } } : {}),
+  }));
   return meal;
 }
 
@@ -535,8 +564,44 @@ export async function processMealDraft(
   input: ProcessMealDraftInput,
   timeZone = DEFAULT_APP_TIME_ZONE
 ) {
-  return runWithAiUsageScope({ userId }, () =>
-    processMealDraftAttributed(userId, input, timeZone)
+  // A label for an existing item is a scoped update, not a new meal draft.
+  // Refuse this path before V1 inference, V2 providers or persistence.
+  assertNewMealLabelHasExistingTarget(input);
+  const d1Draft = await runWithAiUsageScope(
+    { userId },
+    () => tryRunFoodD1PublicWebDraft({
+      userId,
+      request: input,
+      timeZone,
+    }),
+  );
+  if (d1Draft) return d1Draft;
+  // A selected but unmigrated entrypoint may not fall back to V1; this guard
+  // precedes uploads, transcription, inference and pending-draft creation.
+  assertUnmigratedFoodD1DraftOff(input);
+  return runWithAiUsageScope(
+    { userId },
+    () => processMealDraftAttributed(userId, input, timeZone),
+  );
+}
+
+export async function confirmFoodD1Draft(
+  userId: number,
+  input: ConfirmFoodD1WebDraftInput,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  const occurredAt = new Date(zonedDateTimeLocalToIso(input.occurredAt, timeZone));
+  if (!Number.isFinite(occurredAt.getTime())) {
+    throw new Error("food-d1-public-web-draft-invalid-time");
+  }
+  return runWithAiUsageScope(
+    { userId },
+    () => confirmFoodD1PublicWebDraft({
+      userId,
+      request: input,
+      timeZone,
+      occurredAt,
+    }),
   );
 }
 

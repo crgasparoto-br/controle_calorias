@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { isExplicitFoodAdditionCommand, parseMealCommandFromWhatsApp } from "./mealCommandParser";
+import {
+  isExplicitFoodAdditionCommand,
+  parseD1WhatsAppExistingItemCommand,
+  parseD1WhatsAppVisualIntent,
+  parseMealCommandFromWhatsApp,
+} from "./mealCommandParser";
 
 const referenceDate = new Date("2026-06-04T15:00:00.000Z");
 
@@ -421,5 +426,49 @@ describe("isExplicitFoodAdditionCommand", () => {
 
   it("não reconhece água sem quantidade como adição alimentar completa", () => {
     expect(isExplicitFoodAdditionCommand("Adicionar água ontem")).toBe(false);
+  });
+});
+
+describe("D1 WhatsApp transport commands", () => {
+  it("accepts only explicit visual role and meal destination without treating free captions as intent", () => {
+    expect(parseD1WhatsAppVisualIntent("#prato @almoco")).toEqual({
+      kind: "plate_image",
+      mealLabel: "almoço",
+      description: null,
+    });
+    expect(
+      parseD1WhatsAppVisualIntent("#embalagem @jantar\nArroz integral")
+    ).toEqual({
+      kind: "packaging",
+      mealLabel: "jantar",
+      description: "Arroz integral",
+    });
+    for (const value of [
+      "almoço",
+      "foto de prato",
+      "#rotulo @almoco",
+      "#embalagem",
+      "#prato @almoco extra",
+      "#prato @almoco\n" + "x".repeat(401),
+    ]) {
+      expect(parseD1WhatsAppVisualIntent(value)).toBeNull();
+    }
+  });
+
+  it("parses only a positive, canonical target for a previously registered physical item", () => {
+    expect(parseD1WhatsAppExistingItemCommand("#rotulo @123:456")).toEqual({
+      mealId: 123,
+      itemId: 456,
+    });
+    for (const value of [
+      "#rotulo @0:456",
+      "#rotulo @01:456",
+      "#rotulo @123:0",
+      "#rotulo @123:456:789",
+      "#rotulo @9007199254740992:2",
+      "#prato @almoco",
+    ]) {
+      expect(parseD1WhatsAppExistingItemCommand(value)).toBeNull();
+    }
   });
 });

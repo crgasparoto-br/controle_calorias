@@ -6,18 +6,35 @@ import {
   mealMedia,
   meals,
 } from "../../drizzle/schema";
+import { foodD1OperationEffects, foodD1OperationRoutes } from "../../drizzle/food-intelligence-v2-schema";
 import type { MealDraftItem } from "../nutritionEngine";
 import type { BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { upsertHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 import { readConfirmedMealClassification } from "../modules/meals/classificationSnapshot";
-import {
-  readSavedMealAdjustmentIdentity,
-} from "../modules/meals/commercialIdentitySnapshot";
+import { readSavedMealAdjustmentIdentity } from "../modules/meals/commercialIdentitySnapshot";
+import { assertLegacyMealItemMutationSafe, hasBoundFoodV2Snapshot } from "../modules/meals/foodV2Snapshot";
 import {
   createMealMutationPreImage,
   groupRawMealItemsByMealId,
   persistMealUpdateWithPreImage,
 } from "./mealMutationPreImage";
+import {
+  assertMealItemSnapshot,
+  assertMealMetadataSnapshot,
+  buildMealItemUpdate,
+  buildMealItemValues,
+  readMealItemResolution,
+  sanitizeUnverifiedReplacement,
+  samePersistedMealItem,
+} from "./mealItemPersistence";
+import {
+  assertMealBelongsToUser,
+  insertConfirmedMealInTransaction,
+  lockMealAndItems,
+  replaceMealItemsInTransaction,
+  runInTransaction,
+  updateMealMetadataInTransaction,
+} from "./mealTransactionOperations";
 import {
   guardHistoricalMealItemUpdate,
   sameHistoricalMealFood,
@@ -83,6 +100,8 @@ export type MealsRepository = {
     items: MealDraftItem[];
     media: SavedMediaRecord[];
     resolvedCatalogIds: Map<string, number>;
+    /** Optional D1 V1 receipt must be committed in the meal transaction. */
+    legacyD1Receipt?: { operationKey: string; operationScopeHash: string; replayed: boolean };
   }): Promise<number>;
   persistMealUpdate(input: {
     meal: {
@@ -167,23 +186,6 @@ export type MealsRepository = {
   countConfirmed(): Promise<number>;
 };
 
-import {
-  assertMealItemSnapshot,
-  assertMealMetadataSnapshot,
-  buildMealItemUpdate,
-  readMealItemResolution,
-  sanitizeUnverifiedReplacement,
-  samePersistedMealItem,
-} from "./mealItemPersistence";
-import {
-  assertMealBelongsToUser,
-  insertConfirmedMealInTransaction,
-  lockMealAndItems,
-  replaceMealItemsInTransaction,
-  runInTransaction,
-  updateMealMetadataInTransaction,
-} from "./mealTransactionOperations";
-
 /** One snapshot-only database reader; the public repository method is a facade. */
 async function loadSavedMeals(
   deps: { getDb: DbProvider; onWarning: PersistenceWarningHandler },
@@ -229,10 +231,13 @@ async function loadSavedMeals(
     const rawItemsByMealId = groupRawMealItemsByMealId(itemRows);
     for (const item of itemRows) {
       const list = itemsByMealId.get(item.mealId) ?? [];
+      // Never promote an arbitrary legacy JSON note into V2 metadata.
+      const v2Historical = hasBoundFoodV2Snapshot(item);
       list.push({
         foodCatalogId: item.foodCatalogId ?? null,
-        // Preserve V1's public record shape until a separate cutover.
-        ...(options.shadowReadOnly
+        // V1 rows retain the public DTO shape; a bound V2 snapshot is
+        // historical in public reads as well as in explicit shadow reads.
+        ...(options.shadowReadOnly || v2Historical
           ? {
               // A-006: a persisted V2 variant outranks its family and legacy
               // catalog identifier; never re-infer a missing variant by name.
@@ -249,6 +254,7 @@ async function loadSavedMeals(
               ),
             }
           : {}),
+        ...(v2Historical ? { v2SnapshotVerified: true as const } : {}),
         ...(options.adjustmentRead
           ? readSavedMealAdjustmentIdentity(item, item.foodSnapshotJson)
           : {}),
@@ -332,10 +338,116 @@ export function createDrizzleMealsRepository(deps: {
       return loadSavedMeals(deps, userId, options);
     },
 
-    async persistMeal({ meal, items, media, resolvedCatalogIds }) {
+    async persistMeal({ meal, items, media, resolvedCatalogIds, legacyD1Receipt }) {
       const db = await deps.getDb();
-      if (!db) return 0;
+      if (!db) {
+        if (legacyD1Receipt) throw new Error("food-d1-legacy-receipt-db-unavailable");
+        return 0;
+      }
+      if (legacyD1Receipt && typeof db.transaction !== "function") {
+        throw new Error("food-d1-legacy-receipt-transaction-unavailable");
+      }
 
+      if (legacyD1Receipt) {
+      return runInTransaction(db, async tx => {
+        if (legacyD1Receipt) {
+          if (typeof legacyD1Receipt.operationKey !== "string" ||
+              legacyD1Receipt.operationKey.length > 200 ||
+              !/^[a-f0-9]{64}$/.test(legacyD1Receipt.operationScopeHash)) {
+            throw new Error("food-d1-legacy-receipt-malformed");
+          }
+          const [route] = await tx.select().from(foodD1OperationRoutes)
+            .where(and(eq(foodD1OperationRoutes.ownerUserId, meal.userId),
+              eq(foodD1OperationRoutes.operationKey, legacyD1Receipt.operationKey)))
+            .for("update").limit(1);
+          let routeVersions: unknown;
+          try { routeVersions = JSON.parse(route?.revisionsJson ?? "null"); }
+          catch { throw new Error("food-d1-legacy-receipt-corrupt-route"); }
+          if (!route || route.resolver !== "v1" ||
+              route.originEntrypoint !== "addition" ||
+              !routeVersions || typeof routeVersions !== "object" ||
+              (routeVersions as Record<string, unknown>).operationScopeHash !==
+                legacyD1Receipt.operationScopeHash ||
+              (["code", "knowledge", "lexicon", "policy", "resolver"] as const)
+                .some(key => (routeVersions as Record<string, unknown>)[key] !== "legacy-v1")) {
+            throw new Error("food-d1-legacy-receipt-unpinned-or-stale");
+          }
+          const [receipt] = await tx.select().from(foodD1OperationEffects)
+            .where(and(eq(foodD1OperationEffects.ownerUserId, meal.userId),
+              eq(foodD1OperationEffects.operationKey, legacyD1Receipt.operationKey),
+              eq(foodD1OperationEffects.observationId, "__manual_v1_confirmed")))
+            .for("update").limit(1);
+          if (receipt) {
+            if (receipt.decisionHash !== legacyD1Receipt.operationScopeHash) {
+              throw new Error("food-d1-legacy-receipt-payload-changed");
+            }
+            let outcome: unknown;
+            try { outcome = JSON.parse(receipt.outcomeJson); }
+            catch { throw new Error("food-d1-legacy-receipt-corrupt"); }
+            const id = (outcome as { mealId?: unknown } | null)?.mealId;
+            if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0) {
+              throw new Error("food-d1-legacy-receipt-corrupt");
+            }
+            const [existing] = await tx.select().from(meals)
+              .where(and(eq(meals.id, id), eq(meals.userId, meal.userId),
+                eq(meals.status, "confirmed"))).for("update").limit(1);
+            if (!existing) throw new Error("food-d1-legacy-receipt-meal-missing");
+            legacyD1Receipt.replayed = true;
+            return id;
+          }
+        }
+        const mealInsert = await tx.insert(meals).values({
+          userId: meal.userId,
+          source: meal.source,
+          status: "draft",
+          mealLabel: meal.mealLabel,
+          notes: meal.notes ?? null,
+          sourceText: meal.sourceText || null,
+          transcript: meal.transcript ?? null,
+          confidence: meal.confidence,
+          occurredAt: new Date(meal.occurredAt),
+        });
+        const mealId = Number((mealInsert as any)?.[0]?.insertId ?? (mealInsert as any)?.insertId ?? 0);
+
+        let itemInsertForReceipt: unknown = null;
+        if (items.length) {
+          itemInsertForReceipt = await tx.insert(mealItems).values(
+            buildMealItemValues(mealId, items, resolvedCatalogIds),
+          );
+        }
+
+        if (media.length) {
+          await tx.insert(mealMedia).values(
+            media.map(item => ({
+              mealId,
+              mediaType: item.mediaType,
+              storageKey: item.storageKey,
+              storageUrl: item.storageUrl,
+              mimeType: item.mimeType,
+              originalFileName: item.originalFileName ?? null,
+            })),
+          );
+        }
+
+        await tx.update(meals).set({ status: "confirmed" }).where(eq(meals.id, mealId));
+        if (legacyD1Receipt) {
+          const firstItemId = Number((itemInsertForReceipt as any)?.[0]?.insertId ??
+            (itemInsertForReceipt as any)?.insertId ?? 0);
+          if (!Number.isSafeInteger(mealId) || mealId <= 0 ||
+              !Number.isSafeInteger(firstItemId) || firstItemId <= 0) {
+            throw new Error("food-d1-legacy-receipt-effect-id-unavailable");
+          }
+          await tx.insert(foodD1OperationEffects).values({
+            ownerUserId: meal.userId, operationKey: legacyD1Receipt.operationKey,
+            observationId: "__manual_v1_confirmed",
+            decisionHash: legacyD1Receipt.operationScopeHash,
+            outcomeJson: JSON.stringify({ mealId, itemId: firstItemId }),
+          });
+        }
+
+        return mealId;
+      });
+      }
       return runInTransaction(db, tx =>
         insertConfirmedMealInTransaction(tx, {
           meal,
@@ -345,7 +457,6 @@ export function createDrizzleMealsRepository(deps: {
         })
       );
     },
-
     async persistMealUpdate({
       meal,
       items,
@@ -360,7 +471,10 @@ export function createDrizzleMealsRepository(deps: {
         expectedPreImage,
         runInTransaction,
         lockMealAndItems,
-        replaceMealItemsInTransaction,
+        replaceMealItemsInTransaction: async (tx, update, previous) => {
+          assertLegacyMealItemMutationSafe(previous);
+          await replaceMealItemsInTransaction(tx, update, previous);
+        },
       });
     },
 
@@ -389,6 +503,7 @@ export function createDrizzleMealsRepository(deps: {
         if (itemIndex < 0 || itemIndex >= locked.items.length) {
           throw new Error("Alimento não encontrado na refeição.");
         }
+        assertLegacyMealItemMutationSafe([locked.items[itemIndex]]);
 
         await updateMealMetadataInTransaction(tx, {
           userId,
@@ -453,6 +568,7 @@ export function createDrizzleMealsRepository(deps: {
         if (itemIndex < 0 || itemIndex >= locked.items.length) {
           throw new Error("Alimento não encontrado na refeição.");
         }
+        assertLegacyMealItemMutationSafe([locked.items[itemIndex]]);
 
         const createdMealId = await insertConfirmedMealInTransaction(tx, {
           meal: {
@@ -543,6 +659,7 @@ export function createDrizzleMealsRepository(deps: {
           samePersistedMealItem(row, expectedOriginalItem)
         );
         if (matchingItems.length !== 1) return "stale" as const;
+        assertLegacyMealItemMutationSafe(currentItems);
 
         await replaceMealItemsInTransaction(
           tx,

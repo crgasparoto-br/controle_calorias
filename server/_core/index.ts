@@ -54,6 +54,7 @@ import {
 } from "../modules/billing/asaas/runtime";
 import { configureAsaasBillingLifecycleHooks } from "../modules/billing/asaas/remediationRuntime";
 import { startAsaasPixAuthorizationRecoveryScheduler } from "../modules/billing/asaas/pixAuthorizationRecovery";
+import { startFoodD1WebDraftRetentionScheduler } from "../modules/foodIntelligenceV2/webDraftRetentionScheduler";
 
 const MEDIA_TRPC_PATHS = [
   "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
@@ -278,6 +279,7 @@ async function startServer() {
   // mesmo instante de boot em instâncias com orçamento de memória pequeno.
   startWhatsappQuestionRecoveryScheduler();
   startConversationRetentionScheduler();
+  startFoodD1WebDraftRetentionScheduler();
 
   scheduleRuntimeStartupSteps({
     steps: [

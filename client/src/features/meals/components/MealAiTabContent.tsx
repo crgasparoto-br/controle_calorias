@@ -2,9 +2,11 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCountPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { BrainCircuit, ImagePlus, Mic, Save, WandSparkles } from "lucide-react";
 import { MealDateTimeInput } from "./MealDateTimeInput";
 import { MealEmptyState } from "./MealEmptyState";
@@ -12,12 +14,15 @@ import { MealItemEditor } from "./MealItemEditor";
 import { MealLabelInput } from "./MealLabelInput";
 import { MealTotalsBlock } from "./MealTotalsBlock";
 import { MealUploadField } from "./MealUploadField";
-import type { DraftState, MealItemState } from "../types";
+import { isFoodD1WebDraft, type DraftState, type FoodD1EditableItemState, type MealItemState } from "../types";
+import type { MealImageKind } from "../mealFormState";
 
 type MealAiTabContentProps = {
   description: string;
   onDescriptionChange: (value: string) => void;
   imageFileName?: string;
+  imageKind: MealImageKind | null;
+  onImageKindChange: (kind: MealImageKind) => void;
   audioFileName?: string;
   onImageChange: React.ChangeEventHandler<HTMLInputElement>;
   onAudioChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -33,6 +38,8 @@ type MealAiTabContentProps = {
   onNotesChange: (value: string) => void;
   editableItems: MealItemState[];
   onEditableItemChange: <K extends keyof MealItemState>(index: number, key: K, value: MealItemState[K]) => void;
+  foodD1EditableItems: FoodD1EditableItemState[];
+  onFoodD1ItemChange: (index: number, key: "foodName" | "quantityInput" | "unit", value: string) => void;
   previewTotals: { calories: number; protein: number; carbs: number; fat: number };
   onConfirm: () => void;
   isConfirmPending: boolean;
@@ -42,6 +49,8 @@ export function MealAiTabContent({
   description,
   onDescriptionChange,
   imageFileName,
+  imageKind,
+  onImageKindChange,
   audioFileName,
   onImageChange,
   onAudioChange,
@@ -57,6 +66,8 @@ export function MealAiTabContent({
   onNotesChange,
   editableItems,
   onEditableItemChange,
+  foodD1EditableItems,
+  onFoodD1ItemChange,
   previewTotals,
   onConfirm,
   isConfirmPending,
@@ -100,8 +111,32 @@ export function MealAiTabContent({
               onChange={onAudioChange}
             />
           </div>
+          {imageFileName ? (
+            <div className="space-y-2">
+              <Label htmlFor="meal-image-kind">Tipo de foto (obrigatório)</Label>
+              <Select value={imageKind ?? undefined} onValueChange={value =>
+                onImageKindChange(value as MealImageKind)}>
+                <SelectTrigger id="meal-image-kind" aria-required="true"
+                  aria-describedby="meal-image-kind-help" className="w-full rounded-xl">
+                  <SelectValue placeholder="Selecione o conteúdo da foto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="plate_image">Prato ou alimento servido</SelectItem>
+                  <SelectItem value="packaging">Frente da embalagem</SelectItem>
+                  <SelectItem value="nutrition_label">Tabela nutricional / rótulo</SelectItem>
+                </SelectContent>
+              </Select>
+              <p id="meal-image-kind-help" className="text-xs text-muted-foreground">
+                {imageKind === "nutrition_label"
+                  ? "Uma tabela nutricional precisa ser associada a um alimento já registrado. Este formulário cria uma nova refeição."
+                  : "Selecione o tipo de foto para habilitar o registro. O tipo orienta a leitura; só o resolvedor valida alimentos e nutrientes."}
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-3">
-            <Button className="rounded-full" onClick={onProcess} disabled={isProcessing}>
+            <Button className="rounded-full" onClick={onProcess}
+              disabled={isProcessing || (Boolean(imageFileName) &&
+                (imageKind === null || imageKind === "nutrition_label"))}>
               <BrainCircuit className="mr-2 h-4 w-4" />
               {isProcessing ? "Processando..." : "Registrar"}
             </Button>
@@ -117,6 +152,109 @@ export function MealAiTabContent({
         </CardHeader>
         <CardContent className="space-y-4">
           {draft ? (
+            isFoodD1WebDraft(draft) ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 p-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Rascunho V2</p>
+                    <p className="text-xl font-semibold tracking-tight">{formatCountPtBr(draft.items.length, " itens para revisar")}</p>
+                  </div>
+                  <Badge variant="secondary">Expira em até 30 minutos</Badge>
+                </div>
+                <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                  <MealLabelInput value={mealLabel} onChange={onMealLabelChange} suggestedLabel={null} disabled />
+                  <MealDateTimeInput id="occurred-at" label="Data e horário" value={occurredAt} onChange={onOccurredAtChange} disabled />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  O destino e a data foram fixados ao gerar o rascunho. Para alterá-los, gere outro rascunho.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="meal-notes">Observações</Label>
+                  <Textarea
+                    id="meal-notes"
+                    value={notes}
+                    onChange={event => onNotesChange(event.target.value)}
+                    placeholder="Observações adicionais sobre a refeição"
+                    className="min-h-24 rounded-2xl"
+                  />
+                </div>
+                <div className="space-y-3">
+                  {foodD1EditableItems.map((item, index) => {
+                    const hasVerifiedNutrition = item.nutrition.verified &&
+                      item.nutrition.calories !== null &&
+                      item.nutrition.protein !== null &&
+                      item.nutrition.carbs !== null &&
+                      item.nutrition.fat !== null;
+                    return (
+                      <div key={item.observationId} className="space-y-4 rounded-2xl border bg-background p-4 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 pb-3">
+                          <div>
+                            <p className="text-sm font-medium tracking-tight">Alimento {index + 1}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.disposition === "ready"
+                                ? "Confira a identidade e a porção antes de salvar."
+                                : "Ajuste o nome ou a porção para tentar resolver este item."}
+                            </p>
+                          </div>
+                          <Badge variant={item.disposition === "ready" ? "secondary" : "outline"}>
+                            {item.disposition === "ready" ? "Pronto para confirmar" : "Precisa de revisão"}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(7rem,0.7fr)_minmax(7rem,0.7fr)]">
+                          <div className="space-y-2">
+                            <Label htmlFor={`food-d1-name-${index}`}>Alimento</Label>
+                            <Input
+                              id={`food-d1-name-${index}`}
+                              value={item.foodName}
+                              onChange={event => onFoodD1ItemChange(index, "foodName", event.target.value)}
+                              maxLength={255}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`food-d1-quantity-${index}`}>Quantidade</Label>
+                            <Input
+                              id={`food-d1-quantity-${index}`}
+                              inputMode="decimal"
+                              value={item.quantityInput}
+                              onChange={event => onFoodD1ItemChange(index, "quantityInput", event.target.value)}
+                              placeholder="Ex.: 1,5"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`food-d1-unit-${index}`}>Unidade</Label>
+                            <Input
+                              id={`food-d1-unit-${index}`}
+                              value={item.unit ?? ""}
+                              onChange={event => onFoodD1ItemChange(index, "unit", event.target.value)}
+                              maxLength={40}
+                              placeholder="Ex.: g, ml"
+                            />
+                          </div>
+                        </div>
+                        {hasVerifiedNutrition ? (
+                          <p className="text-sm text-muted-foreground">
+                            Nutrição verificada: {formatCalories(item.nutrition.calories!)} ·
+                            {` ${formatGrams(item.nutrition.protein!)} proteínas · ${formatGrams(item.nutrition.carbs!)} carboidratos · ${formatGrams(item.nutrition.fat!)} gorduras`}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Nutrição ainda não verificada; valores estimados não serão usados para salvar.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <Button
+                  className="w-full rounded-full"
+                  disabled={isConfirmPending || foodD1EditableItems.length === 0 || foodD1EditableItems.some(item => !item.foodName.trim())}
+                  onClick={onConfirm}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {isConfirmPending ? "Salvando..." : "Salvar refeição"}
+                </Button>
+              </>
+            ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 p-4">
                 <div>
@@ -173,6 +311,7 @@ export function MealAiTabContent({
                 {isConfirmPending ? "Salvando..." : "Salvar refeição"}
               </Button>
             </>
+            )
           ) : (
             <MealEmptyState text="Informe texto, foto, rótulo ou áudio e clique em Registrar. O rascunho aparecerá aqui para revisão antes de salvar." />
           )}

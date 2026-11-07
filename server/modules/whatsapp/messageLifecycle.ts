@@ -28,6 +28,7 @@ import { runWithIrreversibleEffectFence } from "../../_core/effectFenceContext";
 import {
   runWithWhatsappInboundCorrelationScope,
   setCurrentWhatsappInboundExternalMessageId,
+  setCurrentWhatsappInboundContentType,
 } from "./inboundCorrelationContext";
 import {
   beginCurrentQuestionLatencyTrace,
@@ -427,6 +428,7 @@ export async function runWithMessageLifecycleRequestScope<T>(operation: () => Pr
 export async function beginInboundMessage(input: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
   const externalMessageId = input.externalMessageId?.trim() || null;
   setCurrentWhatsappInboundExternalMessageId(externalMessageId);
+  setCurrentWhatsappInboundContentType(input.contentType);
 
   const handle = await getActiveService().beginInboundMessage(input);
   const scope = lifecycleScope.getStore();
