@@ -9,6 +9,7 @@ import { getDb } from "../../db";
 import { foodLexiconEntries, foodSourceReadGrants, userFoodLexiconEntries } from "../../../drizzle/food-intelligence-v2-schema";
 import { canPublishGlobalKnowledge } from "./sourceGrants";
 import type { GovernedLexiconEntry, LinguisticLexiconStore } from "./linguisticComprehension";
+import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
 
 type SnapshotInput = { locale: "pt-BR"; ownerUserId: number | null; now: Date };
 
@@ -16,9 +17,9 @@ export async function readGovernedLinguisticLexicon(input: SnapshotInput): Promi
   revision: string;
   entries: GovernedLexiconEntry[];
 }> {
-  if (input.ownerUserId !== null &&
-      (!Number.isSafeInteger(input.ownerUserId) || input.ownerUserId <= 0) ||
-      Number.isNaN(input.now.getTime())) throw new Error("invalid-lexicon-scope");
+  if ((input.ownerUserId !== null &&
+      (!Number.isSafeInteger(input.ownerUserId) || input.ownerUserId <= 0)) ||
+      !isLinguisticLexiconEntryValidAt(null, null, input.now)) throw new Error("invalid-lexicon-scope");
   const db = await getDb();
   if (!db) throw new Error("governed-lexicon-unavailable");
   const global = await db.select().from(foodLexiconEntries).where(and(
@@ -39,6 +40,7 @@ export async function readGovernedLinguisticLexicon(input: SnapshotInput): Promi
   const rows: GovernedLexiconEntry[] = [];
   const sourceRevisions: Record<number, string> = {};
   for (const item of global) {
+    if (!isLinguisticLexiconEntryValidAt(item.validFrom, item.validTo, input.now)) continue;
     // Global "verified" does not override an expired/revoked source grant.
     // Manually curated lexicon rows may have no external source.
     if (item.sourceId !== null) {
@@ -52,8 +54,6 @@ export async function readGovernedLinguisticLexicon(input: SnapshotInput): Promi
       )) continue;
       sourceRevisions[item.id] = authorization.source.version;
     }
-    if (item.validFrom && item.validFrom > input.now ||
-        item.validTo && item.validTo <= input.now) continue;
     rows.push({
       id: item.id, term: item.term, normalizedTerm: item.normalizedTerm,
       kind: item.kind, targetType: item.targetType, targetRef: item.targetRef,
@@ -65,7 +65,8 @@ export async function readGovernedLinguisticLexicon(input: SnapshotInput): Promi
   }
   for (const item of personal) {
     // A claim of "confirmed" without confirmation evidence is not a personal preference.
-    if (!item.confirmedAt || item.revokedAt) continue;
+    if (!item.confirmedAt || item.revokedAt ||
+        !isLinguisticLexiconEntryValidAt(item.confirmedAt, null, input.now)) continue;
     rows.push({
       id: item.id, term: item.term, normalizedTerm: item.normalizedTerm,
       kind: item.kind, targetType: item.targetType, targetRef: item.targetRef,

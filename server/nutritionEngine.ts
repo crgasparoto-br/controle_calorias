@@ -1,4 +1,6 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
+import { isHouseholdSpoonUnit } from "../shared/measurementUnits";
+import { normalizeKnownFoodText } from "./foodTextNormalization";
 import {
   containsBroadGenericFoodToken,
   findCatalogFood,
@@ -56,6 +58,7 @@ import {
   normalizeLlmItem,
   normalizeUnit,
   parseFoodText,
+  splitFoodTextSegments,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
@@ -1428,6 +1431,29 @@ export async function processMealInput(
   const quantityClarification = getQuantityExpressionClarification(sourceText);
   if (quantityClarification)
     throw new MealInferenceError(quantityClarification);
+
+  const unconvertedSpoonQuantity = splitFoodTextSegments(sourceText)
+    .flatMap(segment => extractExplicitQuantityFoodSegments(
+      normalizeKnownFoodText(segment),
+    ))
+    .find(
+      item => isHouseholdSpoonUnit(item.unit) && item.estimatedGrams === undefined,
+    );
+  if (unconvertedSpoonQuantity) {
+    const requestedUnit = normalizeUnit(unconvertedSpoonQuantity.unit);
+    throw new MealInferenceError(
+      `Não consigo converter ${requestedUnit} em gramas com segurança. Informe a quantidade em gramas ou outra medida com conversão conhecida.`,
+      {
+        code: "food_component_quantity_required",
+        context: {
+          component: unconvertedSpoonQuantity.foodName,
+          foodName: unconvertedSpoonQuantity.foodName,
+          originalText: sourceText,
+          acceptedUnits: ["g", "kg", "mg", "ml", "l"],
+        },
+      }
+    );
+  }
 
   const detectedMealLabel = resolveMealLabel(input, sourceText);
   const fallbackReasons = createFallbackReasonCollector();

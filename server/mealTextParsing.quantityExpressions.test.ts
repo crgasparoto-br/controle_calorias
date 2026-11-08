@@ -3,8 +3,102 @@ import {
   extractExplicitQuantities,
   extractExplicitQuantityFoodSegments,
   getQuantityExpressionClarification,
+  parseCountableQuantityPrefix,
   parseFoodText,
 } from "./mealTextParsing";
+
+describe("mealTextParsing household spoon units", () => {
+  it.each([
+    ["1 colher de arroz", "arroz", 1, "colher"],
+    ["2 colheres de arroz", "arroz", 2, "colher"],
+    ["1 colher de sopa de arroz", "arroz", 1, "colher de sopa"],
+    ["2 colheres de sopa de arroz", "arroz", 2, "colher de sopa"],
+    ["1 colher de chá de sal", "sal", 1, "colher de chá"],
+    ["2 colheres de chá de sal", "sal", 2, "colher de chá"],
+  ])("reconhece %s", (input, foodName, quantity, unit) => {
+    expect(parseFoodText(input)).toEqual(
+      expect.objectContaining({
+        foodName,
+        quantity,
+        unit,
+      })
+    );
+  });
+
+  it("não trata ‘1 colher de sopa’ sem um segundo ‘de’ como medida qualificada", () => {
+    expect(parseFoodText("1 colher de sopa")).toEqual(
+      expect.objectContaining({
+        foodName: "sopa",
+        quantity: 1,
+        unit: "colher",
+      })
+    );
+  });
+
+  it.each([
+    ["1 colher de sopa", "sopa", "colher"],
+    ["1 colher de chá de sal", "sal", "colher de chá"],
+  ])(
+    "mantém parser e extrator de segmentos alinhados em %s",
+    (input, foodName, unit) => {
+      expect(parseFoodText(input)).toEqual(
+        expect.objectContaining({
+          foodName,
+          quantity: 1,
+          unit,
+        })
+      );
+      expect(extractExplicitQuantityFoodSegments(input)).toEqual([
+        expect.objectContaining({ foodName, quantity: 1, unit }),
+      ]);
+    }
+  );
+
+  it.each([
+    ["1 unidade", "un"],
+    ["1 colher de sopa", "colher de sopa"],
+    ["1 colher de chá", "colher de chá"],
+  ])("extrai unidade de rótulo isolado %s", (label, unit) => {
+    expect(extractExplicitQuantities(label)).toEqual([
+      expect.objectContaining({ quantity: 1, unit }),
+    ]);
+  });
+
+  it("preserva o contrato próprio dos labels globais em texto segmentado e acentuado", () => {
+    expect(
+      extractExplicitQuantities(
+        "1 colher de sopa de arroz e 1 colher de chá de sal"
+      )
+    ).toEqual([
+      expect.objectContaining({ quantity: 1, unit: "colher de sopa" }),
+      expect.objectContaining({ quantity: 1, unit: "colher de chá" }),
+    ]);
+  });
+
+  it("extrai medidas distintas no mesmo segmento de texto", () => {
+    expect(
+      extractExplicitQuantities("1 colher de sopa de arroz com 2 fatias de pão")
+    ).toEqual([
+      expect.objectContaining({ quantity: 1, unit: "colher de sopa" }),
+      expect.objectContaining({ quantity: 2, unit: "fatia" }),
+    ]);
+  });
+
+  it("decodifica o prefixo countable sem depender de rewrite do nome do alimento", () => {
+    expect(parseCountableQuantityPrefix("duas bananas prata")).toEqual({
+      quantity: 2,
+      remainder: "bananas prata",
+    });
+    expect(parseCountableQuantityPrefix("dois de ovos cozido")).toEqual({
+      quantity: 2,
+      remainder: "ovos cozido",
+    });
+    expect(parseCountableQuantityPrefix("um pouco de arroz")).toEqual({
+      quantity: 1,
+      remainder: "pouco de arroz",
+    });
+  });
+});
 
 describe("mealTextParsing arithmetic quantity expressions", () => {
   it.each([
@@ -22,41 +116,49 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     ["300g dividido por 2 de laranja pêra", "laranja pêra", 150],
     ["300g/2+20g de banana", "banana", 170],
   ])("calcula %s", (input, foodName, grams) => {
-    expect(parseFoodText(input)).toEqual(expect.objectContaining({
-      foodName,
-      quantity: grams,
-      unit: "g",
-      portionText: `${grams} g`,
-      estimatedGrams: grams,
-    }));
+    expect(parseFoodText(input)).toEqual(
+      expect.objectContaining({
+        foodName,
+        quantity: grams,
+        unit: "g",
+        portionText: `${grams} g`,
+        estimatedGrams: grams,
+      })
+    );
     expect(getQuantityExpressionClarification(input)).toBeNull();
   });
 
   it("respeita precedência matemática padrão", () => {
-    expect(parseFoodText("100g+50g*2 de banana")).toEqual(expect.objectContaining({
-      foodName: "banana",
-      quantity: 200,
-      estimatedGrams: 200,
-    }));
+    expect(parseFoodText("100g+50g*2 de banana")).toEqual(
+      expect.objectContaining({
+        foodName: "banana",
+        quantity: 200,
+        estimatedGrams: 200,
+      })
+    );
   });
 
   it("aceita resultado decimal e formata conforme o padrão do projeto", () => {
-    expect(parseFoodText("1kg/2 de arroz")).toEqual(expect.objectContaining({
-      foodName: "arroz",
-      quantity: 0.5,
-      unit: "kg",
-      portionText: "0,5 kg",
-      estimatedGrams: 500,
-    }));
+    expect(parseFoodText("1kg/2 de arroz")).toEqual(
+      expect.objectContaining({
+        foodName: "arroz",
+        quantity: 0.5,
+        unit: "kg",
+        portionText: "0,5 kg",
+        estimatedGrams: 500,
+      })
+    );
   });
 
   it("aceita expressão com unidade não convertida para gramas", () => {
-    expect(parseFoodText("2x1 un banana")).toEqual(expect.objectContaining({
-      foodName: "banana",
-      quantity: 2,
-      unit: "un",
-      portionText: "2 un",
-    }));
+    expect(parseFoodText("2x1 un banana")).toEqual(
+      expect.objectContaining({
+        foodName: "banana",
+        quantity: 2,
+        unit: "un",
+        portionText: "2 un",
+      })
+    );
   });
 
   it.each([
@@ -65,14 +167,19 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     ["1,5 g de arroz", "arroz", "g", "1,5 g"],
     ["1.5 kg de arroz", "arroz", "kg", "1,5 kg"],
     ["1,5 ml de leite", "leite", "ml", "1,5 ml"],
-  ])("preserva quantidade decimal em %s", (input, foodName, unit, portionText) => {
-    expect(parseFoodText(input)).toEqual(expect.objectContaining({
-      foodName,
-      quantity: 1.5,
-      unit,
-      portionText,
-    }));
-  });
+  ])(
+    "preserva quantidade decimal em %s",
+    (input, foodName, unit, portionText) => {
+      expect(parseFoodText(input)).toEqual(
+        expect.objectContaining({
+          foodName,
+          quantity: 1.5,
+          unit,
+          portionText,
+        })
+      );
+    }
+  );
 
   it("extrai uma quantidade explícita calculada para reaplicar em item único", () => {
     expect(extractExplicitQuantities("2x176g de laranja pêra")).toEqual([
@@ -81,19 +188,30 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
   });
 
   it("extrai quantidades explícitas calculadas por alimento", () => {
-    expect(extractExplicitQuantityFoodSegments("300g/2+20g de banana e 2x176g de laranja pêra")).toEqual([
+    expect(
+      extractExplicitQuantityFoodSegments(
+        "300g/2+20g de banana e 2x176g de laranja pêra"
+      )
+    ).toEqual([
       { foodName: "banana", quantity: 170, unit: "g", estimatedGrams: 170 },
-      { foodName: "laranja pêra", quantity: 352, unit: "g", estimatedGrams: 352 },
+      {
+        foodName: "laranja pêra",
+        quantity: 352,
+        unit: "g",
+        estimatedGrams: 352,
+      },
     ]);
   });
 
   it("mantém o parser simples para mensagens sem operação", () => {
-    expect(parseFoodText("176g de laranja pêra")).toEqual(expect.objectContaining({
-      foodName: "laranja pêra",
-      quantity: 176,
-      unit: "g",
-      estimatedGrams: 176,
-    }));
+    expect(parseFoodText("176g de laranja pêra")).toEqual(
+      expect.objectContaining({
+        foodName: "laranja pêra",
+        quantity: 176,
+        unit: "g",
+        estimatedGrams: 176,
+      })
+    );
   });
 
   it.each([
@@ -104,6 +222,8 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     ["1+1+1+1+1+1+1g de banana", "operações demais"],
     ["1+1 de banana", "unidade da quantidade"],
   ])("explica por que não consegue calcular %s", (input, expectedMessage) => {
-    expect(getQuantityExpressionClarification(input)).toContain(expectedMessage);
+    expect(getQuantityExpressionClarification(input)).toContain(
+      expectedMessage
+    );
   });
 });

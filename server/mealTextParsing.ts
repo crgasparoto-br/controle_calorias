@@ -1,8 +1,10 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngineTypes";
+import { parseCountableQuantity } from "../shared/quantityUnitVocabulary";
 
-export const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
+export const QUANTITY_UNIT_PATTERN =
+  "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colher(?:es)?(?: de sopa| de ch[aá])?|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
 
 const QUANTITY_EXPRESSION_OPERATOR_PATTERN = "x|X|\\*|/|÷|\\+|-|dividid[ao]\\s+por|dividir\\s+por";
 const MAX_QUANTITY_EXPRESSION_OPERATORS = 5;
@@ -400,6 +402,17 @@ export function getQuantityExpressionClarification(value: string) {
   return null;
 }
 
+export function parseCountableQuantityPrefix(value: string) {
+  const words = value.trim().split(" ").filter(Boolean);
+  const quantity = parseCountableQuantity(words[0] ?? "");
+  if (!quantity || words.length < 2) return null;
+
+  const remainderWords =
+    words[1]?.toLowerCase() === "de" ? words.slice(2) : words.slice(1);
+  const remainder = remainderWords.join(" ");
+  return remainder ? { quantity, remainder } : null;
+}
+
 export function parseFoodText(value: string): ParsedFoodText {
   const expression = parseLeadingQuantityExpression(value);
   if (expression) {
@@ -458,29 +471,50 @@ export function extractExplicitQuantityFoodSegments(sourceText: string): Array<E
   return items;
 }
 
-export function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {
+export function extractExplicitQuantities(
+  sourceText: string
+): ExplicitQuantity[] {
   const expression = parseLeadingQuantityExpression(sourceText);
   if (expression?.quantity && expression.unit) {
-    return [{
-      quantity: expression.quantity,
-      unit: expression.unit,
-      estimatedGrams: expression.estimatedGrams,
-    }];
+    return [
+      {
+        quantity: expression.quantity,
+        unit: expression.unit,
+        estimatedGrams: expression.estimatedGrams,
+      },
+    ];
   }
 
-  const matches = Array.from(sourceText.matchAll(new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "gi")));
-  return matches
-    .map(match => {
-      const quantity = parseDecimalNumber(match[1]);
-      const unit = normalizeUnit(match[2]);
-      const estimatedGrams = estimateGramsFromQuantity(quantity, unit);
-      return {
-        quantity: roundNutritionValue(quantity),
-        unit,
-        estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
-      };
-    })
-    .filter(item => Number.isFinite(item.quantity) && item.quantity > 0);
+  const items: ExplicitQuantity[] = [];
+  for (const segment of splitFoodTextSegments(sourceText)) {
+    const words = segment.trim().split(" ").filter(Boolean);
+    for (let index = 0; index < words.length; index += 1) {
+      const candidate = words.slice(index).join(" ");
+      const parsed = parseFoodText(`${candidate} x`);
+      if (!parsed.quantity || !parsed.unit) continue;
+
+      const remainder = parsed.foodName.slice(0, -2);
+      const cleanedCandidate = cleanFoodName(candidate);
+      const consumedPrefix = cleanedCandidate.slice(
+        0,
+        cleanedCandidate.length - remainder.length
+      );
+      const consumedWordCount = consumedPrefix
+        .trim()
+        .split(" ")
+        .filter(Boolean).length;
+      items.push({
+        quantity: parsed.quantity,
+        unit: parsed.unit,
+        estimatedGrams: parsed.estimatedGrams,
+      });
+      index += consumedWordCount - 1;
+    }
+  }
+
+  return items.filter(
+    item => Number.isFinite(item.quantity) && item.quantity > 0
+  );
 }
 
 export function parseQuantityUnitFromPortionText(portionText: string) {

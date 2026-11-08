@@ -8,6 +8,10 @@ import {
 } from "./catalogMatching";
 import { detectKnownBrand } from "./foodBrandDetection";
 import {
+  exactUnitFoodCatalogAlias,
+  hasUnresolvedWrittenCount,
+} from "./foodTextNormalization";
+import {
   buildPortionText,
   cleanFoodName,
   extractExplicitQuantities,
@@ -590,11 +594,16 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
 export function buildHeuristicItem(foodName: string): MealDraftItem {
   const countableRequest = parseCountableFoodQuantitySegment(foodName);
   if (countableRequest && !isKnownZeroBeverage(countableRequest.foodName, countableRequest.requestedUnit)) {
-    const safeCountable = resolveSafeCountableCatalogGrams(
-      countableRequest.foodName,
-      countableRequest.count,
-      countableRequest.requestedUnit,
-    );
+    const countableFoodKey = countableRequest.requestedUnit === "un"
+      ? exactUnitFoodCatalogAlias(countableRequest.foodName)
+      : countableRequest.foodName;
+    const safeCountable = countableFoodKey
+      ? resolveSafeCountableCatalogGrams(
+        countableFoodKey,
+        countableRequest.count,
+        countableRequest.requestedUnit,
+      )
+      : null;
     if (safeCountable) {
       const formattedFoodName = formatFoodNameTitleCase(countableRequest.foodName);
       const servings = safeCountable.grams / safeCountable.food.gramsPerServing;
@@ -617,7 +626,9 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
   }
 
   const parsed = parseFoodText(foodName);
-  const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName, parsed.unit);
+  const allowCatalogFallback = countableRequest?.requestedUnit !== "un"
+    && !hasUnresolvedWrittenCount(foodName)
+    && !isLikelyCompositePreparation(parsed.foodName, parsed.unit);
   const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName, parsed.unit);
   const directCatalog = allowCatalogFallback ? findCatalogFood(parsed.foodName) : null;
   const tacoCatalog = allowCatalogFallback && !directCatalog ? findTacoFood(parsed.foodName) : null;

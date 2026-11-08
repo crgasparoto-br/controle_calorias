@@ -491,6 +491,31 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(obs.identityHints.foodName).toBe("meu pao");
   });
 
+  it("falha fechada para datas de vigência inválidas e preserva limites válidos", async () => {
+    const now = new Date("2026-11-01T12:00:00.000Z");
+    const nextMillisecond = new Date(now.getTime() + 1);
+    const cases: Array<{ name: string; candidate: GovernedLexiconEntry; expectedS2Id: number | null }> = [
+      { name: "bounds null", candidate: entry({ id: 70 }), expectedS2Id: 70 },
+      { name: "validFrom at now", candidate: entry({ id: 71, validFrom: now, validTo: nextMillisecond }), expectedS2Id: 71 },
+      { name: "validFrom in the future", candidate: entry({ id: 72, validFrom: nextMillisecond }), expectedS2Id: null },
+      { name: "validTo at now", candidate: entry({ id: 73, validTo: now }), expectedS2Id: null },
+      { name: "invalid validFrom", candidate: entry({ id: 74, validFrom: new Date("invalid") }), expectedS2Id: null },
+      { name: "invalid validTo", candidate: entry({ id: 75, validTo: new Date("invalid") }), expectedS2Id: null },
+    ];
+
+    for (const { name, candidate, expectedS2Id } of cases) {
+      const [obs] = await analyze("meu pão", [candidate], { now });
+      expect(obs.normalizationPath.map(step => step.stage), name).toEqual(
+        expectedS2Id === null ? ["S1"] : ["S1", "S2"],
+      );
+      if (expectedS2Id === null) {
+        expect(obs.identityHints.foodName, name).toBe("meu pao");
+      } else {
+        expect(obs.normalizationPath[1].lexiconEntryId, name).toBe(expectedS2Id);
+      }
+    }
+  });
+
   it("colisões do mesmo escopo não são resolvidas pela ordem do array", async () => {
     const [obs] = await analyze("meu pão", [entry(), entry({ id: 19, targetRef: "outra coisa" })]);
     expect(obs.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2", "S2"]);

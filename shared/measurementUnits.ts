@@ -170,6 +170,16 @@ export function normalizeMeasurementUnit(value: string) {
   return UNIT_ALIASES.get(normalizeKey(cleaned)) ?? cleaned;
 }
 
+const HOUSEHOLD_SPOON_UNITS = new Set([
+  "colher",
+  "colher de sopa",
+  "colher de chá",
+]);
+
+export function isHouseholdSpoonUnit(value: string) {
+  return HOUSEHOLD_SPOON_UNITS.has(normalizeMeasurementUnit(value));
+}
+
 /** Compare a normalized unit label with a requested measure, ignoring an optional leading amount. */
 export function measurementLabelMatchesUnit(
   label: string,

@@ -1,3 +1,11 @@
+import { parseCountableQuantityPrefix, parseFoodText } from "./mealTextParsing";
+import {
+  findCatalogFood,
+  findNaturalProduceQuantityReferenceName,
+  isCatalogFoodSemanticallyCompatible,
+} from "./catalogMatching";
+import { resolveSafeCountableCatalogGrams } from "./foodItemResolution";
+
 function normalizeFoodLookupText(value: string) {
   return value
     .normalize("NFD")
@@ -8,12 +16,56 @@ function normalizeFoodLookupText(value: string) {
     .trim();
 }
 
-const NUMBER_WORDS: Record<string, number> = {
-  um: 1,
-  uma: 1,
-  dois: 2,
-  duas: 2,
-};
+function hasExactCatalogAlias(
+  value: string,
+  food: { name: string; aliases: string[] }
+) {
+  const normalized = normalizeFoodLookupText(value);
+  return [food.name, ...food.aliases].some(
+    alias => normalizeFoodLookupText(alias) === normalized
+  );
+}
+
+export function exactUnitFoodCatalogAlias(value: string) {
+  const normalizedValue = normalizeFoodLookupText(value);
+  if (!normalizedValue) return null;
+
+  const directFood = findCatalogFood(value);
+  if (directFood && hasExactCatalogAlias(value, directFood)) return value;
+
+  const naturalReference = findNaturalProduceQuantityReferenceName(value);
+  if (naturalReference) {
+    const sourceTokens = normalizedValue.split(" ");
+    const referenceTokens =
+      normalizeFoodLookupText(naturalReference).split(" ");
+    const candidateName = [
+      ...referenceTokens,
+      ...sourceTokens.slice(referenceTokens.length),
+    ].join(" ");
+    const candidateFood = findCatalogFood(candidateName);
+    if (candidateFood && hasExactCatalogAlias(candidateName, candidateFood)) {
+      return candidateName;
+    }
+  }
+
+  if (directFood) return null;
+
+  const canonicalException = resolveSafeCountableCatalogGrams(value, 1, "un");
+  return canonicalException &&
+    isCatalogFoodSemanticallyCompatible(canonicalException.food, value)
+    ? value
+    : null;
+}
+
+export function hasUnresolvedWrittenCount(value: string) {
+  const writtenQuantity = parseCountableQuantityPrefix(value);
+  return Boolean(
+    writtenQuantity &&
+      !exactUnitFoodCatalogAlias(
+        normalizeKnownFoodName(writtenQuantity.remainder)
+      )
+  );
+}
 
 export function normalizeKnownFoodName(value: string) {
   const cleaned = value.replace(/\s+/g, " ").trim();
@@ -47,7 +99,9 @@ export function isLikelyKnownFoodRegistrationText(value?: string | null) {
 
 export function normalizeKnownFoodText(value: string) {
   const text = value.replace(/\s+/g, " ").trim();
-  const quantityWithUnit = text.match(/^(\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres?|x[ií]caras?|copos?|por[cç][oõ]es?|por[cç][aã]o))\s+(?:de\s+)?(.+)$/iu);
+  const quantityWithUnit = text.match(
+    /^(\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres?|x[ií]caras?|copos?|por[cç][oõ]es?|por[cç][aã]o))\s+(?:de\s+)?(.+)$/iu
+  );
   if (quantityWithUnit) {
     const foodName = normalizeKnownFoodName(quantityWithUnit[2]);
     return foodName === quantityWithUnit[2].trim()
@@ -63,11 +117,24 @@ export function normalizeKnownFoodText(value: string) {
       : `${numericQuantity[1]} un ${foodName}`;
   }
 
-  const wordQuantity = text.match(/^(um|uma|dois|duas)\s+(?:de\s+)?(.+)$/iu);
+  const wordQuantity = parseCountableQuantityPrefix(text);
   if (wordQuantity) {
-    const quantity = NUMBER_WORDS[normalizeFoodLookupText(wordQuantity[1])];
-    const foodName = normalizeKnownFoodName(wordQuantity[2]);
-    return quantity && foodName !== wordQuantity[2].trim()
+    const { quantity, remainder: writtenFoodName } = wordQuantity;
+    const numericInput = `${quantity} ${writtenFoodName}`;
+    const parsed = parseFoodText(numericInput);
+    if (parsed.quantity && parsed.unit && parsed.foodName) {
+      const foodName = normalizeKnownFoodName(parsed.foodName);
+      return `${parsed.quantity} ${parsed.unit} ${foodName}`;
+    }
+
+    const foodName = normalizeKnownFoodName(writtenFoodName);
+    const countableReferenceName = exactUnitFoodCatalogAlias(foodName);
+    if (!countableReferenceName) return text;
+    return resolveSafeCountableCatalogGrams(
+      countableReferenceName,
+      quantity,
+      "un"
+    )
       ? `${quantity} un ${foodName}`
       : text;
   }

@@ -19,6 +19,37 @@ describe("nutritionEngine quantity expressions", () => {
     createTextResponseMock.mockReset();
   });
 
+  it.each([
+    ["1 colher de sopa de arroz", "Arroz", "colher de sopa"],
+    ["1 colher de chá de sal", "Sal", "colher de chá"],
+  ])("reaplica a unidade do parser V1 em item único para %s", async (sourceText, foodName, unit) => {
+    const { applyExplicitQuantities } = await import("./mealItemBuilders");
+    const item = {
+      foodName,
+      canonicalName: foodName,
+      quantity: 100,
+      unit: "g",
+      portionText: "100 g",
+      servings: 1,
+      estimatedGrams: 100,
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+      confidence: 0.8,
+      source: "heuristic" as const,
+    };
+
+    const [result] = applyExplicitQuantities([item], sourceText);
+
+    expect(result).toEqual(expect.objectContaining({
+      foodName,
+      quantity: 1,
+      unit,
+      portionText: `1 ${unit}`,
+    }));
+  });
+
   it("calcula expressão matemática no fallback heurístico", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 

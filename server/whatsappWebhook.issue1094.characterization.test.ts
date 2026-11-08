@@ -35,7 +35,11 @@ import {
   parseFoodText,
   splitFoodTextSegments,
 } from "./mealTextParsing";
-import { RATE_LIMITS, createExpressRateLimit } from "./_core/rateLimit";
+import {
+  PAYLOAD_LIMITS,
+  RATE_LIMITS,
+  createExpressRateLimit,
+} from "./_core/rateLimit";
 import { registerWhatsAppPublicPostRoute } from "./whatsappPublicRoute";
 
 type SemanticFactSnapshot = {
@@ -1847,10 +1851,17 @@ async function startScenario(input: {
   visionFoodText?: string | null;
   pendingStorePath?: string;
   lifecycleStorePath?: string;
+  useExpressDefaultErrorHandler?: boolean;
+  webhookRateLimit?: express.RequestHandler;
 }) {
+  const {
+    useExpressDefaultErrorHandler = false,
+    webhookRateLimit,
+    ...scenarioInput
+  } = input;
   cleanupPendingStore();
   state.reset();
-  configureScenario(input);
+  configureScenario(scenarioInput);
   resetCaches();
   installNetworkBoundary();
   const userId = nextUserId++;
@@ -1859,23 +1870,26 @@ async function startScenario(input: {
   const app = express();
   registerWhatsAppPublicPostRoute(app, {
     runtimeBootId: "test-issue-1094",
-    webhookRateLimit: createExpressRateLimit(RATE_LIMITS.whatsappWebhook),
+    webhookRateLimit:
+      webhookRateLimit ?? createExpressRateLimit(RATE_LIMITS.whatsappWebhook),
     handle: (req, res) =>
       withMessageLifecycleService(createRuntime(activeLifecycle), () =>
         handleWhatsAppPersistentContextWebhook(req as never, res as never)
       ),
   });
-  app.use(
-    (
-      error: unknown,
-      _req: express.Request,
-      res: express.Response,
-      _next: express.NextFunction
-    ) => {
-      if (!res.headersSent) res.status(500).json({ ok: false });
-      void error;
-    }
-  );
+  if (!useExpressDefaultErrorHandler) {
+    app.use(
+      (
+        error: unknown,
+        _req: express.Request,
+        res: express.Response,
+        _next: express.NextFunction
+      ) => {
+        if (!res.headersSent) res.status(500).json({ ok: false });
+        void error;
+      }
+    );
+  }
   const listening = await listen(app);
   activeServer = listening.server;
   activeUrl = listening.url;
@@ -2477,7 +2491,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     await finishScenario("11-multi-item-atomic", "registered");
   });
 
-	  it("12 — registra irmãos válidos e explica somente a pendência quantitativa", async () => {
+  it("12 — registra irmãos válidos e explica somente a pendência quantitativa", async () => {
     await startScenario({
       catalog: defaultCatalog().filter(
         food => food.name !== "Pão de Forma Panco Premium"
@@ -2521,9 +2535,9 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     assertOpaqueSearchKeys([/Panco Premium/u]);
     const meals = await listUserMeals(nextUserId - 1);
     expect(meals).toHaveLength(1);
-    expect(
-      pendingRows[0]?.target.resolutionContext.expectedMealId
-    ).toBe(meals[0]?.id);
+    expect(pendingRows[0]?.target.resolutionContext.expectedMealId).toBe(
+      meals[0]?.id
+    );
     expect(meals[0].items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ foodName: expect.stringMatching(/arroz/i) }),
@@ -2678,7 +2692,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     await finishScenario("14-image-convergent", "registered");
   });
 
-		  it("15 — mantém idempotência do lote parcial depois de reiniciar o runtime", async () => {
+  it("15 — mantém idempotência do lote parcial depois de reiniciar o runtime", async () => {
     const pendingStorePath = join(
       mkdtempSync(join(tmpdir(), "issue-1094-pending-")),
       "pending.json"
@@ -2721,9 +2735,9 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     });
     const initialMeals = await listUserMeals(nextUserId - 1);
     expect(initialMeals).toHaveLength(1);
-    expect(
-      initialPendingRows[0]?.target.resolutionContext.expectedMealId
-    ).toBe(initialMeals[0]?.id);
+    expect(initialPendingRows[0]?.target.resolutionContext.expectedMealId).toBe(
+      initialMeals[0]?.id
+    );
 
     await restartScenarioRuntime();
     expect(activeLifecycle).not.toBe(initialLifecycle);
@@ -2791,5 +2805,148 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     if (activeServer) await close(activeServer);
     activeServer = null;
     activeUrl = "";
+  });
+
+  it("IP-EFFECT-001 — rejeita payload acima do limite antes de efeitos no lifecycle", async () => {
+    const userId = await startScenario({
+      transcript: "",
+      useExpressDefaultErrorHandler: true,
+    });
+    const marker = "f34-private-raw-body-marker";
+    expect(PAYLOAD_LIMITS.webhookJson).toBe("5mb");
+    const limitBytes = 5 * 1024 * 1024;
+    const core = JSON.stringify({ entry: [], marker });
+    const body = `${core}${" ".repeat(limitBytes + 1 - Buffer.byteLength(core))}`;
+    expect(Buffer.byteLength(body)).toBe(limitBytes + 1);
+    expect(JSON.parse(body).marker).toBe(marker);
+
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let responseStatus = 0;
+    let capturedLogs = "";
+    try {
+      const response = await nativeFetch(activeUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      responseStatus = response.status;
+    } finally {
+      capturedLogs = JSON.stringify([
+        ...infoSpy.mock.calls,
+        ...errorSpy.mock.calls,
+      ]);
+      infoSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
+
+    expect(responseStatus).toBe(413);
+    expect(capturedLogs).not.toContain(marker);
+    expect(state.metrics.processMealInput).toBe(0);
+    expect(state.pendingRows.size).toBe(0);
+    expect(state.metrics.pendingCreated).toBe(0);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(state.metrics.domainLinks).toBe(0);
+    expect(state.outboundReplies).toHaveLength(0);
+    expect(activeLifecycle.messages).toHaveLength(0);
+    expect(activeLifecycle.domainLinks).toHaveLength(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+    assertSanitizedEvidence(activeLifecycle);
+  });
+
+  it("IP-EFFECT-001 — rejeições 400/415/429 não entram no lifecycle", async () => {
+    const userId = await startScenario({
+      transcript: "",
+      useExpressDefaultErrorHandler: true,
+      webhookRateLimit: (req, res, next) => {
+        if (req.get("x-f34-case") === "rate-limited-malformed") {
+          res.status(429).json({ code: "rate_limited" });
+          return;
+        }
+        next();
+      },
+    });
+    const marker = "f34-rejected-raw-body-marker";
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const outcomes: Array<{ status: number; body: string }> = [];
+    let capturedLogs = "";
+
+    try {
+      for (const testCase of [
+        {
+          id: "whitespace-json",
+          body: " \t\n ",
+          contentType: "application/json",
+          expectedStatus: 400,
+        },
+        {
+          id: "malformed-json",
+          body: `{"marker":"${marker}"`,
+          contentType: "application/json",
+          expectedStatus: 400,
+        },
+        {
+          id: "unsupported-charset",
+          body: JSON.stringify({ entry: [], marker }),
+          contentType: "application/json; charset=iso-8859-1",
+          expectedStatus: 415,
+        },
+        {
+          id: "rate-limited-malformed",
+          body: `{"marker":"${marker}"`,
+          contentType: "application/json",
+          expectedStatus: 429,
+        },
+      ]) {
+        const response = await nativeFetch(activeUrl, {
+          method: "POST",
+          headers: {
+            "content-type": testCase.contentType,
+            "x-f34-case": testCase.id,
+          },
+          body: testCase.body,
+        });
+        const responseBody = await response.text();
+        outcomes.push({ status: response.status, body: responseBody });
+        expect(response.status, testCase.id).toBe(testCase.expectedStatus);
+        expect(responseBody, testCase.id).not.toContain(marker);
+        if (testCase.id === "rate-limited-malformed") {
+          expect(JSON.parse(responseBody)).toEqual({ code: "rate_limited" });
+        }
+      }
+    } finally {
+      capturedLogs = JSON.stringify([
+        ...infoSpy.mock.calls,
+        ...errorSpy.mock.calls,
+        ...warnSpy.mock.calls,
+        ...logSpy.mock.calls,
+      ]);
+      infoSpy.mockRestore();
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+      logSpy.mockRestore();
+    }
+
+    expect(outcomes.map(outcome => outcome.status)).toEqual([
+      400, 400, 415, 429,
+    ]);
+    expect(capturedLogs).not.toContain(marker);
+    expect(state.metrics.processMealInput).toBe(0);
+    expect(state.pendingRows.size).toBe(0);
+    expect(state.metrics.pendingCreated).toBe(0);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(state.metrics.domainLinks).toBe(0);
+    expect(state.outboundReplies).toHaveLength(0);
+    expect(activeLifecycle.messages).toHaveLength(0);
+    expect(activeLifecycle.domainLinks).toHaveLength(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+    assertSanitizedEvidence(activeLifecycle);
   });
 });
