@@ -58,6 +58,8 @@ export function exactUnitFoodCatalogAlias(value: string) {
 }
 
 export function hasUnresolvedWrittenCount(value: string) {
+  // Digit-prefixed counts and measurements are not unresolved written numerals.
+  if (!/^\p{L}/u.test(value.trim())) return false;
   const writtenQuantity = parseCountableQuantityPrefix(value);
   return Boolean(
     writtenQuantity &&

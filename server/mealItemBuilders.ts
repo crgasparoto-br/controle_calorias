@@ -604,21 +604,54 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
         countableRequest.requestedUnit,
       )
       : null;
-    if (safeCountable) {
-      const formattedFoodName = formatFoodNameTitleCase(countableRequest.foodName);
-      const servings = safeCountable.grams / safeCountable.food.gramsPerServing;
-      return buildItemFromCatalog(safeCountable.food, {
+    // For a branded unit, trust only an exact catalog alias with an actual
+    // unit-sized serving. Never derive grams from a fuzzy match or from
+    // a branded serving expressed in slices, mass or volume.
+    const exactBrandedUnit = countableRequest.requestedUnit === "un"
+      && countableRequest.brand && countableFoodKey
+      ? findCatalogFood(countableFoodKey)
+      : null;
+    const brandedServing = exactBrandedUnit
+      ? parseQuantityUnitFromPortionText(exactBrandedUnit.servingLabel)
+      : null;
+    const safeBrandedUnit = exactBrandedUnit?.isBrandedProduct
+      && exactBrandedUnit.brandName
+      && normalizeBrandName(exactBrandedUnit.brandName) === normalizeBrandName(countableRequest.brand)
+      && brandedServing
+      && Number.isFinite(brandedServing.quantity)
+      && brandedServing.quantity > 0
+      && normalizeUnit(brandedServing.unit) === "un"
+      && Number.isFinite(exactBrandedUnit.gramsPerServing)
+      && exactBrandedUnit.gramsPerServing > 0
+      ? {
+          food: exactBrandedUnit,
+          grams: exactBrandedUnit.gramsPerServing * countableRequest.count / brandedServing.quantity,
+        }
+      : null;
+    const countable = safeCountable ?? safeBrandedUnit;
+    if (countable) {
+      const isBrandedUnit = !safeCountable && Boolean(safeBrandedUnit);
+      const formattedFoodName = formatFoodNameTitleCase(
+        isBrandedUnit ? foodName : countableRequest.foodName
+      );
+      const servings = countable.grams / countable.food.gramsPerServing;
+      const portionText = isBrandedUnit
+        ? countableRequest.count === brandedServing?.quantity
+          ? countable.food.servingLabel
+          : `${countableRequest.count} ${countableRequest.count === 1 ? "unidade" : "unidades"}`
+        : buildPortionText(countableRequest.count, countableRequest.requestedUnit);
+      return buildItemFromCatalog(countable.food, {
         foodName: formattedFoodName,
         quantity: countableRequest.count,
         unit: countableRequest.requestedUnit,
-        portionText: buildPortionText(countableRequest.count, countableRequest.requestedUnit),
+        portionText,
         servings,
-        estimatedGrams: safeCountable.grams,
-        estimatedCalories: safeCountable.food.calories * servings,
+        estimatedGrams: countable.grams,
+        estimatedCalories: countable.food.calories * servings,
         estimatedMacros: {
-          protein: safeCountable.food.protein * servings,
-          carbs: safeCountable.food.carbs * servings,
-          fat: safeCountable.food.fat * servings,
+          protein: countable.food.protein * servings,
+          carbs: countable.food.carbs * servings,
+          fat: countable.food.fat * servings,
         },
         confidence: 0.65,
       });
@@ -626,7 +659,7 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
   }
 
   const parsed = parseFoodText(foodName);
-  const allowCatalogFallback = countableRequest?.requestedUnit !== "un"
+  const allowCatalogFallback = (countableRequest?.requestedUnit !== "un" || parsed.estimatedGrams !== undefined)
     && !hasUnresolvedWrittenCount(foodName)
     && !isLikelyCompositePreparation(parsed.foodName, parsed.unit);
   const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName, parsed.unit);
