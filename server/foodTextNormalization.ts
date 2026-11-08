@@ -91,8 +91,10 @@ export function resolveExactBrandedUnitCatalogGrams(
 }
 
 export function hasUnresolvedWrittenCount(value: string) {
-  // Digit-prefixed counts and measurements are not unresolved written numerals.
-  if (!/^\p{L}/u.test(value.trim())) return false;
+  // Explicit units may use the catalog; a bare count needs an exact food alias,
+  // whether the quantity is written as a word or as a digit.
+  const parsed = parseFoodText(value);
+  if (parsed.quantity && parsed.unit) return false;
   const writtenQuantity = parseCountableQuantityPrefix(value);
   return Boolean(
     writtenQuantity &&

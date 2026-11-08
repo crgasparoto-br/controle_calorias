@@ -16,8 +16,8 @@ describe("V1 catalog fallback — numeric and safe canonical units", () => {
     expect(hasUnresolvedWrittenCount(text)).toBe(false);
   });
 
-  it.each(["um pouco de arroz", "um sal", "uma pêra packans"])(
-    "keeps unsafe written count unresolved: %s",
+  it.each(["um pouco de arroz", "um sal", "uma pêra packans", "1 sal", "1 pêra packans"])(
+    "keeps unsafe bare count unresolved: %s",
     text => {
       expect(hasUnresolvedWrittenCount(text)).toBe(true);
     },
@@ -79,9 +79,12 @@ describe("V1 catalog fallback — numeric and safe canonical units", () => {
     expect(resolveExactBrandedUnitCatalogGrams(name, quantity)).toBeNull();
   });
 
-  it("does not map an uncertain count onto a fuzzy catalog alias", () => {
-    const item = buildHeuristicItem("um sal");
-    expect(item.canonicalName).toBe("Um Sal");
-    expect(item.source).toBe("heuristic");
-  });
+  it.each(["um sal", "1 sal"])(
+    "does not map an uncertain count onto a fuzzy catalog alias: %s",
+    text => {
+      const item = buildHeuristicItem(text);
+      expect(item.canonicalName).toBe(text === "um sal" ? "Um Sal" : "1 Sal");
+      expect(item.source).toBe("heuristic");
+    },
+  );
 });
