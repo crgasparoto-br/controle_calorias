@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { hasUnresolvedWrittenCount } from "./foodTextNormalization";
+import {
+  hasUnresolvedWrittenCount,
+  resolveExactBrandedUnitCatalogGrams,
+} from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
 
 describe("V1 catalog fallback — numeric and safe canonical units", () => {
@@ -65,6 +68,15 @@ describe("V1 catalog fallback — numeric and safe canonical units", () => {
         source: "catalog",
       }),
     );
+  });
+
+  it.each([
+    ["bisnaguinha", 1],
+    ["Pão integral Wickbold", 1],
+    ["um sal", 1],
+    ["bisnaguinha Panco", 0],
+  ] as const)("does not invent grams without an exact branded unit portion: %s", (name, quantity) => {
+    expect(resolveExactBrandedUnitCatalogGrams(name, quantity)).toBeNull();
   });
 
   it("does not map an uncertain count onto a fuzzy catalog alias", () => {
