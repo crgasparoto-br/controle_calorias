@@ -124,6 +124,7 @@ describe("photoAnalysis service", () => {
 
     expect(storagePutMock).toHaveBeenCalledTimes(1);
     expect(processMealInputMock).toHaveBeenCalledWith({
+      userId: 42,
       imageUrl: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
       habits: [
         {
