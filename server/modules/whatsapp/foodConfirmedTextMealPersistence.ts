@@ -236,6 +236,7 @@ export async function continuePartialConfirmedTextMealQuantity(
         ? `${foodName} ${brand}`
         : foodName;
     const processed = await deps.processFood({
+      userId,
       text: `${quantity.quantity} ${quantity.unit} de ${qualifiedFoodName}`,
       habits,
       occurredAt: new Date(resolutionContext.occurredAt),

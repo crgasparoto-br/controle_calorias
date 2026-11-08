@@ -196,6 +196,7 @@ async function persistResolvedCorrection(
   }
 
   const processed = await deps.processFood({
+    userId,
     text: `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${context.replacementFoodName}`,
     habits: await deps.getHabits(userId),
     occurredAt,
@@ -273,6 +274,7 @@ async function persistImageMealIdentityCompletion(
   if (!currentItem) throw new Error("Item de identidade pendente não existe.");
   const portion = currentItem.portionText?.trim() || "1 porção";
   const processed = await deps.processFood({
+    userId,
     text: `${portion} de ${currentItem.foodName} ${explicitIdentity.trim()}`,
     habits: await deps.getHabits(userId),
     occurredAt: new Date(context.occurredAt),
@@ -363,6 +365,7 @@ async function persistImageMealQuantityCompletion(
   }
 
   const processedItem = await deps.processFood({
+    userId,
     text: `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${candidate.name}`,
     habits: await deps.getHabits(userId),
     occurredAt: new Date(context.occurredAt),
@@ -696,6 +699,7 @@ async function persistClarificationResult(
   }
 
   const processed = await deps.processFood({
+    userId,
     text: buildFoodClarificationRegistrationText(
       target,
       candidate,

@@ -5,6 +5,7 @@ import {
   getQuantityExpressionClarification,
   parseCountableQuantityPrefix,
   parseFoodText,
+  unwrapMealQuantityPreface,
 } from "./mealTextParsing";
 
 describe("mealTextParsing household spoon units", () => {
@@ -23,6 +24,22 @@ describe("mealTextParsing household spoon units", () => {
         unit,
       })
     );
+  });
+
+  it.each([
+    "comi 1 colher de sopa de arroz",
+    "hoje comi 1 colher de sopa de arroz",
+    "nesta refeição eu comi 1 colher de sopa de arroz",
+  ])("interpreta a medida após o verbo sem reler identidade da frase inteira: %s", input => {
+    expect(extractExplicitQuantityFoodSegments(input)).toEqual([
+      expect.objectContaining({ foodName: "arroz", quantity: 1, unit: "colher de sopa" }),
+    ]);
+  });
+
+  it("não reescreve texto livre ou enunciado sem quantidade", () => {
+    for (const text of ["comi arroz", "não comi 1 colher de arroz", "como seria 1 colher de arroz?"]) {
+      expect(unwrapMealQuantityPreface(text)).toBe(text);
+    }
   });
 
   it("não trata ‘1 colher de sopa’ sem um segundo ‘de’ como medida qualificada", () => {

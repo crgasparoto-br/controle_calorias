@@ -6,6 +6,10 @@ import {
   isCatalogFoodSemanticallyCompatible,
 } from "./catalogMatching";
 import { detectKnownBrand } from "./foodBrandDetection";
+import {
+  extractCoffeeSugarSpoonRequest,
+  isCoffeeSugarSpoonMention,
+} from "./coffeeSugarNutrition";
 import { resolveCanonicalFoodQuantity } from "./foodItemResolution";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildItemFromMeasuredSpoonPortion } from "./mealItemBuilders";
@@ -13,6 +17,7 @@ import {
   buildPortionText,
   extractExplicitQuantityFoodSegments,
   normalizeForMatching,
+  normalizeUnit,
   splitFoodTextSegments,
 } from "./mealTextParsing";
 import type { FoodQuantityResolution } from "./foodItemResolution";
@@ -22,6 +27,8 @@ type SpoonRequest = {
   foodName: string;
   quantity: number;
   unit: string;
+  /** Original coffee segment: sugar is one component, never the entire beverage. */
+  coffeeSugarSegment?: string;
 };
 
 export type SpoonDecision = SpoonRequest & {
@@ -40,16 +47,37 @@ export async function readSpoonDecisions(
   userId?: number,
   runtime: SpoonRuntime = defaultRuntime,
 ): Promise<SpoonDecision[]> {
-  const requests = splitFoodTextSegments(sourceText)
-    .flatMap(segment => extractExplicitQuantityFoodSegments(normalizeKnownFoodText(segment)))
-    .filter(item => isHouseholdSpoonUnit(item.unit) && item.estimatedGrams === undefined);
+  const requests: SpoonRequest[] = splitFoodTextSegments(sourceText).flatMap(segment => {
+    if (isCoffeeSugarSpoonMention(segment)) {
+      const component = extractCoffeeSugarSpoonRequest(segment);
+      // A malformed or ambiguous component is unresolved, never a default serving.
+      return [{
+        foodName: "açúcar",
+        quantity: component?.quantity ?? 0,
+        unit: component ? normalizeUnit(component.unit) : "colher",
+        coffeeSugarSegment: segment,
+      }];
+    }
+    const parsed = extractExplicitQuantityFoodSegments(normalizeKnownFoodText(segment))
+      .filter(item => isHouseholdSpoonUnit(item.unit) && item.estimatedGrams === undefined);
+    const spoonMentions = [...normalizeForMatching(segment).matchAll(
+      /\b(?:\d+(?:[,.]\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+colher(?:es)?\b/giu,
+    )];
+    // Missing or competing food bindings are deliberately not resolved.
+    if (spoonMentions.length !== parsed.length || parsed.length > 1) {
+      return spoonMentions.length || parsed.length
+        ? [{ foodName: segment.trim(), quantity: 0, unit: "colher" }]
+        : [];
+    }
+    return parsed.map(({ foodName, quantity, unit }) => ({ foodName, quantity, unit }));
+  });
 
   const scoped = Number.isSafeInteger(userId) && (userId ?? 0) > 0;
   const decisions: SpoonDecision[] = [];
   for (const request of requests) {
     // An unavailable provider/database cannot turn a missing conversion into 100 g.
     let resolution: FoodQuantityResolution | null = null;
-    if (scoped) {
+    if (scoped && request.quantity > 0) {
       try {
         resolution = await runtime.resolveQuantity({
           userId: userId!,
@@ -66,6 +94,7 @@ export async function readSpoonDecisions(
       foodName: request.foodName,
       quantity: request.quantity,
       unit: request.unit,
+      ...(request.coffeeSugarSegment ? { coffeeSugarSegment: request.coffeeSugarSegment } : {}),
       resolution: resolution && Number.isFinite(resolution.grams) && resolution.grams > 0
         ? resolution : null,
     });
@@ -80,6 +109,8 @@ export function applySpoonDecisions(items: MealDraftItem[], decisions: readonly 
   const used = new Set<number>();
 
   for (const decision of decisions) {
+    // The caller materializes an explicit sugar component inside coffee.
+    if (decision.coffeeSugarSegment) continue;
     if (!decision.resolution) return null;
     const identity = normalizeForMatching(decision.foodName).trim();
     const matches = updated.flatMap((item, index) =>

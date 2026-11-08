@@ -108,6 +108,8 @@ export type MealItemResolutionMetadata = {
    * ao mesmo produto/variante no item persistido.
    */
   measureResolution?: {
+    /** Present when a measured component (e.g. sugar) differs from the whole item. */
+    componentName?: string;
     kind: string;
     grams: number;
     requestedQuantity: number;

@@ -1,4 +1,5 @@
 import { roundNutritionValue } from "../shared/mealTotals";
+import { COUNTABLE_QUANTITY_PATTERN, parseCountableQuantity } from "../shared/quantityUnitVocabulary";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import {
   hasCaloricCoffeeComplement,
@@ -7,7 +8,7 @@ import {
 } from "./foodSemanticCompatibility";
 import { buildHeuristicItem } from "./mealItemBuilders";
 import { normalizeForMatching, splitFoodTextSegments } from "./mealTextParsing";
-import type { LlmItem, MealDraftItem } from "./nutritionEngineTypes";
+import type { LlmItem, MealDraftItem, MealItemResolutionMetadata } from "./nutritionEngineTypes";
 
 const UNSWEETENED_COFFEE_REFERENCE = FOOD_CATALOG_REFERENCE.find(
   food => food.slug === "cafe-sem-acucar",
@@ -27,7 +28,47 @@ type ExplicitSugarQuantity = {
   unit: "g";
   grams: number;
   sourceUnit: string;
+  measureResolution?: NonNullable<MealItemResolutionMetadata["measureResolution"]>;
 };
+
+export type CoffeeSugarSpoonMeasure = {
+  quantity: number;
+  sourceUnit: string;
+  grams: number;
+  kind: string;
+  sourceUrls: string[];
+  evidence: string | null;
+  referenceCount: number;
+};
+
+export type CoffeeSugarSpoonMeasures = ReadonlyMap<string, CoffeeSugarSpoonMeasure>;
+
+/** A spoon of sugar is a component of coffee, not a spoon of the coffee itself. */
+export function isCoffeeSugarSpoonMention(segment: string) {
+  const normalized = normalizeForMatching(segment);
+  return /\bcafe\b/.test(normalized)
+    && /\bacucar\b/.test(normalized)
+    && /\bcolher(?:es)?\b/.test(normalized);
+}
+
+export function extractCoffeeSugarSpoonRequest(segment: string) {
+  if (!isCoffeeSugarSpoonMention(segment)) return null;
+  const normalized = normalizeForMatching(segment).trim();
+  const pattern = new RegExp(
+    `\\b(${COUNTABLE_QUANTITY_PATTERN})\\s+(colher(?:es)?(?: de (?:cha|sopa))?)\\s+(?:de\\s+)?acucar\\b`,
+    "giu",
+  );
+  const matches = [...normalized.matchAll(pattern)];
+  if (matches.length !== 1) return null;
+  // More than one mentioned spoon cannot be assigned to one sugar component.
+  if ([...normalized.matchAll(/\bcolher(?:es)?\b/giu)].length !== 1) return null;
+  // A second explicit sugar quantity conflicts with the spoon request.
+  if (/\b\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|mg|saches?|pacotes?)\s+(?:de\s+)?acucar\b/u.test(normalized)) return null;
+  const quantity = parseCountableQuantity(matches[0][1]);
+  return quantity && quantity > 0
+    ? { quantity, unit: matches[0][2] === "colheres" ? "colher" : matches[0][2].replace(/^colheres/, "colher") }
+    : null;
+}
 
 export type CoffeeServingQuantity = {
   quantity: number;
@@ -46,13 +87,35 @@ function sugarUnitToGrams(quantity: number, unit: string) {
   if (/^(?:g|gr|grama|gramas)$/.test(normalized)) return quantity;
   if (/^(?:kg|quilo|quilos)$/.test(normalized)) return quantity * 1000;
   if (/^(?:mg|miligrama|miligramas)$/.test(normalized)) return quantity / 1000;
-  if (/^(?:colher de cha|colheres de cha)$/.test(normalized)) return quantity * 4;
-  if (/^(?:colher de sopa|colheres de sopa)$/.test(normalized)) return quantity * 12;
   if (/^(?:sache|saches|pacote|pacotes)$/.test(normalized)) return quantity * 5;
   return null;
 }
 
-export function extractExplicitSugarQuantity(value: string): ExplicitSugarQuantity | null {
+export function extractExplicitSugarQuantity(
+  value: string,
+  spoonMeasures?: CoffeeSugarSpoonMeasures,
+): ExplicitSugarQuantity | null {
+  const measuredSpoon = spoonMeasures?.get(value);
+  if (measuredSpoon) {
+    const verified = measuredSpoon.kind === "canonical_portion" || measuredSpoon.kind === "researched_exact";
+    return {
+      quantity: measuredSpoon.quantity,
+      unit: "g",
+      grams: roundNutritionValue(measuredSpoon.grams),
+      sourceUnit: measuredSpoon.sourceUnit,
+      measureResolution: {
+        componentName: "açúcar",
+        kind: measuredSpoon.kind,
+        grams: measuredSpoon.grams,
+        requestedQuantity: measuredSpoon.quantity,
+        requestedUnit: measuredSpoon.sourceUnit,
+        sourceUrls: [...measuredSpoon.sourceUrls],
+        sourceEvidence: measuredSpoon.evidence,
+        referenceCount: measuredSpoon.referenceCount,
+        verified,
+      },
+    };
+  }
   const normalized = normalizeForMatching(value);
   const match = normalized.match(
     /\b(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de cha|colher(?:es)? de sopa|saches?|pacotes?)\s+(?:de\s+)?acucar\b/,
@@ -163,9 +226,11 @@ function getSweetenedCoffeeSourceSegments(sourceText: string) {
   return getCoffeeSourceSegments(sourceText).filter(isCoffeeWithAddedSugar);
 }
 
-function getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText: string) {
+function getSweetenedCoffeeSegmentsWithExplicitSugar(
+  sourceText: string, spoonMeasures?: CoffeeSugarSpoonMeasures,
+) {
   return getSweetenedCoffeeSourceSegments(sourceText).flatMap(segment => {
-    const sugar = extractExplicitSugarQuantity(segment);
+    const sugar = extractExplicitSugarQuantity(segment, spoonMeasures);
     return sugar && !hasAdditionalCaloricCoffeeComplement(segment)
       ? [{ segment, sugar }]
       : [];
@@ -175,6 +240,7 @@ function getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText: string) {
 function isSimpleSweetenedCoffeeSegment(segment: string) {
   return isCoffeeWithAddedSugar(segment)
     && !extractExplicitSugarQuantity(segment)
+    && !isCoffeeSugarSpoonMention(segment)
     && !hasAdditionalCaloricCoffeeComplement(segment);
 }
 
@@ -182,8 +248,9 @@ function nutritionCoversExplicitSugar(
   sourceSegment: string,
   calories: number,
   carbs: number,
+  spoonMeasures?: CoffeeSugarSpoonMeasures,
 ) {
-  const sugar = extractExplicitSugarQuantity(sourceSegment);
+  const sugar = extractExplicitSugarQuantity(sourceSegment, spoonMeasures);
   if (!sugar) return true;
 
   const coffee = extractCoffeeServingQuantity(sourceSegment);
@@ -194,21 +261,27 @@ function nutritionCoversExplicitSugar(
     && calories + 0.01 >= minimumCalories;
 }
 
-function inferredNutritionCoversExplicitSugar(sourceSegment: string, item: LlmItem) {
+function inferredNutritionCoversExplicitSugar(
+  sourceSegment: string, item: LlmItem, spoonMeasures?: CoffeeSugarSpoonMeasures,
+) {
   return nutritionCoversExplicitSugar(
     sourceSegment,
     item.estimatedCalories,
     item.estimatedMacros.carbs,
+    spoonMeasures,
   );
 }
 
-function draftNutritionCoversExplicitSugar(sourceSegment: string, item: MealDraftItem) {
-  return nutritionCoversExplicitSugar(sourceSegment, item.calories, item.carbs);
+function draftNutritionCoversExplicitSugar(
+  sourceSegment: string, item: MealDraftItem, spoonMeasures?: CoffeeSugarSpoonMeasures,
+) {
+  return nutritionCoversExplicitSugar(sourceSegment, item.calories, item.carbs, spoonMeasures);
 }
 
 function hasSemanticCoverageForSweetenedCoffeeSegments(
   sourceSegments: string[],
   inferredItems: LlmItem[],
+  spoonMeasures?: CoffeeSugarSpoonMeasures,
 ) {
   if (sourceSegments.length !== inferredItems.length) return false;
 
@@ -216,7 +289,7 @@ function hasSemanticCoverageForSweetenedCoffeeSegments(
   for (const sourceSegment of sourceSegments) {
     const compatibleIndex = remainingItems.findIndex(item =>
       isFoodCandidateSemanticallyCompatible(sourceSegment, [item.foodName])
-      && inferredNutritionCoversExplicitSugar(sourceSegment, item)
+      && inferredNutritionCoversExplicitSugar(sourceSegment, item, spoonMeasures)
     );
     if (compatibleIndex < 0) return false;
     remainingItems.splice(compatibleIndex, 1);
@@ -228,6 +301,7 @@ function hasSemanticCoverageForSweetenedCoffeeSegments(
 export function hasUsableSweetenedCoffeeInference(
   items: LlmItem[] | undefined,
   sourceText = "",
+  spoonMeasures?: CoffeeSugarSpoonMeasures,
 ) {
   const usableCoffeeItems = items?.filter(item =>
     isCoffeeIdentity(item.foodName) && isUsableSweetenedCoffeeNutrition(item)
@@ -244,6 +318,7 @@ export function hasUsableSweetenedCoffeeInference(
     && hasSemanticCoverageForSweetenedCoffeeSegments(
       sweetenedSourceSegments,
       explicitlySweetenedItems,
+      spoonMeasures,
     )
   ) {
     return true;
@@ -257,6 +332,7 @@ export function hasUsableSweetenedCoffeeInference(
     && inferredNutritionCoversExplicitSugar(
       sweetenedSourceSegments[0],
       usableCoffeeItems[0],
+      spoonMeasures,
     );
 }
 
@@ -295,7 +371,9 @@ function createCoffeeWithExplicitSugarItemFromSegment(
     canonicalName: "Café com açúcar",
     quantity: coffee.quantity,
     unit: coffee.unit,
-    portionText: `${coffee.quantity} ${portionUnit} com ${sugar.grams} g de açúcar`,
+    portionText: sugar.measureResolution
+      ? `${coffee.quantity} ${portionUnit} com ${sugar.quantity} ${sugar.quantity === 1 ? sugar.sourceUnit : sugar.sourceUnit.replace(/^colher\b/, "colheres")} de açúcar (${sugar.grams} g)`
+      : `${coffee.quantity} ${portionUnit} com ${sugar.grams} g de açúcar`,
     servings: Math.max(coffee.cupsEquivalent, 0.1),
     estimatedGrams: roundNutritionValue(coffee.estimatedMl + sugar.grams),
     calories: roundNutritionValue(
@@ -307,6 +385,13 @@ function createCoffeeWithExplicitSugarItemFromSegment(
     fat: 0,
     confidence: 0.72,
     source: "heuristic",
+    ...(sugar.measureResolution ? {
+      resolution: {
+        nutritionOrigin: "heuristic" as const,
+        nutritionVerified: false,
+        measureResolution: sugar.measureResolution,
+      },
+    } : {}),
   };
 }
 
@@ -337,22 +422,23 @@ function createCoffeeWithCanonicalSugarEstimateFromSegment(segment: string): Mea
   };
 }
 
-function createExplicitSugarCoffeeEntries(sourceText: string) {
-  return getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText).map(({ segment, sugar }) => ({
+function createExplicitSugarCoffeeEntries(sourceText: string, spoonMeasures?: CoffeeSugarSpoonMeasures) {
+  return getSweetenedCoffeeSegmentsWithExplicitSugar(sourceText, spoonMeasures).map(({ segment, sugar }) => ({
     segment,
     item: createCoffeeWithExplicitSugarItemFromSegment(segment, sugar),
   }));
 }
 
-function createExplicitSugarCoffeeItems(sourceText: string) {
-  return createExplicitSugarCoffeeEntries(sourceText).map(entry => entry.item);
+function createExplicitSugarCoffeeItems(sourceText: string, spoonMeasures?: CoffeeSugarSpoonMeasures) {
+  return createExplicitSugarCoffeeEntries(sourceText, spoonMeasures).map(entry => entry.item);
 }
 
 function mergeExplicitSugarCoffeeItems(
   items: MealDraftItem[],
   sourceText: string,
+  spoonMeasures?: CoffeeSugarSpoonMeasures,
 ) {
-  const explicitEntries = createExplicitSugarCoffeeEntries(sourceText);
+  const explicitEntries = createExplicitSugarCoffeeEntries(sourceText, spoonMeasures);
   if (!explicitEntries.length || !hasCompanionFoodSegments(sourceText)) return null;
 
   const remaining = [...explicitEntries];
@@ -405,10 +491,11 @@ function normalizeCompositeSweetenedCoffeeItem(item: MealDraftItem, sourceSegmen
 export function normalizeSweetenedCoffeeDraftItems(
   items: MealDraftItem[],
   sourceText: string,
+  spoonMeasures?: CoffeeSugarSpoonMeasures,
 ) {
   if (!isCoffeeWithAddedSugar(sourceText)) return items;
 
-  const normalizedInputItems = mergeExplicitSugarCoffeeItems(items, sourceText) ?? items;
+  const normalizedInputItems = mergeExplicitSugarCoffeeItems(items, sourceText, spoonMeasures) ?? items;
   const coffeeItems = normalizedInputItems.filter(isCoffeeDraftItem);
   const sourceCoffeeSegments = getCoffeeSourceSegments(sourceText);
   const sweetenedSourceSegments = sourceCoffeeSegments.filter(isCoffeeWithAddedSugar);
@@ -435,7 +522,7 @@ export function normalizeSweetenedCoffeeDraftItems(
       const canonicalEstimate = createCoffeeWithCanonicalSugarEstimateFromSegment(sourceMatch.segment);
       if (canonicalEstimate) return canonicalEstimate;
       if (hasAdditionalCaloricCoffeeComplement(sourceMatch.segment)) {
-        return draftNutritionCoversExplicitSugar(sourceMatch.segment, item)
+        return draftNutritionCoversExplicitSugar(sourceMatch.segment, item, spoonMeasures)
           ? normalizeCompositeSweetenedCoffeeItem(item, sourceMatch.segment)
           : buildHeuristicItem(sourceMatch.segment);
       }
@@ -499,8 +586,10 @@ export function normalizeSweetenedCoffeeDraftItems(
   return [...normalizedItems, ...missingCanonicalEstimates];
 }
 
-export function buildCoffeeWithExplicitSugarItem(sourceText: string): MealDraftItem | null {
-  const explicitItems = createExplicitSugarCoffeeItems(sourceText);
+export function buildCoffeeWithExplicitSugarItem(
+  sourceText: string, spoonMeasures?: CoffeeSugarSpoonMeasures,
+): MealDraftItem | null {
+  const explicitItems = createExplicitSugarCoffeeItems(sourceText, spoonMeasures);
   return explicitItems.length === 1 && !hasCompanionFoodSegments(sourceText)
     ? explicitItems[0]
     : null;
@@ -515,12 +604,25 @@ export function buildCoffeeWithCanonicalSugarEstimateItem(sourceText: string): M
     : null;
 }
 
-export function shouldRequestSugarQuantity(sourceText: string, inferredItems: LlmItem[] | undefined) {
+export function shouldRequestSugarQuantity(
+  sourceText: string, inferredItems: LlmItem[] | undefined,
+  spoonMeasures?: CoffeeSugarSpoonMeasures,
+) {
   const unresolvedCompositeSegments = getSweetenedCoffeeSourceSegments(sourceText)
-    .filter(segment => !extractExplicitSugarQuantity(segment))
+    .filter(segment => !extractExplicitSugarQuantity(segment, spoonMeasures))
     .filter(hasAdditionalCaloricCoffeeComplement);
   return unresolvedCompositeSegments.length > 0
-    && !hasUsableSweetenedCoffeeInference(inferredItems, sourceText);
+    && !hasUsableSweetenedCoffeeInference(inferredItems, sourceText, spoonMeasures);
+}
+
+/** Without nutrition for the other ingredient, a measured sugar component is insufficient. */
+export function hasUnresolvedMeasuredCoffeeComposite(
+  sourceText: string, inferredItems: LlmItem[] | undefined,
+  spoonMeasures: CoffeeSugarSpoonMeasures,
+) {
+  return getSweetenedCoffeeSourceSegments(sourceText).some(segment =>
+    spoonMeasures.has(segment) && hasAdditionalCaloricCoffeeComplement(segment)
+  ) && !hasUsableSweetenedCoffeeInference(inferredItems, sourceText, spoonMeasures);
 }
 
 export function appendSugarQuantityToCoffeeText(
@@ -533,6 +635,15 @@ export function appendSugarQuantityToCoffeeText(
   const segments = splitFoodTextSegments(originalText);
   let appended = false;
   const resolvedSegments = segments.map(segment => {
+    if (!appended && isCoffeeSugarSpoonMention(segment)) {
+      const spoonPattern = /\b(?:\d+(?:[,.]\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez)\s+colher(?:es)?(?: de (?:ch[aá]|sopa))?\s+(?:de\s+)?a[cç][uú]car\b/giu;
+      const matches = [...segment.matchAll(spoonPattern)];
+      if (matches.length === 1) {
+        appended = true;
+        return segment.replace(spoonPattern, `${quantityText} de açúcar`);
+      }
+      return segment; // Conflicting spoon references stay unresolved and fail closed.
+    }
     if (
       !appended
       && isCoffeeWithAddedSugar(segment)

@@ -448,11 +448,26 @@ export function parseFoodText(value: string): ParsedFoodText {
   };
 }
 
+/**
+ * Only a known meal-registration preface may be removed for quantity parsing.
+ * The caller retains the original text/spans for semantic provenance.
+ * Do not guess a food from unrelated prose or an unquantified statement.
+ */
+export function unwrapMealQuantityPreface(segment: string) {
+  const match = segment.trim().match(
+    /^(?:(?:hoje|ontem|agora|nesta refeição|no almoço|no jantar|no café da manhã)\s+)?(?:eu\s+)?(?:comi|consumi|tomei|bebi|ingeri|adicionei|coloquei)\s+(.+)$/iu,
+  );
+  if (!match) return segment;
+  const candidate = match[1].trim();
+  const parsed = parseFoodText(candidate);
+  return parsed.quantity && parsed.unit ? candidate : segment;
+}
+
 export function extractExplicitQuantityFoodSegments(sourceText: string): Array<ExplicitQuantity & { foodName: string }> {
   const items: Array<ExplicitQuantity & { foodName: string }> = [];
 
   for (const segment of splitFoodTextSegments(sourceText)) {
-    const parsed = parseFoodText(segment);
+    const parsed = parseFoodText(unwrapMealQuantityPreface(segment));
     if (!parsed.quantity || !parsed.unit) {
       continue;
     }

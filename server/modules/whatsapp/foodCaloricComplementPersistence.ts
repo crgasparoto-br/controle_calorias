@@ -241,6 +241,7 @@ async function processResolvedFood(
   timeZone: string,
 ) {
   const processed = await deps.processFood({
+    userId,
     text: resolvedFoodText,
     habits: await deps.getHabits(userId),
     occurredAt,

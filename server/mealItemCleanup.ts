@@ -3,7 +3,7 @@ import { extractCommercialVariant } from "./commercialProductIdentity";
 import { inferUnresolvedCommercialIdentityHint } from "./catalogMatching";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
-import { normalizeForMatching, normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
+import { normalizeForMatching, normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments, unwrapMealQuantityPreface } from "./mealTextParsing";
 import { isGenericNutritionFallbackItem } from "./mealNutritionFallback";
 import { isContainerObjectOnlyDescription } from "./mealContainerNoise";
 import type { MealDraftItem } from "./nutritionEngineTypes";
@@ -135,7 +135,7 @@ export function fallbackFromText(sourceText: string, observer?: NutritionFallbac
 
   return parts.map(value => {
     const item = failClosedBrandedHeuristic(
-      buildHeuristicItem(normalizeKnownFoodText(value)),
+      buildHeuristicItem(normalizeKnownFoodText(unwrapMealQuantityPreface(value))),
     );
     observeHeuristicFallback(item, observer);
     return item;

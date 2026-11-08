@@ -124,6 +124,7 @@ const state = vi.hoisted(() => {
       items: SemanticFactSnapshot[];
     }>,
     outboundReplies: [] as string[],
+    nutritionScopeUsers: [] as Array<number | undefined>,
     nutritionSearchItems: {} as Record<string, string>,
     nutritionSearchResults: {} as Record<
       string,
@@ -163,6 +164,7 @@ const state = vi.hoisted(() => {
       this.semanticSnapshots.clear();
       this.sequence = [];
       this.outboundReplies = [];
+      this.nutritionScopeUsers = [];
       this.nutritionSearchItems = {};
       this.nutritionSearchResults = {};
       this.pendingRows.clear();
@@ -1161,6 +1163,7 @@ vi.mock("./nutritionEngine", async () => {
     ...actual,
     processMealInput: vi.fn(async (input: MealProcessingInput) => {
       state.metrics.processMealInput += 1;
+      state.nutritionScopeUsers.push(input.userId);
       const result = await actual.processMealInput(input);
       state.metrics.mealProcessingResults += 1;
       return result;
@@ -2042,6 +2045,8 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       "meal_registered"
     );
     expect(meals).toHaveLength(1);
+    expect(state.nutritionScopeUsers.length).toBeGreaterThan(0);
+    expect(state.nutritionScopeUsers.every(id => id === nextUserId - 1)).toBe(true);
     expect(meals[0].items[0]).toEqual(
       expect.objectContaining({
         brand: "Panco",
@@ -2515,6 +2520,8 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(state.metrics.pendingCreated).toBe(1);
     expect(state.metrics.persistedMeals).toBe(1);
     expect(state.pendingRows.size).toBe(1);
+    expect(state.nutritionScopeUsers.length).toBeGreaterThan(0);
+    expect(state.nutritionScopeUsers.every(id => id === nextUserId - 1)).toBe(true);
     const pendingRows = readPendingRows();
     expect(pendingRows).toHaveLength(1);
     expect(pendingRows[0]?.state).toBe("active");

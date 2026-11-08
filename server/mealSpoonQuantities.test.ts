@@ -109,6 +109,56 @@ describe("V1 spoon measure provenance and canonical precedence (#1339 A-001)", (
     expect(applySpoonDecisions(items, [])).toBe(items);
   });
 
+  it.each([
+    "comi 1 colher de sopa de arroz",
+    "hoje comi 1 colher de sopa de arroz",
+    "nesta refeição eu comi 1 colher de sopa de arroz",
+  ])("resolves a measured food after a registration preface without losing the source: %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(25));
+    const [decision] = await readSpoonDecisions(text, 7, { resolveQuantity });
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 7, foodName: "arroz", quantity: 1, unit: "colher de sopa",
+    }));
+    expect(applySpoonDecisions([heuristic("Arroz")], [decision])).toEqual([
+      expect.objectContaining({ estimatedGrams: 25, unit: "colher de sopa" }),
+    ]);
+  });
+
+  it.each([
+    "comi arroz com 1 colher de sopa de feijão",
+    "1 colher de sopa de arroz com 1 colher de sopa de feijão",
+    "comi 1 colher de sopa de arroz com 1 colher de chá de açúcar",
+  ])("fails closed on an unbound or competing quantity: %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(25));
+    const decisions = await readSpoonDecisions(text, 7, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["café com 1 colher de chá de açúcar", 1, "colher de chá"],
+    ["café com uma colher de chá de açúcar", 1, "colher de chá"],
+    ["1 xícara de café com 2 colheres de sopa de açúcar", 2, "colher de sopa"],
+  ] as const)("resolves the sugar component within coffee: %s", async (text, quantity, unit) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const [decision] = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity, unit,
+    }));
+    expect(decision).toEqual(expect.objectContaining({
+      coffeeSugarSegment: text, resolution: expect.objectContaining({ grams: 8 }),
+    }));
+    // Coffee is constructed from the component measure, not as a spoon of coffee.
+    expect(applySpoonDecisions([heuristic("Café com açúcar")], [decision])).toHaveLength(1);
+  });
+
+  it("never consults a personal sugar portion without a user or a valid sugar binding", async () => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    expect((await readSpoonDecisions("café com 1 colher de chá de açúcar", undefined, { resolveQuantity }))[0].resolution).toBeNull();
+    expect((await readSpoonDecisions("café com uma colher de chá e outra colher de sopa de açúcar", 17, { resolveQuantity }))[0].resolution).toBeNull();
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
   it("ties each conversion to its own resolved item in a mixed meal", async () => {
     const resolveQuantity = vi.fn(async ({ foodName }) => measured(foodName === "arroz" ? 25 : 15));
     const decisions = await readSpoonDecisions(

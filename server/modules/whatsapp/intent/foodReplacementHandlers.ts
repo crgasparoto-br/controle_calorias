@@ -202,6 +202,7 @@ async function resolveReplacementItem(input: {
   const receivedAt = input.context?.receivedAt ?? new Date();
   try {
     const processed = await processMealInput({
+      userId: input.userId,
       text: originalFoodText,
       habits: await getHabitSnapshots(input.userId),
       occurredAt: receivedAt,

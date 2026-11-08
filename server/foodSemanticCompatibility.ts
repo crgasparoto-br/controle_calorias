@@ -1,4 +1,5 @@
 import { splitFoodTextSegments } from "./mealTextParsing";
+import { COUNTABLE_QUANTITY_PATTERN } from "../shared/quantityUnitVocabulary";
 
 type FoodSemanticProfile = {
   family: "coffee" | "tea" | null;
@@ -109,7 +110,7 @@ function buildProfile(value: string): FoodSemanticProfile {
       : null;
   const sugarFree = hasExplicitSugarFreeMarker(normalized);
   const sugarAdded = new RegExp(
-    `\\b(?:${ADDED_SUGAR_CONNECTOR}\\s+acucar|${ADDED_SUGAR_CONNECTOR}\\s+\\d+(?:[,.]\\d+)?\\s*${EXPLICIT_SUGAR_UNIT}\\s+(?:de\\s+)?acucar|adocad[oa]s?|acucarad[oa]s?)\\b`,
+    `\\b(?:${ADDED_SUGAR_CONNECTOR}\\s+acucar|${ADDED_SUGAR_CONNECTOR}\\s+${COUNTABLE_QUANTITY_PATTERN}\\s*${EXPLICIT_SUGAR_UNIT}\\s+(?:de\\s+)?acucar|adocad[oa]s?|acucarad[oa]s?)\\b`,
   ).test(normalized);
   const plain = Boolean(family) && /\b(?:puro|pura|preto|preta|natural)\b/.test(normalized);
   const complements = new Set<string>();

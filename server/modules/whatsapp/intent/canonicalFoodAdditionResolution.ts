@@ -150,7 +150,7 @@ function findSingleResolvedItem(items: MealItemInput[]) {
  */
 async function resolveAdditionInference(
   runtime: ResolverRuntime,
-  input: { text: string; occurredAt: Date; timeZone: string },
+  input: { userId: number; text: string; occurredAt: Date; timeZone: string },
 ) {
   try {
     return await runtime.processMealInput(input);
@@ -341,6 +341,7 @@ export async function resolveCanonicalFoodAdditionItems(
       let processed: Awaited<ReturnType<typeof resolveAdditionInference>> = null;
       try {
         processed = await resolveAdditionInference(runtime, {
+          userId: input.userId,
           text: processingText,
           occurredAt: input.occurredAt,
           timeZone: input.timeZone,

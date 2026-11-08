@@ -19,8 +19,10 @@ import {
 import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildCoffeeWithExplicitSugarItem,
+  hasUnresolvedMeasuredCoffeeComposite,
   normalizeSweetenedCoffeeDraftItems,
   shouldRequestSugarQuantity,
+  type CoffeeSugarSpoonMeasures,
 } from "./coffeeSugarNutrition";
 import { extractWithAi } from "./mealAiExtraction";
 import {
@@ -1433,6 +1435,21 @@ export async function processMealInput(
 
   const spoonDecisions = await readSpoonDecisions(sourceText, input.userId);
   const unresolvedSpoon = spoonDecisions.find(item => !item.resolution);
+  const coffeeSugarMeasures: CoffeeSugarSpoonMeasures = new Map(
+    spoonDecisions.flatMap(decision =>
+      decision.coffeeSugarSegment && decision.resolution
+        ? [[decision.coffeeSugarSegment, {
+          quantity: decision.quantity,
+          sourceUnit: decision.unit,
+          grams: decision.resolution.grams,
+          kind: decision.resolution.kind,
+          sourceUrls: [...decision.resolution.sourceUrls],
+          evidence: decision.resolution.evidence,
+          referenceCount: decision.resolution.referenceCount,
+        }] as const]
+        : []
+    )
+  );
   if (unresolvedSpoon) {
     throw new MealInferenceError(
       `Não consigo converter ${unresolvedSpoon.unit} em gramas com segurança. Informe a quantidade em gramas ou outra medida com conversão conhecida.`,
@@ -1464,7 +1481,18 @@ export async function processMealInput(
     fallbackReasons.observe("ai_empty_items");
   }
 
-  if (shouldRequestSugarQuantity(sourceText, extraction?.items)) {
+  if (hasUnresolvedMeasuredCoffeeComposite(sourceText, extraction?.items, coffeeSugarMeasures)) {
+    fallbackReasons.flush();
+    throw new MealInferenceError(
+      "A medida do açúcar foi validada, mas não consegui confirmar os demais ingredientes do café. Informe a composição e a quantidade desses ingredientes.",
+      { code: "food_component_quantity_required", context: {
+        component: "composição do café", originalText: sourceText,
+        acceptedUnits: ["g", "ml"],
+      } },
+    );
+  }
+
+  if (shouldRequestSugarQuantity(sourceText, extraction?.items, coffeeSugarMeasures)) {
     fallbackReasons.flush();
     throw new MealInferenceError(
       "Para registrar o café com açúcar, informe somente a quantidade de açúcar. Exemplo: 5 g de açúcar ou 1 colher de chá.",
@@ -1483,7 +1511,7 @@ export async function processMealInput(
     !extraction || shouldFallbackToSourceText(extraction, sourceText);
   let rejectedAllAiItems = false;
   let rawItems: MealDraftItem[];
-  const explicitSugarCoffee = buildCoffeeWithExplicitSugarItem(sourceText);
+  const explicitSugarCoffee = buildCoffeeWithExplicitSugarItem(sourceText, coffeeSugarMeasures);
 
   if (explicitSugarCoffee) {
     rawItems = [explicitSugarCoffee];
@@ -1552,9 +1580,13 @@ export async function processMealInput(
     : cleanedItems;
   const normalizedItems = normalizeSweetenedCoffeeDraftItems(
     sourceNamedItems,
-    sourceText
+    sourceText,
+    coffeeSugarMeasures,
   );
-  const items = applySpoonDecisions(normalizedItems, spoonDecisions);
+  const items = applySpoonDecisions(
+    normalizedItems,
+    spoonDecisions.filter(decision => !decision.coffeeSugarSegment),
+  );
   if (!items && spoonDecisions.length) {
     throw new MealInferenceError(
       "Não consegui associar a medida à identidade do alimento com segurança. Informe a quantidade em gramas ou descreva o alimento novamente.",

@@ -897,6 +897,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           () =>
             processMealInputWithPartialFailures(
               {
+                userId,
                 text: prepared.text,
                 transcript: prepared.transcript,
                 imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
