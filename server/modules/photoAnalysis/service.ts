@@ -283,6 +283,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
 
   try {
     const processed = await processMealInput({
+      userId,
       imageUrl: analysisImageUrl,
       habits: await getHabitSnapshots(userId),
     });

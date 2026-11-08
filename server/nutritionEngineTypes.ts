@@ -186,6 +186,8 @@ export type NutritionLabelIdentityContext = {
 };
 
 export type MealProcessingInput = {
+  /** Authenticated scope for governed household portion lookup; omit for public/no-user inference. */
+  userId?: number;
   text?: string;
   transcript?: string;
   imageUrl?: string;

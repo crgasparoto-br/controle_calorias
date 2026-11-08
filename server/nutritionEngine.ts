@@ -1,6 +1,4 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
-import { isHouseholdSpoonUnit } from "../shared/measurementUnits";
-import { normalizeKnownFoodText } from "./foodTextNormalization";
 import {
   containsBroadGenericFoodToken,
   findCatalogFood,
@@ -13,6 +11,7 @@ import {
   sourceMentionsFood,
 } from "./catalogMatching";
 import { getCatalogCache } from "./catalogRuntime";
+import { applySpoonDecisions, readSpoonDecisions } from "./mealSpoonQuantities";
 import {
   extractCommercialVariant,
   isPersistedProductIdentityCompatible,
@@ -1432,22 +1431,16 @@ export async function processMealInput(
   if (quantityClarification)
     throw new MealInferenceError(quantityClarification);
 
-  const unconvertedSpoonQuantity = splitFoodTextSegments(sourceText)
-    .flatMap(segment => extractExplicitQuantityFoodSegments(
-      normalizeKnownFoodText(segment),
-    ))
-    .find(
-      item => isHouseholdSpoonUnit(item.unit) && item.estimatedGrams === undefined,
-    );
-  if (unconvertedSpoonQuantity) {
-    const requestedUnit = normalizeUnit(unconvertedSpoonQuantity.unit);
+  const spoonDecisions = await readSpoonDecisions(sourceText, input.userId);
+  const unresolvedSpoon = spoonDecisions.find(item => !item.resolution);
+  if (unresolvedSpoon) {
     throw new MealInferenceError(
-      `Não consigo converter ${requestedUnit} em gramas com segurança. Informe a quantidade em gramas ou outra medida com conversão conhecida.`,
+      `Não consigo converter ${unresolvedSpoon.unit} em gramas com segurança. Informe a quantidade em gramas ou outra medida com conversão conhecida.`,
       {
         code: "food_component_quantity_required",
         context: {
-          component: unconvertedSpoonQuantity.foodName,
-          foodName: unconvertedSpoonQuantity.foodName,
+          component: unresolvedSpoon.foodName,
+          foodName: unresolvedSpoon.foodName,
           originalText: sourceText,
           acceptedUnits: ["g", "kg", "mg", "ml", "l"],
         },
@@ -1557,12 +1550,22 @@ export async function processMealInput(
   const sourceNamedItems = shouldConstrainAiItemsToText(input, sourceText)
     ? preserveSpecificSourceFoodNames(cleanedItems, sourceText)
     : cleanedItems;
-  const items = normalizeSweetenedCoffeeDraftItems(
+  const normalizedItems = normalizeSweetenedCoffeeDraftItems(
     sourceNamedItems,
     sourceText
   );
+  const items = applySpoonDecisions(normalizedItems, spoonDecisions);
+  if (!items && spoonDecisions.length) {
+    throw new MealInferenceError(
+      "Não consegui associar a medida à identidade do alimento com segurança. Informe a quantidade em gramas ou descreva o alimento novamente.",
+      {
+        code: "food_component_quantity_required",
+        context: { originalText: sourceText, acceptedUnits: ["g", "kg", "mg", "ml", "l"] },
+      }
+    );
+  }
 
-  if (!items.length) {
+  if (!items?.length) {
     fallbackReasons.flush();
     throw new MealInferenceError();
   }

@@ -100,6 +100,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
         resolvedSegments.push({
           segmentIndex,
           processed: await processMealInput({
+            userId: input.userId,
             text: segment,
             occurredAt: input.receivedAt,
             timeZone: userTimezone,

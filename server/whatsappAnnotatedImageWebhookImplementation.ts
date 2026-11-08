@@ -467,6 +467,7 @@ async function processImageMealInputWithFallback(input: {
   try {
     const meal = await runWithAiUsageScope({ userId: input.userId }, async () =>
       processMealInput({
+          userId: input.userId,
           text: input.prepared.text,
           imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
           habits: await getHabitSnapshots(input.userId),

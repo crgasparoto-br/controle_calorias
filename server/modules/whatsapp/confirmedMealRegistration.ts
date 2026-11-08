@@ -176,6 +176,7 @@ export function createConfirmedMealRegistrationService(
       }
 
       const processingInput = {
+        userId: input.userId,
         text: registrationText,
         habits: await deps.getHabits(input.userId),
         occurredAt: input.occurredAt,

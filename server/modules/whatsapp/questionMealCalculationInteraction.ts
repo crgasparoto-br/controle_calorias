@@ -201,6 +201,7 @@ export async function createQuestionMealCalculationContinuation(input: {
   let option: MealProcessingResult;
   try {
     option = await processMealInput({
+      userId: input.userId,
       text: QUESTION_MEAL_CALCULATION_SOURCE_TEXT,
       occurredAt: receivedAt,
       timeZone,

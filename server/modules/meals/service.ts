@@ -486,6 +486,7 @@ async function processMealDraftAttributed(
 
   const processedBase = ensureProcessedMealItems(
     await processMealInput({
+      userId,
       text: input.text,
       transcript,
       imageUrl: resolvedImage.imageUrl,

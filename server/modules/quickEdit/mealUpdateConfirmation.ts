@@ -100,6 +100,7 @@ async function recalculateChangedItems(input: {
     }
 
     const processed = await processMealInput({
+      userId: input.userId,
       text: explicitFoodText(next),
       habits,
       occurredAt: input.occurredAt,
