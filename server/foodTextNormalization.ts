@@ -1,9 +1,16 @@
-import { parseCountableQuantityPrefix, parseFoodText } from "./mealTextParsing";
+import {
+  normalizeUnit,
+  parseCountableQuantityPrefix,
+  parseFoodText,
+  parseQuantityUnitFromPortionText,
+} from "./mealTextParsing";
 import {
   findCatalogFood,
   findNaturalProduceQuantityReferenceName,
   isCatalogFoodSemanticallyCompatible,
+  normalizeBrandName,
 } from "./catalogMatching";
+import { detectKnownBrand } from "./foodBrandDetection";
 import { resolveSafeCountableCatalogGrams } from "./foodItemResolution";
 
 function normalizeFoodLookupText(value: string) {
@@ -55,6 +62,32 @@ export function exactUnitFoodCatalogAlias(value: string) {
     isCatalogFoodSemanticallyCompatible(canonicalException.food, value)
     ? value
     : null;
+}
+
+
+/** A branded unit is measurable only by an exact alias with a unit serving. */
+export function resolveExactBrandedUnitCatalogGrams(
+  foodName: string,
+  count: number,
+) {
+  if (!Number.isFinite(count) || count <= 0) return null;
+  const alias = exactUnitFoodCatalogAlias(foodName);
+  const food = alias ? findCatalogFood(alias) : null;
+  const brand = detectKnownBrand(foodName);
+  if (
+    !brand || !food?.isBrandedProduct || !food.brandName ||
+    normalizeBrandName(brand) !== normalizeBrandName(food.brandName)
+  ) return null;
+
+  const serving = parseQuantityUnitFromPortionText(food.servingLabel);
+  if (
+    !serving || !Number.isFinite(serving.quantity) || serving.quantity <= 0 ||
+    normalizeUnit(serving.unit) !== "un" ||
+    !Number.isFinite(food.gramsPerServing) || food.gramsPerServing <= 0
+  ) return null;
+
+  const grams = food.gramsPerServing * count / serving.quantity;
+  return Number.isFinite(grams) && grams > 0 ? { food, grams } : null;
 }
 
 export function hasUnresolvedWrittenCount(value: string) {
