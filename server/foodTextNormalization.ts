@@ -90,7 +90,7 @@ export function resolveExactBrandedUnitCatalogGrams(
   return Number.isFinite(grams) && grams > 0 ? { food, grams } : null;
 }
 
-export function hasUnresolvedWrittenCount(value: string) {
+export function hasUnsafeBareCount(value: string) {
   // Explicit units may use the catalog; a bare count needs an exact food alias,
   // whether the quantity is written as a word or as a digit.
   const parsed = parseFoodText(value);

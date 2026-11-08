@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  hasUnresolvedWrittenCount,
+  hasUnsafeBareCount,
   resolveExactBrandedUnitCatalogGrams,
 } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
@@ -13,13 +13,13 @@ describe("V1 catalog fallback — numeric and safe canonical units", () => {
     "1 xícara de café sem açúcar",
     "1 bisnaguinha Panco",
   ])("does not mistake numeric quantity for unresolved written numeral: %s", text => {
-    expect(hasUnresolvedWrittenCount(text)).toBe(false);
+    expect(hasUnsafeBareCount(text)).toBe(false);
   });
 
   it.each(["um pouco de arroz", "um sal", "uma pêra packans", "1 sal", "1 pêra packans"])(
     "keeps unsafe bare count unresolved: %s",
     text => {
-      expect(hasUnresolvedWrittenCount(text)).toBe(true);
+      expect(hasUnsafeBareCount(text)).toBe(true);
     },
   );
 

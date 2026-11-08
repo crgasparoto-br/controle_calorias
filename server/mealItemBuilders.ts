@@ -9,7 +9,7 @@ import {
 import { detectKnownBrand } from "./foodBrandDetection";
 import {
   exactUnitFoodCatalogAlias,
-  hasUnresolvedWrittenCount,
+  hasUnsafeBareCount,
   resolveExactBrandedUnitCatalogGrams,
 } from "./foodTextNormalization";
 import {
@@ -635,7 +635,7 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
 
   const parsed = parseFoodText(foodName);
   const allowCatalogFallback = (countableRequest?.requestedUnit !== "un" || parsed.estimatedGrams !== undefined)
-    && !hasUnresolvedWrittenCount(foodName)
+    && !hasUnsafeBareCount(foodName)
     && !isLikelyCompositePreparation(parsed.foodName, parsed.unit);
   const explicitZeroBeverage = isExplicitZeroBeverage(parsed.foodName, parsed.unit);
   const directCatalog = allowCatalogFallback ? findCatalogFood(parsed.foodName) : null;
