@@ -8,7 +8,7 @@ import {
 import { detectKnownBrand } from "./foodBrandDetection";
 import { resolveCanonicalFoodQuantity } from "./foodItemResolution";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
-import { buildItemFromResolvedCatalogFood } from "./mealItemBuilders";
+import { buildItemFromMeasuredSpoonPortion } from "./mealItemBuilders";
 import {
   buildPortionText,
   extractExplicitQuantityFoodSegments,
@@ -109,24 +109,14 @@ export function applySpoonDecisions(items: MealDraftItem[], decisions: readonly 
       ? findLocalNutritionReference(decision.foodName)
       : null;
     if (catalog && isCatalogFoodSemanticallyCompatible(catalog, decision.foodName)) {
-      const fromCatalog = buildItemFromResolvedCatalogFood({
+      updated[index] = buildItemFromMeasuredSpoonPortion({
         food: catalog,
         foodName: decision.foodName,
         quantity: decision.quantity,
         unit: decision.unit,
         grams: measure.grams,
         measureResolution: provenance,
-      });
-      updated[index] = {
-        ...fromCatalog,
-        resolution: {
-          ...fromCatalog.resolution!,
-          measureResolution: {
-            ...fromCatalog.resolution!.measureResolution!,
-            verified: measure.kind === "canonical_portion" || measure.kind === "researched_exact",
-          },
-        },
-      };
+      }, measure.kind === "canonical_portion" || measure.kind === "researched_exact");
       continue;
     }
 

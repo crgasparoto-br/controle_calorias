@@ -229,6 +229,28 @@ export function buildItemFromResolvedCatalogFood(
   };
 }
 
+/**
+ * Canonical catalog materialization for a measured textual spoon portion.
+ * Only the measurement provenance differs from the existing catalog builder;
+ * food identity, macro calculation and source selection stay in this owner.
+ */
+export function buildItemFromMeasuredSpoonPortion(
+  input: ResolvedCatalogMealItemInput,
+  measureVerified: boolean,
+): MealDraftItem {
+  const item = buildItemFromResolvedCatalogFood(input);
+  return {
+    ...item,
+    resolution: {
+      ...item.resolution!,
+      measureResolution: {
+        ...item.resolution!.measureResolution!,
+        verified: measureVerified,
+      },
+    },
+  };
+}
+
 export function buildItemFromResolvedCommercialFood(
   input: ResolvedCommercialMealItemInput,
 ): MealDraftItem {

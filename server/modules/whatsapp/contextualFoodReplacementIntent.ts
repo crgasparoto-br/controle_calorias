@@ -284,7 +284,6 @@ async function resolveCanonicalLatestReplacement(input: {
   timeZone: string;
 }) {
   const processed = await processMealInput({
-    userId: input.userId,
     text: `${input.quantity} ${input.unit} de ${input.replacementFoodName}`,
     habits: await getHabitSnapshots(input.userId),
     occurredAt: input.occurredAt,

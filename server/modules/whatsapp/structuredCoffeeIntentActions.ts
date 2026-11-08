@@ -396,7 +396,6 @@ async function executeResolvedCoffeeAddition(input: {
   let processed: Awaited<ReturnType<typeof processMealInput>>;
   try {
     processed = await processMealInput({
-      userId: input.userId,
       text: buildFoodBatchText(effectiveItems),
       habits: await getHabitSnapshots(input.userId),
       occurredAt: targetDate.date,
