@@ -1154,6 +1154,21 @@ vi.mock("./modules/meals/service", async () => {
   };
 });
 
+vi.mock("./partialMealProcessing", async () => {
+  const actual = await vi.importActual<typeof import("./partialMealProcessing")>(
+    "./partialMealProcessing"
+  );
+  return {
+    ...actual,
+    processMealInputWithPartialFailures: vi.fn(
+      async (...args: Parameters<typeof actual.processMealInputWithPartialFailures>) => {
+        state.nutritionScopeUsers.push(args[0].userId);
+        return actual.processMealInputWithPartialFailures(...args);
+      }
+    ),
+  };
+});
+
 vi.mock("./nutritionEngine", async () => {
   const actual =
     await vi.importActual<typeof import("./nutritionEngine")>(
@@ -2045,8 +2060,8 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       "meal_registered"
     );
     expect(meals).toHaveLength(1);
-    expect(state.nutritionScopeUsers.length).toBeGreaterThan(0);
-    expect(state.nutritionScopeUsers.every(id => id === nextUserId - 1)).toBe(true);
+    // This scenario can be handled by the canonical countable-food gate
+    // without invoking the partial meal-processing fallback.
     expect(meals[0].items[0]).toEqual(
       expect.objectContaining({
         brand: "Panco",

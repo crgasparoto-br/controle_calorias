@@ -460,7 +460,11 @@ export function unwrapMealQuantityPreface(segment: string) {
   if (!match) return segment;
   const candidate = match[1].trim();
   const parsed = parseFoodText(candidate);
-  return parsed.quantity && parsed.unit ? candidate : segment;
+  // This compatibility path fixes spoken spoon quantities only. Other food
+  // names keep their original preface until the canonical LCL cutover.
+  return parsed.quantity && parsed.unit && /^colher\b/iu.test(parsed.unit)
+    ? candidate
+    : segment;
 }
 
 export function extractExplicitQuantityFoodSegments(sourceText: string): Array<ExplicitQuantity & { foodName: string }> {
