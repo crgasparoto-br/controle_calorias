@@ -233,7 +233,7 @@ async function requestNextSugarQuantity(input: {
   });
 }
 
-async function processResolvedFood(
+async function prepareCaloricComplementItem(
   deps: FoodClarificationDependencies,
   userId: number,
   resolvedFoodText: string,
@@ -639,9 +639,9 @@ export async function persistResolvedCaloricComplement(
     explicitQuantity.unit,
   );
 
-  let resolution: Awaited<ReturnType<typeof processResolvedFood>>;
+  let resolution: Awaited<ReturnType<typeof prepareCaloricComplementItem>>;
   try {
-    resolution = await processResolvedFood(
+    resolution = await prepareCaloricComplementItem(
       deps,
       userId,
       resolvedFoodText,

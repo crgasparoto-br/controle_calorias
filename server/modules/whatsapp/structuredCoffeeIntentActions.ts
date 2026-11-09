@@ -326,7 +326,7 @@ async function requestPreparationClarification(input: {
   });
 }
 
-async function executeResolvedCoffeeAddition(input: {
+async function executeCoffeeAddition(input: {
   userId: number;
   text: string;
   receivedAt: Date;
@@ -635,7 +635,7 @@ export async function tryExecuteWhatsappStructuredCoffeeIntent(
     classification === "without_sugar" || classification === "with_sugar");
   if (!hasQualifiedCoffee) return { matched: false };
 
-  const result = await executeResolvedCoffeeAddition({
+  const result = await executeCoffeeAddition({
     userId,
     text,
     receivedAt,
@@ -680,7 +680,7 @@ export async function resumeWhatsappStructuredCoffeePreparation(input: {
     reason: "Retomada de clarificação persistente do preparo do café.",
   };
 
-  return executeResolvedCoffeeAddition({
+  return executeCoffeeAddition({
     userId: input.userId,
     text: input.target.originalText,
     receivedAt: originalReceivedAt,

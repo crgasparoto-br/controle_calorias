@@ -1,6 +1,7 @@
 /** V1 textual spoon measures: transport a quantity decision from the canonical owner. */
 import { roundNutritionValue } from "../shared/mealTotals";
 import { isHouseholdSpoonUnit } from "../shared/measurementUnits";
+import { countCountableSpoonMentions } from "../shared/quantityUnitVocabulary";
 import {
   findLocalNutritionReference,
   isCatalogFoodSemanticallyCompatible,
@@ -60,12 +61,10 @@ export async function readSpoonDecisions(
     }
     const parsed = extractExplicitQuantityFoodSegments(normalizeKnownFoodText(segment))
       .filter(item => isHouseholdSpoonUnit(item.unit) && item.estimatedGrams === undefined);
-    const spoonMentions = [...normalizeForMatching(segment).matchAll(
-      /\b(?:\d+(?:[,.]\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+colher(?:es)?\b/giu,
-    )];
+    const spoonMentions = countCountableSpoonMentions(segment);
     // Missing or competing food bindings are deliberately not resolved.
-    if (spoonMentions.length !== parsed.length || parsed.length > 1) {
-      return spoonMentions.length || parsed.length
+    if (spoonMentions !== parsed.length || parsed.length > 1) {
+      return spoonMentions || parsed.length
         ? [{ foodName: segment.trim(), quantity: 0, unit: "colher" }]
         : [];
     }

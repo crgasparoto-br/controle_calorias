@@ -64,3 +64,57 @@ export type UnitWordKey = keyof typeof UNIT_WORDS;
 export function joinUnitWords(keys: readonly UnitWordKey[]) {
   return keys.map(key => UNIT_WORDS[key]).join("|");
 }
+
+
+/** Syntax-only compatibility helpers for V1 ingestion. Never infer food identity or grams. */
+function foldQuantityText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+}
+
+export function stripConsumptionPreface(text: string): string | null {
+  const matched = text.trim().match(
+    /^(?:(?:hoje|ontem|agora|nesta refeição|no almoço|no jantar|no café da manhã)\s+)?(?:eu\s+)?(?:comi|consumi|tomei|bebi|ingeri|adicionei|coloquei)\s+(.+)$/iu,
+  );
+  return matched?.[1]?.trim() || null;
+}
+
+export function isSpoonUnitPrefix(unit: string): boolean {
+  return /^colher\b/iu.test(unit);
+}
+
+export function countCountableSpoonMentions(text: string): number {
+  const folded = foldQuantityText(text);
+  const matcher = new RegExp("\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s+colher(?:es)?\\b", "gu");
+  return [...folded.matchAll(matcher)].length;
+}
+
+export function hasCoffeeSugarSpoonSyntax(text: string): boolean {
+  const folded = foldQuantityText(text);
+  return /\bcafe\b/u.test(folded) && /\bacucar\b/u.test(folded) && /\bcolher(?:es)?\b/u.test(folded);
+}
+
+export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; unit: string } | null {
+  if (!hasCoffeeSugarSpoonSyntax(text)) return null;
+  const folded = foldQuantityText(text).trim();
+  const matcher = new RegExp(
+    "\\b(" + COUNTABLE_QUANTITY_PATTERN + ")\\s+(colher(?:es)?(?: de (?:cha|sopa))?)\\s+(?:de\\s+)?acucar\\b",
+    "gu",
+  );
+  const matches = [...folded.matchAll(matcher)];
+  if (matches.length !== 1 || [...folded.matchAll(/\bcolher(?:es)?\b/gu)].length !== 1) return null;
+  if (/\b\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|mg|saches?|pacotes?)\s+(?:de\s+)?acucar\b/u.test(folded)) return null;
+  const quantity = parseCountableQuantity(matches[0][1]);
+  return quantity && quantity > 0
+    ? { quantity, unit: matches[0][2].replace(/^colheres\b/u, "colher") }
+    : null;
+}
+
+export function replaceCoffeeSugarSpoonSyntax(text: string, replacement: string): string | null {
+  const matcher = new RegExp(
+    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s+colher(?:es)?(?: de (?:ch[aá]|sopa))?\\s+(?:de\\s+)?a[cç][uú]car\\b",
+    "giu",
+  );
+  const matches = [...text.matchAll(matcher)];
+  if (matches.length !== 1 || !readCoffeeSugarSpoonSyntax(text)) return null;
+  return text.replace(matcher, replacement);
+}

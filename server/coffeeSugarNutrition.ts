@@ -1,5 +1,9 @@
 import { roundNutritionValue } from "../shared/mealTotals";
-import { COUNTABLE_QUANTITY_PATTERN, parseCountableQuantity } from "../shared/quantityUnitVocabulary";
+import {
+  hasCoffeeSugarSpoonSyntax,
+  readCoffeeSugarSpoonSyntax,
+  replaceCoffeeSugarSpoonSyntax,
+} from "../shared/quantityUnitVocabulary";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import {
   hasCaloricCoffeeComplement,
@@ -43,32 +47,9 @@ export type CoffeeSugarSpoonMeasure = {
 
 export type CoffeeSugarSpoonMeasures = ReadonlyMap<string, CoffeeSugarSpoonMeasure>;
 
-/** A spoon of sugar is a component of coffee, not a spoon of the coffee itself. */
-export function isCoffeeSugarSpoonMention(segment: string) {
-  const normalized = normalizeForMatching(segment);
-  return /\bcafe\b/.test(normalized)
-    && /\bacucar\b/.test(normalized)
-    && /\bcolher(?:es)?\b/.test(normalized);
-}
-
-export function extractCoffeeSugarSpoonRequest(segment: string) {
-  if (!isCoffeeSugarSpoonMention(segment)) return null;
-  const normalized = normalizeForMatching(segment).trim();
-  const pattern = new RegExp(
-    `\\b(${COUNTABLE_QUANTITY_PATTERN})\\s+(colher(?:es)?(?: de (?:cha|sopa))?)\\s+(?:de\\s+)?acucar\\b`,
-    "giu",
-  );
-  const matches = [...normalized.matchAll(pattern)];
-  if (matches.length !== 1) return null;
-  // More than one mentioned spoon cannot be assigned to one sugar component.
-  if ([...normalized.matchAll(/\bcolher(?:es)?\b/giu)].length !== 1) return null;
-  // A second explicit sugar quantity conflicts with the spoon request.
-  if (/\b\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|mg|saches?|pacotes?)\s+(?:de\s+)?acucar\b/u.test(normalized)) return null;
-  const quantity = parseCountableQuantity(matches[0][1]);
-  return quantity && quantity > 0
-    ? { quantity, unit: matches[0][2] === "colheres" ? "colher" : matches[0][2].replace(/^colheres/, "colher") }
-    : null;
-}
+/** Component binding is syntactic; the canonical quantity resolver alone determines grams. */
+export const isCoffeeSugarSpoonMention = hasCoffeeSugarSpoonSyntax;
+export const extractCoffeeSugarSpoonRequest = readCoffeeSugarSpoonSyntax;
 
 export type CoffeeServingQuantity = {
   quantity: number;
@@ -298,7 +279,7 @@ function hasSemanticCoverageForSweetenedCoffeeSegments(
   return true;
 }
 
-export function hasUsableSweetenedCoffeeInference(
+function coversSweetenedCoffeeEvidence(
   items: LlmItem[] | undefined,
   sourceText = "",
   spoonMeasures?: CoffeeSugarSpoonMeasures,
@@ -336,6 +317,8 @@ export function hasUsableSweetenedCoffeeInference(
     );
 }
 
+export const hasUsableSweetenedCoffeeInference = coversSweetenedCoffeeEvidence;
+
 function isCoffeeDraftItem(item: MealDraftItem) {
   return isCoffeeIdentity(`${item.foodName} ${item.canonicalName}`);
 }
@@ -365,10 +348,11 @@ function createCoffeeWithExplicitSugarItemFromSegment(
 ): MealDraftItem {
   const coffee = extractCoffeeServingQuantity(segment);
   const portionUnit = formatCoffeePortionUnit(coffee);
+  // Keep the display identity separate from the dynamic component-based nutrition.
+  const identity = { foodName: "Café com açúcar", canonicalName: "Café com açúcar" };
 
   return {
-    foodName: "Café com açúcar",
-    canonicalName: "Café com açúcar",
+    ...identity,
     quantity: coffee.quantity,
     unit: coffee.unit,
     portionText: sugar.measureResolution
@@ -636,11 +620,10 @@ export function appendSugarQuantityToCoffeeText(
   let appended = false;
   const resolvedSegments = segments.map(segment => {
     if (!appended && isCoffeeSugarSpoonMention(segment)) {
-      const spoonPattern = /\b(?:\d+(?:[,.]\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez)\s+colher(?:es)?(?: de (?:ch[aá]|sopa))?\s+(?:de\s+)?a[cç][uú]car\b/giu;
-      const matches = [...segment.matchAll(spoonPattern)];
-      if (matches.length === 1) {
+      const replaced = replaceCoffeeSugarSpoonSyntax(segment, `${quantityText} de açúcar`);
+      if (replaced !== null) {
         appended = true;
-        return segment.replace(spoonPattern, `${quantityText} de açúcar`);
+        return replaced;
       }
       return segment; // Conflicting spoon references stay unresolved and fail closed.
     }

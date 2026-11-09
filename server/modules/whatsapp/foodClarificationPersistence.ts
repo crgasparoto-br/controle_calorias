@@ -163,7 +163,7 @@ async function captureMealState(
   }
 }
 
-async function persistResolvedCorrection(
+async function saveConfirmedCorrection(
   deps: FoodClarificationDependencies,
   userId: number,
   target: FoodQuantityClarificationTarget,
@@ -666,7 +666,7 @@ async function persistClarificationResult(
     );
   }
   if (quantityTarget.resolutionContext?.mode === "replace_latest_item") {
-    return persistResolvedCorrection(
+    return saveConfirmedCorrection(
       deps,
       userId,
       quantityTarget,

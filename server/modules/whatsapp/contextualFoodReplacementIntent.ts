@@ -274,7 +274,7 @@ function toBatchSnapshot(meal: MutableMeal) {
   };
 }
 
-async function resolveCanonicalLatestReplacement(input: {
+async function prepareLatestReplacement(input: {
   userId: number;
   currentItem: MealItemInput;
   replacementFoodName: string;
@@ -399,7 +399,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
       };
     }
 
-    const replacementItem = await resolveCanonicalLatestReplacement({
+    const replacementItem = await prepareLatestReplacement({
       userId,
       currentItem: previousItem,
       replacementFoodName: latestCorrection.toFood,

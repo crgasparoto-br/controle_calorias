@@ -1,7 +1,7 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngineTypes";
-import { parseCountableQuantity } from "../shared/quantityUnitVocabulary";
+import { parseCountableQuantity, isSpoonUnitPrefix, stripConsumptionPreface } from "../shared/quantityUnitVocabulary";
 
 export const QUANTITY_UNIT_PATTERN =
   "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colher(?:es)?(?: de sopa| de ch[aá])?|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
@@ -454,15 +454,11 @@ export function parseFoodText(value: string): ParsedFoodText {
  * Do not guess a food from unrelated prose or an unquantified statement.
  */
 export function unwrapMealQuantityPreface(segment: string) {
-  const match = segment.trim().match(
-    /^(?:(?:hoje|ontem|agora|nesta refeição|no almoço|no jantar|no café da manhã)\s+)?(?:eu\s+)?(?:comi|consumi|tomei|bebi|ingeri|adicionei|coloquei)\s+(.+)$/iu,
-  );
-  if (!match) return segment;
-  const candidate = match[1].trim();
+  const candidate = stripConsumptionPreface(segment);
+  if (!candidate) return segment;
   const parsed = parseFoodText(candidate);
-  // This compatibility path fixes spoken spoon quantities only. Other food
-  // names keep their original preface until the canonical LCL cutover.
-  return parsed.quantity && parsed.unit && /^colher\b/iu.test(parsed.unit)
+  // V1 compatibility is confined to spoon amounts; original input/span is retained.
+  return parsed.quantity && parsed.unit && isSpoonUnitPrefix(parsed.unit)
     ? candidate
     : segment;
 }

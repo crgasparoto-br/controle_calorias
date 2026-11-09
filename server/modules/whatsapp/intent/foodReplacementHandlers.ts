@@ -182,7 +182,7 @@ function buildMultipleReplacementLines(
   return lines;
 }
 
-async function resolveReplacementItem(input: {
+async function prepareReplacementMealItem(input: {
   userId: number;
   replacement: FoodReplacementIntent;
   target: Extract<ReturnType<typeof resolveTargetMealItemInMeals<MutableMealRecord>>, { kind: "matched" }>;
@@ -287,7 +287,7 @@ export async function handleFoodReplacementIntents(
       itemIndex: target.index,
       itemName: target.item.foodName,
     };
-    const replacementResolution = await resolveReplacementItem({
+    const replacementResolution = await prepareReplacementMealItem({
       userId,
       replacement,
       target,
