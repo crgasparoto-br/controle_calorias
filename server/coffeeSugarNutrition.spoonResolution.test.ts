@@ -86,3 +86,30 @@ describe("PR #1339 A-004: syntactic coffee sugar binding", () => {
     });
   });
 });
+
+describe("PR #1339 A-005: competing sugar measures in numeric and spoken forms", () => {
+  it.each([
+    ["5 gramas", "cinco gramas"],
+    ["1 pacote", "um pacote"],
+    ["2 sachês", "dois sachês"],
+    ["3 kg", "três kg"],
+  ] as const)("rejects both equivalent extra amounts (%s / %s)", (numeric, written) => {
+    for (const extra of [numeric, written]) {
+      expect(extractCoffeeSugarSpoonRequest(
+        `café com uma colher de chá de açúcar e ${extra} de açúcar`,
+      )).toBeNull();
+    }
+  });
+
+  it("preserves a single spoken sugar spoon and does not bind another ingredient to sugar", () => {
+    expect(extractCoffeeSugarSpoonRequest("café com uma colher de chá de açúcar")).toEqual({
+      quantity: 1, unit: "colher de cha",
+    });
+    expect(extractCoffeeSugarSpoonRequest(
+      "café com uma colher de chá de açúcar e cinco gramas de leite",
+    )).toEqual({ quantity: 1, unit: "colher de cha" });
+    expect(extractCoffeeSugarSpoonRequest(
+      "café sem açúcar com uma colher de sopa de leite",
+    )).toBeNull();
+  });
+});

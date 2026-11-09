@@ -226,4 +226,19 @@ describe("PR #1339 independent audit remediation: spoken counts and coffee compo
     expect(competing[0].resolution).toBeNull();
     expect(resolveQuantity).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["5 gramas", "cinco gramas"],
+    ["1 pacote", "um pacote"],
+    ["2 sachês", "dois sachês"],
+  ] as const)("A-005: blocks both numeric and written extra sugar amounts (%s / %s)", async (numeric, written) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    for (const extra of [numeric, written]) {
+      const text = `café com uma colher de chá de açúcar e ${extra} de açúcar`;
+      const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+      expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+      expect(decisions.some(decision => decision.coffeeSugarSegment)).toBe(false);
+    }
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
 });

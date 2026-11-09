@@ -115,4 +115,21 @@ describe("nutritionEngine com complementos coordenados", () => {
       fat: 0,
     }));
   });
+
+  it.each([
+    "5 gramas",
+    "cinco gramas",
+    "1 pacote",
+    "um pacote",
+    "2 sachês",
+    "dois sachês",
+  ])("A-005: rejects competing sugar amount before inference: %s", async extra => {
+    const text = `café com uma colher de chá de açúcar e ${extra} de açúcar`;
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
 });
