@@ -20,6 +20,7 @@ import {
   isFoodD1WhatsAppImageCutoverRequested,
 } from "./entrypointRouting";
 import type { FoodObservation, FoodOperationEnvelope } from "./schemas";
+import { readFoodD1PublicContextSources } from "./publicContextSources";
 import {
   FoodD1NeedsClarificationError,
   createFoodD1StructuredEvidence,
@@ -51,6 +52,7 @@ export type PublicD1WhatsAppVisualInput = {
 
 export type PublicD1WhatsAppVisualDependencies = {
   readAuthorizedContext: () => Promise<AuthorizedD1SimulationContext | null>;
+  readContextSources?: typeof readFoodD1PublicContextSources;
   readActivePending: (ownerUserId: number, now: Date) => Promise<boolean>;
   extract: typeof extractD1VisualSurfaces;
   comprehend: typeof comprehendFoodLanguage;
@@ -121,10 +123,10 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
     const traceDigest = createHash("sha256").update(JSON.stringify([
       input.userId, stableMessageId, selectedRole, visual.contentDigest, input.transcript ?? null,
     ])).digest("hex");
-    const unavailable = {
-      status: "unavailable" as const,
-      reason: "whatsapp_d1_visual_context_not_materialized", sourceRef: null,
-    };
+    const contextSources = await (deps.readContextSources ?? readFoodD1PublicContextSources)({
+      ownerUserId: input.userId, source: "whatsapp", at: input.receivedAt,
+      externalMessageId: input.externalMessageId,
+    });
     const envelope: FoodOperationEnvelope = {
       schemaVersion: 2, traceId: "d1-trace-" + traceDigest,
       idempotencyKey: key, ownerUserId: input.userId,
@@ -134,10 +136,7 @@ export function createFoodD1PublicWhatsAppVisualRegistration(
         action: "add", targetMeal: selectedRole.mealLabel,
         date: getDateKeyInTimeZone(input.receivedAt, input.timeZone),
       },
-      contextSources: {
-        previousMessage: { ...unavailable },
-        preferences: { ...unavailable }, recentHistory: { ...unavailable },
-      },
+      contextSources,
       revisions: { ...context.revisions },
     };
     const now = new Date();
