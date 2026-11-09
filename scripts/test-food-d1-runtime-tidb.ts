@@ -804,6 +804,15 @@ try {
     assert.equal(actualDecision?.action, "meal_item_added",
       "real public route must resolve and write one governed food");
     assert.ok(actualDecision?.reply.includes("Mortadela public D1"));
+    const [v2ConfidenceRow] = await rows(
+      "SELECT m.confidence AS legacy_confidence, mi.foodSnapshotJson AS v2_snapshot FROM meals m JOIN mealItems mi ON mi.mealId=m.id WHERE m.id=?",
+      [actualDecision?.data?.mealId],
+    );
+    assert.equal(Number(v2ConfidenceRow.legacy_confidence), 0.5,
+      "non-null V1 compatibility field may retain its existing DB default");
+    assert.equal(JSON.parse(String(v2ConfidenceRow.v2_snapshot))
+      .structuredDecision.identity.confidence, null,
+      "verified source does not invent a calibrated V2 identity confidence");
     const actualReplay = await fullPublic(fullInput);
     assert.equal(actualReplay?.data?.mealId, actualDecision?.data?.mealId,
       "native V2 retry must return the same physical meal");
