@@ -106,13 +106,16 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   // Unquantified fractions cannot be converted safely either.
   const possibleQuantity = `(?:${COUNTABLE_QUANTITY_PATTERN}|meio|meia|metade|alguns?|algumas?)`;
 
-  // Accept any spelled-out measure unit when the *other* amount is explicitly
-  // bound to sugar. An allowlist of g/sache/pacote missed "1 pitada de acucar".
-  const secondSugarAmount = new RegExp(
-    String.raw`\b${possibleQuantity}\s+(?:[\p{L}]+\s+){0,3}(?:de\s+)?acucar\b`,
-    "u",
+  // Detect a second measured ingredient by its syntactic relation to
+  // the original spoon component, without a second food-identity lexicon.
+  const spoonIngredient = spoon[0].trim().split(" ").at(-1);
+  const otherMeasuredIngredient = new RegExp(
+    String.raw`\b${possibleQuantity}\s+(?:[\p{L}]+\s+){1,3}de\s+([\p{L}]+)\b`,
+    "gu",
   );
-  if (secondSugarAmount.test(remaining)) return true;
+  for (const match of remaining.matchAll(otherMeasuredIngredient)) {
+    if (match[1] === spoonIngredient) return true;
+  }
 
   // A quantity with no ingredient ("e cinco gramas adicionais", "e mais 5 g")
   // is ambiguous. Only a syntactically bound *different* ingredient is safe.
@@ -126,7 +129,7 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
     const tail = remaining.slice((match.index ?? 0) + match[0].length).trimStart()
       .replace(qualifier, "").trimStart();
     const ingredient = /^de\s+([\p{L}]+)/u.exec(tail)?.[1];
-    if (ingredient && ingredient !== "acucar") continue;
+    if (ingredient && ingredient !== spoonIngredient) continue;
     return true;
   }
   return false;
