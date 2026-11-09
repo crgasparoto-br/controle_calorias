@@ -74,6 +74,7 @@ export function hashFoodD1OperationScope(
     // Original conversation resource is immutable across turns; for a
     // verified label this binds a route to exact approved photo bytes.
     conversationRef: envelope.conversationRef,
+    contextSources: envelope.contextSources,
     source, effectiveTimeZone: envelope.effectiveTimeZone,
     mealOperation: envelope.mealOperation,
   })).digest("hex");
