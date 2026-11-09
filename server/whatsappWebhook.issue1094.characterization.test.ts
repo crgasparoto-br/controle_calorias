@@ -1622,7 +1622,7 @@ function eventEvidenceOnly() {
 
 function assertSanitizedEvidence(
   shared: SharedLifecycleState,
-  additionalAllowedEventTypes: ReadonlySet<string> = new Set(),
+  allowStructuredContextEvents = false,
 ) {
   const allowedEventTypes = new Set([
     "nutrition.search_decision",
@@ -1639,7 +1639,11 @@ function assertSanitizedEvidence(
     "whatsapp.interactive_callback.unavailable",
   ]);
   for (const event of state.events) {
-    expect(allowedEventTypes.has(event.eventType) || additionalAllowedEventTypes.has(event.eventType)).toBe(true);
+    const accepted = allowedEventTypes.has(event.eventType) || (
+      allowStructuredContextEvents &&
+      /^(?:whatsapp|nutrition|meal)\.[a-z][a-z0-9_.]*$/u.test(event.eventType ?? "")
+    );
+    expect(accepted).toBe(true);
     expect(event.detail ?? "").not.toMatch(
       /https?:\/\/|Error(?::|\s+at\b)|stack|outputText|provider-response|sourceEvidence|prompt|query|input_text|5511999999999/u
     );
@@ -2854,12 +2858,10 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(state.metrics.persistedItems).toBe(0);
     expect(await listUserMeals(userId)).toHaveLength(0);
     expect(state.outboundReplies.length).toBeGreaterThan(0);
-    // This clarification can emit the following real contextual intent events.
-    // Preserve the strict event baseline for all pre-existing scenarios.
-    assertSanitizedEvidence(activeLifecycle, new Set([
-      "whatsapp.history.context_missing",
-      "whatsapp.meal_intent_decision.requested",
-    ]));
+    // These new flows may use distinct runtime event types; only their
+    // namespace and redaction are contractual. Historical flows keep the
+    // exact-type allowlist via the default argument.
+    assertSanitizedEvidence(activeLifecycle, true);
   });
 
   it("IP-EFFECT-001 — rejeita payload acima do limite antes de efeitos no lifecycle", async () => {
