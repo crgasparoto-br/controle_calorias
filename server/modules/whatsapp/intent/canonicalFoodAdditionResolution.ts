@@ -203,7 +203,7 @@ function isNutritionEngineUnavailable(error: unknown) {
     && error.code === "meal_inference_unavailable";
 }
 
-export async function prepareCanonicalFoodAdditionItems(
+export async function prepareAdditionItems(
   input: {
     userId: number;
     addition: FoodAdditionIntent;
@@ -403,4 +403,4 @@ export async function prepareCanonicalFoodAdditionItems(
 }
 
 // Public API retained: this is an entrypoint adapter, not a competing food resolver.
-export { prepareCanonicalFoodAdditionItems as resolveCanonicalFoodAdditionItems };
+export { prepareAdditionItems as resolveCanonicalFoodAdditionItems };

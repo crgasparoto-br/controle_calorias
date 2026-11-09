@@ -258,6 +258,9 @@ async function prepareCaloricComplementItem(
   };
 }
 
+// Preserve the stable adapter invocation in existing higher-level workflows.
+const processResolvedFood = prepareCaloricComplementItem;
+
 function buildCompletedActionLine(input: {
   action: "register" | "add";
   itemCount: number;
@@ -641,7 +644,7 @@ export async function persistResolvedCaloricComplement(
 
   let resolution: Awaited<ReturnType<typeof prepareCaloricComplementItem>>;
   try {
-    resolution = await prepareCaloricComplementItem(
+    resolution = await processResolvedFood(
       deps,
       userId,
       resolvedFoodText,

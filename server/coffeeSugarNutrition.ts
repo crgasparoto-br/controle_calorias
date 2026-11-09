@@ -364,9 +364,9 @@ function createCoffeeWithExplicitSugarItemFromSegment(
       coffee.cupsEquivalent * COFFEE_CALORIES_PER_CUP
       + sugar.grams * SUGAR_CALORIES_PER_GRAM,
     ),
-    protein: 0,
+    protein: roundNutritionValue(coffee.cupsEquivalent * UNSWEETENED_COFFEE_REFERENCE.protein),
     carbs: sugar.grams,
-    fat: 0,
+    fat: roundNutritionValue(coffee.cupsEquivalent * UNSWEETENED_COFFEE_REFERENCE.fat),
     confidence: 0.72,
     source: "heuristic",
     ...(sugar.measureResolution ? {
