@@ -32,7 +32,12 @@ describe("#1308 verified physical V2 item edit boundary", () => {
   it("never invokes V2 or DB while flag is off", async () => {
     const readTarget = vi.fn(async () => target());
     const readAuthorizedContext = vi.fn(async () => null);
-    const bridge = createFoodD1PublicEdit({ readAuthorizedContext, readTarget });
+    const bridge = createFoodD1PublicEdit({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }), readAuthorizedContext, readTarget });
     expect(await bridge({ userId: 7, request: request(), timeZone: "America/Sao_Paulo" })).toBeNull();
     expect(readTarget).not.toHaveBeenCalled();
     expect(readAuthorizedContext).not.toHaveBeenCalled();
@@ -41,7 +46,12 @@ describe("#1308 verified physical V2 item edit boundary", () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "edit";
     const readTarget = vi.fn(async () => target());
-    const bridge = createFoodD1PublicEdit({ readAuthorizedContext: async () => null, readTarget });
+    const bridge = createFoodD1PublicEdit({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }), readAuthorizedContext: async () => null, readTarget });
     await expect(bridge({ userId: 7, request: request(), timeZone: "America/Sao_Paulo" }))
       .rejects.toThrow("food-d1-public-edit-gate-unavailable");
     expect(readTarget).not.toHaveBeenCalled();
@@ -50,6 +60,11 @@ describe("#1308 verified physical V2 item edit boundary", () => {
     process.env.FOOD_V2_D1_ENABLED = "true";
     process.env.FOOD_V2_D1_ENTRYPOINTS = "edit";
     const bridge = createFoodD1PublicEdit({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => authorized,
       readTarget: async () => null, lexicon: { load: async () => [] },
     });
@@ -60,6 +75,11 @@ describe("#1308 verified physical V2 item edit boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "edit";
     const lexicon = { load: vi.fn(async () => []) };
     const bridge = createFoodD1PublicEdit({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => authorized,
       readTarget: async () => ({ ...target(), ownerUserId: 8 }), lexicon,
     });
@@ -80,6 +100,11 @@ describe("#1308 verified physical V2 item edit boundary", () => {
       throw new Error("unreachable-writer");
     });
     const bridge = createFoodD1PublicEdit({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => authorized,
       readTarget: async () => target(), lexicon: { load: async () => [] },
       run: run as unknown as typeof runFoodD1Migration,
