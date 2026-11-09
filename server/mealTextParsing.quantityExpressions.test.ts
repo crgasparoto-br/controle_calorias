@@ -245,6 +245,22 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
   });
 });
 
+describe("PR #1339 A-008: precedence of component clarification over math parsing", () => {
+  it.each([
+    "café com uma colher de chá de açúcar e 1/2 g",
+    "café com uma colher de chá de açúcar e 1/2 g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 sachê de açúcar",
+    "café com uma colher de chá de açúcar e ½ g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 g adicionais",
+  ])("defers conflicting sugar quantity %s to the canonical spoon guard", text => {
+    expect(getQuantityExpressionClarification(text)).toBeNull();
+  });
+
+  it("preserves the generic division clarification outside sugar-spoon inputs", () => {
+    expect(getQuantityExpressionClarification("banana e 300g/0 de laranja")).toContain("divisão por zero");
+  });
+});
+
 describe("PR #1339 A-002: spoken counts after consumption prefaces", () => {
   it.each([
     ["comi uma colher de sopa de arroz", "arroz", 1, "colher de sopa"],

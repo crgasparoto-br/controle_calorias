@@ -2879,6 +2879,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     ["fraction-elided", "café com uma colher de chá de açúcar e 1/2 g adicionais"],
     ["fraction-punctuation", "café com uma colher de chá de açúcar e 1/2 g de açúcar."],
     ["fraction-extra-sugar", "café com uma colher de chá de açúcar e 1/2 g a mais de açúcar"],
+    ["fraction-elided-short", "café com uma colher de chá de açúcar e 1/2 g"],
   ] as const)("PR #1339 A-008: public POST does not persist an unresolved sugar amount (%s)", async (id, originalText) => {
     const userId = await startScenario({});
     const response = await post(

@@ -1,7 +1,15 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngineTypes";
-import { ADDITIONAL_MEASURE_QUALIFIER_PATTERN, COUNTABLE_QUANTITY_PATTERN, parseCountableQuantity, isSpoonUnitPrefix, stripConsumptionPreface } from "../shared/quantityUnitVocabulary";
+import {
+  ADDITIONAL_MEASURE_QUALIFIER_PATTERN,
+  COUNTABLE_QUANTITY_PATTERN,
+  hasCoffeeSugarSpoonSyntax,
+  isSpoonUnitPrefix,
+  parseCountableQuantity,
+  readCoffeeSugarSpoonSyntax,
+  stripConsumptionPreface,
+} from "../shared/quantityUnitVocabulary";
 
 export const QUANTITY_UNIT_PATTERN =
   "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colher(?:es)?(?: de sopa| de ch[aá])?|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
@@ -392,6 +400,12 @@ function getQuantityExpressionClarificationForSegment(value: string) {
 }
 
 export function getQuantityExpressionClarification(value: string) {
+  // The lexical sugar-component guard owns ambiguous competing spoon measures.
+  // Let it return a structured quantity clarification before the generic math
+  // parser can mistake a fractional second measure for an unrelated expression.
+  if (hasCoffeeSugarSpoonSyntax(value) && !readCoffeeSugarSpoonSyntax(value)) {
+    return null;
+  }
   const segments = splitFoodTextSegments(value);
   const candidates = segments.length > 1 ? segments : [value];
 
