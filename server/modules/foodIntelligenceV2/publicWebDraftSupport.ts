@@ -2,6 +2,7 @@
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import type { FoodD1WebDraftItem } from "../../../shared/foodD1WebDraft";
 import type { FoodOperationEnvelope } from "./schemas";
+import type { FoodD1ContextSources } from "./publicContextSources";
 import type {
   FoodD1Dependencies, FoodD1Entrypoint, FoodD1Request, FoodD1Result,
 } from "./entrypointMigration";
@@ -16,10 +17,8 @@ export function buildEnvelope(input: {
   timeZone: string;
   entrypoint: FoodD1Entrypoint;
   revisions: FoodOperationEnvelope["revisions"];
+  contextSources: FoodD1ContextSources;
 }): FoodOperationEnvelope {
-  const unavailable = (reason: string) => ({
-    status: "unavailable" as const, reason, sourceRef: null,
-  });
   return {
     schemaVersion: 2,
     traceId: input.traceId,
@@ -33,11 +32,7 @@ export function buildEnvelope(input: {
       targetMeal: input.mealLabel,
       date: getDateKeyInTimeZone(input.occurredAt, input.timeZone),
     },
-    contextSources: {
-      previousMessage: unavailable("web_draft_has_no_conversation_snapshot"),
-      preferences: unavailable("web_draft_has_no_authorized_preference_snapshot"),
-      recentHistory: unavailable("web_draft_has_no_authorized_history_snapshot"),
-    },
+    contextSources: input.contextSources,
     revisions: { ...input.revisions },
   };
 }
