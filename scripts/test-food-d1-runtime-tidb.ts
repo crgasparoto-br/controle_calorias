@@ -18,6 +18,7 @@ import { foodD1WhatsAppReplayFence } from "../server/modules/foodIntelligenceV2/
 import { createWhatsAppD1RegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
 import { readFoodD1PublicContextSources } from "../server/modules/foodIntelligenceV2/publicContextSources";
 import { createFoodV2KnowledgeRepository } from "../server/modules/foodIntelligenceV2/repository";
+import { createFoodD1PublicWebDraft } from "../server/modules/foodIntelligenceV2/publicWebDraft";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
 import { createManualMeal, listMeals } from "../server/modules/meals/service";
@@ -812,6 +813,55 @@ try {
     );
     assert.equal(Number(realEffects.c), 1,
       "one real resolver decision may write only one physical effect");
+    // A-004: public web draft -> canonical LCL/resolver -> native commit,
+    // with exact review content, durable draft receipt, replay and owner denial.
+    // These are disposable, synthetic records; not Gate A or production traffic.
+    const webBridge = createFoodD1PublicWebDraft({
+      readAuthorizedContext: async () => ({
+        approval, expectedAuditedBaseSha: expectedSha,
+        revisions: { ...makeEnvelope("ci-public-web").revisions, code: expectedSha },
+      }),
+      lexicon: { load: async () => [] },
+      knowledge: createFoodV2KnowledgeRepository(),
+    });
+    const webDraftRequest = {
+      source: "web" as const, d1OperationId: "ci-d1-live-web-submission",
+      mealLabel: "Almoço", occurredAt: "2026-10-05T12:00",
+      text: "30 g de Mortadela public D1",
+    };
+    const webDraft = await webBridge.tryRunFoodD1PublicWebDraft({
+      userId, request: webDraftRequest, timeZone: "UTC",
+    });
+    assert.ok(webDraft && webDraft.items.length === 1,
+      "public web draft must return one original food observation");
+    assert.equal(webDraft.items[0].disposition, "ready",
+      "verified governed food and explicit grams must produce a confirmable draft");
+    const webConfirmationRequest = {
+      draftId: webDraft.draftId, mealLabel: webDraft.mealLabel,
+      occurredAt: webDraftRequest.occurredAt,
+      items: webDraft.items.map(item => ({
+        observationId: item.observationId, foodName: item.foodName,
+        quantity: item.quantity, unit: item.unit,
+      })),
+    };
+    const webReceipt = await webBridge.confirmFoodD1PublicWebDraft({
+      userId, request: webConfirmationRequest, timeZone: "UTC",
+      occurredAt: new Date("2026-10-05T12:00:00Z"),
+    });
+    assert.equal(webReceipt.committed, true);
+    assert.equal(webReceipt.recordedItemIds.length, 1);
+    const webReplay = await webBridge.confirmFoodD1PublicWebDraft({
+      userId, request: webConfirmationRequest, timeZone: "UTC",
+      occurredAt: new Date("2026-10-05T12:00:00Z"),
+    });
+    assert.equal(webReplay.mealId, webReceipt.mealId);
+    assert.equal(webReplay.replayed, true,
+      "confirmed web retry must return the same durable receipt");
+    await assert.rejects(webBridge.confirmFoodD1PublicWebDraft({
+      userId: foreignPendingUserId, request: webConfirmationRequest,
+      timeZone: "UTC", occurredAt: new Date("2026-10-05T12:00:00Z"),
+    }), /Rascunho V2 n.o encontrado|food-d1-web-draft/i,
+    "a different user cannot confirm the same physical web draft");
     const [publicEffects] = await rows(
       "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key LIKE 'd1-whatsapp-%'",
       [userId],
