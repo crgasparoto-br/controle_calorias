@@ -100,39 +100,63 @@ export function hasCoffeeSugarSpoonSyntax(text: string): boolean {
 }
 
 /** A second measured component must not vanish when V1 splits coordinated text. */
+/** Generic quantity-token grammar: no food names or nutritional conversions. */
+const UNBOUND_QUANTITY_UNITS = new Set([
+  "g", "gr", "grs", "grama", "gramas", "kg", "quilo", "quilos",
+  "mg", "miligrama", "miligramas", "ml", "mililitro", "mililitros",
+  "l", "litro", "litros", "sache", "saches", "pacote", "pacotes",
+  "pitada", "pitadas", "gota", "gotas", "punhado", "punhados",
+]);
+const UNCERTAIN_QUANTITY_WORDS = new Set([
+  "meio", "meia", "metade", "algum", "alguns", "alguma", "algumas",
+]);
+
+function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
+  const words = surface.split(/\s+/u)
+    .map(word => word.replace(/^[,;]+|[,;]+$/gu, ""))
+    .filter(Boolean);
+  const bindings: Array<string | null> = [];
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
+    let isQuantity = parseCountableQuantity(word) !== null ||
+      UNCERTAIN_QUANTITY_WORDS.has(word);
+    let compactUnit = false;
+    if (!isQuantity) {
+      const unsigned = word.startsWith("+") ? word.slice(1) : word;
+      for (const suffix of ["mg", "kg", "ml", "g", "l"]) {
+        if (unsigned.endsWith(suffix) &&
+            parseCountableQuantity(unsigned.slice(0, -suffix.length)) !== null) {
+          isQuantity = true;
+          compactUnit = true;
+          break;
+        }
+      }
+    }
+    if (!isQuantity) continue;
+
+    const unit = words[index + 1] ?? "";
+    // A measured quantity can have an intervening descriptive qualifier.
+    const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit);
+    const subjectOffset = words[index + 2] === "de" ? 3 :
+      words[index + 3] === "de" && hasUnit ? 4 : 0;
+    if (subjectOffset && words[index + subjectOffset]) {
+      bindings.push(words[index + subjectOffset]);
+    } else if (hasUnit) {
+      // Missing explicit ingredient is ambiguous in a coordinated input.
+      bindings.push(null);
+    }
+  }
+  return bindings;
+}
+
+/** Do not split an unresolved competing quantity away from its spoon component. */
 function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArray): boolean {
   const start = spoon.index ?? 0;
   const remaining = `${folded.slice(0, start)} ${folded.slice(start + spoon[0].length)}`;
-  // Unquantified fractions cannot be converted safely either.
-  const possibleQuantity = `(?:${COUNTABLE_QUANTITY_PATTERN}|meio|meia|metade|alguns?|algumas?)`;
-
-  // Detect a second measured ingredient by its syntactic relation to
-  // the original spoon component, without a second food-identity lexicon.
-  const spoonIngredient = spoon[0].trim().split(" ").at(-1);
-  const otherMeasuredIngredient = new RegExp(
-    String.raw`\b${possibleQuantity}\s+(?:[\p{L}]+\s+){1,3}de\s+([\p{L}]+)\b`,
-    "gu",
+  const spoonSubject = spoon[0].trim().split(" ").at(-1);
+  return scanMeasuredQuantityBindings(remaining).some(
+    subject => subject === null || subject === spoonSubject,
   );
-  for (const match of remaining.matchAll(otherMeasuredIngredient)) {
-    if (match[1] === spoonIngredient) return true;
-  }
-
-  // A quantity with no ingredient ("e cinco gramas adicionais", "e mais 5 g")
-  // is ambiguous. Only a syntactically bound *different* ingredient is safe.
-  // This inspects the original text before conjunction-based segmentation.
-  const amount = new RegExp(
-    String.raw`\b${possibleQuantity}\s*(?:gramas?|grs?|g|quilos?|kg|miligramas?|mg|mililitros?|ml|litros?|l|saches?|pacotes?|pitadas?|gotas?|punhados?)\b`,
-    "gu",
-  );
-  const qualifier = new RegExp(String.raw`^(?:${ADDITIONAL_MEASURE_QUALIFIER_PATTERN})\b`, "u");
-  for (const match of remaining.matchAll(amount)) {
-    const tail = remaining.slice((match.index ?? 0) + match[0].length).trimStart()
-      .replace(qualifier, "").trimStart();
-    const ingredient = /^de\s+([\p{L}]+)/u.exec(tail)?.[1];
-    if (ingredient && ingredient !== spoonIngredient) continue;
-    return true;
-  }
-  return false;
 }
 
 export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; unit: string } | null {
