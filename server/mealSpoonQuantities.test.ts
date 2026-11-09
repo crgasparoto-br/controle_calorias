@@ -184,7 +184,8 @@ describe("PR #1339 independent audit remediation: spoken counts and coffee compo
     expect(decisions).toEqual([expect.objectContaining({
       foodName, quantity, unit, resolution: expect.objectContaining({ grams: 25 }),
     })]);
-    expect(resolveQuantity).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
       userId: 7, foodName, quantity, unit,
     }));
   });
