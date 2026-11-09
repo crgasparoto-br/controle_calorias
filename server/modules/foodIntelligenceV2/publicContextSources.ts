@@ -40,20 +40,20 @@ export async function readFoodD1PublicContextSources(
   try {
     // This query is scoped to authenticated ownership and returns a reference,
     // never the value of a private preference.
-    const [preference] = await db.select({ id: userPreferences.id })
+    const [preference] = await db.select({ id: userPreferences.id, updatedAt: userPreferences.updatedAt })
       .from(userPreferences).where(eq(userPreferences.userId, owner))
       .orderBy(desc(userPreferences.id)).limit(1);
     const preferences = preference
-      ? state("available", null, "food-preference:" + preference.id)
+      ? state("available", null, "food-preference:" + preference.id + ":" + preference.updatedAt.getTime())
       : state("absent", "no_user_preferences");
 
     // A historical meal is relevant only if it existed before this operation;
     // later meals (including an idempotent retry's write) cannot become its context.
-    const [historical] = await db.select({ id: meals.id, occurredAt: meals.occurredAt })
+    const [historical] = await db.select({ id: meals.id, createdAt: meals.createdAt })
       .from(meals).where(and(eq(meals.userId, owner), eq(meals.status, "confirmed"),
-        lt(meals.occurredAt, request.at)))
-      .orderBy(desc(meals.occurredAt), desc(meals.id)).limit(1);
-    const age = historical ? request.at.getTime() - historical.occurredAt.getTime() : null;
+        lt(meals.createdAt, request.at)))
+      .orderBy(desc(meals.createdAt), desc(meals.id)).limit(1);
+    const age = historical ? request.at.getTime() - historical.createdAt.getTime() : null;
     const recentHistory = !historical ? state("absent", "no_prior_meal")
       : age !== null && age > 30 * 24 * 60 * 60 * 1000
         ? state("expired", "prior_meal_outside_context_window")
