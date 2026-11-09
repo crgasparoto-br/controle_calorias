@@ -17,6 +17,7 @@ import { readActiveFoodD1WhatsAppPending, stageFoodD1WhatsAppPending,
 import { foodD1WhatsAppReplayFence } from "../server/modules/foodIntelligenceV2/publicWhatsAppReplayFence";
 import { createWhatsAppD1RegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
 import { readFoodD1PublicContextSources } from "../server/modules/foodIntelligenceV2/publicContextSources";
+import { createFoodV2KnowledgeRepository } from "../server/modules/foodIntelligenceV2/repository";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
 import { createManualMeal, listMeals } from "../server/modules/meals/service";
@@ -774,12 +775,44 @@ try {
         originalText: "Adicionar ao almoço 29 g de mortadela" }),
       /food-d1-operation-scope-changed/,
       "same external ID with altered payload must not claim an old receipt");
+    // A-004: unlike the controlled receipt test above, exercise the ACTUAL
+    // canonical LCL, governed knowledge, resolver, native runner and TiDB
+    // transaction through the trusted public WhatsApp entrypoint. Only the
+    // external Gate A provider is replaced by a synthetic approval fixture.
+    const fullPublic = createWhatsAppD1RegistrationService({
+      readAuthorizedContext: async () => ({
+        approval, expectedAuditedBaseSha: expectedSha,
+        revisions: { ...makeEnvelope("ci-public-whatsapp").revisions, code: expectedSha },
+      }),
+      readActivePending: hasActiveWhatsappPendingInDb,
+      lexicon: { load: async () => [] },
+      knowledge: createFoodV2KnowledgeRepository(),
+    });
+    const fullInput = {
+      userId, externalMessageId: "wamid-ci-d1-real-resolver",
+      originalText: "Adicionar ao almoço 30 g de Mortadela public D1",
+      modality: "text" as const, receivedAt: occurredAt, timeZone: "UTC",
+    };
+    const actualDecision = await fullPublic(fullInput);
+    assert.equal(actualDecision?.action, "meal_item_added",
+      "real public route must resolve and write one governed food");
+    assert.ok(actualDecision?.reply.includes("Mortadela public D1"));
+    const actualReplay = await fullPublic(fullInput);
+    assert.equal(actualReplay?.data?.mealId, actualDecision?.data?.mealId,
+      "native V2 retry must return the same physical meal");
+    const [realEffects] = await rows(
+      "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key=?",
+      [userId, "d1-whatsapp-" + (await import("node:crypto")).createHash("sha256")
+        .update(JSON.stringify([userId, fullInput.externalMessageId])).digest("hex")],
+    );
+    assert.equal(Number(realEffects.c), 1,
+      "one real resolver decision may write only one physical effect");
     const [publicEffects] = await rows(
       "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key LIKE 'd1-whatsapp-%'",
       [userId],
     );
-    assert.equal(Number(publicEffects.c), 2,
-      "only the two distinct authorized public operations may create effects");
+    assert.equal(Number(publicEffects.c), 3,
+      "only three distinct authorized public operations may create effects");
   } finally {
     if (priorEnabled === undefined) delete process.env.FOOD_V2_D1_ENABLED;
     else process.env.FOOD_V2_D1_ENABLED = priorEnabled;
