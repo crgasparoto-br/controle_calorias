@@ -642,7 +642,7 @@ export async function persistResolvedCaloricComplement(
     explicitQuantity.unit,
   );
 
-  let resolution: Awaited<ReturnType<typeof prepareCaloricComplementItem>>;
+  let resolution: Awaited<ReturnType<typeof processResolvedFood>>;
   try {
     resolution = await processResolvedFood(
       deps,
