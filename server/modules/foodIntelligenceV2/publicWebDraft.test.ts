@@ -129,6 +129,11 @@ function createService(
   return {
     run,
     service: createFoodD1PublicWebDraft({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => ({
         approval: {
           status: "approved",
@@ -248,6 +253,11 @@ function webDraftDependencies(input: { withApproval?: boolean } = {}) {
     contentDigest: "b".repeat(64),
   }));
   const service = createFoodD1PublicWebDraft({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
     readAuthorizedContext: async () => input.withApproval === false ? null : ({
       approval: {
         status: "approved",
