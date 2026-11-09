@@ -15,7 +15,8 @@ import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligence
 import { readActiveFoodD1WhatsAppPending, stageFoodD1WhatsAppPending,
   updateFoodD1WhatsAppPending, consumeFoodD1WhatsAppPending } from "../server/modules/foodIntelligenceV2/publicWhatsAppPendingRepository";
 import { foodD1WhatsAppReplayFence } from "../server/modules/foodIntelligenceV2/publicWhatsAppReplayFence";
-import { createWhatsAppD1RegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
+import { createWhatsAppD1RegistrationService, createConfirmedMealRegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
+import { runWithWhatsappInboundCorrelationScope, setCurrentWhatsappInboundContentType, setCurrentWhatsappInboundExternalMessageId } from "../server/modules/whatsapp/inboundCorrelationContext";
 import { readFoodD1PublicContextSources } from "../server/modules/foodIntelligenceV2/publicContextSources";
 import { createFoodV2KnowledgeRepository } from "../server/modules/foodIntelligenceV2/repository";
 import { createFoodD1PublicWebDraft } from "../server/modules/foodIntelligenceV2/publicWebDraft";
@@ -813,6 +814,39 @@ try {
     );
     assert.equal(Number(realEffects.c), 1,
       "one real resolver decision may write only one physical effect");
+    // Public confirmed registration with trusted inbound lifecycle metadata:
+    // the handler itself must select the real V2 path, not invoke V1 nutrition.
+    const lifecycleId = "wamid-ci-d1-real-lifecycle";
+    const lifecycleInput = { ...fullInput, externalMessageId: lifecycleId };
+    const registration = createConfirmedMealRegistrationService({
+      tryRunD1Registration: fullPublic,
+      prepareCountableFoodRegistration: async () => {
+        throw new Error("V1 preflight must not run for approved V2 lifecycle");
+      },
+      processMeal: async () => {
+        throw new Error("V1 nutrition must not run for approved V2 lifecycle");
+      },
+    });
+    const lifecycleResult = await runWithWhatsappInboundCorrelationScope(async () => {
+      setCurrentWhatsappInboundExternalMessageId(lifecycleId);
+      setCurrentWhatsappInboundContentType("text");
+      return registration({
+        userId, registrationText: lifecycleInput.originalText,
+        originalText: lifecycleInput.originalText, occurredAt,
+        userTimezone: "UTC", inboundMessageId: lifecycleId,
+      });
+    });
+    assert.equal(lifecycleResult.status, "registered",
+      "authenticated lifecycle must reach native resolver without V1 inference");
+    if (lifecycleResult.status === "registered") {
+      assert.equal(lifecycleResult.result.action, "meal_item_added");
+    }
+    const [lifecycleCount] = await rows(
+      "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key LIKE 'd1-whatsapp-%'",
+      [userId],
+    );
+    assert.equal(Number(lifecycleCount.c), 4,
+      "the public lifecycle must register exactly one additional observation");
     // A-004: public web draft -> canonical LCL/resolver -> native commit,
     // with exact review content, durable draft receipt, replay and owner denial.
     // These are disposable, synthetic records; not Gate A or production traffic.
@@ -866,8 +900,8 @@ try {
       "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key LIKE 'd1-whatsapp-%'",
       [userId],
     );
-    assert.equal(Number(publicEffects.c), 3,
-      "only three distinct authorized public operations may create effects");
+    assert.equal(Number(publicEffects.c), 4,
+      "only four distinct authorized public operations may create effects");
   } finally {
     if (priorEnabled === undefined) delete process.env.FOOD_V2_D1_ENABLED;
     else process.env.FOOD_V2_D1_ENABLED = priorEnabled;
