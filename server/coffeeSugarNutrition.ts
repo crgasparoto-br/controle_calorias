@@ -24,6 +24,8 @@ if (!UNSWEETENED_COFFEE_REFERENCE) {
 
 const COFFEE_CALORIES_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.calories;
 const COFFEE_ML_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.gramsPerServing;
+const COFFEE_PROTEIN_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.protein;
+const COFFEE_FAT_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.fat;
 const SUGAR_CALORIES_PER_GRAM = 4;
 export const DEFAULT_SUGAR_GRAMS_PER_CANONICAL_COFFEE_CUP = 5;
 
@@ -364,9 +366,9 @@ function createCoffeeWithExplicitSugarItemFromSegment(
       coffee.cupsEquivalent * COFFEE_CALORIES_PER_CUP
       + sugar.grams * SUGAR_CALORIES_PER_GRAM,
     ),
-    protein: roundNutritionValue(coffee.cupsEquivalent * UNSWEETENED_COFFEE_REFERENCE.protein),
+    protein: roundNutritionValue(coffee.cupsEquivalent * COFFEE_PROTEIN_PER_CUP),
     carbs: sugar.grams,
-    fat: roundNutritionValue(coffee.cupsEquivalent * UNSWEETENED_COFFEE_REFERENCE.fat),
+    fat: roundNutritionValue(coffee.cupsEquivalent * COFFEE_FAT_PER_CUP),
     confidence: 0.72,
     source: "heuristic",
     ...(sugar.measureResolution ? {
