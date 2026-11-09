@@ -123,6 +123,10 @@ describe("nutritionEngine com complementos coordenados", () => {
     "um pacote",
     "2 sachês",
     "dois sachês",
+    "3 kg",
+    "três quilos",
+    "4 mg",
+    "quatro miligramas",
   ])("A-005: rejects competing sugar amount before inference: %s", async extra => {
     const text = `café com uma colher de chá de açúcar e ${extra} de açúcar`;
     const { processMealInput } = await import("./nutritionEngine");

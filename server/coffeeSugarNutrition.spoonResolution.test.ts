@@ -92,7 +92,8 @@ describe("PR #1339 A-005: competing sugar measures in numeric and spoken forms",
     ["5 gramas", "cinco gramas"],
     ["1 pacote", "um pacote"],
     ["2 sachês", "dois sachês"],
-    ["3 kg", "três kg"],
+    ["3 kg", "três quilos"],
+    ["4 mg", "quatro miligramas"],
   ] as const)("rejects both equivalent extra amounts (%s / %s)", (numeric, written) => {
     for (const extra of [numeric, written]) {
       expect(extractCoffeeSugarSpoonRequest(

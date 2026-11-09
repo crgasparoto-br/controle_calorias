@@ -113,7 +113,7 @@ export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; un
   // Competing sugar measures in digits or words are equally explicit.
   // Never accept just the spoon and silently discard the other amount.
   const competingSugarMeasure = new RegExp(
-    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*(?:g|gr|gramas?|kg|mg|saches?|pacotes?)\\s+(?:de\\s+)?acucar\\b",
+    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*(?:g|grs?|gramas?|kg|quilos?|mg|miligramas?|saches?|pacotes?)\\s+(?:de\\s+)?acucar\\b",
     "u",
   );
   if (competingSugarMeasure.test(folded)) return null;

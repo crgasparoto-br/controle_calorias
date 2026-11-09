@@ -231,6 +231,8 @@ describe("PR #1339 independent audit remediation: spoken counts and coffee compo
     ["5 gramas", "cinco gramas"],
     ["1 pacote", "um pacote"],
     ["2 sachês", "dois sachês"],
+    ["3 kg", "três quilos"],
+    ["4 mg", "quatro miligramas"],
   ] as const)("A-005: blocks both numeric and written extra sugar amounts (%s / %s)", async (numeric, written) => {
     const resolveQuantity = vi.fn(async () => measured(8));
     for (const extra of [numeric, written]) {
