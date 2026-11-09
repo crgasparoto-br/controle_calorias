@@ -16,6 +16,7 @@ import { readActiveFoodD1WhatsAppPending, stageFoodD1WhatsAppPending,
   updateFoodD1WhatsAppPending, consumeFoodD1WhatsAppPending } from "../server/modules/foodIntelligenceV2/publicWhatsAppPendingRepository";
 import { foodD1WhatsAppReplayFence } from "../server/modules/foodIntelligenceV2/publicWhatsAppReplayFence";
 import { createWhatsAppD1RegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
+import { readFoodD1PublicContextSources } from "../server/modules/foodIntelligenceV2/publicContextSources";
 import { createDrizzleMealsRepository } from "../server/repositories/mealsRepository";
 import { getDb } from "../server/db";
 import { createManualMeal, listMeals } from "../server/modules/meals/service";
@@ -880,6 +881,64 @@ try {
   await assert.rejects(consumeFoodD1WhatsAppPending(updatedPending, userId),
     /food-d1-whatsapp-pending-consume-conflict/,
   "a completed pending cannot be consumed twice or reopened");
+
+  // A-001: real owner-scoped DB context at the public V2 boundary, not a
+  // hardcoded 'unavailable'. Only opaque references leave these SQL reads.
+  const contextAt = new Date(Date.now() + 60_000);
+  const ctxPrefs = await insert(
+    "INSERT INTO userPreferences (userId, preferenceKey, preferenceValue) VALUES (?, 'food.synthetic.coffee', 'sem acucar')",
+    [userId],
+  );
+  const ctxConversation = await insert(
+    "INSERT INTO whatsappConversations (userId, phoneNumber) VALUES (?, '+550000000001')",
+    [userId],
+  );
+  const insertInbound = (id: string, when: Date) => insert(
+    "INSERT INTO whatsappConversationMessages (conversationId, userId, direction, contentType, externalMessageId, idempotencyKey, occurredAt) VALUES (?, ?, 'inbound', 'text', ?, ?, ?)",
+    [ctxConversation, userId, id, "whatsapp:inbound:" + id, when],
+  );
+  const priorContextId = await insertInbound(
+    "wamid-ci-context-previous", new Date(contextAt.getTime() - 5 * 60_000),
+  );
+  await insertInbound("wamid-ci-context-current", contextAt);
+  const inspected = await readFoodD1PublicContextSources({
+    ownerUserId: userId, source: "whatsapp",
+    at: contextAt, externalMessageId: "wamid-ci-context-current",
+  });
+  assert.equal(inspected.previousMessage.status, "available");
+  assert.equal(inspected.previousMessage.sourceRef, "whatsapp-message:" + priorContextId);
+  assert.equal(inspected.preferences.status, "available");
+  assert.ok(inspected.preferences.sourceRef?.startsWith("food-preference:" + ctxPrefs + ":"));
+  assert.equal(inspected.recentHistory.status, "available");
+  assert.ok(inspected.recentHistory.sourceRef?.startsWith("food-history-meal:"));
+  assert.ok(!JSON.stringify(inspected).includes("sem acucar"),
+    "raw preference contents must not be persisted as an operation context");
+  const webContext = await readFoodD1PublicContextSources({
+    ownerUserId: userId, source: "web", at: contextAt,
+  });
+  assert.equal(webContext.previousMessage.status, "not_applicable");
+  assert.equal(webContext.preferences.status, "available");
+  assert.equal(webContext.recentHistory.status, "available");
+  const foreignContext = await readFoodD1PublicContextSources({
+    ownerUserId: foreignPendingUserId, source: "whatsapp",
+    at: contextAt, externalMessageId: "wamid-ci-context-current",
+  });
+  assert.equal(foreignContext.previousMessage.status, "unavailable",
+    "another owner must not discover the conversation");
+  assert.equal(foreignContext.preferences.status, "absent",
+    "another owner must not inherit preferences");
+  await assert.rejects(readFoodD1PublicContextSources({
+    ownerUserId: 0, source: "web", at: contextAt,
+  }), /food-d1-context-invalid-owner-or-time/);
+  await insertInbound("wamid-ci-context-later", new Date(contextAt.getTime() + 40 * 60_000));
+  const expiredContext = await readFoodD1PublicContextSources({
+    ownerUserId: userId, source: "whatsapp",
+    at: new Date(contextAt.getTime() + 40 * 60_000),
+    externalMessageId: "wamid-ci-context-later",
+  });
+  assert.equal(expiredContext.previousMessage.status, "expired",
+    "expired previous conversation context must not be silently reused");
+  console.log("PASS: D1 owner-scoped context sources, TTL, privacy and cross-user denials");
 
   // Leave a DIFFERENT original operation pending at process exit. The
   // subsequent test file runs in a new Node process and must recover it.
