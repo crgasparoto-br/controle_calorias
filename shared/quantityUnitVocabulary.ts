@@ -111,21 +111,29 @@ const UNCERTAIN_QUANTITY_WORDS = new Set([
   "meio", "meia", "metade", "algum", "alguns", "alguma", "algumas",
 ]);
 
+// Fractions are quantity syntax, not a safe gram conversion. Treat them as
+// competing amounts, including vulgar glyphs, Unicode slashes and compact units.
+function isFractionalQuantityToken(value: string): boolean {
+  return /^(?:\d+)?(?:\d+[/\u2044\u2215]\d+|[\u00bc-\u00be\u2150-\u215e])$/u.test(value);
+}
+
 function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
   const words = surface.split(/\s+/u)
-    .map(word => word.replace(/^[,;]+|[,;]+$/gu, ""))
+    .map(word => word.replace(/^[,;!?()]+|[,;.!?()]+$/gu, ""))
     .filter(Boolean);
   const bindings: Array<string | null> = [];
   for (let index = 0; index < words.length; index += 1) {
     const word = words[index];
-    let isQuantity = parseCountableQuantity(word) !== null ||
-      UNCERTAIN_QUANTITY_WORDS.has(word);
+    // A sign does not make a competing measurement harmless or convertible.
+    const unsigned = word.replace(/^[+\-\u2212\u2013\u2014]/u, "");
+    let isQuantity = parseCountableQuantity(unsigned) !== null ||
+      isFractionalQuantityToken(unsigned) || UNCERTAIN_QUANTITY_WORDS.has(unsigned);
     let compactUnit = false;
     if (!isQuantity) {
-      const unsigned = word.startsWith("+") ? word.slice(1) : word;
       for (const suffix of ["mg", "kg", "ml", "g", "l"]) {
         if (unsigned.endsWith(suffix) &&
-            parseCountableQuantity(unsigned.slice(0, -suffix.length)) !== null) {
+            (parseCountableQuantity(unsigned.slice(0, -suffix.length)) !== null ||
+              isFractionalQuantityToken(unsigned.slice(0, -suffix.length)))) {
           isQuantity = true;
           compactUnit = true;
           break;

@@ -183,6 +183,17 @@ describe("PR #1339 A-008: block unknown and elided sugar quantities before AI", 
     "café com uma colher de chá de açúcar e 1 pitada",
     "café com uma colher de chá de açúcar e meio sachê de açúcar",
     "café com uma colher de chá de açúcar e +3g a mais",
+    "café com uma colher de chá de açúcar e 1/2 g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 sachê de açúcar",
+    "café com uma colher de chá de açúcar e ½ g de açúcar",
+    "café com uma colher de chá de açúcar e 1⁄2 g de açúcar",
+    "café com uma colher de chá de açúcar e 1∕2 g de açúcar",
+    "café com uma colher de chá de açúcar e 2½ g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2g de açúcar",
+    "café com uma colher de chá de açúcar e +1/2g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 g adicionais",
+    "café com uma colher de chá de açúcar e 1/2 g de açúcar.",
+    "café com uma colher de chá de açúcar e 1/2 g",
   ])("requests clarification without an AI call for %s", async text => {
     createTextResponseMock.mockReset();
     const { processMealInput } = await import("./nutritionEngine");

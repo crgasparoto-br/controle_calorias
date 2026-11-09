@@ -311,6 +311,17 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
     "café com uma colher de chá de açúcar e 5 g de leite e mais um pacote",
     "café com uma colher de chá de açúcar e meio sachê de açúcar",
     "café com uma colher de chá de açúcar e +3g a mais",
+    "café com uma colher de chá de açúcar e 1/2 g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 sachê de açúcar",
+    "café com uma colher de chá de açúcar e ½ g de açúcar",
+    "café com uma colher de chá de açúcar e 1⁄2 g de açúcar",
+    "café com uma colher de chá de açúcar e 1∕2 g de açúcar",
+    "café com uma colher de chá de açúcar e 2½ g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2g de açúcar",
+    "café com uma colher de chá de açúcar e +1/2g de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 g adicionais",
+    "café com uma colher de chá de açúcar e 1/2 g de açúcar.",
+    "café com uma colher de chá de açúcar e 1/2 g",
   ])("fails closed on %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
@@ -323,6 +334,11 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
     "café com uma colher de chá de açúcar e 2 g adicionais de leite",
     "café com uma colher de chá de açúcar e 1 pitada de sal",
     "café com uma colher de chá de açúcar e 1 pão",
+    "café com uma colher de chá de açúcar e 1/2 g de leite",
+    "café com uma colher de chá de açúcar e ½ g de leite",
+    "café com uma colher de chá de açúcar e 1/2g de leite",
+    "café com uma colher de chá de açúcar e 1/2 sachê de adoçante",
+    "café com uma colher de chá de açúcar e 1/2 g de leite.",
   ])("does not falsely attribute a different ingredient to sugar: %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
