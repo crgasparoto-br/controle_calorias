@@ -17,12 +17,14 @@ import { sanitizeD1WhatsAppObservations, type FoodD1WhatsAppPending } from "./pu
 import type { runFoodD1Migration } from "./entrypointRunner";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested } from "./entrypointRouting";
 import type { FoodOperationEnvelope } from "./schemas";
+import { readFoodD1PublicContextSources } from "./publicContextSources";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import type { FoodD1CommitResult } from "./entrypointPersistenceRepository";
 
 export type TrustedD1WhatsAppModality = "text" | "audio_transcript";
 export type PublicD1WhatsAppDependencies = {
   readAuthorizedContext: () => Promise<AuthorizedD1SimulationContext | null>;
+  readContextSources?: typeof readFoodD1PublicContextSources;
   readActivePending: (userId: number, now: Date) => Promise<boolean>;
   /** Trust boundary: canonical MealOperation validated by authenticated channel, never client JSON. */
   readCanonicalOperation: (text: string, context: {
@@ -85,10 +87,10 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
       kind: "surface" as const, modality: input.modality,
       rawText: input.originalText, sourceRef: "whatsapp:" + key,
     };
-    const unavailable = {
-      status: "unavailable" as const,
-      reason: "whatsapp_operation_context_not_materialized", sourceRef: null,
-    };
+    const contextSources = await (deps.readContextSources ?? readFoodD1PublicContextSources)({
+      ownerUserId: input.userId, source: "whatsapp", at: input.receivedAt,
+      externalMessageId: input.externalMessageId,
+    });
     const envelope: FoodOperationEnvelope = {
       schemaVersion: 2, traceId: "d1-trace-" + traceDigest,
       idempotencyKey: key, ownerUserId: input.userId,
@@ -97,10 +99,7 @@ export function createFoodD1PublicWhatsAppRegistration(deps: PublicD1WhatsAppDep
         action: "add", targetMeal: operation.mealType,
         date: getDateKeyInTimeZone(operation.date, input.timeZone),
       },
-      contextSources: {
-        previousMessage: { ...unavailable }, preferences: { ...unavailable },
-        recentHistory: { ...unavailable },
-      },
+      contextSources,
       revisions: { ...context.revisions },
     };
     const request: FoodD1Request = {
