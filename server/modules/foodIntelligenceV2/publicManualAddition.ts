@@ -137,7 +137,7 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
     const timeZone = input.timeZone;
     const source = input.source ?? "web";
     const contextSources = await (deps.readContextSources ?? readFoodD1PublicContextSources)({
-      ownerUserId: input.userId, source: "web", at: new Date(),
+      ownerUserId: input.userId, source: "web", at: occurredAt,
     });
     const observations = [];
     const lexicon = deps.lexicon ?? governedLinguisticLexiconStore;
