@@ -32,7 +32,7 @@ export const CANONICAL_ADR_PATH =
 // #1308 D1 and #1337 readiness/approval separation were revalidated against
 // the canonical ADR bytes; equivalence and food oracles remain independent.
 export const CANONICAL_ADR_SHA256 =
-  "b1c1390526988784079650ebe95360585f508217b5f6a8fc35282c0dacfa7175";
+  "083d5af7b7a534e84a9b08ddaab931aed7adc990a6e0977de3036ac10e0dc311";
 
 export interface CanonicalReference {
   readonly path: string;
