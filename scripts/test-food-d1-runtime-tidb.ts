@@ -779,6 +779,11 @@ try {
     // canonical LCL, governed knowledge, resolver, native runner and TiDB
     // transaction through the trusted public WhatsApp entrypoint. Only the
     // external Gate A provider is replaced by a synthetic approval fixture.
+    // The synthetic write fixture never needed a verifiable HTTPS source or
+    // a historical grant date. The REAL governed reader must have both, for
+    // the operation's original 2026-10-05 instant.
+    await sql.query("UPDATE food_sources SET source_url='https://example.invalid/ci-d1' WHERE id=?", [sourceId]);
+    await sql.query("UPDATE food_source_read_grants SET approved_at='2026-09-01 00:00:00' WHERE source_id=?", [sourceId]);
     const fullPublic = createWhatsAppD1RegistrationService({
       readAuthorizedContext: async () => ({
         approval, expectedAuditedBaseSha: expectedSha,
