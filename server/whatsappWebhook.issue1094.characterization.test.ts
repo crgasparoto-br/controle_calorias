@@ -1620,7 +1620,10 @@ function eventEvidenceOnly() {
   }));
 }
 
-function assertSanitizedEvidence(shared: SharedLifecycleState) {
+function assertSanitizedEvidence(
+  shared: SharedLifecycleState,
+  additionalAllowedEventTypes: ReadonlySet<string> = new Set(),
+) {
   const allowedEventTypes = new Set([
     "nutrition.search_decision",
     "meal.inference_fallback",
@@ -1636,7 +1639,7 @@ function assertSanitizedEvidence(shared: SharedLifecycleState) {
     "whatsapp.interactive_callback.unavailable",
   ]);
   for (const event of state.events) {
-    expect(allowedEventTypes).toContain(event.eventType);
+    expect(allowedEventTypes.has(event.eventType) || additionalAllowedEventTypes.has(event.eventType)).toBe(true);
     expect(event.detail ?? "").not.toMatch(
       /https?:\/\/|Error(?::|\s+at\b)|stack|outputText|provider-response|sourceEvidence|prompt|query|input_text|5511999999999/u
     );
@@ -2851,7 +2854,12 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(state.metrics.persistedItems).toBe(0);
     expect(await listUserMeals(userId)).toHaveLength(0);
     expect(state.outboundReplies.length).toBeGreaterThan(0);
-    assertSanitizedEvidence(activeLifecycle);
+    // This clarification can emit the following real contextual intent events.
+    // Preserve the strict event baseline for all pre-existing scenarios.
+    assertSanitizedEvidence(activeLifecycle, new Set([
+      "whatsapp.history.context_missing",
+      "whatsapp.meal_intent_decision.requested",
+    ]));
   });
 
   it("IP-EFFECT-001 — rejeita payload acima do limite antes de efeitos no lifecycle", async () => {
