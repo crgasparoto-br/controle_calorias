@@ -244,3 +244,20 @@ describe("PR #1339 independent audit remediation: spoken counts and coffee compo
     expect(resolveQuantity).not.toHaveBeenCalled();
   });
 });
+
+describe("PR #1339 A-006/A-007: scoped lookup boundary", () => {
+  it.each([
+    "café com 1/2 colher de chá de açúcar",
+    "café com 3/4 colher de chá de açúcar",
+    "café com 1+2 colheres de chá de açúcar",
+    "café com -2 colheres de chá de açúcar",
+    "café com 1 / 2 colher de chá de açúcar",
+    "café com uma colher de chá de açúcar e cinco gramas adicionais de açúcar",
+    "café com uma colher de chá de açúcar e 5 g extras de açúcar",
+  ])("does not call scoped resolver for %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+});

@@ -30,7 +30,7 @@ const FOOD_NAME_LOWERCASE_CONNECTORS = new Set([
 ]);
 
 const COORDINATED_BEVERAGE_COMPLEMENT_START = new RegExp(
-  `^(?:(?:${COUNTABLE_QUANTITY_PATTERN})\\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)\\s+(?:de\\s+)?)?(?:acucar|leite(?:\\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\\b`,
+  `^(?:(?:${COUNTABLE_QUANTITY_PATTERN})\\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)(?:\\s+(?:adicionais?|extras?|a\\s+mais))?\\s+(?:de\\s+)?)?(?:acucar|leite(?:\\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\\b`,
   "i",
 );
 

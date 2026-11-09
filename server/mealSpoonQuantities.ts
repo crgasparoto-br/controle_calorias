@@ -68,6 +68,11 @@ export async function readSpoonDecisions(
   userId?: number,
   runtime: SpoonRuntime = defaultRuntime,
 ): Promise<SpoonDecision[]> {
+  // Check the whole input before splitting: a competing sugar quantity must
+  // not escape the guard when a coordinated segment is split apart.
+  if (isCoffeeSugarSpoonMention(sourceText) && !extractCoffeeSugarSpoonRequest(sourceText)) {
+    return [{ foodName: sourceText.trim(), quantity: 0, unit: "colher", resolution: null }];
+  }
   const requests: SpoonRequest[] = splitFoodTextSegments(sourceText).flatMap(segment => {
     if (isCoffeeSugarSpoonMention(segment)) {
       const component = extractCoffeeSugarSpoonRequest(segment);

@@ -110,10 +110,13 @@ export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; un
   );
   const matches = [...folded.matchAll(matcher)];
   if (matches.length !== 1 || [...folded.matchAll(/\bcolher(?:es)?\b/gu)].length !== 1) return null;
+  // Reject a final operand isolated by a word boundary (1/2, 1+2, -2).
+  const beforeQuantity = folded.slice(0, matches[0].index).trimEnd();
+  if (/(?:[+*/\-\u00f7]|\bx)$/u.test(beforeQuantity)) return null;
   // Competing sugar measures in digits or words are equally explicit.
   // Never accept just the spoon and silently discard the other amount.
   const competingSugarMeasure = new RegExp(
-    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*(?:g|grs?|gramas?|kg|quilos?|mg|miligramas?|saches?|pacotes?)\\s+(?:de\\s+)?acucar\\b",
+    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*(?:g|grs?|gramas?|kg|quilos?|mg|miligramas?|saches?|pacotes?)(?:\\s+(?:adicionais?|extras?|a\\s+mais))?\\s+(?:de\\s+)?acucar\\b",
     "u",
   );
   if (competingSugarMeasure.test(folded)) return null;

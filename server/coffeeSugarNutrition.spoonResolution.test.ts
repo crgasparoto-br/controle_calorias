@@ -114,3 +114,23 @@ describe("PR #1339 A-005: competing sugar measures in numeric and spoken forms",
     )).toBeNull();
   });
 });
+
+describe("PR #1339 A-006/A-007: adversarial quantities", () => {
+  it.each([
+    "café com 1/2 colher de chá de açúcar",
+    "café com 3/4 colher de chá de açúcar",
+    "café com 1+2 colheres de chá de açúcar",
+    "café com -2 colheres de chá de açúcar",
+    "café com 1 / 2 colher de chá de açúcar",
+    "café com 1 x 2 colheres de chá de açúcar",
+  ])("rejects an expression fragment: %s", text => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+  it.each(["cinco gramas adicionais", "5 gramas adicionais", "5 g extras", "cinco gramas a mais", "2 sachês extras"])("rejects competing sugar %s", extra => {
+    expect(extractCoffeeSugarSpoonRequest(`café com uma colher de chá de açúcar e ${extra} de açúcar`)).toBeNull();
+  });
+  it("keeps a distinct ingredient and one confirmed spoon", () => {
+    expect(extractCoffeeSugarSpoonRequest("café com uma colher de chá de açúcar e cinco gramas adicionais de leite")).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+});

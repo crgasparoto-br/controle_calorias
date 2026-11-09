@@ -137,3 +137,22 @@ describe("nutritionEngine com complementos coordenados", () => {
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });
+
+describe("PR #1339 A-006/A-007: nutrition processing", () => {
+  it.each([
+    "café com 1/2 colher de chá de açúcar",
+    "café com 3/4 colher de chá de açúcar",
+    "café com 1+2 colheres de chá de açúcar",
+    "café com -2 colheres de chá de açúcar",
+    "café com uma colher de chá de açúcar e cinco gramas adicionais de açúcar",
+    "café com uma colher de chá de açúcar e 5 g extras de açúcar",
+  ])("requires clarification before AI for %s", async text => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});
