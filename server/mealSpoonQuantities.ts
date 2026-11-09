@@ -1,7 +1,7 @@
 /** V1 textual spoon measures: transport a quantity decision from the canonical owner. */
 import { roundNutritionValue } from "../shared/mealTotals";
 import { isHouseholdSpoonUnit } from "../shared/measurementUnits";
-import { countCountableSpoonMentions, readEmbeddedCoffeeSpoonIngredient } from "../shared/quantityUnitVocabulary";
+import { countCountableSpoonMentions } from "../shared/quantityUnitVocabulary";
 import {
   findLocalNutritionReference,
   isCatalogFoodSemanticallyCompatible,
@@ -9,6 +9,7 @@ import {
 import { detectKnownBrand } from "./foodBrandDetection";
 import {
   extractCoffeeSugarSpoonRequest,
+  isCoffeeIdentity,
   isCoffeeSugarSpoonMention,
 } from "./coffeeSugarNutrition";
 import { resolveCanonicalFoodQuantity } from "./foodItemResolution";
@@ -17,6 +18,8 @@ import { buildItemFromMeasuredSpoonPortion } from "./mealItemBuilders";
 import {
   buildPortionText,
   extractExplicitQuantityFoodSegments,
+  parseCountableQuantityPrefix,
+  parseFoodText,
   normalizeForMatching,
   normalizeUnit,
   splitFoodTextSegments,
@@ -42,6 +45,23 @@ type SpoonRuntime = {
 
 const defaultRuntime: SpoonRuntime = { resolveQuantity: resolveCanonicalFoodQuantity };
 
+/** Reuse the V1 quantity parser, rather than introducing another food lexer. */
+function prepareCoffeeSpoonClarification(segment: string): SpoonRequest | null {
+  if (!isCoffeeIdentity(segment) || countCountableSpoonMentions(segment) !== 1) return null;
+  const words = segment.trim().split(/\s+/u);
+  for (let index = 0; index < words.length; index += 1) {
+    const candidate = words.slice(index).join(" ");
+    const spoken = parseCountableQuantityPrefix(candidate);
+    const parsed = parseFoodText(spoken ? `${spoken.quantity} ${spoken.remainder}` : candidate);
+    if (!parsed.quantity || !isHouseholdSpoonUnit(parsed.unit) || !parsed.foodName?.trim()) continue;
+    const foodName = parsed.foodName.trim();
+    if (splitFoodTextSegments(foodName).length !== 1) return null;
+    // This adapter does not resolve an ingredient's grams in a composite.
+    return { foodName, quantity: 0, unit: normalizeUnit(parsed.unit) };
+  }
+  return null;
+}
+
 /** No tenant context means no lookup of another user's portions or estimates. */
 export async function readSpoonDecisions(
   sourceText: string,
@@ -62,7 +82,7 @@ export async function readSpoonDecisions(
         coffeeSugarSegment: segment,
       }];
     }
-    const coffeeComponent = readEmbeddedCoffeeSpoonIngredient(segment);
+    const coffeeComponent = prepareCoffeeSpoonClarification(segment);
     if (coffeeComponent) {
       // Composite nutrition is not assembled here. Clarify the *actual*
       // measured ingredient; never treat its spoon as sugar or as whole coffee.

@@ -117,19 +117,6 @@ export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; un
     : null;
 }
 
-/** Syntax-only label for an unbound spoon in a coffee composite. No grams. */
-export function readEmbeddedCoffeeSpoonIngredient(text: string): { foodName: string; unit: string } | null {
-  if (!/\bcafe\b/u.test(foldQuantityText(text)) || countCountableSpoonMentions(text) !== 1) return null;
-  const matcher = new RegExp(
-    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s+(colher(?:es)?(?: de (?:ch[a\u00e1]|sopa))?)\\s+de\\s+([\\p{L}][\\p{L}\\p{M}\\s-]*)$",
-    "iu",
-  );
-  const match = text.trim().match(matcher);
-  const foodName = match?.[2]?.trim();
-  if (!foodName || /\b(?:e|com|sem|ou)\b/iu.test(foodName)) return null;
-  return { foodName, unit: match![1] };
-}
-
 export function replaceCoffeeSugarSpoonSyntax(text: string, replacement: string): string | null {
   const matcher = new RegExp(
     "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s+colher(?:es)?(?: de (?:ch[aá]|sopa))?\\s+(?:de\\s+)?a[cç][uú]car\\b",

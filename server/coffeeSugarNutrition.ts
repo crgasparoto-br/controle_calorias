@@ -176,7 +176,7 @@ function isUsableSweetenedCoffeeNutrition(item: LlmItem) {
     && item.estimatedMacros.carbs > 0;
 }
 
-function isCoffeeIdentity(value: string) {
+export function isCoffeeIdentity(value: string) {
   return /\bcafe\b/.test(normalizeForMatching(value));
 }
 
