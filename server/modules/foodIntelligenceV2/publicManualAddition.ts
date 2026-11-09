@@ -18,10 +18,12 @@ import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested, isVali
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
 import { FOOD_TEXT_INPUT_TYPE, haveEqualFoodEnvelopeRevisions } from "./contracts";
 import { isD1V1Route, isD1V2Route } from "./entrypointRouting";
+import { readFoodD1PublicContextSources } from "./publicContextSources";
 
 type ApprovedContext = AuthorizedD1SimulationContext;
 export type PublicD1ManualDependencies = {
   readAuthorizedContext: () => Promise<ApprovedContext | null>;
+  readContextSources?: typeof readFoodD1PublicContextSources;
   lexicon?: LinguisticLexiconStore;
   knowledge?: FoodKnowledgeStore;
   run?: typeof runFoodD1Migration;
@@ -134,6 +136,9 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
     }
     const timeZone = input.timeZone;
     const source = input.source ?? "web";
+    const contextSources = await (deps.readContextSources ?? readFoodD1PublicContextSources)({
+      ownerUserId: input.userId, source, at: new Date(),
+    });
     const observations = [];
     const lexicon = deps.lexicon ?? governedLinguisticLexiconStore;
     for (const [index, item] of input.meal.items.entries()) {
@@ -160,11 +165,7 @@ export function createFoodD1PublicManualAddition(deps: PublicD1ManualDependencie
         conversationRef: null, turnRef: null, effectiveTimeZone: timeZone,
         mealOperation: { action: "add", targetMeal: input.meal.mealLabel,
           date: getDateKeyInTimeZone(occurredAt, timeZone) },
-        contextSources: {
-          previousMessage: { status: "unavailable", reason: "manual_entry_without_conversation", sourceRef: null },
-          preferences: { status: "unavailable", reason: "manual_entry_has_no_context_snapshot", sourceRef: null },
-          recentHistory: { status: "unavailable", reason: "manual_entry_has_no_context_snapshot", sourceRef: null },
-        },
+        contextSources,
         revisions: { ...ctx.revisions },
       },
       evidence, now: occurredAt,
