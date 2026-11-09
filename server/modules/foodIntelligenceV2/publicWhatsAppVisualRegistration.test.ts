@@ -27,6 +27,11 @@ const prior = {
 };
 function service(overrides: Partial<PublicD1WhatsAppVisualDependencies> = {}) {
   const deps = {
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
     readAuthorizedContext: vi.fn(async () => context),
     readActivePending: vi.fn(async () => false),
     extract: vi.fn(async () => ({
