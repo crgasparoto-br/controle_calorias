@@ -15,7 +15,8 @@ import { hasActiveWhatsappPendingInDb } from "../server/modules/foodIntelligence
 import { readActiveFoodD1WhatsAppPending, stageFoodD1WhatsAppPending,
   updateFoodD1WhatsAppPending, consumeFoodD1WhatsAppPending } from "../server/modules/foodIntelligenceV2/publicWhatsAppPendingRepository";
 import { foodD1WhatsAppReplayFence } from "../server/modules/foodIntelligenceV2/publicWhatsAppReplayFence";
-import { createWhatsAppD1RegistrationService, createConfirmedMealRegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
+import { createWhatsAppD1RegistrationService, createConfirmedMealRegistrationService, createWhatsAppD1VisualRegistrationService } from "../server/modules/whatsapp/confirmedMealRegistration";
+import { parseD1WhatsAppVisualIntent } from "../server/modules/whatsapp/mealCommandParser";
 import { runWithWhatsappInboundCorrelationScope, setCurrentWhatsappInboundContentType, setCurrentWhatsappInboundExternalMessageId } from "../server/modules/whatsapp/inboundCorrelationContext";
 import { readFoodD1PublicContextSources } from "../server/modules/foodIntelligenceV2/publicContextSources";
 import { createFoodV2KnowledgeRepository } from "../server/modules/foodIntelligenceV2/repository";
@@ -713,7 +714,7 @@ try {
   const priorEnabled = process.env.FOOD_V2_D1_ENABLED;
   const priorSelection = process.env.FOOD_V2_D1_ENTRYPOINTS;
   process.env.FOOD_V2_D1_ENABLED = "true";
-  process.env.FOOD_V2_D1_ENTRYPOINTS = "text,audio_transcript";
+  process.env.FOOD_V2_D1_ENTRYPOINTS = "text,audio_transcript,plate_image,packaging";
   try {
     const makePublic = (modality: "text" | "audio_transcript") =>
       createWhatsAppD1RegistrationService({
@@ -856,6 +857,41 @@ try {
     );
     assert.equal(Number(lifecycleCount.c), 4,
       "the public lifecycle must register exactly one additional observation");
+    // D1 public visual bridges use the real canonical interpreter/resolver
+    // and native TiDB writer. Only the image extractor is replaced by a
+    // synthetic surface; no remote provider, user photo or real Gate A.
+    const visualBridge = createWhatsAppD1VisualRegistrationService({
+      readAuthorizedContext: async () => ({
+        approval, expectedAuditedBaseSha: expectedSha,
+        revisions: { ...makeEnvelope("ci-public-visual").revisions, code: expectedSha },
+      }),
+      extract: async () => ({
+        surfaces: ["30 g de Mortadela public D1"], contentDigest: "b".repeat(64),
+      }),
+      lexicon: { load: async () => [] },
+      knowledge: createFoodV2KnowledgeRepository(),
+    });
+    for (const [kind, marker] of [
+      ["plate_image", "#prato @almoco"],
+      ["packaging", "#embalagem @almoco"],
+    ] as const) {
+      const visualResult = await visualBridge({
+        userId, externalMessageId: "wamid-ci-d1-live-" + kind,
+        image: { base64: "/9j/4A==", mimeType: "image/jpeg" },
+        intent: parseD1WhatsAppVisualIntent(marker),
+        receivedAt: occurredAt, timeZone: "UTC",
+      });
+      assert.equal(visualResult?.action, "meal_item_added",
+        "public " + kind + " must produce a native V2 meal without legacy inference");
+      const visualReplay = await visualBridge({
+        userId, externalMessageId: "wamid-ci-d1-live-" + kind,
+        image: { base64: "/9j/4A==", mimeType: "image/jpeg" },
+        intent: parseD1WhatsAppVisualIntent(marker),
+        receivedAt: occurredAt, timeZone: "UTC",
+      });
+      assert.equal(visualReplay?.data?.mealId, visualResult?.data?.mealId,
+        "visual retry must not create a second meal");
+    }
     // A-004: public web draft -> canonical LCL/resolver -> native commit,
     // with exact review content, durable draft receipt, replay and owner denial.
     // These are disposable, synthetic records; not Gate A or production traffic.
@@ -909,8 +945,8 @@ try {
       "SELECT COUNT(*) AS c FROM food_d1_user_operation_effects WHERE owner_user_id=? AND operation_key LIKE 'd1-whatsapp-%'",
       [userId],
     );
-    assert.equal(Number(publicEffects.c), 4,
-      "only four distinct authorized public operations may create effects");
+    assert.equal(Number(publicEffects.c), 6,
+      "only six distinct authorized public operations may create effects");
   } finally {
     if (priorEnabled === undefined) delete process.env.FOOD_V2_D1_ENABLED;
     else process.env.FOOD_V2_D1_ENABLED = priorEnabled;
