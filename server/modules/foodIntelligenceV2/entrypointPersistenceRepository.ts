@@ -333,13 +333,18 @@ export async function commitFoodD1NativeWrite(input: {
     }
     if (additions.length) {
       if (mealId === null) {
-        if (plan.confidence === null || !Number.isFinite(plan.confidence)) {
-          throw new Error("food-d1-native-confidence-unavailable");
+        if (plan.confidence !== null && !Number.isFinite(plan.confidence)) {
+          throw new Error("food-d1-native-confidence-invalid");
         }
+        // Verified provenance is not a calibrated numeric confidence.
+        // The original V2 snapshot retains null; the legacy meals table has
+        // a non-null default for compatibility with existing V1 readers.
+        // Do not manufacture a V2 score from a verified profile or exact match.
         const created = await tx.insert(meals).values({
           userId: plan.ownerUserId, source: plan.source, status: "draft",
           mealLabel: plan.mealLabel, notes: plan.notes ?? null, sourceText: null,
-          confidence: plan.confidence, occurredAt: plan.occurredAt,
+          ...(plan.confidence === null ? {} : { confidence: plan.confidence }),
+          occurredAt: plan.occurredAt,
         });
         mealId = requireInsertId(created);
       } else {
