@@ -123,6 +123,17 @@ describe("PR #1339 A-006/A-007: adversarial quantities", () => {
     "café com -2 colheres de chá de açúcar",
     "café com 1 / 2 colher de chá de açúcar",
     "café com 1 x 2 colheres de chá de açúcar",
+    "café com −2 colheres de chá de açúcar",
+    "café com 3×2 colheres de chá de açúcar",
+    "café com 1−2 colheres de chá de açúcar",
+    "café com 1:2 colheres de chá de açúcar",
+    "café com 1 : 2 colheres de chá de açúcar",
+    "café com 3x2 colheres de chá de açúcar",
+    "café com 1⁄2 colher de chá de açúcar",
+    "café com 2·3 colheres de chá de açúcar",
+    "café com 1—2 colheres de chá de açúcar",
+    "café com 1÷2 colheres de chá de açúcar",
+    "café com +2 colheres de chá de açúcar",
   ])("rejects an expression fragment: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
     expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
@@ -132,5 +143,30 @@ describe("PR #1339 A-006/A-007: adversarial quantities", () => {
   });
   it("keeps a distinct ingredient and one confirmed spoon", () => {
     expect(extractCoffeeSugarSpoonRequest("café com uma colher de chá de açúcar e cinco gramas adicionais de leite")).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+});
+
+describe("PR #1339 reauditoria A-007: flexão dos qualificadores", () => {
+  it.each([
+    "um grama adicional",
+    "1 grama adicional",
+    "1 g adicional",
+    "um sachê adicional",
+    "duas gramas adicionais",
+    "2 sachês adicionais",
+    "1 g extra",
+    "dois gramas a mais",
+  ])("rejects a second sugar measure described as %s", extra => {
+    expect(extractCoffeeSugarSpoonRequest(
+      `café com uma colher de chá de açúcar e ${extra} de açúcar`,
+    )).toBeNull();
+  });
+
+  it.each([
+    "café: 2 colheres de chá de açúcar",
+    "café com 1,5 colheres de chá de açúcar",
+    "café com uma colher de chá de açúcar e um grama adicional de leite",
+  ])("keeps unambiguous quantities: %s", text => {
+    expect(extractCoffeeSugarSpoonRequest(text)?.quantity).toBeGreaterThan(0);
   });
 });

@@ -44,6 +44,7 @@ export const COUNT_WORD_VALUES = {
 export const COUNT_WORD_PATTERN =
   "um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez";
 export const COUNTABLE_QUANTITY_PATTERN = `(?:\\d+(?:[,.]\\d+)?|${COUNT_WORD_PATTERN})`;
+export const ADDITIONAL_MEASURE_QUALIFIER_PATTERN = "adiciona(?:l|is)|extras?|a\\s+mais";
 
 export function parseCountableQuantity(value: string) {
   const numeric = value.trim().replace(",", ".");
@@ -92,10 +93,9 @@ export function hasCoffeeSugarSpoonSyntax(text: string): boolean {
   const folded = foldQuantityText(text);
   // Co-occurrence is not a component binding: "sem acucar ... colher de leite"
   // and "5 g de acucar ... colher de leite" are not sugar spoon requests.
-  const sugarSpoon = new RegExp(
-    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s+colher(?:es)?(?: de (?:cha|sopa))?\\s+(?:de\\s+)?acucar\\b",
-    "u",
-  );
+  // A malformed quantity still belongs to the sugar component and must fail
+  // closed, rather than bypass the spoon guard through a missing word boundary.
+  const sugarSpoon = /\bcolher(?:es)?(?: de (?:cha|sopa))?\s+(?:de\s+)?acucar\b/u;
   return /\bcafe\b/u.test(folded) && sugarSpoon.test(folded);
 }
 
@@ -110,13 +110,19 @@ export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; un
   );
   const matches = [...folded.matchAll(matcher)];
   if (matches.length !== 1 || [...folded.matchAll(/\bcolher(?:es)?\b/gu)].length !== 1) return null;
-  // Reject a final operand isolated by a word boundary (1/2, 1+2, -2).
+  // A word boundary can isolate the *last* operand of an expression.
+  // Unicode math/dash signs and common fraction separators must behave like
+  // their ASCII equivalents; never resolve a fragment as a whole spoon count.
   const beforeQuantity = folded.slice(0, matches[0].index).trimEnd();
-  if (/(?:[+*/\-\u00f7]|\bx)$/u.test(beforeQuantity)) return null;
+  if (/(?:[\p{Sm}\p{Pd}*/\u00b7\u2044\u2215^%|]|\bx)$/u.test(beforeQuantity)) return null;
+  // Colon is a ratio only when preceded by another quantity ("1:2"); a
+  // natural label such as "café: 2 colheres" is not an expression.
+  const precedingRatio = new RegExp("\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*:$", "u");
+  if (precedingRatio.test(beforeQuantity)) return null;
   // Competing sugar measures in digits or words are equally explicit.
   // Never accept just the spoon and silently discard the other amount.
   const competingSugarMeasure = new RegExp(
-    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*(?:g|grs?|gramas?|kg|quilos?|mg|miligramas?|saches?|pacotes?)(?:\\s+(?:adicionais?|extras?|a\\s+mais))?\\s+(?:de\\s+)?acucar\\b",
+    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*(?:g|grs?|gramas?|kg|quilos?|mg|miligramas?|saches?|pacotes?)(?:\\s+(?:" + ADDITIONAL_MEASURE_QUALIFIER_PATTERN + "))?\\s+(?:de\\s+)?acucar\\b",
     "u",
   );
   if (competingSugarMeasure.test(folded)) return null;

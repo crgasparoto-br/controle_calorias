@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { applySpoonDecisions, readSpoonDecisions } from "./mealSpoonQuantities";
+import { splitFoodTextSegments } from "./mealTextParsing";
 import type { FoodQuantityResolution } from "./foodItemResolution";
 import type { MealDraftItem } from "./nutritionEngineTypes";
 
@@ -254,10 +255,49 @@ describe("PR #1339 A-006/A-007: scoped lookup boundary", () => {
     "café com 1 / 2 colher de chá de açúcar",
     "café com uma colher de chá de açúcar e cinco gramas adicionais de açúcar",
     "café com uma colher de chá de açúcar e 5 g extras de açúcar",
+    "café com −2 colheres de chá de açúcar",
+    "café com 3×2 colheres de chá de açúcar",
+    "café com 1−2 colheres de chá de açúcar",
+    "café com 1:2 colheres de chá de açúcar",
+    "café com 1 : 2 colheres de chá de açúcar",
+    "café com 3x2 colheres de chá de açúcar",
+    "café com 1⁄2 colher de chá de açúcar",
+    "café com 2·3 colheres de chá de açúcar",
+    "café com 1—2 colheres de chá de açúcar",
+    "café com 1÷2 colheres de chá de açúcar",
+    "café com +2 colheres de chá de açúcar",
+    "café com uma colher de chá de açúcar e um grama adicional de açúcar",
+    "café com uma colher de chá de açúcar e 1 grama adicional de açúcar",
+    "café com uma colher de chá de açúcar e 1 g adicional de açúcar",
+    "café com uma colher de chá de açúcar e um sachê adicional de açúcar",
+    "café com uma colher de chá de açúcar e 2 sachês adicionais de açúcar",
+    "café com uma colher de chá de açúcar e 1 g extra de açúcar",
+    "café com uma colher de chá de açúcar e dois gramas a mais de açúcar",
   ])("does not call scoped resolver for %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
     expect(decisions).toEqual([expect.objectContaining({ resolution: null })]);
     expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+});
+
+describe("PR #1339 A-007: segmenter retains qualified coffee complements", () => {
+  it.each([
+    "um grama adicional",
+    "1 g adicional",
+    "um sachê adicional",
+    "dois gramas a mais",
+  ])("keeps a concurrent sugar component in the same guarded segment: %s", extra => {
+    expect(splitFoodTextSegments(
+      `café com uma colher de chá de açúcar e ${extra} de açúcar`,
+    )).toHaveLength(1);
+  });
+
+  it("does not rebind the measured milk complement as sugar", async () => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const text = "café com uma colher de chá de açúcar e um grama adicional de leite";
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
   });
 });

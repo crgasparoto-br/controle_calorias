@@ -1,7 +1,7 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngineTypes";
-import { COUNTABLE_QUANTITY_PATTERN, parseCountableQuantity, isSpoonUnitPrefix, stripConsumptionPreface } from "../shared/quantityUnitVocabulary";
+import { ADDITIONAL_MEASURE_QUALIFIER_PATTERN, COUNTABLE_QUANTITY_PATTERN, parseCountableQuantity, isSpoonUnitPrefix, stripConsumptionPreface } from "../shared/quantityUnitVocabulary";
 
 export const QUANTITY_UNIT_PATTERN =
   "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colher(?:es)?(?: de sopa| de ch[aá])?|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
@@ -30,7 +30,7 @@ const FOOD_NAME_LOWERCASE_CONNECTORS = new Set([
 ]);
 
 const COORDINATED_BEVERAGE_COMPLEMENT_START = new RegExp(
-  `^(?:(?:${COUNTABLE_QUANTITY_PATTERN})\\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)(?:\\s+(?:adicionais?|extras?|a\\s+mais))?\\s+(?:de\\s+)?)?(?:acucar|leite(?:\\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\\b`,
+  `^(?:(?:${COUNTABLE_QUANTITY_PATTERN})\\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)(?:\\s+(?:${ADDITIONAL_MEASURE_QUALIFIER_PATTERN}))?\\s+(?:de\\s+)?)?(?:acucar|leite(?:\\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\\b`,
   "i",
 );
 
