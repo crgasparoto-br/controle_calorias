@@ -187,6 +187,7 @@ describe("PR #1339 A-008: unknown and elided competing sugar measures", () => {
     "café com uma colher de chá de açúcar e 5g de açúcar",
   ])("rejects an extra amount before splitting the source: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
     expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
   });
 

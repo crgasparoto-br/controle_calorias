@@ -78,6 +78,9 @@ export function extractExplicitSugarQuantity(
   value: string,
   spoonMeasures?: CoffeeSugarSpoonMeasures,
 ): ExplicitSugarQuantity | null {
+  // A conflicting or ambiguous spoon component must not be bypassed by a
+  // separate explicit-grams match in the same coffee source segment.
+  if (isCoffeeSugarSpoonMention(value) && !extractCoffeeSugarSpoonRequest(value)) return null;
   const measuredSpoon = spoonMeasures?.get(value);
   if (measuredSpoon) {
     const verified = measuredSpoon.kind === "canonical_portion" || measuredSpoon.kind === "researched_exact";
