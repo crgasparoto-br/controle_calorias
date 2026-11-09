@@ -193,6 +193,8 @@ describe("PR #1339 A-008: block unknown and elided sugar quantities before AI", 
     "café com uma colher de chá de açúcar e +1/2g de açúcar",
     "café com uma colher de chá de açúcar e 1/2 g adicionais",
     "café com uma colher de chá de açúcar e 1/2 g de açúcar.",
+    "café com uma colher de chá de açúcar e 1/2 g a mais de açúcar",
+    "café com uma colher de chá de açúcar e ½ sachê a mais",
     "café com uma colher de chá de açúcar e 1/2 g",
   ])("requests clarification without an AI call for %s", async text => {
     createTextResponseMock.mockReset();

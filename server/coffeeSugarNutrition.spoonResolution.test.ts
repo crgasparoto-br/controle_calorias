@@ -195,6 +195,8 @@ describe("PR #1339 A-008: unknown and elided competing sugar measures", () => {
     "café com uma colher de chá de açúcar e +1/2g de açúcar",
     "café com uma colher de chá de açúcar e 1/2 g adicionais",
     "café com uma colher de chá de açúcar e 1/2 g de açúcar.",
+    "café com uma colher de chá de açúcar e 1/2 g a mais de açúcar",
+    "café com uma colher de chá de açúcar e ½ sachê a mais",
     "café com uma colher de chá de açúcar e 1/2 g",
   ])("rejects an extra amount before splitting the source: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
@@ -213,6 +215,9 @@ describe("PR #1339 A-008: unknown and elided competing sugar measures", () => {
     "café com uma colher de chá de açúcar e 1/2g de leite",
     "café com uma colher de chá de açúcar e 1/2 sachê de adoçante",
     "café com uma colher de chá de açúcar e 1/2 g de leite.",
+    "café com uma colher de chá de açúcar e 1/2 g a mais de leite",
+    "café com uma colher de chá de açúcar e ½ sachê a mais de leite",
+    "café com uma colher de chá de açúcar e 0,5 g a mais de leite",
   ])("keeps a single sugar spoon when any other quantity is unambiguously separate: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
   });

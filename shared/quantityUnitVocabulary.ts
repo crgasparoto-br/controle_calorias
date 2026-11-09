@@ -146,6 +146,8 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
     // A measured quantity can have an intervening descriptive qualifier.
     const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit);
     const subjectOffset = compactUnit && words[index + 1] === "de" ? 2 :
+      hasUnit && words[index + 2] === "a" && words[index + 3] === "mais" &&
+        words[index + 4] === "de" ? 5 :
       words[index + 2] === "de" ? 3 :
       words[index + 3] === "de" && hasUnit ? 4 : 0;
     if (subjectOffset && words[index + subjectOffset]) {
