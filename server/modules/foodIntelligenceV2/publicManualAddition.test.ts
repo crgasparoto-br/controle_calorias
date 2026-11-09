@@ -35,6 +35,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     const readAuthorizedContext = vi.fn(async () => null);
     const bindLegacyRoute = vi.fn(async (candidate: FoodD1PinnedRoute) => candidate);
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext, lexicon: { load }, bindLegacyRoute,
     });
     expect(await bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" })).toBeNull();
@@ -48,7 +53,12 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
   it("blocks a pinned V2 addition during rollback before executing legacy", async () => {
     const bindLegacyRoute = vi.fn(async (candidate: FoodD1PinnedRoute) => ({ ...candidate, resolver: "v2" as const }));
     const readAuthorizedContext = vi.fn(async () => null);
-    const bridge = createFoodD1PublicManualAddition({ readAuthorizedContext, bindLegacyRoute });
+    const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }), readAuthorizedContext, bindLegacyRoute });
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
       .rejects.toThrow("food-d1-operation-paused-by-rollback");
     expect(bindLegacyRoute).toHaveBeenCalledOnce();
@@ -59,6 +69,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
       throw new Error("storage-unavailable");
     });
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => null, bindLegacyRoute,
     });
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
@@ -69,6 +84,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
       ...candidate, operationScopeHash: "0".repeat(64),
     }));
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => null, bindLegacyRoute,
     });
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
@@ -78,6 +98,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     let pinned: FoodD1PinnedRoute | null = null;
     const run = vi.fn();
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approved,
       readPinnedRoute: async () => pinned,
       bindLegacyRoute: async candidate => { pinned = candidate; return candidate; },
@@ -99,6 +124,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
   it("does not treat a pinned V2 as a legacy submission after rollout", async () => {
     let pinned: FoodD1PinnedRoute | null = null;
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approved,
       bindLegacyRoute: async candidate => { pinned = candidate; return candidate; },
       readPinnedRoute: async () => pinned ? { ...pinned, resolver: "v2" } : null,
@@ -112,6 +142,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
   });
   it("rejects a reused V1 operation with altered resolver/policy revisions", async () => {
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => null,
       bindLegacyRoute: async candidate => ({
         ...candidate,
@@ -126,6 +161,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
     const load = vi.fn(async () => []);
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => null, lexicon: { load },
     });
     await expect(bridge({ userId: 7, meal: meal(), timeZone: "America/Sao_Paulo" }))
@@ -155,6 +195,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
         mealId: 123, recordedItemIds: [456], skipped: [] } satisfies FoodD1CommitResult;
     });
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approved,
       lexicon: { load: async () => [] },
       readPinnedRoute: async () => null,
@@ -174,6 +219,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
       throw new Error("unreachable-native-write");
     });
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approved, lexicon: { load: async () => [] },
       readPinnedRoute: async () => null,
       run: runner as unknown as typeof runFoodD1Migration,
@@ -189,6 +239,11 @@ describe("#1308 authenticated manual addition V2 boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "addition";
     const run = vi.fn();
     const bridge = createFoodD1PublicManualAddition({
+    readContextSources: async () => ({
+      previousMessage: { status: "not_applicable" as const, reason: "fixture_web_no_conversation", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_empty_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_empty_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approved, lexicon: { load: async () => [] },
       run: run as unknown as typeof runFoodD1Migration,
     });
