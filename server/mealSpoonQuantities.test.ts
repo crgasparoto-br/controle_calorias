@@ -172,3 +172,57 @@ describe("V1 spoon measure provenance and canonical precedence (#1339 A-001)", (
     expect(items?.map(item => item.estimatedGrams)).toEqual([15, 25]);
   });
 });
+
+describe("PR #1339 independent audit remediation: spoken counts and coffee components", () => {
+  it.each([
+    ["comi uma colher de sopa de arroz", "arroz", 1, "colher de sopa"],
+    ["hoje comi duas colheres de sopa de arroz", "arroz", 2, "colher de sopa"],
+    ["ontem eu consumi uma colher de ch\u00e1 de mel", "mel", 1, "colher de ch\u00e1"],
+  ] as const)("A-002: uses the authenticated quantity owner for %s", async (text, foodName, quantity, unit) => {
+    const resolveQuantity = vi.fn(async () => measured(25));
+    const decisions = await readSpoonDecisions(text, 7, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({
+      foodName, quantity, unit, resolution: expect.objectContaining({ grams: 25 }),
+    })]);
+    expect(resolveQuantity).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      userId: 7, foodName, quantity, unit,
+    }));
+  });
+
+  it("A-002: competing spoon bindings still fail closed", async () => {
+    const resolveQuantity = vi.fn(async () => measured(25));
+    const decisions = await readSpoonDecisions(
+      "comi uma colher de sopa de arroz com uma colher de ch\u00e1 de mel", 7, { resolveQuantity },
+    );
+    expect(decisions).toEqual([expect.objectContaining({ resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["caf\u00e9 sem a\u00e7\u00facar com 1 colher de sopa de leite", "leite", "colher de sopa"],
+    ["caf\u00e9 com 5 g de a\u00e7\u00facar e 1 colher de sopa de leite", "leite", "colher de sopa"],
+    ["caf\u00e9 com uma colher de sopa de mel", "mel", "colher de sopa"],
+    ["caf\u00e9 com ado\u00e7ante e uma colher de ch\u00e1 de leite", "leite", "colher de ch\u00e1"],
+  ] as const)("A-004: requests the real component, not a fake sugar spoon: %s", async (text, foodName, unit) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 7, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({
+      foodName, unit, quantity: 0, resolution: null,
+    })]);
+    expect(decisions.some(decision => decision.coffeeSugarSegment)).toBe(false);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it("A-004: never estimates contradictory sugar or concurrent spoons", async () => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const contradiction = await readSpoonDecisions(
+      "caf\u00e9 sem a\u00e7\u00facar com 1 colher de ch\u00e1 de a\u00e7\u00facar", 7, { resolveQuantity },
+    );
+    const competing = await readSpoonDecisions(
+      "caf\u00e9 com 1 colher de ch\u00e1 de a\u00e7\u00facar e 1 colher de sopa de leite", 7, { resolveQuantity },
+    );
+    expect(contradiction[0].resolution).toBeNull();
+    expect(competing[0].resolution).toBeNull();
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+});

@@ -244,3 +244,25 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     );
   });
 });
+
+describe("PR #1339 A-002: spoken counts after consumption prefaces", () => {
+  it.each([
+    ["comi uma colher de sopa de arroz", "arroz", 1, "colher de sopa"],
+    ["hoje comi duas colheres de sopa de arroz", "arroz", 2, "colher de sopa"],
+    ["ontem eu consumi uma colher de ch\u00e1 de mel", "mel", 1, "colher de ch\u00e1"],
+    ["tomei uma colher de ch\u00e1 de mel", "mel", 1, "colher de ch\u00e1"],
+  ] as const)("parses %s without losing the food/quantity binding", (input, foodName, quantity, unit) => {
+    expect(extractExplicitQuantityFoodSegments(input)).toEqual([
+      expect.objectContaining({ foodName, quantity, unit }),
+    ]);
+  });
+
+  it.each([
+    "comi uma x\u00edcara de caf\u00e9",
+    "n\u00e3o comi uma colher de arroz",
+    "como seria uma colher de arroz?",
+    "comi arroz",
+  ])("does not reinterpret non-spoon or negated prose: %s", text => {
+    expect(unwrapMealQuantityPreface(text)).toBe(text);
+  });
+});

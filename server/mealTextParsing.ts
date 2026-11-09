@@ -1,7 +1,7 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngineTypes";
-import { parseCountableQuantity, isSpoonUnitPrefix, stripConsumptionPreface } from "../shared/quantityUnitVocabulary";
+import { COUNTABLE_QUANTITY_PATTERN, parseCountableQuantity, isSpoonUnitPrefix, stripConsumptionPreface } from "../shared/quantityUnitVocabulary";
 
 export const QUANTITY_UNIT_PATTERN =
   "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colher(?:es)?(?: de sopa| de ch[aá])?|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
@@ -29,7 +29,10 @@ const FOOD_NAME_LOWERCASE_CONNECTORS = new Set([
   "por",
 ]);
 
-const COORDINATED_BEVERAGE_COMPLEMENT_START = /^(?:(?:\d+(?:[,.]\d+)?)\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)\s+(?:de\s+)?)?(?:acucar|leite(?:\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\b/i;
+const COORDINATED_BEVERAGE_COMPLEMENT_START = new RegExp(
+  `^(?:(?:${COUNTABLE_QUANTITY_PATTERN})\\s*(?:g|gr|gramas?|kg|quilos?|mg|miligramas?|colher(?:es)? de sopa|colher(?:es)? de cha|saches?|pacotes?)\\s+(?:de\\s+)?)?(?:acucar|leite(?:\\s+condensado)?|mel|creme|chantilly|chocolate|achocolatad[oa])\\b`,
+  "i",
+);
 
 type QuantityExpressionErrorCode =
   | "invalid_syntax"
@@ -456,10 +459,16 @@ export function parseFoodText(value: string): ParsedFoodText {
 export function unwrapMealQuantityPreface(segment: string) {
   const candidate = stripConsumptionPreface(segment);
   if (!candidate) return segment;
-  const parsed = parseFoodText(candidate);
+  // A spoken number must be decoded before checking the spoon guard. This
+  // stays parser-only: food identity, original text and provenance are intact.
+  const spokenCount = parseCountableQuantityPrefix(candidate);
+  const quantityText = spokenCount
+    ? `${spokenCount.quantity} ${spokenCount.remainder}`
+    : candidate;
+  const parsed = parseFoodText(quantityText);
   // V1 compatibility is confined to spoon amounts; original input/span is retained.
   return parsed.quantity && parsed.unit && isSpoonUnitPrefix(parsed.unit)
-    ? candidate
+    ? quantityText
     : segment;
 }
 

@@ -1,7 +1,7 @@
 /** V1 textual spoon measures: transport a quantity decision from the canonical owner. */
 import { roundNutritionValue } from "../shared/mealTotals";
 import { isHouseholdSpoonUnit } from "../shared/measurementUnits";
-import { countCountableSpoonMentions } from "../shared/quantityUnitVocabulary";
+import { countCountableSpoonMentions, readEmbeddedCoffeeSpoonIngredient } from "../shared/quantityUnitVocabulary";
 import {
   findLocalNutritionReference,
   isCatalogFoodSemanticallyCompatible,
@@ -51,6 +51,9 @@ export async function readSpoonDecisions(
   const requests: SpoonRequest[] = splitFoodTextSegments(sourceText).flatMap(segment => {
     if (isCoffeeSugarSpoonMention(segment)) {
       const component = extractCoffeeSugarSpoonRequest(segment);
+      // An additional spoon, conflicting mass or explicit sugar negation
+      // invalidates the entire binding; never blame the sugar component alone.
+      if (!component) return [{ foodName: segment.trim(), quantity: 0, unit: "colher" }];
       // A malformed or ambiguous component is unresolved, never a default serving.
       return [{
         foodName: "açúcar",
@@ -58,6 +61,12 @@ export async function readSpoonDecisions(
         unit: component ? normalizeUnit(component.unit) : "colher",
         coffeeSugarSegment: segment,
       }];
+    }
+    const coffeeComponent = readEmbeddedCoffeeSpoonIngredient(segment);
+    if (coffeeComponent) {
+      // Composite nutrition is not assembled here. Clarify the *actual*
+      // measured ingredient; never treat its spoon as sugar or as whole coffee.
+      return [{ foodName: coffeeComponent.foodName, quantity: 0, unit: normalizeUnit(coffeeComponent.unit) }];
     }
     const parsed = extractExplicitQuantityFoodSegments(normalizeKnownFoodText(segment))
       .filter(item => isHouseholdSpoonUnit(item.unit) && item.estimatedGrams === undefined);

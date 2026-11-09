@@ -75,3 +75,14 @@ describe("#1339 A-003 — açúcar medido sem conversões paralelas", () => {
     expect(appendSugarQuantityToCoffeeText(segment, 5, "g")).toBe("café com 5 g de açúcar");
   });
 });
+
+describe("PR #1339 A-004: syntactic coffee sugar binding", () => {
+  it("never interprets milk spoon or explicit sugar negation as a sugar measure", () => {
+    expect(extractCoffeeSugarSpoonRequest("caf\u00e9 sem a\u00e7\u00facar com 1 colher de sopa de leite")).toBeNull();
+    expect(extractCoffeeSugarSpoonRequest("caf\u00e9 com 5 g de a\u00e7\u00facar e 1 colher de sopa de leite")).toBeNull();
+    expect(extractCoffeeSugarSpoonRequest("caf\u00e9 sem a\u00e7\u00facar com 1 colher de ch\u00e1 de a\u00e7\u00facar")).toBeNull();
+    expect(extractCoffeeSugarSpoonRequest("caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar")).toEqual({
+      quantity: 1, unit: "colher de cha",
+    });
+  });
+});

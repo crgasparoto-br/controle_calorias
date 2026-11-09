@@ -90,12 +90,20 @@ export function countCountableSpoonMentions(text: string): number {
 
 export function hasCoffeeSugarSpoonSyntax(text: string): boolean {
   const folded = foldQuantityText(text);
-  return /\bcafe\b/u.test(folded) && /\bacucar\b/u.test(folded) && /\bcolher(?:es)?\b/u.test(folded);
+  // Co-occurrence is not a component binding: "sem acucar ... colher de leite"
+  // and "5 g de acucar ... colher de leite" are not sugar spoon requests.
+  const sugarSpoon = new RegExp(
+    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s+colher(?:es)?(?: de (?:cha|sopa))?\\s+(?:de\\s+)?acucar\\b",
+    "u",
+  );
+  return /\bcafe\b/u.test(folded) && sugarSpoon.test(folded);
 }
 
 export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; unit: string } | null {
   if (!hasCoffeeSugarSpoonSyntax(text)) return null;
   const folded = foldQuantityText(text).trim();
+  // Contradictory explicit negation is a clarification, not measured sugar.
+  if (/\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero\s+acucar)\b/u.test(folded)) return null;
   const matcher = new RegExp(
     "\\b(" + COUNTABLE_QUANTITY_PATTERN + ")\\s+(colher(?:es)?(?: de (?:cha|sopa))?)\\s+(?:de\\s+)?acucar\\b",
     "gu",
@@ -107,6 +115,19 @@ export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; un
   return quantity && quantity > 0
     ? { quantity, unit: matches[0][2].replace(/^colheres\b/u, "colher") }
     : null;
+}
+
+/** Syntax-only label for an unbound spoon in a coffee composite. No grams. */
+export function readEmbeddedCoffeeSpoonIngredient(text: string): { foodName: string; unit: string } | null {
+  if (!/\bcafe\b/u.test(foldQuantityText(text)) || countCountableSpoonMentions(text) !== 1) return null;
+  const matcher = new RegExp(
+    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s+(colher(?:es)?(?: de (?:ch[a\u00e1]|sopa))?)\\s+de\\s+([\\p{L}][\\p{L}\\p{M}\\s-]*)$",
+    "iu",
+  );
+  const match = text.trim().match(matcher);
+  const foodName = match?.[2]?.trim();
+  if (!foodName || /\b(?:e|com|sem|ou)\b/iu.test(foodName)) return null;
+  return { foodName, unit: match![1] };
 }
 
 export function replaceCoffeeSugarSpoonSyntax(text: string, replacement: string): string | null {
