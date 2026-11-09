@@ -170,3 +170,33 @@ describe("PR #1339 reauditoria A-007: flexão dos qualificadores", () => {
     expect(extractCoffeeSugarSpoonRequest(text)?.quantity).toBeGreaterThan(0);
   });
 });
+
+describe("PR #1339 A-008: unknown and elided competing sugar measures", () => {
+  it.each([
+    "café com uma colher de chá de açúcar e 1 pitada de açúcar",
+    "café com uma colher de chá de açúcar e uma pitada de açúcar",
+    "café com 1 pitada de açúcar e uma colher de chá de açúcar",
+    "café com uma colher de chá de açúcar e cinco gramas adicionais",
+    "café com uma colher de chá de açúcar e 5 gramas adicionais",
+    "café com uma colher de chá de açúcar e mais 5 g",
+    "café com uma colher de chá de açúcar e mais cinco gramas",
+    "café com uma colher de chá de açúcar, 5 g",
+    "café com uma colher de chá de açúcar e 1 pitada",
+    "café com uma colher de chá de açúcar e meio sachê de açúcar",
+    "café com uma colher de chá de açúcar e +3g a mais",
+    "café com uma colher de chá de açúcar e 5g de açúcar",
+  ])("rejects an extra amount before splitting the source: %s", text => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each([
+    "café com uma colher de chá de açúcar",
+    "café com uma colher de chá de açúcar e 2 g adicionais de leite",
+    "café com uma colher de chá de açúcar e 1 pitada de sal",
+    "café com uma colher de chá de açúcar e 100 g de pão",
+    "café com uma colher de chá de açúcar e 1 pão",
+  ])("keeps a single sugar spoon when any other quantity is unambiguously separate: %s", text => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+});

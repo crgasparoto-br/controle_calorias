@@ -301,3 +301,35 @@ describe("PR #1339 A-007: segmenter retains qualified coffee complements", () =>
     expect(resolveQuantity).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure", () => {
+  it.each([
+    "café com uma colher de chá de açúcar e 1 pitada de açúcar",
+    "café com uma colher de chá de açúcar e cinco gramas adicionais",
+    "café com uma colher de chá de açúcar e mais 5 g",
+    "café com uma colher de chá de açúcar e 1 pitada",
+    "café com uma colher de chá de açúcar e 5 g de leite e mais um pacote",
+    "café com uma colher de chá de açúcar e meio sachê de açúcar",
+    "café com uma colher de chá de açúcar e +3g a mais",
+  ])("fails closed on %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(decisions[0].coffeeSugarSegment).toBeUndefined();
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "café com uma colher de chá de açúcar e 2 g adicionais de leite",
+    "café com uma colher de chá de açúcar e 1 pitada de sal",
+    "café com uma colher de chá de açúcar e 1 pão",
+  ])("does not falsely attribute a different ingredient to sugar: %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+  });
+});

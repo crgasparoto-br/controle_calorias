@@ -99,6 +99,39 @@ export function hasCoffeeSugarSpoonSyntax(text: string): boolean {
   return /\bcafe\b/u.test(folded) && sugarSpoon.test(folded);
 }
 
+/** A second measured component must not vanish when V1 splits coordinated text. */
+function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArray): boolean {
+  const start = spoon.index ?? 0;
+  const remaining = `${folded.slice(0, start)} ${folded.slice(start + spoon[0].length)}`;
+  // Unquantified fractions cannot be converted safely either.
+  const possibleQuantity = `(?:${COUNTABLE_QUANTITY_PATTERN}|meio|meia|metade|alguns?|algumas?)`;
+
+  // Accept any spelled-out measure unit when the *other* amount is explicitly
+  // bound to sugar. An allowlist of g/sache/pacote missed "1 pitada de acucar".
+  const secondSugarAmount = new RegExp(
+    String.raw`\b${possibleQuantity}\s+(?:[\p{L}]+\s+){0,3}(?:de\s+)?acucar\b`,
+    "u",
+  );
+  if (secondSugarAmount.test(remaining)) return true;
+
+  // A quantity with no ingredient ("e cinco gramas adicionais", "e mais 5 g")
+  // is ambiguous. Only a syntactically bound *different* ingredient is safe.
+  // This inspects the original text before conjunction-based segmentation.
+  const amount = new RegExp(
+    String.raw`\b${possibleQuantity}\s*(?:gramas?|grs?|g|quilos?|kg|miligramas?|mg|mililitros?|ml|litros?|l|saches?|pacotes?|pitadas?|gotas?|punhados?)\b`,
+    "gu",
+  );
+  const qualifier = new RegExp(String.raw`^(?:${ADDITIONAL_MEASURE_QUALIFIER_PATTERN})\b`, "u");
+  for (const match of remaining.matchAll(amount)) {
+    const tail = remaining.slice((match.index ?? 0) + match[0].length).trimStart()
+      .replace(qualifier, "").trimStart();
+    const ingredient = /^de\s+([\p{L}]+)/u.exec(tail)?.[1];
+    if (ingredient && ingredient !== "acucar") continue;
+    return true;
+  }
+  return false;
+}
+
 export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; unit: string } | null {
   if (!hasCoffeeSugarSpoonSyntax(text)) return null;
   const folded = foldQuantityText(text).trim();
@@ -119,13 +152,7 @@ export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; un
   // natural label such as "café: 2 colheres" is not an expression.
   const precedingRatio = new RegExp("\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*:$", "u");
   if (precedingRatio.test(beforeQuantity)) return null;
-  // Competing sugar measures in digits or words are equally explicit.
-  // Never accept just the spoon and silently discard the other amount.
-  const competingSugarMeasure = new RegExp(
-    "\\b(?:" + COUNTABLE_QUANTITY_PATTERN + ")\\s*(?:g|grs?|gramas?|kg|quilos?|mg|miligramas?|saches?|pacotes?)(?:\\s+(?:" + ADDITIONAL_MEASURE_QUALIFIER_PATTERN + "))?\\s+(?:de\\s+)?acucar\\b",
-    "u",
-  );
-  if (competingSugarMeasure.test(folded)) return null;
+  if (hasCompetingOrUnboundSugarMeasure(folded, matches[0])) return null;
   const quantity = parseCountableQuantity(matches[0][1]);
   return quantity && quantity > 0
     ? { quantity, unit: matches[0][2].replace(/^colheres\b/u, "colher") }

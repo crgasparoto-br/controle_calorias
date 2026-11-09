@@ -174,3 +174,22 @@ describe("PR #1339 A-006/A-007: nutrition processing", () => {
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });
+
+describe("PR #1339 A-008: block unknown and elided sugar quantities before AI", () => {
+  it.each([
+    "café com uma colher de chá de açúcar e 1 pitada de açúcar",
+    "café com uma colher de chá de açúcar e cinco gramas adicionais",
+    "café com uma colher de chá de açúcar e mais 5 g",
+    "café com uma colher de chá de açúcar e 1 pitada",
+    "café com uma colher de chá de açúcar e meio sachê de açúcar",
+    "café com uma colher de chá de açúcar e +3g a mais",
+  ])("requests clarification without an AI call for %s", async text => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});

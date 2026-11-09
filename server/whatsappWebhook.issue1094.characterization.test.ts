@@ -2864,6 +2864,32 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     assertSanitizedEvidence(activeLifecycle, true);
   });
 
+  it.each([
+    ["unknown-unit", "café com uma colher de chá de açúcar e 1 pitada de açúcar"],
+    ["elided-spoken", "café com uma colher de chá de açúcar e cinco gramas adicionais"],
+    ["elided-number", "café com uma colher de chá de açúcar e mais 5 g"],
+    ["elided-unknown", "café com uma colher de chá de açúcar e 1 pitada"],
+    ["fraction-package", "café com uma colher de chá de açúcar e meio sachê de açúcar"],
+    ["compact-grams", "café com uma colher de chá de açúcar e +3g a mais"],
+  ] as const)("PR #1339 A-008: public POST does not persist an unresolved sugar amount (%s)", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(
+      activeUrl,
+      payload({
+        id: `wamid-1339-a008-${id}`,
+        timestamp: "1789556760",
+        type: "text",
+        text: { body: originalText },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+
   it("IP-EFFECT-001 — rejeita payload acima do limite antes de efeitos no lifecycle", async () => {
     const userId = await startScenario({
       transcript: "",
