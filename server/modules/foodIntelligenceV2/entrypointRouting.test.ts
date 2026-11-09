@@ -54,6 +54,27 @@ describe("#1308 D1 operation-key validation", () => {
       ...original, conversationRef: "d1-label-image:" + "b".repeat(64),
     }, "web")).not.toBe(scope);
   });
+  it("binds owner-scoped context references to the original operation", async () => {
+    const ctx = envelope();
+    const scoped = { ...ctx, contextSources: {
+      ...ctx.contextSources,
+      preferences: { status: "available" as const, reason: null,
+        sourceRef: "food-preference:7:12345" },
+    } };
+    expect(hashFoodD1OperationScope(scoped, "whatsapp"))
+      .not.toBe(hashFoodD1OperationScope(ctx, "whatsapp"));
+    const routes = store(), request = scenario(routes.backend);
+    await routeFoodD1Operation({ ...request, enabled: false,
+      envelope: scoped, source: "whatsapp" });
+    await expect(routeFoodD1Operation({
+      ...request, enabled: false, source: "whatsapp",
+      envelope: { ...scoped, contextSources: {
+        ...scoped.contextSources, preferences: { status: "absent",
+          reason: "no_user_preferences", sourceRef: null },
+      } },
+    })).rejects.toThrow("food-d1-operation-scope-changed");
+    expect(request.runV1).toHaveBeenCalledTimes(1);
+  });
   it("accepts only the exact opaque key shape, never food-text or ambiguous whitespace", () => {
     for (const value of ["manual-submission-1", "A1234567", "0.12345_:-", "z".repeat(80)]) {
       expect(isValidD1OperationId(value), value).toBe(true);
