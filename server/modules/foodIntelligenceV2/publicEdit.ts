@@ -16,11 +16,13 @@ import type { FoodD1Request } from "./entrypointMigration";
 import { runFoodD1Migration } from "./entrypointRunner";
 import { isCurrentFoodD1GateApproval, isFoodD1EntrypointCutoverRequested, isValidD1OperationId } from "./entrypointRouting";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
+import { readFoodD1PublicContextSources } from "./publicContextSources";
 
 type EditTarget = { itemId: number; mealId: number; ownerUserId: number;
   mealLabel: string; occurredAt: Date };
 type PublicEditDependencies = {
   readAuthorizedContext: () => Promise<AuthorizedD1SimulationContext | null>;
+  readContextSources?: typeof readFoodD1PublicContextSources;
   readTarget?: (userId: number, mealId: number, itemIndex: number) => Promise<EditTarget | null>;
   lexicon?: LinguisticLexiconStore;
   knowledge?: FoodKnowledgeStore;
@@ -78,6 +80,9 @@ export function createFoodD1PublicEdit(deps: PublicEditDependencies) {
         !(target.occurredAt instanceof Date) || !Number.isFinite(target.occurredAt.getTime())) {
       throw new Error("food-d1-public-edit-target-scope-mismatch");
     }
+    const contextSources = await (deps.readContextSources ?? readFoodD1PublicContextSources)({
+      ownerUserId: userId, source: "web", at: new Date(),
+    });
     const key = "d1-edit-" + userId + ":" + id;
     const surface = request.item.quantity + " " + request.item.unit + " de " + request.item.foodName;
     const lexicon = deps.lexicon ?? governedLinguisticLexiconStore;
@@ -100,11 +105,7 @@ export function createFoodD1PublicEdit(deps: PublicEditDependencies) {
           action: "edit", targetMeal: target.mealLabel,
           date: getDateKeyInTimeZone(target.occurredAt, input.timeZone),
         },
-        contextSources: {
-          previousMessage: { status: "unavailable", reason: "item_edit_has_no_conversation", sourceRef: null },
-          preferences: { status: "unavailable", reason: "item_edit_has_no_context_snapshot", sourceRef: null },
-          recentHistory: { status: "unavailable", reason: "item_edit_has_no_context_snapshot", sourceRef: null },
-        },
+        contextSources,
         revisions: { ...ctx.revisions },
       },
       evidence,
