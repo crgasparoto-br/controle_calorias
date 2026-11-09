@@ -81,7 +81,7 @@ export function createFoodD1PublicEdit(deps: PublicEditDependencies) {
       throw new Error("food-d1-public-edit-target-scope-mismatch");
     }
     const contextSources = await (deps.readContextSources ?? readFoodD1PublicContextSources)({
-      ownerUserId: userId, source: "web", at: new Date(),
+      ownerUserId: userId, source: "web", at: target.occurredAt,
     });
     const key = "d1-edit-" + userId + ":" + id;
     const surface = request.item.quantity + " " + request.item.unit + " de " + request.item.foodName;
