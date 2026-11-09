@@ -2829,6 +2829,31 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     activeUrl = "";
   });
 
+  it.each([
+    ["numeric-grams", "5 gramas"],
+    ["spoken-grams", "cinco gramas"],
+    ["numeric-package", "1 pacote"],
+    ["spoken-package", "um pacote"],
+  ] as const)("PR #1339 A-005: public WhatsApp POST never persists a competing sugar amount (%s)", async (id, extra) => {
+    const userId = await startScenario({});
+    const originalText = `café com uma colher de chá de açúcar e ${extra} de açúcar`;
+    const response = await post(
+      activeUrl,
+      payload({
+        id: `wamid-1339-a005-${id}`,
+        timestamp: "1789556760",
+        type: "text",
+        text: { body: originalText },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle);
+  });
+
   it("IP-EFFECT-001 — rejeita payload acima do limite antes de efeitos no lifecycle", async () => {
     const userId = await startScenario({
       transcript: "",
