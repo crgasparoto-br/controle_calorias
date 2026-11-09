@@ -44,6 +44,7 @@ import {
   type FoodD1VisualKind,
 } from "./publicVisualSurfaces";
 import { buildEnvelope, buildDependencies, toReviewItem } from "./publicWebDraftSupport";
+import { readFoodD1PublicContextSources } from "./publicContextSources";
 import { createFoodD1PublicWebDraftConfirmation } from "./publicWebDraftConfirmation";
 export { FoodD1WebDraftNotFoundError, hashFoodD1WebDraftConfirmation } from "./publicWebDraftConfirmation";
 import type { AuthorizedD1SimulationContext } from "./publicSimulator";
@@ -56,6 +57,7 @@ import {
 
 export type PublicD1WebDraftDependencies = {
   readAuthorizedContext: () => Promise<AuthorizedD1SimulationContext | null>;
+  readContextSources?: typeof readFoodD1PublicContextSources;
   lexicon?: LinguisticLexiconStore;
   knowledge?: FoodD1Dependencies["knowledge"];
   comprehend?: typeof comprehendFoodLanguage;
@@ -192,6 +194,11 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       mealLabel: request.mealLabel.trim(), occurredAt,
       timeZone: input.timeZone, revisions: context.revisions,
     });
+    // Query authenticated sources once per new operation, before any AI/provider.
+    // A pinned replay always reuses its persisted context instead.
+    const contextSources = await (deps.readContextSources ?? readFoodD1PublicContextSources)({
+      ownerUserId: input.userId, source: "web", at: occurredAt,
+    });
     let transcript: string | undefined;
     if (request.audio) {
       const transcription = await (deps.transcribe ?? transcribeAudio)({
@@ -228,6 +235,7 @@ export function createFoodD1PublicWebDraft(deps: PublicD1WebDraftDependencies) {
       timeZone: input.timeZone,
       entrypoint,
       revisions: context.revisions,
+      contextSources,
     });
 
     const lexicon = deps.lexicon ?? governedLinguisticLexiconStore;
