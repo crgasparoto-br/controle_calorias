@@ -53,7 +53,7 @@ function prepareCoffeeSpoonClarification(segment: string): SpoonRequest | null {
     const candidate = words.slice(index).join(" ");
     const spoken = parseCountableQuantityPrefix(candidate);
     const parsed = parseFoodText(spoken ? `${spoken.quantity} ${spoken.remainder}` : candidate);
-    if (!parsed.quantity || !isHouseholdSpoonUnit(parsed.unit) || !parsed.foodName?.trim()) continue;
+    if (!parsed.quantity || !parsed.unit || !isHouseholdSpoonUnit(parsed.unit) || !parsed.foodName?.trim()) continue;
     const foodName = parsed.foodName.trim();
     if (splitFoodTextSegments(foodName).length !== 1) return null;
     // This adapter does not resolve an ingredient's grams in a composite.
