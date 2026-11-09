@@ -44,6 +44,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     const readAuthorizedContext = vi.fn(async () => null);
     const readActivePending = vi.fn(async () => false);
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext, readActivePending,
     });
     expect(await service(createInput())).toBeNull();
@@ -56,6 +61,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     const readActivePending = vi.fn(async () => false);
     const parseOperation = vi.fn(() => parsed());
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => null, readActivePending, parseOperation,
     });
     await expect(service(createInput())).rejects
@@ -68,6 +78,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     const parseOperation = vi.fn(() => parsed());
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approval,
       readActivePending: async () => true, parseOperation,
     });
@@ -82,6 +97,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     process.env.FOOD_V2_D1_ENTRYPOINTS = "text";
     const runner = vi.fn();
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false,
       parseOperation: () => ({ ...parsed(), mealType: null }),
@@ -116,6 +136,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
           recordedItemIds: [501], skipped: [] };
       });
       const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
         readAuthorizedContext: async () => approval,
         readActivePending: async () => false,
         parseOperation: () => parsed(),
@@ -150,6 +175,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
         skipped: [], operationKey: "stable" };
     });
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false,
       parseOperation: () => ({ ...parsed(), items: [
@@ -174,6 +204,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
       return { committed: true, replayed: false, mealId: 55, recordedItemIds: [501], skipped: [] };
     });
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false, parseOperation: () => parsed(),
       readMeal: async () => meal() as never,
@@ -196,6 +231,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     const stagePending = vi.fn(async () => undefined);
     const run = vi.fn(async () => { throw unrelated; });
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false,
       parseOperation: () => parsed(),
@@ -215,6 +255,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
     });
     const readMeal = vi.fn(async () => meal() as never);
     const service = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false,
       parseOperation: () => ({ ...parsed(), items: [
@@ -233,6 +278,11 @@ describe("#1308 trusted WhatsApp text/transcription V2 public boundary", () => {
       throw new Error("unexpected-effect");
     });
     const blockedService = createWhatsAppD1RegistrationService({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
       readAuthorizedContext: async () => approval,
       readActivePending: async () => false, parseOperation: () => parsed(),
       run: blocked as unknown as typeof runFoodD1Migration,
