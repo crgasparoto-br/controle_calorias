@@ -36,6 +36,11 @@ function fixture(
       recordedItemIds: [501, 502], skipped: [], ...receiptOverride };
   });
   const service = createFoodD1PublicWhatsAppRegistration({
+    readContextSources: async () => ({
+      previousMessage: { status: "unavailable" as const, reason: "fixture_no_message", sourceRef: null },
+      preferences: { status: "absent" as const, reason: "fixture_no_preferences", sourceRef: null },
+      recentHistory: { status: "absent" as const, reason: "fixture_no_history", sourceRef: null },
+    }),
     readAuthorizedContext: async () => context,
     readActivePending: async () => false,
     readCanonicalOperation: async () => ({
