@@ -374,3 +374,22 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
     }));
   });
 });
+
+
+describe("PR #1339 A-008: coordinated quantities cannot reach personal portion lookup", () => {
+  it.each([
+    "caf\u00e9 com 1 ou 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com uma ou duas colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 e 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 ou duas colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 a 2 colheres de sopa de a\u00e7\u00facar",
+    "caf\u00e9 com 1 at\u00e9 2 colheres de sopa de a\u00e7\u00facar",
+    "caf\u00e9 com 1 ou talvez 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+  ])("fails closed before tenant-scoped resolution: %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(decisions[0].coffeeSugarSegment).toBeUndefined();
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+});

@@ -242,3 +242,32 @@ describe("PR #1339 A-008: unknown and elided competing sugar measures", () => {
     expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
   });
 });
+
+
+describe("PR #1339 A-008: verbal alternatives cannot resolve a sugar spoon", () => {
+  it.each([
+    "caf\u00e9 com 1 ou 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com uma ou duas colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 e 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 ou duas colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com uma e 2 colheres de sopa de a\u00e7\u00facar",
+    "caf\u00e9 com 1 a 2 colheres de sopa de a\u00e7\u00facar",
+    "caf\u00e9 com 1 at\u00e9 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 ou talvez 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9: entre 1 e 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+  ])("rejects a coordinated alternative before grams are resolved: %s", text => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each([
+    ["caf\u00e9 com 2 colheres de ch\u00e1 de a\u00e7\u00facar", 2],
+    ["caf\u00e9 com duas colheres de ch\u00e1 de a\u00e7\u00facar", 2],
+    ["caf\u00e9: 2 colheres de ch\u00e1 de a\u00e7\u00facar", 2],
+    ["caf\u00e9 com 1 colher de ch\u00e1 de a\u00e7\u00facar e 5 g de leite", 1],
+    ["caf\u00e9 com 1 fatia de p\u00e3o e 2 colheres de ch\u00e1 de a\u00e7\u00facar", 2],
+  ] as const)("preserves unambiguous measured sugar: %s", (text, quantity) => {
+    expect(extractCoffeeSugarSpoonRequest(text)?.quantity).toBe(quantity);
+  });
+});

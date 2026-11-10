@@ -164,6 +164,10 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
       bindings.push(elidedSubject);
     } else if (
       hasUnit || unit === "de" || !unit ||
+      // A preceding alternative/coordination can lose its final operand
+      // when the spoon matcher consumes only the last count ("1 ou 2").
+      // It is unresolved quantity syntax, not an independent serving.
+      /^(?:e|ou|a|ate)$/u.test(unit) ||
       /^(?:adicionais?|extras?)$/u.test(unit) ||
       (unit === "a" && words[index + 2] === "mais") ||
       (words[index - 1] === "mais" && unit === "e")

@@ -220,3 +220,22 @@ describe("PR #1339 A-008: block unknown and elided sugar quantities before AI", 
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });
+
+
+describe("PR #1339 A-008: alternatives require clarification before AI", () => {
+  it.each([
+    "caf\u00e9 com 1 ou 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com uma ou duas colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 e 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "caf\u00e9 com 1 a 2 colheres de sopa de a\u00e7\u00facar",
+    "caf\u00e9 com 1 ou talvez 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+  ])("rejects an ambiguous spoon quantity without provider inference: %s", async text => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});
