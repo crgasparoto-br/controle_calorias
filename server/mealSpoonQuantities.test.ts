@@ -372,6 +372,8 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
     "café com 1 colher de chá de açúcar e uma dose de leite",
     "café com 1 colher de chá de açúcar e mais outra dose de leite",
     "café com 1 colher de chá de açúcar e mais uma banana",
+    "café com 1 colher de chá de açúcar e mais leite e outra porção de leite",
+    "café com 1 colher de chá de açúcar e uma dose de leite e mais uma banana",
   ])("does not falsely attribute a different ingredient to sugar: %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
@@ -422,6 +424,11 @@ describe("PR #1339 A-008/A-1339: ambiguous amounts cannot reach personal portion
     "café com 1 colher de chá de açúcar e mais alguma coisa",
     "café com 1 colher de chá de açúcar e mais algo",
     "café com 1 colher de chá de açúcar e mais uma quantidade",
+    "café com 1 colher de chá de açúcar e mais leite e mais um pouco",
+    "café com 1 colher de chá de açúcar e outra porção de leite e outra",
+    "café com 1 colher de chá de açúcar e uma dose de leite ou menos",
+    "café com 1 colher de chá de açúcar e/ou mais",
+    "café com 1 colher de chá de açúcar e mais leite e mais alguma coisa",
   ])("fails closed before tenant-scoped resolution: %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });

@@ -258,6 +258,11 @@ describe("PR #1339 A-008/A-1339: ambiguous amounts require clarification before 
     "café com 1 colher de chá de açúcar e mais alguma coisa",
     "café com 1 colher de chá de açúcar e mais algo",
     "café com 1 colher de chá de açúcar e mais uma quantidade",
+    "café com 1 colher de chá de açúcar e mais leite e mais um pouco",
+    "café com 1 colher de chá de açúcar e outra porção de leite e outra",
+    "café com 1 colher de chá de açúcar e uma dose de leite ou menos",
+    "café com 1 colher de chá de açúcar e/ou mais",
+    "café com 1 colher de chá de açúcar e mais leite e mais alguma coisa",
   ])("rejects an ambiguous spoon quantity without provider inference: %s", async text => {
     createTextResponseMock.mockReset();
     const { processMealInput } = await import("./nutritionEngine");

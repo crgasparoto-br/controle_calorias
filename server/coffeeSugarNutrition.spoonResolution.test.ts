@@ -286,6 +286,11 @@ describe("PR #1339 A-008/A-1339: ambiguous amounts cannot resolve a sugar spoon"
     "café com 1 colher de chá de açúcar e mais alguma coisa",
     "café com 1 colher de chá de açúcar e mais algo",
     "café com 1 colher de chá de açúcar e mais uma quantidade",
+    "café com 1 colher de chá de açúcar e mais leite e mais um pouco",
+    "café com 1 colher de chá de açúcar e outra porção de leite e outra",
+    "café com 1 colher de chá de açúcar e uma dose de leite ou menos",
+    "café com 1 colher de chá de açúcar e/ou mais",
+    "café com 1 colher de chá de açúcar e mais leite e mais alguma coisa",
   ])("rejects a coordinated alternative before grams are resolved: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
     expect(extractExplicitSugarQuantity(text)).toBeNull();
@@ -308,6 +313,8 @@ describe("PR #1339 A-008/A-1339: ambiguous amounts cannot resolve a sugar spoon"
     ["café com 1 colher de chá de açúcar e uma dose de leite", 1],
     ["café com 1 colher de chá de açúcar e mais outra dose de leite", 1],
     ["café com 1 colher de chá de açúcar e mais uma banana", 1],
+    ["café com 1 colher de chá de açúcar e mais leite e outra porção de leite", 1],
+    ["café com 1 colher de chá de açúcar e uma dose de leite e mais uma banana", 1],
   ] as const)("preserves unambiguous measured sugar: %s", (text, quantity) => {
     expect(extractCoffeeSugarSpoonRequest(text)?.quantity).toBe(quantity);
   });

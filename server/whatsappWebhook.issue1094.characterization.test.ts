@@ -2915,6 +2915,11 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     ["elliptic-another-serving", "café com 1 colher de chá de açúcar e uma dose"],
     ["elliptic-extra-another", "café com 1 colher de chá de açúcar e mais outra dose"],
     ["elliptic-extra-anything", "café com 1 colher de chá de açúcar e mais alguma coisa"],
+    ["elliptic-chained-more", "café com 1 colher de chá de açúcar e mais leite e mais um pouco"],
+    ["elliptic-chained-another", "café com 1 colher de chá de açúcar e outra porção de leite e outra"],
+    ["elliptic-chained-less", "café com 1 colher de chá de açúcar e uma dose de leite ou menos"],
+    ["elliptic-compound-connective", "café com 1 colher de chá de açúcar e/ou mais"],
+    ["elliptic-chained-anything", "café com 1 colher de chá de açúcar e mais leite e mais alguma coisa"],
   ] as const)("PR #1339 A-008/A-1339: public POST does not persist an unresolved sugar amount (%s)", async (id, originalText) => {
     const userId = await startScenario({});
     const response = await post(

@@ -188,39 +188,42 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
   const words = tail.split(/\s+/u)
     .map(word => word.replace(/^[,;:!?()]+|[,;.!?()]+$/gu, ""))
     .filter(Boolean);
-  if (words[0] !== "e" && words[0] !== "ou") return false;
-
-  let index = 1;
-  while (["tambem", "ainda", "so", "apenas"].includes(words[index])) index += 1;
-  const marker = words[index];
-  if (!marker) return false;
-
   const vagueWords = ["pouco", "pouquinho", "tanto", "tantinho", "bocado",
     "algo", "coisa", "coisas", "quantidade", "quantidades", "resto", "restinho"];
   const servingWords = ["colher", "colheres", "porcao", "porcoes", "dose", "doses", "medida", "medidas",
     "fatia", "fatias", "copo", "copos", "xicara", "xicaras", "pitada", "pitadas"];
-  const alternative = /^outr[oa]s?$/u.test(marker);
-  const increment = marker === "mais" || marker === "menos";
-  const vagueAmount = ["um", "uma", "algum", "alguma"].includes(marker)
-    && (vagueWords.includes(words[index + 1]) || servingWords.includes(words[index + 1]));
-  if (!alternative && !increment && !vagueAmount) return false;
 
-  if (!vagueAmount) index += 1;
-  // A bare "ou mais" / "e outra" has no bound amount or ingredient.
-  if (!words[index]) return true;
-  if (["um", "uma", "algum", "alguma"].includes(words[index])) index += 1;
-  while (/^outr[oa]s?$/u.test(words[index])) index += 1;
-  const hasElidedAmount = vagueAmount || vagueWords.includes(words[index]) || servingWords.includes(words[index]);
-  if (vagueWords.includes(words[index]) || servingWords.includes(words[index])) index += 1;
-  if (words[index] === "de" && ["cha", "sopa"].includes(words[index + 1])) index += 2;
-  while (["ainda", "tambem", "so", "apenas", "extra", "adicional"].includes(words[index])) index += 1;
+  // Scan each coordination, not just the first: "e leite e mais um pouco"
+  // still has an unbound amount after the explicitly named ingredient.
+  return words.some((word, start) => {
+    if (!/^(?:e|ou)(?:[\/&-](?:e|ou))*$/u.test(word)) return false;
+    let index = start + 1;
+    while (["tambem", "ainda", "so", "apenas"].includes(words[index])) index += 1;
+    const marker = words[index];
+    if (!marker) return false;
 
-  // Explicitly named *different* ingredients never modify the sugar spoon.
-  // An elided amount without that binding is unresolved, never a default.
-  if (words[index] === "de" && words[index + 1]) return words[index + 1] === spoonSubject;
-  if (words[index] === spoonSubject) return true;
-  if (!words[index] || hasElidedAmount) return true;
-  return words[index] === "mais" || words[index] === "menos" || words[index] === "ou";
+    const alternative = /^outr[oa]s?$/u.test(marker);
+    const increment = marker === "mais" || marker === "menos";
+    const vagueAmount = ["um", "uma", "algum", "alguma"].includes(marker)
+      && (vagueWords.includes(words[index + 1]) || servingWords.includes(words[index + 1]));
+    if (!alternative && !increment && !vagueAmount) return false;
+
+    if (!vagueAmount) index += 1;
+    // A bare "ou mais" / "e outra" has no bound amount or ingredient.
+    if (!words[index]) return true;
+    if (["um", "uma", "algum", "alguma"].includes(words[index])) index += 1;
+    while (/^outr[oa]s?$/u.test(words[index])) index += 1;
+    const hasElidedAmount = vagueAmount || vagueWords.includes(words[index]) || servingWords.includes(words[index]);
+    if (vagueWords.includes(words[index]) || servingWords.includes(words[index])) index += 1;
+    if (words[index] === "de" && ["cha", "sopa"].includes(words[index + 1])) index += 2;
+    while (["ainda", "tambem", "so", "apenas", "extra", "adicional"].includes(words[index])) index += 1;
+
+    // An explicit *different* ingredient closes this clause only, not later ones.
+    if (words[index] === "de" && words[index + 1]) return words[index + 1] === spoonSubject;
+    if (words[index] === spoonSubject) return true;
+    if (!words[index] || hasElidedAmount) return true;
+    return words[index] === "mais" || words[index] === "menos" || words[index] === "ou";
+  });
 }
 
 /** Do not split an unresolved competing quantity away from its spoon component. */
