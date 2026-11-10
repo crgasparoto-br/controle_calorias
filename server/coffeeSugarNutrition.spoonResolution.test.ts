@@ -372,3 +372,35 @@ describe("PR #1339 A-001/A-002: ingredient-scoped ellipses and additional spoons
     expect(extractExplicitSugarQuantity(text)).toBeNull();
   });
 });
+
+describe("A-1339-BIND-01: bound milk ellipses preserve the sugar spoon", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e leite com mais um pouco",
+    "e leite com só um pouco mais",
+    "e 100 ml de leite com mais um pouco",
+    "e leite com um pouco mais",
+    "e leite com apenas um pouco mais",
+    "e leite com ainda mais um pouco",
+    "e leite com mais um pouquinho",
+    "e leite com só mais um pouquinho",
+    "e leite com mais um pouco e 2 g de leite",
+  ])("retains the explicit sugar measure when milk owns the ellipsis: %s", tail => {
+    expect(extractCoffeeSugarSpoonRequest(`${stem} ${tail}`)).toEqual({
+      quantity: 1, unit: "colher de cha",
+    });
+  });
+
+  it.each([
+    "e mais um pouco",
+    "e leite e mais um pouco",
+    "e leite com mais um pouco e mais um pouco",
+    "e leite com mais um pouco de açúcar",
+    "e açúcar com mais um pouco",
+    "e leite com mais um pouco e mais açúcar",
+    "e leite com mais um pouco e 2 g de açúcar",
+    "e leite com um pouco mais e outra colher",
+  ])("still clarifies an unbound or sugar-bound continuation: %s", tail => {
+    expect(extractCoffeeSugarSpoonRequest(`${stem} ${tail}`)).toBeNull();
+  });
+});

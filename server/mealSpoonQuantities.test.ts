@@ -524,3 +524,37 @@ describe("PR #1339 A-001/A-002: authenticated scope is not blocked by milk", () 
     expect(resolveQuantity).not.toHaveBeenCalled();
   });
 });
+
+describe("A-1339-BIND-01: bound milk ellipses do not block the scoped sugar lookup", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e leite com mais um pouco",
+    "e leite com só um pouco mais",
+    "e 100 ml de leite com mais um pouco",
+    "e leite com mais um pouco e 2 g de leite",
+  ])("resolves the sugar spoon for user 17 despite milk phrasing: %s", async tail => {
+    const text = `${stem} ${tail}`;
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({
+      foodName: "açúcar", quantity: 1, unit: "colher de chá",
+      resolution: expect.objectContaining({ grams: 8 }),
+    })]);
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+  });
+
+  it.each([
+    "e leite e mais um pouco",
+    "e leite com mais um pouco e mais um pouco",
+    "e leite com mais um pouco de açúcar",
+    "e açúcar com mais um pouco",
+  ])("keeps unresolved sugar-bound amounts out of the scoped lookup: %s", async tail => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(`${stem} ${tail}`, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+});

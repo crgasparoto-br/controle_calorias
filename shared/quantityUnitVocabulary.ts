@@ -205,9 +205,14 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
   const isBoundSuffix = (start: number): boolean =>
     words[start - 1] === "a" && words[start - 2] !== spoonSubject &&
     ["de", "do", "da", "dos", "das"].includes(words[start - 3]);
-  const isBoundBackwards = (start: number): boolean =>
-    words[start - 1] === "com" && Boolean(words[start - 2]) &&
-      words[start - 2] !== spoonSubject;
+  const isBoundBackwards = (start: number): boolean => {
+    // Bind the *whole* elliptical amount, not an isolated "um" or "mais".
+    // "leite com mais um pouco" and "leite com so um pouco mais" retain
+    // the subject of "com", unlike "leite e mais um pouco" (unbound).
+    const preceding = words.slice(Math.max(0, start - 6), start).join(" ");
+    const bound = /(?:^|\s)(\S+)\s+com(?:\s+(?:so|apenas|ainda|tambem))?(?:\s+(?:mais|menos))?(?:\s+(?:um|uma|algum|alguma))?(?:\s+(?:pouco|pouquinho|tanto|tantinho|bocado))?$/u.exec(preceding);
+    return Boolean(bound && bound[1] !== spoonSubject);
+  };
 
   // Scan each clause, including punctuation or absent conjunctions, without
   // treating modifiers already bound to another ingredient as sugar.
@@ -238,15 +243,10 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     const boundIngredient = readBoundSubjectAt(index);
     if (boundIngredient) return boundIngredient === spoonSubject;
     if (words[index] === spoonSubject) return true;
-    if (!words[index]) {
-      // "leite com um pouco mais" keeps the ellipsis attached to the named
-      // ingredient; "leite e mais um pouco" starts a new unbound clause.
-      if (isBoundBackwards(start)) return false;
-      if (increment && words[start - 1] && vagueWords.includes(words[start - 1]) &&
-          ["um", "uma"].includes(words[start - 2]) &&
-          words[start - 3] === "com" && words[start - 4] !== spoonSubject) return false;
-      return true;
-    }
+    // A following clause cannot retroactively unbind an amount already
+    // attached through "<ingredient> com ..."; scan that clause separately.
+    if (isBoundBackwards(start)) return false;
+    if (!words[index]) return true;
     if (hasElidedAmount) return true;
     return ["mais", "menos", "ou"].includes(words[index]);
   });
