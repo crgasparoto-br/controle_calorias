@@ -197,11 +197,12 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     "u",
   );
 
-  // Scan each coordination, not just the first: "e leite e mais um pouco"
-  // still has an unbound amount after the explicitly named ingredient.
+  // Scan all clauses, including an unintroduced ellipsis after punctuation
+  // or a transcription without "e/ou" ("acucar, mais um pouco"). Do not
+  // treat a clearly bound quantity of another ingredient as sugar.
   return words.some((word, start) => {
-    if (!/^(?:e|ou)(?:[\/&-](?:e|ou))*$/u.test(word)) return false;
-    let index = start + 1;
+    let index = start;
+    if (/^(?:e|ou)(?:[\/&-](?:e|ou))*$/u.test(word)) index += 1;
     while (["tambem", "ainda", "so", "apenas"].includes(words[index])) index += 1;
     const marker = words[index];
     if (!marker) return false;
