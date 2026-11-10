@@ -448,3 +448,55 @@ describe("PR #1339 A-008/A-1339: ambiguous amounts cannot reach personal portion
     expect(resolveQuantity).not.toHaveBeenCalled();
   });
 });
+
+
+describe("PR #1339 A-001/A-002: authenticated scope is not blocked by milk", () => {
+  it.each([
+    "café com 1 colher de chá de açúcar e um pouco mais de leite",
+    "café com 1 colher de chá de açúcar um pouco mais de leite",
+    "café com 1 colher de chá de açúcar , um pouquinho mais de leite",
+    "café com 1 colher de chá de açúcar e um pouco de leite a mais",
+    "café com 1 colher de chá de açúcar e um pouco a mais de leite",
+    "café com 1 colher de chá de açúcar e 2 g de leite a mais",
+    "café com 1 colher de chá de açúcar e mais um pouco do leite",
+    "café com 1 colher de chá de açúcar e um pouco mais do leite",
+    "café com 1 colher de chá de açúcar e mais um pouco da bebida vegetal",
+    "café com 1 colher de chá de açúcar e mais um pouco para o leite",
+    "café com 1 colher de chá de açúcar e leite com um pouco mais",
+    "café com 1 colher de chá de açúcar e mais uma colher de leite",
+    "café com 1 colher de chá de açúcar e mais uma colher de chá de leite",
+    "café com 1 colher de chá de açúcar e outra colher de leite",
+    "café com 1 colher de chá de açúcar e duas colheres de leite",
+    "café com 1 colher de chá de açúcar e uma colher de sopa de leite",
+    "café com 1 colher de chá de açúcar e uma colher de leite e mais um pouco de leite",
+    "café com 1 colher de chá de açúcar e duas colheres de leite e um pouco mais de leite",
+  ])("resolves only the explicitly bound sugar spoon: %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual(expect.arrayContaining([expect.objectContaining({
+      foodName: "açúcar", quantity: 1, unit: "colher de chá",
+      resolution: expect.objectContaining({ grams: 8 }),
+    })]));
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+  });
+
+  it.each([
+    "café com 1 colher de chá de açúcar e mais uma colher",
+    "café com 1 colher de chá de açúcar e mais uma colher de açúcar",
+    "café com 1 colher de chá de açúcar e outra colher de açúcar",
+    "café com 1 colher de chá de açúcar e duas colheres de açúcar",
+    "café com 1 colher de chá de açúcar e duas colheres de leite e mais um pouco",
+    "café com 1 colher de chá de açúcar e 2 g de leite a mais e mais um pouco",
+    "café com 1 colher de chá de açúcar e um pouco mais de açúcar",
+    "café com 1 colher de chá de açúcar e um pouco de açúcar a mais",
+    "café com 1 colher de chá de açúcar e mais um pouco do açúcar",
+    "café com 1 colher de chá de açúcar e mais uma colher de leite e outra",
+  ])("does not read a personal portion when the sugar measure is ambiguous: %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+});

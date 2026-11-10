@@ -190,16 +190,29 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     .filter(Boolean);
   const vagueWords = ["pouco", "pouquinho", "tanto", "tantinho", "bocado",
     "algo", "coisa", "coisas", "quantidade", "quantidades", "resto", "restinho"];
-  // Reuse the shared unit grammar instead of maintaining a parallel
-  // list of portion names that would become a competing lexical catalog.
+  // Keep portion units in the canonical shared grammar, not a food-name list.
   const householdMeasureTerm = new RegExp(
     `^(?:${UNIT_WORDS.colheresGeneric}|${UNIT_WORDS.porcoesPlain}|${UNIT_WORDS.doses}|${UNIT_WORDS.fatias}|${UNIT_WORDS.copos}|${UNIT_WORDS.xicarasPlain}|medidas?|pitadas?)$`,
     "u",
   );
+  const ingredientAt = (index: number): string | null => {
+    if (["de", "do", "da", "dos", "das"].includes(words[index])) {
+      return words[index + 1] ?? null;
+    }
+    if (words[index] === "para" && ["o", "a", "os", "as"].includes(words[index + 1])) {
+      return words[index + 2] ?? null;
+    }
+    return null;
+  };
+  const isBoundSuffix = (start: number): boolean =>
+    words[start - 1] === "a" && words[start - 2] !== spoonSubject &&
+    ["de", "do", "da", "dos", "das"].includes(words[start - 3]);
+  const isBoundBackwards = (start: number): boolean =>
+    words[start - 1] === "com" && Boolean(words[start - 2]) &&
+      words[start - 2] !== spoonSubject;
 
-  // Scan all clauses, including an unintroduced ellipsis after punctuation
-  // or a transcription without "e/ou" ("acucar, mais um pouco"). Do not
-  // treat a clearly bound quantity of another ingredient as sugar.
+  // Scan each clause, including punctuation or absent conjunctions, without
+  // treating modifiers already bound to another ingredient as sugar.
   return words.some((word, start) => {
     let index = start;
     if (/^(?:e|ou)(?:[\/&-](?:e|ou))*$/u.test(word)) index += 1;
@@ -212,22 +225,32 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     const vagueAmount = ["um", "uma", "algum", "alguma"].includes(marker)
       && (vagueWords.includes(words[index + 1]) || householdMeasureTerm.test(words[index + 1] ?? ""));
     if (!alternative && !increment && !vagueAmount) return false;
-
-    if (!vagueAmount) index += 1;
-    // A bare "ou mais" / "e outra" has no bound amount or ingredient.
-    if (!words[index]) return true;
+    if (increment && isBoundSuffix(index)) return false;
+    if (increment || alternative) index += 1;
     if (["um", "uma", "algum", "alguma"].includes(words[index])) index += 1;
     while (/^outr[oa]s?$/u.test(words[index])) index += 1;
-    const hasElidedAmount = vagueAmount || vagueWords.includes(words[index]) || householdMeasureTerm.test(words[index] ?? "");
+    const hasElidedAmount = vagueAmount || vagueWords.includes(words[index]) ||
+      householdMeasureTerm.test(words[index] ?? "");
     if (vagueWords.includes(words[index]) || householdMeasureTerm.test(words[index] ?? "")) index += 1;
     if (words[index] === "de" && ["cha", "sopa"].includes(words[index + 1])) index += 2;
+    if (words[index] === "a" && ["mais", "menos"].includes(words[index + 1])) index += 2;
+    if (hasElidedAmount && ["mais", "menos"].includes(words[index])) index += 1;
     while (["ainda", "tambem", "so", "apenas", "extra", "adicional"].includes(words[index])) index += 1;
 
-    // An explicit *different* ingredient closes this clause only, not later ones.
-    if (words[index] === "de" && words[index + 1]) return words[index + 1] === spoonSubject;
+    const boundIngredient = ingredientAt(index);
+    if (boundIngredient) return boundIngredient === spoonSubject;
     if (words[index] === spoonSubject) return true;
-    if (!words[index] || hasElidedAmount) return true;
-    return words[index] === "mais" || words[index] === "menos" || words[index] === "ou";
+    if (!words[index]) {
+      // "leite com um pouco mais" keeps the ellipsis attached to the named
+      // ingredient; "leite e mais um pouco" starts a new unbound clause.
+      if (isBoundBackwards(start)) return false;
+      if (increment && words[start - 1] && vagueWords.includes(words[start - 1]) &&
+          ["um", "uma"].includes(words[start - 2]) &&
+          words[start - 3] === "com" && words[start - 4] !== spoonSubject) return false;
+      return true;
+    }
+    if (hasElidedAmount) return true;
+    return ["mais", "menos", "ou"].includes(words[index]);
   });
 }
 
@@ -244,7 +267,15 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
     `\\b(?:mais\\s+(?:de\\s+)?${escapedSubject}|${escapedSubject}\\s+(?:extras?|adiciona(?:l|is)))\\b`,
     "u",
   ).test(remaining);
-  return Boolean(unmeasuredAddition)
+  // A second spoon belongs to a different ingredient only when its own
+  // binding is explicit. Counting all spoon tokens globally rejects milk.
+  const otherSpoons = [...remaining.matchAll(/\bcolher(?:es)?(?: de (?:cha|sopa))?\b/gu)];
+  const unsafeOtherSpoon = otherSpoons.some(match => {
+    const after = remaining.slice((match.index ?? 0) + match[0].length).trimStart();
+    const bound = /^(?:de|do|da|dos|das)\s+([a-z]+)/u.exec(after);
+    return !bound || bound[1] === spoonSubject;
+  });
+  return Boolean(unmeasuredAddition) || unsafeOtherSpoon
     || hasUnboundSpoonQuantityContinuation(folded.slice(start + spoon[0].length), spoonSubject ?? "")
     || scanMeasuredQuantityBindings(remaining).some(
       subject => subject === null || subject === spoonSubject,
@@ -261,7 +292,7 @@ export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; un
     "gu",
   );
   const matches = [...folded.matchAll(matcher)];
-  if (matches.length !== 1 || [...folded.matchAll(/\bcolher(?:es)?\b/gu)].length !== 1) return null;
+  if (matches.length !== 1) return null;
   // A word boundary can isolate the *last* operand of an expression.
   // Unicode math/dash signs and common fraction separators must behave like
   // their ASCII equivalents; never resolve a fragment as a whole spoon count.

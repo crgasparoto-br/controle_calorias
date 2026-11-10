@@ -3089,3 +3089,33 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     assertSanitizedEvidence(activeLifecycle);
   });
 });
+
+
+describe("PR #1339 A-001/A-002: unresolved extra sugar spoon at public POST", () => {
+  it.each([
+    ["a001-a002-1", "café com 1 colher de chá de açúcar e mais uma colher"],
+    ["a001-a002-2", "café com 1 colher de chá de açúcar e mais uma colher de açúcar"],
+    ["a001-a002-3", "café com 1 colher de chá de açúcar e outra colher de açúcar"],
+    ["a001-a002-4", "café com 1 colher de chá de açúcar e duas colheres de açúcar"],
+    ["a001-a002-5", "café com 1 colher de chá de açúcar e duas colheres de leite e mais um pouco"],
+    ["a001-a002-6", "café com 1 colher de chá de açúcar e 2 g de leite a mais e mais um pouco"],
+    ["a001-a002-7", "café com 1 colher de chá de açúcar e um pouco mais de açúcar"],
+    ["a001-a002-8", "café com 1 colher de chá de açúcar e um pouco de açúcar a mais"],
+    ["a001-a002-9", "café com 1 colher de chá de açúcar e mais um pouco do açúcar"],
+    ["a001-a002-10", "café com 1 colher de chá de açúcar e mais uma colher de leite e outra"],
+  ] as const)("leaves zero meals or items for ambiguous extra spoon (%s)", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: `wamid-1339-a001-a002-${id}`,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});

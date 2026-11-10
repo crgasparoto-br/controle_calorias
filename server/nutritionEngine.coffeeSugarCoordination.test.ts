@@ -280,3 +280,27 @@ describe("PR #1339 A-008/A-1339: ambiguous amounts require clarification before 
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });
+
+
+describe("PR #1339 A-001/A-002: unresolved extra spoons fail before AI", () => {
+  it.each([
+    "café com 1 colher de chá de açúcar e mais uma colher",
+    "café com 1 colher de chá de açúcar e mais uma colher de açúcar",
+    "café com 1 colher de chá de açúcar e outra colher de açúcar",
+    "café com 1 colher de chá de açúcar e duas colheres de açúcar",
+    "café com 1 colher de chá de açúcar e duas colheres de leite e mais um pouco",
+    "café com 1 colher de chá de açúcar e 2 g de leite a mais e mais um pouco",
+    "café com 1 colher de chá de açúcar e um pouco mais de açúcar",
+    "café com 1 colher de chá de açúcar e um pouco de açúcar a mais",
+    "café com 1 colher de chá de açúcar e mais um pouco do açúcar",
+    "café com 1 colher de chá de açúcar e mais uma colher de leite e outra",
+  ])("requires a component quantity without calling the provider: %s", async text => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});

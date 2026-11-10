@@ -330,3 +330,45 @@ describe("PR #1339 A-008/A-1339: ambiguous amounts cannot resolve a sugar spoon"
     expect(extractCoffeeSugarSpoonRequest(text)?.quantity).toBe(quantity);
   });
 });
+
+
+describe("PR #1339 A-001/A-002: ingredient-scoped ellipses and additional spoons", () => {
+  it.each([
+    "café com 1 colher de chá de açúcar e um pouco mais de leite",
+    "café com 1 colher de chá de açúcar um pouco mais de leite",
+    "café com 1 colher de chá de açúcar , um pouquinho mais de leite",
+    "café com 1 colher de chá de açúcar e um pouco de leite a mais",
+    "café com 1 colher de chá de açúcar e um pouco a mais de leite",
+    "café com 1 colher de chá de açúcar e 2 g de leite a mais",
+    "café com 1 colher de chá de açúcar e mais um pouco do leite",
+    "café com 1 colher de chá de açúcar e um pouco mais do leite",
+    "café com 1 colher de chá de açúcar e mais um pouco da bebida vegetal",
+    "café com 1 colher de chá de açúcar e mais um pouco para o leite",
+    "café com 1 colher de chá de açúcar e leite com um pouco mais",
+    "café com 1 colher de chá de açúcar e mais uma colher de leite",
+    "café com 1 colher de chá de açúcar e mais uma colher de chá de leite",
+    "café com 1 colher de chá de açúcar e outra colher de leite",
+    "café com 1 colher de chá de açúcar e duas colheres de leite",
+    "café com 1 colher de chá de açúcar e uma colher de sopa de leite",
+    "café com 1 colher de chá de açúcar e uma colher de leite e mais um pouco de leite",
+    "café com 1 colher de chá de açúcar e duas colheres de leite e um pouco mais de leite",
+  ])("keeps the explicit sugar spoon when a separate ingredient is quantified: %s", text => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+
+  it.each([
+    "café com 1 colher de chá de açúcar e mais uma colher",
+    "café com 1 colher de chá de açúcar e mais uma colher de açúcar",
+    "café com 1 colher de chá de açúcar e outra colher de açúcar",
+    "café com 1 colher de chá de açúcar e duas colheres de açúcar",
+    "café com 1 colher de chá de açúcar e duas colheres de leite e mais um pouco",
+    "café com 1 colher de chá de açúcar e 2 g de leite a mais e mais um pouco",
+    "café com 1 colher de chá de açúcar e um pouco mais de açúcar",
+    "café com 1 colher de chá de açúcar e um pouco de açúcar a mais",
+    "café com 1 colher de chá de açúcar e mais um pouco do açúcar",
+    "café com 1 colher de chá de açúcar e mais uma colher de leite e outra",
+  ])("keeps an unresolved or sugar-bound extra measure ambiguous: %s", text => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+  });
+});
