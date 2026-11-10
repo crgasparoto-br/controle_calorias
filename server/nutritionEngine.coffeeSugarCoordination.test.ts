@@ -342,6 +342,16 @@ describe("A-1339-BIND-02: unbound connector ellipses fail before AI", () => {
 describe("A-133903/A-133904: ambiguous coffee sugar does not reach AI", () => {
   it.each([
     "e depois com mais um pouco",
+    "e infelizmente com mais um pouco",
+    "e eventualmente com mais um pouco",
+    "e provavelmente com mais um pouco",
+    "e depois disso com mais um pouco",
+    "e isso com mais um pouco",
+    "e aquilo com mais um pouco",
+    "e nada com mais um pouco",
+    "e cuidadosamente com mais um pouco",
+    "e um açúcar",
+    "e várias pitadas de açúcar",
     "e então com mais um pouco",
     "e talvez com mais um pouco",
     "e agora com mais um pouco",
