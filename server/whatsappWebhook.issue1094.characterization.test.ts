@@ -39,6 +39,7 @@ import {
   PAYLOAD_LIMITS,
   RATE_LIMITS,
   createExpressRateLimit,
+  resetRateLimitStoreForTests,
 } from "./_core/rateLimit";
 import { registerWhatsAppPublicPostRoute } from "./whatsappPublicRoute";
 
@@ -2004,11 +2005,18 @@ beforeAll(() => {
   process.env.QUICK_EDIT_BASE_URL = "https://app.example.com";
 });
 
+beforeEach(() => {
+  // Requests share a process-wide limiter and loopback IP across scenarios.
+  // Isolate each test without resetting the limiter during runtime restarts.
+  resetRateLimitStoreForTests();
+});
+
 afterEach(async () => {
   if (activeServer) await close(activeServer);
   activeServer = null;
   activeUrl = "";
   cleanupPendingStore();
+  resetRateLimitStoreForTests();
 });
 
 afterAll(() => {
