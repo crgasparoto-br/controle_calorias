@@ -150,10 +150,26 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
         words[index + 4] === "de" ? 5 :
       words[index + 2] === "de" ? 3 :
       words[index + 3] === "de" && hasUnit ? 4 : 0;
+    // A missing unit is still a quantity when its ingredient is explicit:
+    // "duas de <ingredient>" or "meia a mais de <ingredient>". Keep the
+    // ingredient binding rather than silently dropping the second amount.
+    const elidedSubject = !hasUnit && unit === "de" ? words[index + 2] :
+      !hasUnit && unit === "a" && words[index + 2] === "mais" &&
+        words[index + 3] === "de" ? words[index + 4] :
+      !hasUnit && words[index + 3] === "de" ? words[index + 4] :
+      !hasUnit && words[index + 4] === "de" ? words[index + 5] : null;
     if (subjectOffset && words[index + subjectOffset]) {
       bindings.push(words[index + subjectOffset]);
-    } else if (hasUnit) {
-      // Missing explicit ingredient is ambiguous in a coordinated input.
+    } else if (elidedSubject) {
+      bindings.push(elidedSubject);
+    } else if (
+      hasUnit || unit === "de" || !unit ||
+      /^(?:adicionais?|extras?)$/u.test(unit) ||
+      (unit === "a" && words[index + 2] === "mais") ||
+      (words[index - 1] === "mais" && unit === "e")
+    ) {
+      // "e mais 2" or "e meia a mais" has no identifiable ingredient.
+      // Never resolve a preceding spoon with an unbound concurrent amount.
       bindings.push(null);
     }
   }

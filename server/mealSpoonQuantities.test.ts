@@ -324,6 +324,20 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
     "café com uma colher de chá de açúcar e 1/2 g a mais de açúcar",
     "café com uma colher de chá de açúcar e ½ sachê a mais",
     "café com uma colher de chá de açúcar e 1/2 g",
+    "café com uma colher de chá de açúcar e mais meia de açúcar",
+    "café com uma colher de chá de açúcar e duas de açúcar",
+    "café com uma colher de chá de açúcar e 5 de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 de açúcar",
+    "café com uma colher de chá de açúcar e meia a mais",
+    "café com uma colher de chá de açúcar e mais 2",
+    "café com uma colher de chá de açúcar e meia a mais de açúcar",
+    "café com uma colher de chá de açúcar e mais duas de açúcar",
+    "café com uma colher de chá de açúcar e 0,5 de açúcar",
+    "café com uma colher de chá de açúcar e duas adicionais",
+    "café com uma colher de chá de açúcar e meia extra",
+    "café com uma colher de chá de açúcar e meia pequena porção de açúcar",
+    "café com uma colher de chá de açúcar e uma medida adicional de açúcar",
+    "café com uma colher de chá de açúcar e duas porções adicionais de açúcar",
   ])("fails closed on %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
@@ -344,6 +358,12 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
     "café com uma colher de chá de açúcar e 1/2 g a mais de leite",
     "café com uma colher de chá de açúcar e ½ sachê a mais de leite",
     "café com uma colher de chá de açúcar e 0,5 g a mais de leite",
+    "café com uma colher de chá de açúcar e meia de leite",
+    "café com uma colher de chá de açúcar e meia a mais de leite",
+    "café com uma colher de chá de açúcar e duas de leite",
+    "café com uma colher de chá de açúcar e mais duas bananas",
+    "café com uma colher de chá de açúcar e meia pequena porção de leite",
+    "café com uma colher de chá de açúcar e duas porções adicionais de leite",
   ])("does not falsely attribute a different ingredient to sugar: %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });

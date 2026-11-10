@@ -198,6 +198,20 @@ describe("PR #1339 A-008: unknown and elided competing sugar measures", () => {
     "café com uma colher de chá de açúcar e 1/2 g a mais de açúcar",
     "café com uma colher de chá de açúcar e ½ sachê a mais",
     "café com uma colher de chá de açúcar e 1/2 g",
+    "café com uma colher de chá de açúcar e mais meia de açúcar",
+    "café com uma colher de chá de açúcar e duas de açúcar",
+    "café com uma colher de chá de açúcar e 5 de açúcar",
+    "café com uma colher de chá de açúcar e 1/2 de açúcar",
+    "café com uma colher de chá de açúcar e meia a mais",
+    "café com uma colher de chá de açúcar e mais 2",
+    "café com uma colher de chá de açúcar e meia a mais de açúcar",
+    "café com uma colher de chá de açúcar e mais duas de açúcar",
+    "café com uma colher de chá de açúcar e 0,5 de açúcar",
+    "café com uma colher de chá de açúcar e duas adicionais",
+    "café com uma colher de chá de açúcar e meia extra",
+    "café com uma colher de chá de açúcar e meia pequena porção de açúcar",
+    "café com uma colher de chá de açúcar e uma medida adicional de açúcar",
+    "café com uma colher de chá de açúcar e duas porções adicionais de açúcar",
   ])("rejects an extra amount before splitting the source: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
     expect(extractExplicitSugarQuantity(text)).toBeNull();
@@ -218,6 +232,12 @@ describe("PR #1339 A-008: unknown and elided competing sugar measures", () => {
     "café com uma colher de chá de açúcar e 1/2 g a mais de leite",
     "café com uma colher de chá de açúcar e ½ sachê a mais de leite",
     "café com uma colher de chá de açúcar e 0,5 g a mais de leite",
+    "café com uma colher de chá de açúcar e meia de leite",
+    "café com uma colher de chá de açúcar e meia a mais de leite",
+    "café com uma colher de chá de açúcar e duas de leite",
+    "café com uma colher de chá de açúcar e mais duas bananas",
+    "café com uma colher de chá de açúcar e meia pequena porção de leite",
+    "café com uma colher de chá de açúcar e duas porções adicionais de leite",
   ])("keeps a single sugar spoon when any other quantity is unambiguously separate: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
   });

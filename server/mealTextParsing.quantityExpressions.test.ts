@@ -252,6 +252,9 @@ describe("PR #1339 A-008: precedence of component clarification over math parsin
     "café com uma colher de chá de açúcar e 1/2 sachê de açúcar",
     "café com uma colher de chá de açúcar e ½ g de açúcar",
     "café com uma colher de chá de açúcar e 1/2 g adicionais",
+    "café com uma colher de chá de açúcar e 1/2 de açúcar",
+    "café com uma colher de chá de açúcar e mais meia de açúcar",
+    "café com uma colher de chá de açúcar e mais 2",
   ])("defers conflicting sugar quantity %s to the canonical spoon guard", text => {
     expect(getQuantityExpressionClarification(text)).toBeNull();
   });
