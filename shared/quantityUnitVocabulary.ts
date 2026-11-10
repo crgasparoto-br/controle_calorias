@@ -210,7 +210,9 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     // "leite com mais um pouco" and "leite com so um pouco mais" retain
     // the subject of "com", unlike "leite e mais um pouco" (unbound).
     const preceding = words.slice(Math.max(0, start - 6), start).join(" ");
-    const bound = /(?:^|\s)(\S+)\s+com(?:\s+(?:so|apenas|ainda|tambem))?(?:\s+(?:mais|menos))?(?:\s+(?:um|uma|algum|alguma))?(?:\s+(?:pouco|pouquinho|tanto|tantinho|bocado))?$/u.exec(preceding);
+    // A connector or other function word is not the subject of "com".
+    // Preserve free ingredient names; this is syntactic, not a food lexicon.
+    const bound = /(?:^|\s)(?!(?:(?:e|ou)(?:[\/&-](?:e|ou))*|mas|nem|porem|contudo|entretanto|porque|que|se|com|sem|de|do|da|dos|das|a|o|as|os|ao|aos|para|por|no|na|nos|nas|um|uma|uns|umas|mais|menos|so|apenas|ainda|tambem)\s+com\b)(\S+)\s+com(?:\s+(?:so|apenas|ainda|tambem))?(?:\s+(?:mais|menos))?(?:\s+(?:um|uma|algum|alguma))?(?:\s+(?:pouco|pouquinho|tanto|tantinho|bocado))?$/u.exec(preceding);
     return Boolean(bound && bound[1] !== spoonSubject);
   };
 

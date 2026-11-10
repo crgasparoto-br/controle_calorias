@@ -320,3 +320,20 @@ describe("A-1339-BIND-01: unbound continuations still fail before AI", () => {
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });
+
+describe("A-1339-BIND-02: unbound connector ellipses fail before AI", () => {
+  it.each([
+    "café com 1 colher de chá de açúcar e com mais um pouco",
+    "café com 1 colher de chá de açúcar mas com mais um pouco",
+    "café com 1 colher de chá de açúcar e com só um pouco mais",
+    "café com 1 colher de chá de açúcar e leite com mais um pouco e com mais um pouco",
+  ])("clarifies instead of estimating an unbound extra amount: %s", async text => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});

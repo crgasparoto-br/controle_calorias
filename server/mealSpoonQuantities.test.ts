@@ -558,3 +558,39 @@ describe("A-1339-BIND-01: bound milk ellipses do not block the scoped sugar look
     expect(resolveQuantity).not.toHaveBeenCalled();
   });
 });
+
+describe("A-1339-BIND-02: connector-only ellipses never use personal portion lookup", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e com mais um pouco",
+    "mas com mais um pouco",
+    "ou com mais um pouco",
+    "e/ou com mais um pouco",
+    "e com só um pouco mais",
+    "e com um pouco mais",
+    "e leite com mais um pouco e com mais um pouco",
+  ])("has zero lookup for an unbound continuation: %s", async tail => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(stem + " " + tail, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "e leite com mais um pouco",
+    "e leite com só um pouco mais",
+    "e 100 ml de leite com mais um pouco",
+    "mas leite com mais um pouco",
+  ])("preserves the measured sugar with an explicit milk subject: %s", async tail => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(stem + " " + tail, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({
+      foodName: "açúcar", quantity: 1, unit: "colher de chá",
+      resolution: expect.objectContaining({ grams: 8 }),
+    })]);
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+  });
+});

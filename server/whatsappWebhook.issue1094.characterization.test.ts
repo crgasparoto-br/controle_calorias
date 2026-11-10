@@ -3106,6 +3106,10 @@ describe("PR #1339 A-001/A-002: unresolved extra sugar spoon at public POST", ()
     ["a1339-bind-01-1", "café com 1 colher de chá de açúcar e leite e mais um pouco"],
     ["a1339-bind-01-2", "café com 1 colher de chá de açúcar e leite com mais um pouco e mais um pouco"],
     ["a1339-bind-01-3", "café com 1 colher de chá de açúcar e leite com mais um pouco de açúcar"],
+    ["a1339-bind-02-1", "café com 1 colher de chá de açúcar e com mais um pouco"],
+    ["a1339-bind-02-2", "café com 1 colher de chá de açúcar mas com mais um pouco"],
+    ["a1339-bind-02-3", "café com 1 colher de chá de açúcar e com só um pouco mais"],
+    ["a1339-bind-02-4", "café com 1 colher de chá de açúcar e leite com mais um pouco e com mais um pouco"],
   ] as const)("leaves zero meals or items for ambiguous extra spoon (%s)", async (id, originalText) => {
     const userId = await startScenario({});
     const response = await post(activeUrl, payload({

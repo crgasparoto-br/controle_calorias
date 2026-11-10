@@ -404,3 +404,38 @@ describe("A-1339-BIND-01: bound milk ellipses preserve the sugar spoon", () => {
     expect(extractCoffeeSugarSpoonRequest(`${stem} ${tail}`)).toBeNull();
   });
 });
+
+describe("A-1339-BIND-02: connectors cannot masquerade as ingredient subjects", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e com mais um pouco",
+    "mas com mais um pouco",
+    "ou com mais um pouco",
+    "e/ou com mais um pouco",
+    "nem com mais um pouco",
+    "e com só um pouco mais",
+    "mas com só mais um pouquinho",
+    "e com um pouco mais",
+    "e leite com mais um pouco e com mais um pouco",
+    "e com mais um pouco e leite com mais um pouco",
+  ])("rejects an unbound continuation even after a connector: %s", tail => {
+    const text = stem + " " + tail;
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each([
+    "e leite com mais um pouco",
+    "e leite com só um pouco mais",
+    "e água com mais um pouco",
+    "mas leite com mais um pouco",
+    "e 100 ml de leite com mais um pouco",
+    "e com mais um pouco de leite",
+    "e leite com mais um pouco e com mais um pouco de leite",
+  ])("keeps sugar separate when the ellipsis has an explicit ingredient: %s", tail => {
+    expect(extractCoffeeSugarSpoonRequest(stem + " " + tail)).toEqual({
+      quantity: 1, unit: "colher de cha",
+    });
+  });
+});
