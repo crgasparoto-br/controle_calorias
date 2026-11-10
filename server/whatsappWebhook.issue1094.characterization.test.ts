@@ -2904,7 +2904,18 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     ["alt-e-hyphen-or", "café com 1 e-ou 2 colheres de sopa de açúcar"],
     ["unmeasured-extra-sugar", "café com 1 colher de chá de açúcar e mais açúcar"],
     ["unmeasured-additional-sugar", "café com 1 colher de chá de açúcar e açúcar adicional"],
-  ] as const)("PR #1339 A-008: public POST does not persist an unresolved sugar amount (%s)", async (id, originalText) => {
+    ["elliptic-or-more", "café com 1 colher de chá de açúcar ou mais"],
+    ["elliptic-or-less", "café com 1 colher de chá de açúcar ou menos"],
+    ["elliptic-extra-vague", "café com 1 colher de chá de açúcar e mais um pouco"],
+    ["elliptic-another", "café com 1 colher de chá de açúcar e outra"],
+    ["elliptic-other-spoken", "café com 1 colher de chá de açúcar e outras"],
+    ["elliptic-extra-small", "café com 1 colher de chá de açúcar e mais um pouquinho"],
+    ["elliptic-other-sugar", "café com 1 colher de chá de açúcar e outra porção de açúcar"],
+    ["elliptic-extra-adverb", "café com 1 colher de chá de açúcar ou mais ainda"],
+    ["elliptic-another-serving", "café com 1 colher de chá de açúcar e uma dose"],
+    ["elliptic-extra-another", "café com 1 colher de chá de açúcar e mais outra dose"],
+    ["elliptic-extra-anything", "café com 1 colher de chá de açúcar e mais alguma coisa"],
+  ] as const)("PR #1339 A-008/A-1339: public POST does not persist an unresolved sugar amount (%s)", async (id, originalText) => {
     const userId = await startScenario({});
     const response = await post(
       activeUrl,

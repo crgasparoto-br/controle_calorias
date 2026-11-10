@@ -364,6 +364,14 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
     "café com uma colher de chá de açúcar e mais duas bananas",
     "café com uma colher de chá de açúcar e meia pequena porção de leite",
     "café com uma colher de chá de açúcar e duas porções adicionais de leite",
+    "café com 1 colher de chá de açúcar e mais um pouco de leite",
+    "café com 1 colher de chá de açúcar e outra de leite",
+    "café com 1 colher de chá de açúcar ou mais leite",
+    "café com 1 colher de chá de açúcar e outra porção de leite",
+    "café com 1 colher de chá de açúcar ou menos de leite",
+    "café com 1 colher de chá de açúcar e uma dose de leite",
+    "café com 1 colher de chá de açúcar e mais outra dose de leite",
+    "café com 1 colher de chá de açúcar e mais uma banana",
   ])("does not falsely attribute a different ingredient to sugar: %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
@@ -376,7 +384,7 @@ describe("PR #1339 A-008: no tenant lookup for unknown or elided sugar measure",
 });
 
 
-describe("PR #1339 A-008: coordinated quantities cannot reach personal portion lookup", () => {
+describe("PR #1339 A-008/A-1339: ambiguous amounts cannot reach personal portion lookup", () => {
   it.each([
     "caf\u00e9 com 1 ou 2 colheres de ch\u00e1 de a\u00e7\u00facar",
     "caf\u00e9 com uma ou duas colheres de ch\u00e1 de a\u00e7\u00facar",
@@ -391,6 +399,29 @@ describe("PR #1339 A-008: coordinated quantities cannot reach personal portion l
     "café com 1 e-ou 2 colheres de sopa de açúcar",
     "café com 1 colher de chá de açúcar e mais açúcar",
     "café com 1 colher de chá de açúcar e açúcar adicional",
+    "café com 1 colher de chá de açúcar ou mais",
+    "café com 1 colher de chá de açúcar ou menos",
+    "café com 1 colher de chá de açúcar e mais um pouco",
+    "café com 1 colher de chá de açúcar e outra",
+    "café com 1 colher de chá de açúcar e outras",
+    "café com 1 colher de chá de açúcar e mais um pouquinho",
+    "café com 1 colher de chá de açúcar e mais um tanto",
+    "café com 1 colher de chá de açúcar ou ainda menos",
+    "café com 1 colher de chá de açúcar e também outra",
+    "café com 1 colher de chá de açúcar ou um pouco",
+    "café com 1 colher de chá de açúcar e mais uma medida",
+    "café com 1 colher de chá de açúcar e mais um pouco de açúcar",
+    "café com 1 colher de chá de açúcar e outra porção de açúcar",
+    "café com 1 colher de chá de açúcar ou outra de açúcar",
+    "café com 1 colher de chá de açúcar ou mais ainda",
+    "café com 1 colher de chá de açúcar e só mais um tanto",
+    "café com 1 colher de chá de açúcar ou menos de açúcar",
+    "café com 1 colher de chá de açúcar e mais um pouco extra",
+    "café com 1 colher de chá de açúcar e uma dose",
+    "café com 1 colher de chá de açúcar e mais outra dose",
+    "café com 1 colher de chá de açúcar e mais alguma coisa",
+    "café com 1 colher de chá de açúcar e mais algo",
+    "café com 1 colher de chá de açúcar e mais uma quantidade",
   ])("fails closed before tenant-scoped resolution: %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });

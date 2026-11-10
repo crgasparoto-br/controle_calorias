@@ -222,7 +222,7 @@ describe("PR #1339 A-008: block unknown and elided sugar quantities before AI", 
 });
 
 
-describe("PR #1339 A-008: alternatives require clarification before AI", () => {
+describe("PR #1339 A-008/A-1339: ambiguous amounts require clarification before AI", () => {
   it.each([
     "caf\u00e9 com 1 ou 2 colheres de ch\u00e1 de a\u00e7\u00facar",
     "caf\u00e9 com uma ou duas colheres de ch\u00e1 de a\u00e7\u00facar",
@@ -235,6 +235,29 @@ describe("PR #1339 A-008: alternatives require clarification before AI", () => {
     "café com 1 e-ou 2 colheres de sopa de açúcar",
     "café com 1 colher de chá de açúcar e mais açúcar",
     "café com 1 colher de chá de açúcar e açúcar adicional",
+    "café com 1 colher de chá de açúcar ou mais",
+    "café com 1 colher de chá de açúcar ou menos",
+    "café com 1 colher de chá de açúcar e mais um pouco",
+    "café com 1 colher de chá de açúcar e outra",
+    "café com 1 colher de chá de açúcar e outras",
+    "café com 1 colher de chá de açúcar e mais um pouquinho",
+    "café com 1 colher de chá de açúcar e mais um tanto",
+    "café com 1 colher de chá de açúcar ou ainda menos",
+    "café com 1 colher de chá de açúcar e também outra",
+    "café com 1 colher de chá de açúcar ou um pouco",
+    "café com 1 colher de chá de açúcar e mais uma medida",
+    "café com 1 colher de chá de açúcar e mais um pouco de açúcar",
+    "café com 1 colher de chá de açúcar e outra porção de açúcar",
+    "café com 1 colher de chá de açúcar ou outra de açúcar",
+    "café com 1 colher de chá de açúcar ou mais ainda",
+    "café com 1 colher de chá de açúcar e só mais um tanto",
+    "café com 1 colher de chá de açúcar ou menos de açúcar",
+    "café com 1 colher de chá de açúcar e mais um pouco extra",
+    "café com 1 colher de chá de açúcar e uma dose",
+    "café com 1 colher de chá de açúcar e mais outra dose",
+    "café com 1 colher de chá de açúcar e mais alguma coisa",
+    "café com 1 colher de chá de açúcar e mais algo",
+    "café com 1 colher de chá de açúcar e mais uma quantidade",
   ])("rejects an ambiguous spoon quantity without provider inference: %s", async text => {
     createTextResponseMock.mockReset();
     const { processMealInput } = await import("./nutritionEngine");
