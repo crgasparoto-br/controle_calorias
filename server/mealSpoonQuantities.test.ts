@@ -594,3 +594,61 @@ describe("A-1339-BIND-02: connector-only ellipses never use personal portion loo
     }));
   });
 });
+
+// Regressions for independent-audit findings A-133903 and A-133904.
+describe("A-133903/A-133904: reject ambiguous second amounts before tenant lookup", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e depois com mais um pouco",
+    "e então com mais um pouco",
+    "e talvez com mais um pouco",
+    "e agora com mais um pouco",
+    "e aqui com mais um pouco",
+    "e daí com mais um pouco",
+    "e logo com mais um pouco",
+    "e novamente com mais um pouco",
+    "e por fim com mais um pouco",
+    "e de novo com mais um pouco",
+    "e em seguida com mais um pouco",
+    "e ontem com só um pouco mais",
+    "e umas gotas de açúcar",
+    "e umas pitadas de açúcar",
+    "e uns gramas de açúcar",
+    "e vários gramas de açúcar",
+    "e algum açúcar",
+    "e um pouco de açúcar",
+    "e algumas gotas de açúcar",
+    "e muitas gotas de açúcar",
+    "e poucas pitadas de açúcar",
+    "e um açúcar extra",
+  ])("uses zero lookups for a competing amount: %s", async tail => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(`${stem} ${tail}`, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "e leite com mais um pouco",
+    "e leite com só um pouco mais",
+    "e mais um pouco de leite",
+    "e aveia com mais um pouco",
+    "e iogurte com um pouco mais",
+    "e umas gotas de leite",
+    "e uns gramas de leite",
+    "e vários gramas de leite",
+    "e algum leite",
+    "e algumas gotas de leite",
+  ])("preserves an unrelated ingredient and its user's scoped sugar measure: %s", async tail => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(`${stem} ${tail}`, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({
+      foodName: "açúcar", quantity: 1, unit: "colher de chá",
+      resolution: expect.objectContaining({ grams: 8 }),
+    })]);
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+  });
+});

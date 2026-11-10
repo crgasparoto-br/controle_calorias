@@ -439,3 +439,54 @@ describe("A-1339-BIND-02: connectors cannot masquerade as ingredient subjects", 
     });
   });
 });
+
+// Independent audit of HEAD 5096091: A-133903 / A-133904.
+describe("A-133903/A-133904: adjuncts and indefinite second sugar measures", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e depois com mais um pouco",
+    "e então com mais um pouco",
+    "e talvez com mais um pouco",
+    "e agora com mais um pouco",
+    "e aqui com mais um pouco",
+    "e daí com mais um pouco",
+    "e logo com mais um pouco",
+    "e novamente com mais um pouco",
+    "e por fim com mais um pouco",
+    "e de novo com mais um pouco",
+    "e em seguida com mais um pouco",
+    "e ontem com só um pouco mais",
+    "e umas gotas de açúcar",
+    "e umas pitadas de açúcar",
+    "e uns gramas de açúcar",
+    "e vários gramas de açúcar",
+    "e algum açúcar",
+    "e um pouco de açúcar",
+    "e algumas gotas de açúcar",
+    "e muitas gotas de açúcar",
+    "e poucas pitadas de açúcar",
+    "e um açúcar extra",
+  ])("requires clarification for a second amount without a safe binding: %s", tail => {
+    const text = `${stem} ${tail}`;
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each([
+    "e leite com mais um pouco",
+    "e leite com só um pouco mais",
+    "e mais um pouco de leite",
+    "e aveia com mais um pouco",
+    "e iogurte com um pouco mais",
+    "e umas gotas de leite",
+    "e uns gramas de leite",
+    "e vários gramas de leite",
+    "e algum leite",
+    "e algumas gotas de leite",
+  ])("does not steal amounts belonging to an explicitly named ingredient: %s", tail => {
+    expect(extractCoffeeSugarSpoonRequest(`${stem} ${tail}`)).toEqual({
+      quantity: 1, unit: "colher de cha",
+    });
+  });
+});

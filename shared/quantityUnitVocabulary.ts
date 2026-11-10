@@ -109,6 +109,7 @@ const UNBOUND_QUANTITY_UNITS = new Set([
 ]);
 const UNCERTAIN_QUANTITY_WORDS = new Set([
   "meio", "meia", "metade", "algum", "alguns", "alguma", "algumas",
+  "uns", "umas", "varios", "varias", "muitos", "muitas", "poucos", "poucas",
 ]);
 
 // Fractions are quantity syntax, not a safe gram conversion. Treat them as
@@ -210,9 +211,11 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     // "leite com mais um pouco" and "leite com so um pouco mais" retain
     // the subject of "com", unlike "leite e mais um pouco" (unbound).
     const preceding = words.slice(Math.max(0, start - 6), start).join(" ");
-    // A connector or other function word is not the subject of "com".
-    // Preserve free ingredient names; this is syntactic, not a food lexicon.
-    const bound = /(?:^|\s)(?!(?:(?:e|ou)(?:[\/&-](?:e|ou))*|mas|nem|porem|contudo|entretanto|porque|que|se|com|sem|de|do|da|dos|das|a|o|as|os|ao|aos|para|por|no|na|nos|nas|um|uma|uns|umas|mais|menos|so|apenas|ainda|tambem)\s+com\b)(\S+)\s+com(?:\s+(?:so|apenas|ainda|tambem))?(?:\s+(?:mais|menos))?(?:\s+(?:um|uma|algum|alguma))?(?:\s+(?:pouco|pouquinho|tanto|tantinho|bocado))?$/u.exec(preceding);
+    // Non-nominal discourse/temporal adjuncts never name an ingredient.
+    // This is a closed grammatical class, not a food identity lexicon.
+    // Multiword adjuncts ("por fim", "de novo", "em seguida") are rejected
+    // by checking the last word immediately before "com".
+    const bound = /(?:^|\s)(?!(?:(?:e|ou)(?:[\/&-](?:e|ou))*|mas|nem|porem|contudo|entretanto|porque|que|se|com|sem|de|do|da|dos|das|a|o|as|os|ao|aos|para|por|no|na|nos|nas|um|uma|uns|umas|mais|menos|so|apenas|ainda|tambem|depois|entao|talvez|agora|aqui|ali|la|dai|ai|logo|novamente|antes|ontem|hoje|amanha|cedo|tarde|ja|ainda|fim|novo|seguida|imediato|repente|assim|enfim|simplesmente|rapidamente|lentamente)\s+com\b)(\S+)\s+com(?:\s+(?:so|apenas|ainda|tambem))?(?:\s+(?:mais|menos))?(?:\s+(?:um|uma|algum|alguma))?(?:\s+(?:pouco|pouquinho|tanto|tantinho|bocado))?$/u.exec(preceding);
     return Boolean(bound && bound[1] !== spoonSubject);
   };
 
@@ -263,8 +266,10 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   // "1 spoon of sugar and more sugar" must not resolve as one spoon only.
   // The binding uses the ingredient from the matched spoon, never a food list.
   const escapedSubject = spoonSubject?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // An indefinite second amount with no measure ("algum acucar") must
+  // not disappear when no unit scanner can attach it to the ingredient.
   const unmeasuredAddition = escapedSubject && new RegExp(
-    `\\b(?:mais\\s+(?:de\\s+)?${escapedSubject}|${escapedSubject}\\s+(?:extras?|adiciona(?:l|is)))\\b`,
+    `\\b(?:mais\\s+(?:de\\s+)?${escapedSubject}|${escapedSubject}\\s+(?:extras?|adiciona(?:l|is))|(?:algum(?:a|as|s)?|uns?|umas?|vari(?:os|as)|muit(?:os|as)|pouc(?:os|as))\\s+(?:de\\s+)?${escapedSubject})\\b`,
     "u",
   ).test(remaining);
   // A second spoon belongs to a different ingredient only when its own

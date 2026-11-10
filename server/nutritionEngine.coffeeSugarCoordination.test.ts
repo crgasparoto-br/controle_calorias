@@ -337,3 +337,40 @@ describe("A-1339-BIND-02: unbound connector ellipses fail before AI", () => {
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });
+
+// Integration contract: these new ambiguities cannot reach the AI provider.
+describe("A-133903/A-133904: ambiguous coffee sugar does not reach AI", () => {
+  it.each([
+    "e depois com mais um pouco",
+    "e então com mais um pouco",
+    "e talvez com mais um pouco",
+    "e agora com mais um pouco",
+    "e aqui com mais um pouco",
+    "e daí com mais um pouco",
+    "e logo com mais um pouco",
+    "e novamente com mais um pouco",
+    "e por fim com mais um pouco",
+    "e de novo com mais um pouco",
+    "e em seguida com mais um pouco",
+    "e ontem com só um pouco mais",
+    "e umas gotas de açúcar",
+    "e umas pitadas de açúcar",
+    "e uns gramas de açúcar",
+    "e vários gramas de açúcar",
+    "e algum açúcar",
+    "e um pouco de açúcar",
+    "e algumas gotas de açúcar",
+    "e muitas gotas de açúcar",
+    "e poucas pitadas de açúcar",
+    "e um açúcar extra",
+  ])("requires clarification before inference: %s", async tail => {
+    createTextResponseMock.mockReset();
+    const text = `café com 1 colher de chá de açúcar ${tail}`;
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});
