@@ -2898,6 +2898,12 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     ["alt-or-spoken", "caf\u00e9 com uma ou duas colheres de ch\u00e1 de a\u00e7\u00facar"],
     ["alt-and-numeric", "caf\u00e9 com 1 e 2 colheres de ch\u00e1 de a\u00e7\u00facar"],
     ["alt-between", "caf\u00e9 com 1 a 2 colheres de sopa de a\u00e7\u00facar"],
+    ["alt-e-or-numeric", "café com 1 e/ou 2 colheres de chá de açúcar"],
+    ["alt-e-or-spoken", "café com uma e/ou duas colheres de chá de açúcar"],
+    ["alt-or-e", "café com 1 ou/e 2 colheres de sopa de açúcar"],
+    ["alt-e-hyphen-or", "café com 1 e-ou 2 colheres de sopa de açúcar"],
+    ["unmeasured-extra-sugar", "café com 1 colher de chá de açúcar e mais açúcar"],
+    ["unmeasured-additional-sugar", "café com 1 colher de chá de açúcar e açúcar adicional"],
   ] as const)("PR #1339 A-008: public POST does not persist an unresolved sugar amount (%s)", async (id, originalText) => {
     const userId = await startScenario({});
     const response = await post(

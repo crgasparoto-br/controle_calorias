@@ -255,6 +255,14 @@ describe("PR #1339 A-008: verbal alternatives cannot resolve a sugar spoon", () 
     "caf\u00e9 com 1 at\u00e9 2 colheres de ch\u00e1 de a\u00e7\u00facar",
     "caf\u00e9 com 1 ou talvez 2 colheres de ch\u00e1 de a\u00e7\u00facar",
     "caf\u00e9: entre 1 e 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "café com 1 e/ou 2 colheres de chá de açúcar",
+    "café com uma e/ou duas colheres de chá de açúcar",
+    "café com 1 e / ou 2 colheres de chá de açúcar",
+    "café com 1 ou/e 2 colheres de sopa de açúcar",
+    "café com 1 e-ou 2 colheres de sopa de açúcar",
+    "café com 1 e/ou talvez 2 colheres de chá de açúcar",
+    "café com 1 colher de chá de açúcar e mais açúcar",
+    "café com 1 colher de chá de açúcar e açúcar adicional",
   ])("rejects a coordinated alternative before grams are resolved: %s", text => {
     expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
     expect(extractExplicitSugarQuantity(text)).toBeNull();
@@ -267,6 +275,8 @@ describe("PR #1339 A-008: verbal alternatives cannot resolve a sugar spoon", () 
     ["caf\u00e9: 2 colheres de ch\u00e1 de a\u00e7\u00facar", 2],
     ["caf\u00e9 com 1 colher de ch\u00e1 de a\u00e7\u00facar e 5 g de leite", 1],
     ["caf\u00e9 com 1 fatia de p\u00e3o e 2 colheres de ch\u00e1 de a\u00e7\u00facar", 2],
+    ["café com 1 colher de chá de açúcar e mais leite", 1],
+    ["café com 2 colheres de chá de açúcar e leite adicional", 2],
   ] as const)("preserves unambiguous measured sugar: %s", (text, quantity) => {
     expect(extractCoffeeSugarSpoonRequest(text)?.quantity).toBe(quantity);
   });

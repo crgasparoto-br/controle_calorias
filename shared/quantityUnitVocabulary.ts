@@ -167,7 +167,10 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
       // A preceding alternative/coordination can lose its final operand
       // when the spoon matcher consumes only the last count ("1 ou 2").
       // It is unresolved quantity syntax, not an independent serving.
-      /^(?:e|ou|a|ate)$/u.test(unit) ||
+      // Coordination may be compact or compound ("e/ou", "ou/e", "e-ou").
+      // Treat the preceding operand as unresolved rather than reading only
+      // the final count attached to the spoon.
+      /^(?:e|ou|a|ate)(?:[\/&-](?:e|ou|a|ate))*$/u.test(unit) ||
       /^(?:adicionais?|extras?)$/u.test(unit) ||
       (unit === "a" && words[index + 2] === "mais") ||
       (words[index - 1] === "mais" && unit === "e")
@@ -185,7 +188,15 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   const start = spoon.index ?? 0;
   const remaining = `${folded.slice(0, start)} ${folded.slice(start + spoon[0].length)}`;
   const spoonSubject = spoon[0].trim().split(" ").at(-1);
-  return scanMeasuredQuantityBindings(remaining).some(
+  // An unquantified second mention of the same ingredient is also ambiguous:
+  // "1 spoon of sugar and more sugar" must not resolve as one spoon only.
+  // The binding uses the ingredient from the matched spoon, never a food list.
+  const escapedSubject = spoonSubject?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const unmeasuredAddition = escapedSubject && new RegExp(
+    `\\b(?:mais\\s+(?:de\\s+)?${escapedSubject}|${escapedSubject}\\s+(?:extras?|adiciona(?:l|is)))\\b`,
+    "u",
+  ).test(remaining);
+  return Boolean(unmeasuredAddition) || scanMeasuredQuantityBindings(remaining).some(
     subject => subject === null || subject === spoonSubject,
   );
 }

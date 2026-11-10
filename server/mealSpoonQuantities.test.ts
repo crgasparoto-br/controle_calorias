@@ -385,6 +385,12 @@ describe("PR #1339 A-008: coordinated quantities cannot reach personal portion l
     "caf\u00e9 com 1 a 2 colheres de sopa de a\u00e7\u00facar",
     "caf\u00e9 com 1 at\u00e9 2 colheres de sopa de a\u00e7\u00facar",
     "caf\u00e9 com 1 ou talvez 2 colheres de ch\u00e1 de a\u00e7\u00facar",
+    "café com 1 e/ou 2 colheres de chá de açúcar",
+    "café com uma e/ou duas colheres de chá de açúcar",
+    "café com 1 ou/e 2 colheres de sopa de açúcar",
+    "café com 1 e-ou 2 colheres de sopa de açúcar",
+    "café com 1 colher de chá de açúcar e mais açúcar",
+    "café com 1 colher de chá de açúcar e açúcar adicional",
   ])("fails closed before tenant-scoped resolution: %s", async text => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
