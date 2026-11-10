@@ -190,8 +190,12 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     .filter(Boolean);
   const vagueWords = ["pouco", "pouquinho", "tanto", "tantinho", "bocado",
     "algo", "coisa", "coisas", "quantidade", "quantidades", "resto", "restinho"];
-  const servingWords = ["colher", "colheres", "porcao", "porcoes", "dose", "doses", "medida", "medidas",
-    "fatia", "fatias", "copo", "copos", "xicara", "xicaras", "pitada", "pitadas"];
+  // Reuse the shared unit grammar instead of maintaining a parallel
+  // list of portion names that would become a competing lexical catalog.
+  const householdMeasureTerm = new RegExp(
+    `^(?:${UNIT_WORDS.colheresGeneric}|${UNIT_WORDS.porcoesPlain}|${UNIT_WORDS.doses}|${UNIT_WORDS.fatias}|${UNIT_WORDS.copos}|${UNIT_WORDS.xicarasPlain}|medidas?|pitadas?)$`,
+    "u",
+  );
 
   // Scan each coordination, not just the first: "e leite e mais um pouco"
   // still has an unbound amount after the explicitly named ingredient.
@@ -205,7 +209,7 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     const alternative = /^outr[oa]s?$/u.test(marker);
     const increment = marker === "mais" || marker === "menos";
     const vagueAmount = ["um", "uma", "algum", "alguma"].includes(marker)
-      && (vagueWords.includes(words[index + 1]) || servingWords.includes(words[index + 1]));
+      && (vagueWords.includes(words[index + 1]) || householdMeasureTerm.test(words[index + 1] ?? ""));
     if (!alternative && !increment && !vagueAmount) return false;
 
     if (!vagueAmount) index += 1;
@@ -213,8 +217,8 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     if (!words[index]) return true;
     if (["um", "uma", "algum", "alguma"].includes(words[index])) index += 1;
     while (/^outr[oa]s?$/u.test(words[index])) index += 1;
-    const hasElidedAmount = vagueAmount || vagueWords.includes(words[index]) || servingWords.includes(words[index]);
-    if (vagueWords.includes(words[index]) || servingWords.includes(words[index])) index += 1;
+    const hasElidedAmount = vagueAmount || vagueWords.includes(words[index]) || householdMeasureTerm.test(words[index] ?? "");
+    if (vagueWords.includes(words[index]) || householdMeasureTerm.test(words[index] ?? "")) index += 1;
     if (words[index] === "de" && ["cha", "sopa"].includes(words[index + 1])) index += 2;
     while (["ainda", "tambem", "so", "apenas", "extra", "adicional"].includes(words[index])) index += 1;
 
