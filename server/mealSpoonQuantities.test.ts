@@ -215,16 +215,40 @@ describe("PR #1339 independent audit remediation: spoken counts and coffee compo
     expect(resolveQuantity).not.toHaveBeenCalled();
   });
 
-  it("A-004: never estimates contradictory sugar or concurrent spoons", async () => {
+  it("A-004: contradictory sugar remains unresolved without any personal lookup", async () => {
     const resolveQuantity = vi.fn(async () => measured(8));
-    const contradiction = await readSpoonDecisions(
-      "caf\u00e9 sem a\u00e7\u00facar com 1 colher de ch\u00e1 de a\u00e7\u00facar", 7, { resolveQuantity },
+    const decisions = await readSpoonDecisions(
+      "café sem açúcar com 1 colher de chá de açúcar", 7, { resolveQuantity },
     );
-    const competing = await readSpoonDecisions(
-      "caf\u00e9 com 1 colher de ch\u00e1 de a\u00e7\u00facar e 1 colher de sopa de leite", 7, { resolveQuantity },
+    expect(decisions).toEqual([expect.objectContaining({ resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it("A-004: a separately bound milk spoon does not compete with the sugar spoon", async () => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(
+      "café com 1 colher de chá de açúcar e 1 colher de sopa de leite", 7, { resolveQuantity },
     );
-    expect(contradiction[0].resolution).toBeNull();
-    expect(competing[0].resolution).toBeNull();
+    expect(decisions).toEqual([expect.objectContaining({
+      foodName: "açúcar",
+      quantity: 1,
+      unit: "colher de chá",
+      resolution: expect.objectContaining({ grams: 8 }),
+    })]);
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 7, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+  });
+
+  it.each([
+    "café com 1 colher de chá de açúcar e outra colher",
+    "café com 1 colher de chá de açúcar e outra colher de açúcar",
+    "café com 1 colher de chá de açúcar e 1 colher de sopa",
+  ])("A-004: ambiguous or sugar-bound second spoons never trigger a lookup: %s", async text => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 7, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
     expect(resolveQuantity).not.toHaveBeenCalled();
   });
 
