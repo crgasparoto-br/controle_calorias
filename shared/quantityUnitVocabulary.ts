@@ -195,14 +195,12 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     `^(?:${UNIT_WORDS.colheresGeneric}|${UNIT_WORDS.porcoesPlain}|${UNIT_WORDS.doses}|${UNIT_WORDS.fatias}|${UNIT_WORDS.copos}|${UNIT_WORDS.xicarasPlain}|medidas?|pitadas?)$`,
     "u",
   );
-  const ingredientAt = (index: number): string | null => {
-    if (["de", "do", "da", "dos", "das"].includes(words[index])) {
-      return words[index + 1] ?? null;
-    }
-    if (words[index] === "para" && ["o", "a", "os", "as"].includes(words[index + 1])) {
-      return words[index + 2] ?? null;
-    }
-    return null;
+  // Bind only grammatical prepositions; no food-identity or attribute dictionary.
+  const readBoundSubjectAt = (index: number): string | null => {
+    const matched = /^(?:(?:de|do|da|dos|das) |para (?:o|a|os|as) )(\S+)/u.exec(
+      words.slice(index).join(" "),
+    );
+    return matched?.[1] ?? null;
   };
   const isBoundSuffix = (start: number): boolean =>
     words[start - 1] === "a" && words[start - 2] !== spoonSubject &&
@@ -237,7 +235,7 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     if (hasElidedAmount && ["mais", "menos"].includes(words[index])) index += 1;
     while (["ainda", "tambem", "so", "apenas", "extra", "adicional"].includes(words[index])) index += 1;
 
-    const boundIngredient = ingredientAt(index);
+    const boundIngredient = readBoundSubjectAt(index);
     if (boundIngredient) return boundIngredient === spoonSubject;
     if (words[index] === spoonSubject) return true;
     if (!words[index]) {
