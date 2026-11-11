@@ -197,7 +197,7 @@ const UNCOUNTED_HOUSEHOLD_MEASURE = new RegExp(
   "u",
 );
 const UNCOUNTED_INFORMAL_MEASURE =
-  /^(?:colheradas?|colherzinhas?|porcaozinhas?|gotinhas?|pitadinhas?|pouquinhas?|pouquinhos?|poucos?|poucas?|tiquinhos?|tiquinhas?|cadinhos?|cadinhas?|bocados?|restinhos?|restinhas?|pontinhas?|pontinhos?|toques?|quantidades?|montes?|camadas?|sacos?|potes?|embalagens?|pacotinhos?|punhadinhos?)$/u;
+  /^(?:colheradas?|colherzinhas?|porcaozinhas?|gotinhas?|pitadinhas?|pouquinhas?|pouquinhos?|poucos?|poucas?|tiquinhos?|tiquinhas?|cadinhos?|cadinhas?|bocados?|restos?|restinhos?|restinhas?|pontinhas?|pontinhos?|toques?|quantidades?|montes?|camadas?|sacos?|potes?|embalagens?|pacotinhos?|punhadinhos?)$/u;
 function isMeasureHead(head: string): boolean {
   return UNBOUND_QUANTITY_UNITS.has(head) ||
     UNCOUNTED_HOUSEHOLD_MEASURE.test(head) ||
@@ -206,26 +206,40 @@ function isMeasureHead(head: string): boolean {
 
 /** A genitive is not always another food: an uncounted measure of the same
  * ingredient is ambiguous, while "cake with drops of sugar" is a separate food. */
-function hasUncountedMeasureGenitive(before: string, spoonSubject: string): boolean {
+function hasUncountedMeasureGenitive(
+  before: string, isBoundToOther: (start: number) => boolean,
+): boolean {
   const phrase = /(?:^|[\s,;.!?:])([a-z]+)(?:\s+([a-z]+))?\s+(?:de|do|da|dos|das)\s*$/u.exec(before);
   if (!phrase) return false;
   const last = phrase[2] ?? phrase[1];
   const headStart = (phrase.index ?? 0) + phrase[0].lastIndexOf(last);
   const prefixWords = before.slice(0, headStart).trim().split(/\s+/u).filter(Boolean);
-  // "bolo com gotas de acucar" is one separate food; "e com gotas" is not.
-  // Keep this syntactic preposition check independent of food identity.
-  const leftHead = prefixWords.at(-2) ?? "";
-  const functional = ["e", "ou", "mas", "depois", "entao", "porem", "entretanto",
-    "tambem", "ainda", "agora", "ja", "hoje", "ontem", "amanha", "fim",
-    "seguida", "novo", "outra", "outras", "isso", "assim", "so", "apenas"];
-  if (prefixWords.at(-1) === "com" && leftHead &&
-      !functional.includes(leftHead) && !leftHead.endsWith("mente")) return false;
+  // Reuse the original grammar in hasUnboundSpoonQuantityContinuation.
+  // A punctuation-delimited discourse clause is not a named food owner.
+  const ownerToken = prefixWords.at(-2) ?? "";
+  const discourseBoundary = prefixWords.at(-1) === "com" &&
+    (ownerToken.endsWith(",") || ownerToken.endsWith(";"));
+  if (!discourseBoundary && isBoundToOther(prefixWords.length)) return false;
   if (/^(?:extras?|adiciona(?:l|is))$/u.test(last)) {
     // "additional of sugar" is unbound; "extra topping of sugar" is not.
     return phrase[2] === undefined || isMeasureHead(phrase[1]) ||
       /^(?:e|ou|mas|mais|menos|tambem|ainda|so|apenas)$/u.test(phrase[1]);
   }
   return isMeasureHead(last);
+}
+
+/** Repeated genitive measures are quantities only if not bound to another food. */
+function hasUncountedIngredientMeasure(
+  surface: string, spoonSubject: string, isBoundToOther: (start: number) => boolean,
+): boolean {
+  if (!spoonSubject) return false;
+  // spoonSubject comes from the captured spoon component, not untrusted text.
+  return [...surface.matchAll(new RegExp(`\\b${spoonSubject}\\b`, "gu"))].some(match => {
+    const before = surface.slice(0, match.index);
+    const lastWord = before.trimEnd().split(/\s+/u).at(-1);
+    return Boolean(lastWord && isGenitivePreposition(lastWord)) &&
+      hasUncountedMeasureGenitive(before, isBoundToOther);
+  });
 }
 
 /** A trailing quantity ellipsis must not silently turn a range/addition into one spoon. */
@@ -277,6 +291,10 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     return Boolean(bound && bound[1] !== spoonSubject);
   };
 
+
+  // A measure without an explicit count is also a competing quantity.
+  // The already-audited backwards binding grammar distinguishes another food.
+  if (hasUncountedIngredientMeasure(tail, spoonSubject, isBoundBackwards)) return true;
 
   // Scan each clause, including punctuation or absent conjunctions, without
   // treating modifiers already bound to another ingredient as sugar.
@@ -336,8 +354,7 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   const bareSecondMention = escapedSubject
     ? [...remaining.matchAll(new RegExp(`\\b${escapedSubject}\\b`, "gu"))].some(match => {
         const previousWord = remaining.slice(0, match.index).trimEnd().match(/[a-z]+$/u)?.[0];
-        return !previousWord || !isGenitivePreposition(previousWord) ||
-          hasUncountedMeasureGenitive(remaining.slice(0, match.index), spoonSubject ?? "");
+        return !previousWord || !isGenitivePreposition(previousWord);
       })
     : false;
   // A second spoon belongs to a different ingredient only when its own
@@ -350,6 +367,8 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   });
   return Boolean(unmeasuredAddition) || Boolean(bareSecondMention) || unsafeOtherSpoon
     || hasUnboundSpoonQuantityContinuation(folded.slice(start + spoon[0].length), spoonSubject ?? "")
+    // Before the matched spoon, do not silently disregard an uncounted component.
+    || hasUncountedIngredientMeasure(folded.slice(0, start), spoonSubject ?? "", () => false)
     || scanMeasuredQuantityBindings(remaining).some(
       subject => subject === null || subject === spoonSubject,
     );

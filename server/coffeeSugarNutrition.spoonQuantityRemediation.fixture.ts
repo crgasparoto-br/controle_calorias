@@ -143,6 +143,10 @@ export const A1339_133905_NEGATIVE = [
   ["REP-37", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e pacote de a\u00e7\u00facar"],
   ["REP-38", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e meia colherada de a\u00e7\u00facar"],
   ["REP-39", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e adicional de a\u00e7\u00facar"],
+  ["REP-40", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e logo com gotas de a\u00e7\u00facar"],
+  ["REP-41", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e, por outro lado, com gotas de a\u00e7\u00facar"],
+  ["REP-42", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e resto de a\u00e7\u00facar"],
+  ["REP-43", "caf\u00e9 com gotas de a\u00e7\u00facar e uma colher de ch\u00e1 de a\u00e7\u00facar"],
 ] as const;
 
 export const A1339_133905_POSITIVE = [
