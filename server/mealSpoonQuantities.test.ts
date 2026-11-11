@@ -13,7 +13,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { applySpoonDecisions, readSpoonDecisions } from "./mealSpoonQuantities";
 import { splitFoodTextSegments } from "./mealTextParsing";
-import type { FoodQuantityResolution } from "./foodItemResolution";
+import type { FoodQuantityResolution, resolveCanonicalFoodQuantity } from "./foodItemResolution";
 import type { MealDraftItem } from "./nutritionEngineTypes";
 
 function measured(grams: number): FoodQuantityResolution {
@@ -779,12 +779,16 @@ describe("A-133907: unclear second spoon must not trigger authenticated lookup",
   });
 
   it.each(A1339_133907_POSITIVE)("preserves other ingredients without extra sugar %s", async (_id, text) => {
-    const resolveQuantity = vi.fn(async () => measured(8));
+    const resolveQuantity = vi.fn(async (_request: Parameters<typeof resolveCanonicalFoodQuantity>[0]) => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
     expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
-    expect(resolveQuantity).toHaveBeenCalledTimes(1);
     expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
       userId: 17, foodName: "açúcar", unit: "colher de chá", quantity: 1,
     }));
+    // A different measured food may need a separate, legitimate lookup.
+    // Never allow that lookup to replace or duplicate the sugar lookup.
+    const requests = resolveQuantity.mock.calls.map(([request]) => request);
+    expect(requests.filter(request => request.foodName === "açúcar")).toHaveLength(1);
+    expect(requests.every(request => request.userId === 17)).toBe(true);
   });
 });
