@@ -3166,3 +3166,27 @@ describe("PR #1339 A-001/A-002: unresolved extra sugar spoon at public POST", ()
     assertSanitizedEvidence(activeLifecycle, true);
   });
 });
+
+
+describe("PR #1339 A-1339-NEW-01: public POST never persists unresolved colloquial amounts", () => {
+  it.each([
+    ["tiquinho", "café com 1 colher de chá de açúcar e mais um tiquinho"],
+    ["cadinho", "café com 1 colher de chá de açúcar e mais um cadinho"],
+    ["colherzinha", "café com 1 colher de chá de açúcar e mais uma colherzinha"],
+    ["same-sugar", "café com 1 colher de chá de açúcar e mais um tiquinho do açúcar"],
+  ] as const)("leaves zero meals/items for ambiguous amount (%s)", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: `wamid-1339-colloquial-${id}`,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});

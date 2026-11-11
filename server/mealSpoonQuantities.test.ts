@@ -665,3 +665,31 @@ describe("A-133903/A-133904: reject ambiguous second amounts before tenant looku
     }));
   });
 });
+
+
+describe("A-1339-NEW-01/02: unknown colloquial measure and genitive owner", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e mais um tiquinho", "e mais um cadinho", "e mais uma colherzinha",
+    "e só mais um tiquinho", "e um tiquinho", "e mais um tiquinho do açúcar",
+  ])("rejects an unbound additional amount before user-scoped lookup: %s", async tail => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(`${stem} ${tail}`, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "e 5 g do leite", "e duas gramas da bebida vegetal",
+    "e +3g das frutas", "e mais um tiquinho do leite",
+    "e uma colherzinha do leite", "e mais uma banana",
+  ])("preserves sugar's measured portion and personal scope: %s", async tail => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(`${stem} ${tail}`, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+  });
+});

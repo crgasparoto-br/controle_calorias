@@ -112,6 +112,9 @@ const UNCERTAIN_QUANTITY_WORDS = new Set([
   "uns", "umas", "varios", "varias", "muitos", "muitas", "poucos", "poucas",
 ]);
 
+// A genitive identifies the owner of a quantity, independently of the ingredient.
+const INGREDIENT_GENITIVE = /^(?:de|do|da|dos|das)$/u;
+
 // Fractions are quantity syntax, not a safe gram conversion. Treat them as
 // competing amounts, including vulgar glyphs, Unicode slashes and compact units.
 function isFractionalQuantityToken(value: string): boolean {
@@ -146,25 +149,25 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
     const unit = words[index + 1] ?? "";
     // A measured quantity can have an intervening descriptive qualifier.
     const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit);
-    const subjectOffset = compactUnit && words[index + 1] === "de" ? 2 :
+    const subjectOffset = compactUnit && INGREDIENT_GENITIVE.test(words[index + 1] ?? "") ? 2 :
       hasUnit && words[index + 2] === "a" && words[index + 3] === "mais" &&
-        words[index + 4] === "de" ? 5 :
-      words[index + 2] === "de" ? 3 :
-      words[index + 3] === "de" && hasUnit ? 4 : 0;
+        INGREDIENT_GENITIVE.test(words[index + 4] ?? "") ? 5 :
+      INGREDIENT_GENITIVE.test(words[index + 2] ?? "") ? 3 :
+      INGREDIENT_GENITIVE.test(words[index + 3] ?? "") && hasUnit ? 4 : 0;
     // A missing unit is still a quantity when its ingredient is explicit:
     // "duas de <ingredient>" or "meia a mais de <ingredient>". Keep the
     // ingredient binding rather than silently dropping the second amount.
-    const elidedSubject = !hasUnit && unit === "de" ? words[index + 2] :
+    const elidedSubject = !hasUnit && INGREDIENT_GENITIVE.test(unit) ? words[index + 2] :
       !hasUnit && unit === "a" && words[index + 2] === "mais" &&
-        words[index + 3] === "de" ? words[index + 4] :
-      !hasUnit && words[index + 3] === "de" ? words[index + 4] :
-      !hasUnit && words[index + 4] === "de" ? words[index + 5] : null;
+        INGREDIENT_GENITIVE.test(words[index + 3] ?? "") ? words[index + 4] :
+      !hasUnit && INGREDIENT_GENITIVE.test(words[index + 3] ?? "") ? words[index + 4] :
+      !hasUnit && INGREDIENT_GENITIVE.test(words[index + 4] ?? "") ? words[index + 5] : null;
     if (subjectOffset && words[index + subjectOffset]) {
       bindings.push(words[index + subjectOffset]);
     } else if (elidedSubject) {
       bindings.push(elidedSubject);
     } else if (
-      hasUnit || unit === "de" || !unit ||
+      hasUnit || INGREDIENT_GENITIVE.test(unit) || !unit ||
       // A preceding alternative/coordination can lose its final operand
       // when the spoon matcher consumes only the last count ("1 ou 2").
       // It is unresolved quantity syntax, not an independent serving.
@@ -196,6 +199,13 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     `^(?:${UNIT_WORDS.colheresGeneric}|${UNIT_WORDS.porcoesPlain}|${UNIT_WORDS.doses}|${UNIT_WORDS.fatias}|${UNIT_WORDS.copos}|${UNIT_WORDS.xicarasPlain}|medidas?|pitadas?)$`,
     "u",
   );
+  // Colloquial diminutives can express an unspecified *amount* ("um tiquinho",
+  // "uma colherzinha"). Syntax alone cannot turn them into a measured portion.
+  // This is morphology, not a separate dictionary of foods or gram conversions.
+  const ellipticMeasureTerm = (word: string | undefined): boolean => Boolean(word && (
+    vagueWords.includes(word) || householdMeasureTerm.test(word) ||
+    /^[a-z]{2,}(?:zinh[oa]|inh[oa])s?$/u.test(word)
+  ));
   // Bind only grammatical prepositions; no food-identity or attribute dictionary.
   const readBoundSubjectAt = (index: number): string | null => {
     const matched = /^(?:(?:de|do|da|dos|das) |para (?:o|a|os|as) )(\S+)/u.exec(
@@ -231,15 +241,14 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     const alternative = /^outr[oa]s?$/u.test(marker);
     const increment = marker === "mais" || marker === "menos";
     const vagueAmount = ["um", "uma", "algum", "alguma"].includes(marker)
-      && (vagueWords.includes(words[index + 1]) || householdMeasureTerm.test(words[index + 1] ?? ""));
+      && ellipticMeasureTerm(words[index + 1]);
     if (!alternative && !increment && !vagueAmount) return false;
     if (increment && isBoundSuffix(index)) return false;
     if (increment || alternative) index += 1;
     if (["um", "uma", "algum", "alguma"].includes(words[index])) index += 1;
     while (/^outr[oa]s?$/u.test(words[index])) index += 1;
-    const hasElidedAmount = vagueAmount || vagueWords.includes(words[index]) ||
-      householdMeasureTerm.test(words[index] ?? "");
-    if (vagueWords.includes(words[index]) || householdMeasureTerm.test(words[index] ?? "")) index += 1;
+    const hasElidedAmount = vagueAmount || ellipticMeasureTerm(words[index]);
+    if (ellipticMeasureTerm(words[index])) index += 1;
     if (words[index] === "de" && ["cha", "sopa"].includes(words[index + 1])) index += 2;
     if (words[index] === "a" && ["mais", "menos"].includes(words[index + 1])) index += 2;
     if (hasElidedAmount && ["mais", "menos"].includes(words[index])) index += 1;

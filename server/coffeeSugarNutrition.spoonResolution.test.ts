@@ -503,3 +503,43 @@ describe("A-133903/A-133904: adjuncts and indefinite second sugar measures", () 
     });
   });
 });
+
+
+describe("PR #1339 A-1339-NEW-01/02: colloquial ellipses and genitive owners", () => {
+  const stem = "café com 1 colher de chá de açúcar";
+  it.each([
+    "e mais um tiquinho",
+    "e mais um cadinho",
+    "e mais uma colherzinha",
+    "e só mais um tiquinho",
+    ", mais um cadinho",
+    "; mais uma colherzinha",
+    "e um tiquinho",
+    "e menos uma colherzinha",
+    "e mais um tiquinho do açúcar",
+    "e leite com mais um tiquinho e mais um cadinho",
+  ])("does not discard an unbound colloquial amount: %s", tail => {
+    const text = `${stem} ${tail}`;
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each([
+    "e 5 g do leite",
+    "e duas gramas da bebida vegetal",
+    "e 2 g a mais dos cereais",
+    "e +3g das frutas",
+    "e uma colherzinha do leite",
+    "e mais um tiquinho de leite",
+    "e mais um cadinho da bebida vegetal",
+    "e leite com mais um tiquinho",
+    "e leite com mais uma colherzinha",
+    "e mais uma banana",
+    "e 1 pão",
+  ])("keeps sugar independent of another explicit ingredient: %s", tail => {
+    expect(extractCoffeeSugarSpoonRequest(`${stem} ${tail}`)).toEqual({
+      quantity: 1, unit: "colher de cha",
+    });
+  });
+});

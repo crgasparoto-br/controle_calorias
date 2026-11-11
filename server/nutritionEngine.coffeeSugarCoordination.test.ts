@@ -384,3 +384,20 @@ describe("A-133903/A-133904: ambiguous coffee sugar does not reach AI", () => {
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });
+
+
+describe("A-1339-NEW-01: colloquial unbound measures cannot reach AI", () => {
+  it.each([
+    "e mais um tiquinho", "e mais um cadinho", "e mais uma colherzinha",
+    "e só mais um tiquinho", "e um tiquinho", "e mais um tiquinho do açúcar",
+  ])("clarifies before inference: %s", async tail => {
+    createTextResponseMock.mockReset();
+    const text = `café com 1 colher de chá de açúcar ${tail}`;
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});
