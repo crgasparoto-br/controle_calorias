@@ -1,4 +1,5 @@
 import {
+  A1339_133908_NEGATIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
   A1339_133906_NEGATIVE,
@@ -3268,6 +3269,25 @@ describe("A-133907: public WhatsApp does not persist an unbound second spoon", (
     const userId = await startScenario({});
     const response = await post(activeUrl, payload({
       id: `wamid-133907-${id}`,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});
+
+
+describe("A-133908: public WhatsApp rejects partial sugar resolution", () => {
+  it.each(A1339_133908_NEGATIVE)("clarifies with zero meal and item writes %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: `wamid-133908-${id}`,
       timestamp: "1789556760",
       type: "text",
       text: { body: originalText },

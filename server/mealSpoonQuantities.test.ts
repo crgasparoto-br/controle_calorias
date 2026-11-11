@@ -1,4 +1,6 @@
 import {
+  A1339_133908_NEGATIVE,
+  A1339_133909_POSITIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
   A1339_133906_NEGATIVE,
@@ -790,5 +792,25 @@ describe("A-133907: unclear second spoon must not trigger authenticated lookup",
     const requests = resolveQuantity.mock.calls.map(([request]) => request);
     expect(requests.filter(request => request.foodName === "açúcar")).toHaveLength(1);
     expect(requests.every(request => request.userId === 17)).toBe(true);
+  });
+});
+
+
+describe("A-133908/A-133909: authenticate only an unambiguous sugar measure", () => {
+  it.each(A1339_133908_NEGATIVE)("does not query any scoped portion for competing sugar %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each(A1339_133909_POSITIVE)("resolves only the original sugar spoon under user scope %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async (_request: Parameters<typeof resolveCanonicalFoodQuantity>[0]) => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+    expect(resolveQuantity.mock.calls.filter(([req]) => req.foodName === "açúcar")).toHaveLength(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
   });
 });

@@ -1,4 +1,5 @@
 import {
+  A1339_133908_NEGATIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
   A1339_133906_NEGATIVE,
@@ -452,6 +453,19 @@ describe("A-133906: overlapping sugar is rejected before AI", () => {
 
 describe("A-133907: unbound spoon is clarified before AI inference", () => {
   it.each(A1339_133907_NEGATIVE)("rejects incomplete spoon binding %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("A-133908: competing sugar packaging is clarified before AI", () => {
+  it.each(A1339_133908_NEGATIVE)("requires explicit quantity clarification %s", async (_id, text) => {
     createTextResponseMock.mockReset();
     const { processMealInput } = await import("./nutritionEngine");
     await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
