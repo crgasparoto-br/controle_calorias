@@ -1,3 +1,9 @@
+import {
+  A1339_NEW03_AUDIT_NEGATIVE,
+  A1339_NEW03_AUDIT_POSITIVE,
+  A1339_NEW03_METAMORPHIC_NEGATIVE,
+  A1339_NEW03_METAMORPHIC_POSITIVE,
+} from "./coffeeSugarNutrition.spoonQuantityRemediation.fixture";
 import { describe, expect, it, vi } from "vitest";
 import { applySpoonDecisions, readSpoonDecisions } from "./mealSpoonQuantities";
 import { splitFoodTextSegments } from "./mealTextParsing";
@@ -692,4 +698,28 @@ describe("A-1339-NEW-01/02: unknown colloquial measure and genitive owner", () =
       userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
     }));
   });
+});
+
+
+describe("A-1339-NEW-03: no user-scoped lookup on colloquial ambiguity", () => {
+  it.each([...A1339_NEW03_AUDIT_NEGATIVE, ...A1339_NEW03_METAMORPHIC_NEGATIVE])(
+    "returns an unresolved decision without a lookup %s", async (_id, text) => {
+      const resolveQuantity = vi.fn(async () => measured(8));
+      const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+      expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+      expect(resolveQuantity).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([...A1339_NEW03_AUDIT_POSITIVE, ...A1339_NEW03_METAMORPHIC_POSITIVE])(
+    "preserves authenticated sugar measure independently of other items %s", async (_id, text) => {
+      const resolveQuantity = vi.fn(async () => measured(8));
+      const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+      expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+      expect(resolveQuantity).toHaveBeenCalledTimes(1);
+      expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+        userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+      }));
+    },
+  );
 });

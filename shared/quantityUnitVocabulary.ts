@@ -201,13 +201,20 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     `^(?:${UNIT_WORDS.colheresGeneric}|${UNIT_WORDS.porcoesPlain}|${UNIT_WORDS.doses}|${UNIT_WORDS.fatias}|${UNIT_WORDS.copos}|${UNIT_WORDS.xicarasPlain}|medidas?|pitadas?)$`,
     "u",
   );
-  // Colloquial diminutives can express an unspecified *amount* ("um tiquinho",
-  // "uma colherzinha"). Syntax alone cannot turn them into a measured portion.
-  // This is morphology, not a separate dictionary of foods or gram conversions.
+  // Only measurement diminutives are quantities: "duas gotinhas" is
+  // ambiguous, but "duas coxinhas" is an ordinary second food item.
+  // Do not use a food-identity dictionary or infer any gram conversion.
+  const measureDiminutive = /^(?:colherz?|got|pitad|tiqu|cad|bocad|punhad|cop|pingu|medid|pedac|porcaoz?|fatiaz?|xicaraz?|sachez?)inh[oa]s?$/u;
   const ellipticMeasureTerm = (word: string | undefined): boolean => Boolean(word && (
     vagueWords.includes(word) || householdMeasureTerm.test(word) ||
-    /^[a-z]{2,}(?:zinh[oa]|inh[oa])s?$/u.test(word)
+    measureDiminutive.test(word)
   ));
+  const isEllipticQuantityToken = (word: string | undefined): boolean => {
+    if (!word) return false;
+    const unsigned = word.replace(/^[+\-\u2212\u2013\u2014]/u, "");
+    return parseCountableQuantity(unsigned) !== null ||
+      isFractionalQuantityToken(unsigned) || UNCERTAIN_QUANTITY_WORDS.has(unsigned);
+  };
   // Bind only grammatical prepositions; no food-identity or attribute dictionary.
   const readBoundSubjectAt = (index: number): string | null => {
     const matched = /^(?:(?:de|do|da|dos|das) |para (?:o|a|os|as) )(\S+)/u.exec(
@@ -242,12 +249,11 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
 
     const alternative = /^outr[oa]s?$/u.test(marker);
     const increment = marker === "mais" || marker === "menos";
-    const vagueAmount = ["um", "uma", "algum", "alguma"].includes(marker)
-      && ellipticMeasureTerm(words[index + 1]);
+    const vagueAmount = isEllipticQuantityToken(marker) && ellipticMeasureTerm(words[index + 1]);
     if (!alternative && !increment && !vagueAmount) return false;
     if (increment && isBoundSuffix(index)) return false;
     if (increment || alternative) index += 1;
-    if (["um", "uma", "algum", "alguma"].includes(words[index])) index += 1;
+    if (isEllipticQuantityToken(words[index]) && ellipticMeasureTerm(words[index + 1])) index += 1;
     while (/^outr[oa]s?$/u.test(words[index])) index += 1;
     const hasElidedAmount = vagueAmount || ellipticMeasureTerm(words[index]);
     if (ellipticMeasureTerm(words[index])) index += 1;

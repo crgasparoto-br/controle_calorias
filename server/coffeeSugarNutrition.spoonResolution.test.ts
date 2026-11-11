@@ -1,3 +1,9 @@
+import {
+  A1339_NEW03_AUDIT_NEGATIVE,
+  A1339_NEW03_AUDIT_POSITIVE,
+  A1339_NEW03_METAMORPHIC_NEGATIVE,
+  A1339_NEW03_METAMORPHIC_POSITIVE,
+} from "./coffeeSugarNutrition.spoonQuantityRemediation.fixture";
 import { describe, expect, it } from "vitest";
 import {
   appendSugarQuantityToCoffeeText,
@@ -542,4 +548,23 @@ describe("PR #1339 A-1339-NEW-01/02: colloquial ellipses and genitive owners", (
       quantity: 1, unit: "colher de cha",
     });
   });
+});
+
+
+describe("A-1339-NEW-03: colloquial competing quantities never disappear", () => {
+  it.each([...A1339_NEW03_AUDIT_NEGATIVE, ...A1339_NEW03_METAMORPHIC_NEGATIVE])(
+    "fails closed on unknown additional measure %s", (_id, text) => {
+      expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+      expect(extractExplicitSugarQuantity(text)).toBeNull();
+      expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+    },
+  );
+
+  it.each([...A1339_NEW03_AUDIT_POSITIVE, ...A1339_NEW03_METAMORPHIC_POSITIVE])(
+    "keeps the sugar spoon independent when another ingredient is named %s", (_id, text) => {
+      expect(extractCoffeeSugarSpoonRequest(text)).toEqual({
+        quantity: 1, unit: "colher de cha",
+      });
+    },
+  );
 });

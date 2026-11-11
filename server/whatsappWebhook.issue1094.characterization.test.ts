@@ -1,3 +1,7 @@
+import {
+  A1339_NEW03_AUDIT_NEGATIVE,
+  A1339_NEW03_METAMORPHIC_NEGATIVE,
+} from "./coffeeSugarNutrition.spoonQuantityRemediation.fixture";
 import express from "express";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -3178,6 +3182,33 @@ describe("PR #1339 A-1339-NEW-01: public POST never persists unresolved colloqui
     const userId = await startScenario({});
     const response = await post(activeUrl, payload({
       id: `wamid-1339-colloquial-${id}`,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});
+
+
+describe("A-1339-NEW-03: public WhatsApp POST rejects unresolved colloquial measures", () => {
+  // Complete literal audit matrix + punctuation/fraction/new-ingredient siblings.
+  const samples = [
+    ...A1339_NEW03_AUDIT_NEGATIVE,
+    ...A1339_NEW03_METAMORPHIC_NEGATIVE.filter(([id]) => [
+      "MN-03", "MN-04", "MN-05", "MN-10", "MN-11", "MN-14", "MN-18", "MN-21",
+      "MN-27", "MN-29", "MN-31", "MN-32",
+    ].includes(id)),
+  ] as const;
+  it.each(samples)("returns 200 with zero meal/item persistence %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: `wamid-1339-new03-${id}`,
       timestamp: "1789556760",
       type: "text",
       text: { body: originalText },
