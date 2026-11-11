@@ -163,7 +163,9 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
       !hasUnit && unit === "a" && words[index + 2] === "mais" &&
         isGenitivePreposition(words[index + 3] ?? "") ? words[index + 4] :
       !hasUnit && isGenitivePreposition(words[index + 3] ?? "") ? words[index + 4] :
-      !hasUnit && isGenitivePreposition(words[index + 4] ?? "") ? words[index + 5] : null;
+      // "um bolo com gotas de acucar" counts a food, not the sugar.
+      !hasUnit && words[index + 2] !== "com" && words[index + 3] !== "com" &&
+        isGenitivePreposition(words[index + 4] ?? "") ? words[index + 5] : null;
     if (subjectOffset && words[index + subjectOffset]) {
       bindings.push(words[index + subjectOffset]);
     } else if (elidedSubject) {
@@ -187,6 +189,48 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
     }
   }
   return bindings;
+}
+
+/** A syntactic owner before "com" belongs to a different ingredient only
+ * when it is a nominal head, not a conjunction or discourse modifier. */
+function isBoundToOtherIngredientBefore(
+  words: readonly string[], start: number, spoonSubject: string,
+): boolean {
+  // "leite com mais um pouco" binds the whole amount, unlike "e com mais".
+  const preceding = words.slice(Math.max(0, start - 6), start).join(" ");
+  // A closed class of functional words does not identify a food ingredient.
+  const bound = /(?:^|\s)(?!(?:(?:e|ou)(?:[\/&-](?:e|ou))*|mas|nem|porem|contudo|entretanto|porque|que|se|com|sem|de|do|da|dos|das|a|o|as|os|ao|aos|para|por|no|na|nos|nas|um|uma|uns|umas|mais|menos|so|apenas|ainda|tambem|depois|entao|talvez|agora|aqui|ali|la|dai|ai|logo|novamente|antes|ontem|hoje|amanha|cedo|tarde|ja|ainda|fim|novo|seguida|imediato|repente|assim|enfim|simplesmente|rapidamente|lentamente|isso|disso|disto|aquilo|nada|tudo|[a-z]+mente)\s+com\b)(\S+)\s+com(?:\s+(?:so|apenas|ainda|tambem))?(?:\s+(?:mais|menos))?(?:\s+(?:um|uma|algum|alguma))?(?:\s+(?:pouco|pouquinho|tanto|tantinho|bocado))?$/u.exec(preceding);
+  return Boolean(bound && bound[1] !== spoonSubject);
+}
+
+/** Only syntax-level measure heads, never a catalog of food identities. */
+const UNCOUNTED_HOUSEHOLD_MEASURE = new RegExp(
+  `^(?:${UNIT_WORDS.colheresGeneric}|${UNIT_WORDS.porcoesPlain}|${UNIT_WORDS.fatias}|${UNIT_WORDS.copos}|${UNIT_WORDS.xicarasPlain}|${UNIT_WORDS.doses})$`,
+  "u",
+);
+const UNCOUNTED_INFORMAL_MEASURE =
+  /^(?:colheradas?|colherzinhas?|porcaozinhas?|gotinhas?|pitadinhas?|pouquinhas?|pouquinhos?|poucos?|poucas?|tiquinhos?|tiquinhas?|cadinhos?|cadinhas?|bocados?|restinhos?|restinhas?|pontinhas?|pontinhos?|toques?|quantidades?|montes?|camadas?|sacos?|potes?|embalagens?|pacotinhos?|punhadinhos?)$/u;
+function isMeasureHead(head: string): boolean {
+  return UNBOUND_QUANTITY_UNITS.has(head) ||
+    UNCOUNTED_HOUSEHOLD_MEASURE.test(head) ||
+    UNCOUNTED_INFORMAL_MEASURE.test(head);
+}
+
+/** A genitive is not always another food: an uncounted measure of the same
+ * ingredient is ambiguous, while "cake with drops of sugar" is a separate food. */
+function hasUncountedMeasureGenitive(before: string, spoonSubject: string): boolean {
+  const phrase = /(?:^|[\s,;.!?:])([a-z]+)(?:\s+([a-z]+))?\s+(?:de|do|da|dos|das)\s*$/u.exec(before);
+  if (!phrase) return false;
+  const last = phrase[2] ?? phrase[1];
+  const headStart = (phrase.index ?? 0) + phrase[0].lastIndexOf(last);
+  const prefixWords = before.slice(0, headStart).trim().split(/\s+/u).filter(Boolean);
+  if (isBoundToOtherIngredientBefore(prefixWords, prefixWords.length, spoonSubject)) return false;
+  if (/^(?:extras?|adiciona(?:l|is))$/u.test(last)) {
+    // "additional of sugar" is unbound; "extra topping of sugar" is not.
+    return phrase[2] === undefined || isMeasureHead(phrase[1]) ||
+      /^(?:e|ou|mas|mais|menos|tambem|ainda|so|apenas)$/u.test(phrase[1]);
+  }
+  return isMeasureHead(last);
 }
 
 /** A trailing quantity ellipsis must not silently turn a range/addition into one spoon. */
@@ -225,18 +269,6 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
   const isBoundSuffix = (start: number): boolean =>
     words[start - 1] === "a" && words[start - 2] !== spoonSubject &&
     ["de", "do", "da", "dos", "das"].includes(words[start - 3]);
-  const isBoundBackwards = (start: number): boolean => {
-    // Bind the *whole* elliptical amount, not an isolated "um" or "mais".
-    // "leite com mais um pouco" and "leite com so um pouco mais" retain
-    // the subject of "com", unlike "leite e mais um pouco" (unbound).
-    const preceding = words.slice(Math.max(0, start - 6), start).join(" ");
-    // Non-nominal discourse/temporal adjuncts never name an ingredient.
-    // This is a closed grammatical class, not a food identity lexicon.
-    // Multiword adjuncts ("por fim", "de novo", "em seguida") are rejected
-    // by checking the last word immediately before "com".
-    const bound = /(?:^|\s)(?!(?:(?:e|ou)(?:[\/&-](?:e|ou))*|mas|nem|porem|contudo|entretanto|porque|que|se|com|sem|de|do|da|dos|das|a|o|as|os|ao|aos|para|por|no|na|nos|nas|um|uma|uns|umas|mais|menos|so|apenas|ainda|tambem|depois|entao|talvez|agora|aqui|ali|la|dai|ai|logo|novamente|antes|ontem|hoje|amanha|cedo|tarde|ja|ainda|fim|novo|seguida|imediato|repente|assim|enfim|simplesmente|rapidamente|lentamente|isso|disso|disto|aquilo|nada|tudo|[a-z]+mente)\s+com\b)(\S+)\s+com(?:\s+(?:so|apenas|ainda|tambem))?(?:\s+(?:mais|menos))?(?:\s+(?:um|uma|algum|alguma))?(?:\s+(?:pouco|pouquinho|tanto|tantinho|bocado))?$/u.exec(preceding);
-    return Boolean(bound && bound[1] !== spoonSubject);
-  };
 
   // Scan each clause, including punctuation or absent conjunctions, without
   // treating modifiers already bound to another ingredient as sugar.
@@ -268,7 +300,7 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     if (words[index] === spoonSubject) return true;
     // A following clause cannot retroactively unbind an amount already
     // attached through "<ingredient> com ..."; scan that clause separately.
-    if (isBoundBackwards(start)) return false;
+    if (isBoundToOtherIngredientBefore(words, start, spoonSubject)) return false;
     if (!words[index]) return true;
     if (hasElidedAmount) return true;
     return ["mais", "menos", "ou"].includes(words[index]);
@@ -292,11 +324,12 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   ).test(remaining);
   // The matched spoon already consumed its subject. A second bare subject
   // anywhere else, even after a temporal or discourse modifier, is unresolved.
-  // A genitive names another food ("cake of sugar"), not another sugar clause.
+  // A genitive exempts another food only when its head is not a measure.
   const bareSecondMention = escapedSubject
     ? [...remaining.matchAll(new RegExp(`\\b${escapedSubject}\\b`, "gu"))].some(match => {
         const previousWord = remaining.slice(0, match.index).trimEnd().match(/[a-z]+$/u)?.[0];
-        return !previousWord || !isGenitivePreposition(previousWord);
+        return !previousWord || !isGenitivePreposition(previousWord) ||
+          hasUncountedMeasureGenitive(remaining.slice(0, match.index), spoonSubject ?? "");
       })
     : false;
   // A second spoon belongs to a different ingredient only when its own
