@@ -121,16 +121,29 @@ function isGenitivePreposition(value: string): boolean {
   return /^(?:de|do|da|dos|das)$/u.test(value);
 }
 
+/** Structural spoon names are not the ingredient following a genitive. */
+function isSpoonDenomination(word: string): boolean {
+  return word === "cafe" || word === "sobremesa" || word === "cha" || word === "sopa";
+}
+
+function isSpoonAmountModifier(word: string): boolean {
+  return word === "bem" || word === "rasa" || word === "rasas" ||
+    word === "raso" || word === "rasos" || word === "cheia" ||
+    word === "cheias" || word === "cheio" || word === "cheios" ||
+    word === "nivelada" || word === "niveladas";
+}
+
 /** A spoon's size ("de café"/"de sobremesa") is not its food ingredient. */
 function readSpoonIngredientAfterUnit(surface: string): string | null {
-  const genitive = /^(?:de|do|da|dos|das)\s+([a-z]+)/u.exec(surface);
-  if (!genitive) return null;
-  // "de chá"/"de sopa" are consumed by the caller's spoon matcher; the
-  // remaining denominations require a *second* genitive to name the food.
-  if (!["cafe", "sobremesa", "cha", "sopa"].includes(genitive[1])) return genitive[1];
-  const afterDenomination = surface.slice(genitive[0].length).trimStart();
-  const ingredient = /^(?:(?:bem|rasa|rasas|raso|rasos|cheia|cheias|cheio|cheios|nivelada|niveladas)\s+)*(?:de|do|da|dos|das)\s+([a-z]+)/u.exec(afterDenomination);
-  return ingredient?.[1] ?? null;
+  const words = surface.trim().split(/\s+/u);
+  if (!isGenitivePreposition(words[0] ?? "")) return null;
+  const first = words[1];
+  if (!first) return null;
+  // Reuse the existing genitive grammar instead of inferring food identities.
+  if (!isSpoonDenomination(first)) return first;
+  let index = 2;
+  while (isSpoonAmountModifier(words[index] ?? "")) index += 1;
+  return isGenitivePreposition(words[index] ?? "") ? (words[index + 1] ?? null) : null;
 }
 
 // Fractions are quantity syntax, not a safe gram conversion. Treat them as
