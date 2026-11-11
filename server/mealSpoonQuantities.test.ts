@@ -3,6 +3,8 @@ import {
   A1339_133905_NEGATIVE,
   A1339_133906_NEGATIVE,
   A1339_133906_POSITIVE,
+  A1339_133907_NEGATIVE,
+  A1339_133907_POSITIVE,
   A1339_133905_POSITIVE,
   A1339_NEW03_AUDIT_POSITIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
@@ -757,6 +759,26 @@ describe("A-133906: reject competing measure before any authenticated lookup", (
   });
 
   it.each(A1339_133906_POSITIVE)("preserves valid unique sugar component %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", unit: "colher de chá", quantity: 1,
+    }));
+  });
+});
+
+
+describe("A-133907: unclear second spoon must not trigger authenticated lookup", () => {
+  it.each(A1339_133907_NEGATIVE)("clarifies with zero lookups %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each(A1339_133907_POSITIVE)("preserves other ingredients without extra sugar %s", async (_id, text) => {
     const resolveQuantity = vi.fn(async () => measured(8));
     const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
     expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });

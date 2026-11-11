@@ -201,3 +201,30 @@ export const A1339_133906_POSITIVE = [
   ["UP-08", "café com uma colher de chá de açúcar e 2 bolos bem recheados de açúcar"],
   ["UP-09", "café com uma colher de chá de açúcar e um pudim com cubinhos de açúcar"],
 ] as const;
+
+/** A-133907: spoon denominations without an ingredient are not food bindings. */
+export const A1339_133907_NEGATIVE = [
+  ["DS-01", "café com uma colher de chá de açúcar e uma colher de café"],
+  ["DS-02", "café com uma colher de chá de açúcar e mais uma colher de café"],
+  ["DS-03", "café com uma colher de chá de açúcar e duas colheres de café"],
+  ["DS-04", "café com uma colher de chá de açúcar e uma colher de sobremesa"],
+  ["DS-05", "café com uma colher de chá de açúcar e meia colher de café"],
+  ["DS-06", "café com uma colher de chá de açúcar e uma colherzinha de café"],
+  ["DS-07", "café com uma colher de chá de açúcar e mais uma colherzinha de sobremesa"],
+  ["DS-08", "café com uma colher de chá de açúcar e uma colher de café cheia de açúcar"],
+  ["DS-09", "café com uma colher de chá de açúcar e uma colher de café bem cheia de açúcar"],
+  ["DS-10", "café com uma colher de chá de açúcar e uma colher de sobremesa do açúcar"],
+] as const;
+
+/** A-133907: independent measures and explicitly bound ingredients remain valid. */
+export const A1339_133907_POSITIVE = [
+  ["DP-01", "café com uma colher de chá de açúcar e uma colher de café de leite"],
+  ["DP-02", "café com uma colher de chá de açúcar e uma colher de sobremesa de leite"],
+  ["DP-03", "café com uma colher de chá de açúcar e uma colherzinha de café de leite"],
+  ["DP-04", "café com uma colher de chá de açúcar e uma colher de café cheia de leite"],
+  ["DP-05", "café com uma colher de chá de açúcar e uma colher de café bem cheia de leite"],
+  ["DP-06", "café com uma colher de chá de açúcar e uma colher de geleia"],
+  ["DP-07", "café com uma colher de chá de açúcar e 2 cubos de gelo"],
+  ["DP-08", "café com uma colher de chá de açúcar e 2 bolos recheados de açúcar"],
+  ["DP-09", "café com uma colher de chá de açúcar e uma colher de sopa de leite"],
+] as const;

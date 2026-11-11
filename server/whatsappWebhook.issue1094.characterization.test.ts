@@ -2,6 +2,7 @@ import {
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
   A1339_133906_NEGATIVE,
+  A1339_133907_NEGATIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
 } from "./coffeeSugarNutrition.spoonQuantityRemediation.fixture";
 import express from "express";
@@ -3248,6 +3249,25 @@ describe("A-133906: public WhatsApp entrypoint does not persist ambiguous sugar"
     const userId = await startScenario({});
     const response = await post(activeUrl, payload({
       id: `wamid-133906-${id}`,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});
+
+
+describe("A-133907: public WhatsApp does not persist an unbound second spoon", () => {
+  it.each(A1339_133907_NEGATIVE)("clarifies without meal or item writes %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: `wamid-133907-${id}`,
       timestamp: "1789556760",
       type: "text",
       text: { body: originalText },

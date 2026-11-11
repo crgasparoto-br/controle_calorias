@@ -121,6 +121,18 @@ function isGenitivePreposition(value: string): boolean {
   return /^(?:de|do|da|dos|das)$/u.test(value);
 }
 
+/** A spoon's size ("de café"/"de sobremesa") is not its food ingredient. */
+function readSpoonIngredientAfterUnit(surface: string): string | null {
+  const genitive = /^(?:de|do|da|dos|das)\s+([a-z]+)/u.exec(surface);
+  if (!genitive) return null;
+  // "de chá"/"de sopa" are consumed by the caller's spoon matcher; the
+  // remaining denominations require a *second* genitive to name the food.
+  if (!["cafe", "sobremesa", "cha", "sopa"].includes(genitive[1])) return genitive[1];
+  const afterDenomination = surface.slice(genitive[0].length).trimStart();
+  const ingredient = /^(?:(?:bem|rasa|rasas|raso|rasos|cheia|cheias|cheio|cheios|nivelada|niveladas)\s+)*(?:de|do|da|dos|das)\s+([a-z]+)/u.exec(afterDenomination);
+  return ingredient?.[1] ?? null;
+}
+
 // Fractions are quantity syntax, not a safe gram conversion. Treat them as
 // competing amounts, including vulgar glyphs, Unicode slashes and compact units.
 function isFractionalQuantityToken(value: string): boolean {
@@ -275,9 +287,12 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
   };
   // Bind only grammatical prepositions; no food-identity or attribute dictionary.
   const readBoundSubjectAt = (index: number): string | null => {
-    const matched = /^(?:(?:de|do|da|dos|das) |para (?:o|a|os|as) )(\S+)/u.exec(
-      words.slice(index).join(" "),
-    );
+    const remaining = words.slice(index).join(" ");
+    // A diminutive spoon still needs a food ingredient after its denomination.
+    if (/^colherzinh[oa]s?$/u.test(words[index - 1] ?? "")) {
+      return readSpoonIngredientAfterUnit(remaining);
+    }
+    const matched = /^(?:(?:de|do|da|dos|das) |para (?:o|a|os|as) )(\S+)/u.exec(remaining);
     return matched?.[1] ?? null;
   };
   const isBoundSuffix = (start: number): boolean =>
@@ -367,11 +382,10 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   const otherSpoons = [...remaining.matchAll(/\bcolher(?:es)?(?: de (?:cha|sopa))?\b/gu)];
   const unsafeOtherSpoon = otherSpoons.some(match => {
     const after = remaining.slice((match.index ?? 0) + match[0].length).trimStart();
-    // A subtype may intervene before the actual ingredient: e.g.
-    // "colher de cafe de acucar". Binding only the first genitive to "cafe"
-    // would allow a second sugar quantity to reach the portion resolver.
-    const bound = /^(?:de|do|da|dos|das)\s+([a-z]+)(?:\s+(?:de|do|da|dos|das)\s+([a-z]+))?/u.exec(after);
-    return !bound || bound[1] === spoonSubject || bound[2] === spoonSubject;
+    // A denomination is not an ingredient: "colher de cafe" remains
+    // unresolved, while "colher de cafe de leite" is explicitly bound.
+    const ingredient = readSpoonIngredientAfterUnit(after);
+    return !ingredient || ingredient === spoonSubject;
   });
   return Boolean(unmeasuredAddition) || Boolean(bareSecondMention) || unsafeOtherSpoon
     || hasUnboundSpoonQuantityContinuation(folded.slice(start + spoon[0].length), spoonSubject ?? "")

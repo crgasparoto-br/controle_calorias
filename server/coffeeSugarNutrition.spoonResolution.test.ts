@@ -3,6 +3,8 @@ import {
   A1339_133905_NEGATIVE,
   A1339_133906_NEGATIVE,
   A1339_133906_POSITIVE,
+  A1339_133907_NEGATIVE,
+  A1339_133907_POSITIVE,
   A1339_133905_POSITIVE,
   A1339_NEW03_AUDIT_POSITIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
@@ -593,6 +595,19 @@ describe("A-133906: unrecognized sugar portions do not vanish", () => {
   });
 
   it.each(A1339_133906_POSITIVE)("keeps an explicitly separate ingredient/food %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+});
+
+
+describe("A-133907: spoon denomination cannot be mistaken for an ingredient", () => {
+  it.each(A1339_133907_NEGATIVE)("requires clarification for unbound second spoon %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each(A1339_133907_POSITIVE)("keeps an independent, explicitly bound component %s", (_id, text) => {
     expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
   });
 });
