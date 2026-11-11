@@ -162,9 +162,10 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
     const elidedSubject = !hasUnit && isGenitivePreposition(unit) ? words[index + 2] :
       !hasUnit && unit === "a" && words[index + 2] === "mais" &&
         isGenitivePreposition(words[index + 3] ?? "") ? words[index + 4] :
-      !hasUnit && isGenitivePreposition(words[index + 3] ?? "") ? words[index + 4] :
+      !hasUnit && (isMeasureHead(unit) || /^(?:extras?|adiciona(?:l|is))$/u.test(unit)) &&
+        isGenitivePreposition(words[index + 3] ?? "") ? words[index + 4] :
       // "um bolo com gotas de acucar" counts a food, not the sugar.
-      !hasUnit && words[index + 2] !== "com" && words[index + 3] !== "com" &&
+      !hasUnit && isMeasureHead(unit) && words[index + 2] !== "com" && words[index + 3] !== "com" &&
         isGenitivePreposition(words[index + 4] ?? "") ? words[index + 5] : null;
     if (subjectOffset && words[index + subjectOffset]) {
       bindings.push(words[index + subjectOffset]);
