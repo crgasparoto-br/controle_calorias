@@ -290,6 +290,14 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
     `\\b(?:mais\\s+(?:de\\s+)?${escapedSubject}|${escapedSubject}\\s+(?:extras?|adiciona(?:l|is))|(?:algum(?:a|as|s)?|u(?:m|ma|ns|mas)|vari(?:os|as)|muit(?:os|as)|pouc(?:os|as))\\s+(?:de\\s+)?${escapedSubject})\\b`,
     "u",
   ).test(remaining);
+  // A bare second mention is an unresolved component too. Detect the
+  // grammatical mention rather than searching for a fixed sugar synonym:
+  // "... and sugar" or "coffee with sugar and one spoon of sugar".
+  // A distinct food such as "cake of sugar" is not a new sugar clause.
+  const bareSecondMention = escapedSubject && new RegExp(
+    `(?:^|\\b(?:e|ou|mas|com)\\s+|[,;.!?:+]\\s*)(?:(?:tambem|ainda|so|apenas|o|a|os|as)\\s+)*${escapedSubject}\\b`,
+    "u",
+  ).test(remaining.trim());
   // A second spoon belongs to a different ingredient only when its own
   // binding is explicit. Counting all spoon tokens globally rejects milk.
   const otherSpoons = [...remaining.matchAll(/\bcolher(?:es)?(?: de (?:cha|sopa))?\b/gu)];
@@ -298,7 +306,7 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
     const bound = /^(?:de|do|da|dos|das)\s+([a-z]+)/u.exec(after);
     return !bound || bound[1] === spoonSubject;
   });
-  return Boolean(unmeasuredAddition) || unsafeOtherSpoon
+  return Boolean(unmeasuredAddition) || Boolean(bareSecondMention) || unsafeOtherSpoon
     || hasUnboundSpoonQuantityContinuation(folded.slice(start + spoon[0].length), spoonSubject ?? "")
     || scanMeasuredQuantityBindings(remaining).some(
       subject => subject === null || subject === spoonSubject,

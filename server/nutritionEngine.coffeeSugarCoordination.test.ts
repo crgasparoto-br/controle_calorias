@@ -1,5 +1,6 @@
 import {
   A1339_NEW03_AUDIT_NEGATIVE,
+  A1339_133905_NEGATIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
 } from "./coffeeSugarNutrition.spoonQuantityRemediation.fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -419,4 +420,16 @@ describe("A-1339-NEW-03: reject colloquial quantities before AI", () => {
       expect(createTextResponseMock).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("A-133905: no AI inference after unmeasured sugar repetition", () => {
+  it.each(A1339_133905_NEGATIVE)("clarifies before AI for second sugar %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
 });

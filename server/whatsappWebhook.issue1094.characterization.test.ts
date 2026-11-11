@@ -1,5 +1,6 @@
 import {
   A1339_NEW03_AUDIT_NEGATIVE,
+  A1339_133905_NEGATIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
 } from "./coffeeSugarNutrition.spoonQuantityRemediation.fixture";
 import express from "express";
@@ -3209,6 +3210,24 @@ describe("A-1339-NEW-03: public WhatsApp POST rejects unresolved colloquial meas
     const userId = await startScenario({});
     const response = await post(activeUrl, payload({
       id: `wamid-1339-new03-${id}`,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});
+
+describe("A-133905: public webhook never persists a repeated unresolved sugar", () => {
+  it.each(A1339_133905_NEGATIVE)("no meals or items after ambiguous sugar %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: `wamid-133905-${id}`,
       timestamp: "1789556760",
       type: "text",
       text: { body: originalText },

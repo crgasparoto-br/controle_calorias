@@ -1,5 +1,7 @@
 import {
   A1339_NEW03_AUDIT_NEGATIVE,
+  A1339_133905_NEGATIVE,
+  A1339_133905_POSITIVE,
   A1339_NEW03_AUDIT_POSITIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
   A1339_NEW03_METAMORPHIC_POSITIVE,
@@ -722,4 +724,23 @@ describe("A-1339-NEW-03: no user-scoped lookup on colloquial ambiguity", () => {
       }));
     },
   );
+});
+
+describe("A-133905: unresolved repetition blocks authenticated lookup", () => {
+  it.each(A1339_133905_NEGATIVE)("does not query for an ambiguous sugar component %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each(A1339_133905_POSITIVE)("keeps a separate food from shadowing the sugar measure %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "a\u00e7\u00facar", quantity: 1 });
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "a\u00e7\u00facar", quantity: 1, unit: "colher de ch\u00e1",
+    }));
+  });
 });

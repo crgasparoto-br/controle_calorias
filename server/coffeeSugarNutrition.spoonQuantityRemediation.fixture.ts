@@ -101,3 +101,27 @@ export const A1339_NEW03_METAMORPHIC_POSITIVE = [
   ["MP-22", "café com 1 colher de chá de açúcar e duas porções adicionais de leite"],
   ["MP-23", "café com 1 colher de chá de açúcar e duas porções extras de leite"],
 ] as const;
+
+/** A-133905: unmeasured repetition must not disappear after one sugar spoon. */
+export const A1339_133905_NEGATIVE = [
+  ["REP-01", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e a\u00e7\u00facar"],
+  ["REP-02", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e a\u00e7\u00facar mascavo"],
+  ["REP-03", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e a\u00e7\u00facar cristal"],
+  ["REP-04", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e a\u00e7\u00facar branco"],
+  ["REP-05", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar ou a\u00e7\u00facar"],
+  ["REP-06", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar, a\u00e7\u00facar"],
+  ["REP-07", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar. a\u00e7\u00facar mascavo"],
+  ["REP-08", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar a\u00e7\u00facar"],
+  ["REP-09", "caf\u00e9 com a\u00e7\u00facar e uma colher de ch\u00e1 de a\u00e7\u00facar"],
+  ["REP-10", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e leite e a\u00e7\u00facar"],
+  ["REP-11", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e o a\u00e7\u00facar mascavo"],
+] as const;
+
+export const A1339_133905_POSITIVE = [
+  ["SEP-01", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar"],
+  ["SEP-02", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e leite"],
+  ["SEP-03", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e bolo de a\u00e7\u00facar"],
+  ["SEP-04", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e duas por\u00e7\u00f5es adicionais de leite"],
+  ["SEP-05", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e 1 p\u00e3o"],
+  ["SEP-06", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e mais um pouco de leite"],
+] as const;

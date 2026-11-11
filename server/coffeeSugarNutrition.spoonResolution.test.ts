@@ -1,5 +1,7 @@
 import {
   A1339_NEW03_AUDIT_NEGATIVE,
+  A1339_133905_NEGATIVE,
+  A1339_133905_POSITIVE,
   A1339_NEW03_AUDIT_POSITIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
   A1339_NEW03_METAMORPHIC_POSITIVE,
@@ -567,4 +569,15 @@ describe("A-1339-NEW-03: colloquial competing quantities never disappear", () =>
       });
     },
   );
+});
+
+describe("A-133905: bare second sugar mention is not one measured spoon", () => {
+  it.each(A1339_133905_NEGATIVE)("requires clarification before nutrient conversion %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each(A1339_133905_POSITIVE)("preserves a uniquely bound spoon %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
 });
