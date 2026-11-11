@@ -115,6 +115,13 @@ export const A1339_133905_NEGATIVE = [
   ["REP-09", "caf\u00e9 com a\u00e7\u00facar e uma colher de ch\u00e1 de a\u00e7\u00facar"],
   ["REP-10", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e leite e a\u00e7\u00facar"],
   ["REP-11", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e o a\u00e7\u00facar mascavo"],
+  ["REP-12", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e depois a\u00e7\u00facar"],
+  ["REP-13", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e por fim a\u00e7\u00facar"],
+  ["REP-14", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e em seguida a\u00e7\u00facar mascavo"],
+  ["REP-15", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar, depois a\u00e7\u00facar"],
+  ["REP-16", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e eventualmente a\u00e7\u00facar"],
+  ["REP-17", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e s\u00f3 agora a\u00e7\u00facar"],
+  ["REP-18", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e, depois, a\u00e7\u00facar"],
 ] as const;
 
 export const A1339_133905_POSITIVE = [
@@ -124,4 +131,6 @@ export const A1339_133905_POSITIVE = [
   ["SEP-04", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e duas por\u00e7\u00f5es adicionais de leite"],
   ["SEP-05", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e 1 p\u00e3o"],
   ["SEP-06", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e mais um pouco de leite"],
+  ["SEP-07", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e torta de a\u00e7\u00facar"],
+  ["SEP-08", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e bolo com cobertura de a\u00e7\u00facar"],
 ] as const;

@@ -290,14 +290,15 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
     `\\b(?:mais\\s+(?:de\\s+)?${escapedSubject}|${escapedSubject}\\s+(?:extras?|adiciona(?:l|is))|(?:algum(?:a|as|s)?|u(?:m|ma|ns|mas)|vari(?:os|as)|muit(?:os|as)|pouc(?:os|as))\\s+(?:de\\s+)?${escapedSubject})\\b`,
     "u",
   ).test(remaining);
-  // A bare second mention is an unresolved component too. Detect the
-  // grammatical mention rather than searching for a fixed sugar synonym:
-  // "... and sugar" or "coffee with sugar and one spoon of sugar".
-  // A distinct food such as "cake of sugar" is not a new sugar clause.
-  const bareSecondMention = escapedSubject && new RegExp(
-    `(?:^|\\b(?:e|ou|mas|com)\\s+|[,;.!?:+]\\s*)(?:(?:tambem|ainda|so|apenas|o|a|os|as)\\s+)*${escapedSubject}\\b`,
-    "u",
-  ).test(remaining.trim());
+  // The matched spoon already consumed its subject. A second bare subject
+  // anywhere else, even after a temporal or discourse modifier, is unresolved.
+  // A genitive names another food ("cake of sugar"), not another sugar clause.
+  const bareSecondMention = escapedSubject
+    ? [...remaining.matchAll(new RegExp(`\\b${escapedSubject}\\b`, "gu"))].some(match => {
+        const previousWord = remaining.slice(0, match.index).trimEnd().match(/[a-z]+$/u)?.[0];
+        return !previousWord || !isGenitivePreposition(previousWord);
+      })
+    : false;
   // A second spoon belongs to a different ingredient only when its own
   // binding is explicit. Counting all spoon tokens globally rejects milk.
   const otherSpoons = [...remaining.matchAll(/\bcolher(?:es)?(?: de (?:cha|sopa))?\b/gu)];
