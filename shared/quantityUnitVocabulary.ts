@@ -260,7 +260,8 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
     if (words[index] === "de" && ["cha", "sopa"].includes(words[index + 1])) index += 2;
     if (words[index] === "a" && ["mais", "menos"].includes(words[index + 1])) index += 2;
     if (hasElidedAmount && ["mais", "menos"].includes(words[index])) index += 1;
-    while (["ainda", "tambem", "so", "apenas", "extra", "adicional"].includes(words[index])) index += 1;
+    // Qualifiers agree with the measure; plural forms must not hide its genitive subject.
+    while (["ainda", "tambem", "so", "apenas", "extra", "extras", "adicional", "adicionais"].includes(words[index])) index += 1;
 
     const boundIngredient = readBoundSubjectAt(index);
     if (boundIngredient) return boundIngredient === spoonSubject;

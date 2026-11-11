@@ -72,6 +72,8 @@ export const A1339_NEW03_METAMORPHIC_NEGATIVE = [
   ["MN-30", "café com 1 colher de chá de açúcar e 1 punhadinho"],
   ["MN-31", "café com 1 colher de chá de açúcar e três copinhos"],
   ["MN-32", "café com 1 colher de chá de açúcar e poucas gotinhas"],
+  ["MN-33", "café com 1 colher de chá de açúcar e duas colherzinhas adicionais"],
+  ["MN-34", "café com 1 colher de chá de açúcar e duas gotinhas extras"],
 ] as const;
 
 export const A1339_NEW03_METAMORPHIC_POSITIVE = [
@@ -94,4 +96,8 @@ export const A1339_NEW03_METAMORPHIC_POSITIVE = [
   ["MP-17", "café com 1 colher de chá de açúcar e outras duas gotinhas do leite"],
   ["MP-18", "café com 1 colher de chá de açúcar e 2 bocadinhos de mel"],
   ["MP-19", "café com 1 colher de chá de açúcar e mais dois copinhos de leite"],
+  ["MP-20", "café com 1 colher de chá de açúcar e duas gotinhas adicionais de leite"],
+  ["MP-21", "café com 1 colher de chá de açúcar e duas colherzinhas extras de leite"],
+  ["MP-22", "café com 1 colher de chá de açúcar e duas porções adicionais de leite"],
+  ["MP-23", "café com 1 colher de chá de açúcar e duas porções extras de leite"],
 ] as const;
