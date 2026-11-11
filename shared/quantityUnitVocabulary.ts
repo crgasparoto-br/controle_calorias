@@ -113,7 +113,9 @@ const UNCERTAIN_QUANTITY_WORDS = new Set([
 ]);
 
 // A genitive identifies the owner of a quantity, independently of the ingredient.
-const INGREDIENT_GENITIVE = /^(?:de|do|da|dos|das)$/u;
+function isGenitivePreposition(value: string): boolean {
+  return /^(?:de|do|da|dos|das)$/u.test(value);
+}
 
 // Fractions are quantity syntax, not a safe gram conversion. Treat them as
 // competing amounts, including vulgar glyphs, Unicode slashes and compact units.
@@ -149,25 +151,25 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
     const unit = words[index + 1] ?? "";
     // A measured quantity can have an intervening descriptive qualifier.
     const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit);
-    const subjectOffset = compactUnit && INGREDIENT_GENITIVE.test(words[index + 1] ?? "") ? 2 :
+    const subjectOffset = compactUnit && isGenitivePreposition(words[index + 1] ?? "") ? 2 :
       hasUnit && words[index + 2] === "a" && words[index + 3] === "mais" &&
-        INGREDIENT_GENITIVE.test(words[index + 4] ?? "") ? 5 :
-      INGREDIENT_GENITIVE.test(words[index + 2] ?? "") ? 3 :
-      INGREDIENT_GENITIVE.test(words[index + 3] ?? "") && hasUnit ? 4 : 0;
+        isGenitivePreposition(words[index + 4] ?? "") ? 5 :
+      isGenitivePreposition(words[index + 2] ?? "") ? 3 :
+      isGenitivePreposition(words[index + 3] ?? "") && hasUnit ? 4 : 0;
     // A missing unit is still a quantity when its ingredient is explicit:
     // "duas de <ingredient>" or "meia a mais de <ingredient>". Keep the
     // ingredient binding rather than silently dropping the second amount.
-    const elidedSubject = !hasUnit && INGREDIENT_GENITIVE.test(unit) ? words[index + 2] :
+    const elidedSubject = !hasUnit && isGenitivePreposition(unit) ? words[index + 2] :
       !hasUnit && unit === "a" && words[index + 2] === "mais" &&
-        INGREDIENT_GENITIVE.test(words[index + 3] ?? "") ? words[index + 4] :
-      !hasUnit && INGREDIENT_GENITIVE.test(words[index + 3] ?? "") ? words[index + 4] :
-      !hasUnit && INGREDIENT_GENITIVE.test(words[index + 4] ?? "") ? words[index + 5] : null;
+        isGenitivePreposition(words[index + 3] ?? "") ? words[index + 4] :
+      !hasUnit && isGenitivePreposition(words[index + 3] ?? "") ? words[index + 4] :
+      !hasUnit && isGenitivePreposition(words[index + 4] ?? "") ? words[index + 5] : null;
     if (subjectOffset && words[index + subjectOffset]) {
       bindings.push(words[index + subjectOffset]);
     } else if (elidedSubject) {
       bindings.push(elidedSubject);
     } else if (
-      hasUnit || INGREDIENT_GENITIVE.test(unit) || !unit ||
+      hasUnit || isGenitivePreposition(unit) || !unit ||
       // A preceding alternative/coordination can lose its final operand
       // when the spoon matcher consumes only the last count ("1 ou 2").
       // It is unresolved quantity syntax, not an independent serving.
