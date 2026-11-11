@@ -170,3 +170,34 @@ export const A1339_133905_POSITIVE = [
   ["SEP-18", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e 2 bolos recheados de a\u00e7\u00facar"],
   ["SEP-19", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e 2 bolos bem recheados de a\u00e7\u00facar"],
 ] as const;
+
+
+/** A-133906: a concurrent measure of the same ingredient must never be lost. */
+export const A1339_133906_NEGATIVE = [
+  ["UQ-01", "café com uma colher de chá de açúcar e 2 cubos de açúcar"],
+  ["UQ-02", "café com uma colher de chá de açúcar e meio cubo de açúcar"],
+  ["UQ-03", "café com uma colher de chá de açúcar e 2 unidades de açúcar"],
+  ["UQ-04", "café com uma colher de chá de açúcar e uma colher de café de açúcar"],
+  ["UQ-05", "café com uma colher de chá de açúcar e 2 cubinhos de açúcar"],
+  ["UQ-06", "café com uma colher de chá de açúcar e um torrão de açúcar"],
+  ["UQ-07", "café com uma colher de chá de açúcar e 2 pedaços de açúcar"],
+  ["UQ-08", "café com uma colher de chá de açúcar e duas medidas de açúcar"],
+  ["UQ-09", "café com 2 cubos de açúcar e uma colher de chá de açúcar"],
+  ["UQ-10", "café com uma colher de chá de açúcar e mais 2 cubos de açúcar"],
+  ["UQ-11", "café com uma colher de chá de açúcar; 2 cubos de açúcar"],
+  ["UQ-12", "café com uma colher de chá de açúcar e meia unidade de açúcar"],
+  ["UQ-13", "café com uma colher de chá de açúcar e uma colher de café do açúcar"],
+] as const;
+
+/** A-133906: explicitly different ingredients and named foods are not sugar doses. */
+export const A1339_133906_POSITIVE = [
+  ["UP-01", "café com uma colher de chá de açúcar"],
+  ["UP-02", "café com uma colher de chá de açúcar e 5 g de leite"],
+  ["UP-03", "café com uma colher de chá de açúcar e 2 cubos de gelo"],
+  ["UP-04", "café com uma colher de chá de açúcar e 2 unidades de pão"],
+  ["UP-05", "café com uma colher de chá de açúcar e uma colher de café de leite"],
+  ["UP-06", "café com uma colher de chá de açúcar e 2 tortas de açúcar"],
+  ["UP-07", "café com uma colher de chá de açúcar e 2 bolos recheados de açúcar"],
+  ["UP-08", "café com uma colher de chá de açúcar e 2 bolos bem recheados de açúcar"],
+  ["UP-09", "café com uma colher de chá de açúcar e um pudim com cubinhos de açúcar"],
+] as const;

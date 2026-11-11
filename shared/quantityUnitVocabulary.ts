@@ -106,6 +106,10 @@ const UNBOUND_QUANTITY_UNITS = new Set([
   "mg", "miligrama", "miligramas", "ml", "mililitro", "mililitros",
   "l", "litro", "litros", "sache", "saches", "pacote", "pacotes",
   "pitada", "pitadas", "gota", "gotas", "punhado", "punhados",
+  // Generic portion forms, not food identities. Their unknown gram conversion
+  // must not erase a concurrent amount of the measured ingredient.
+  "un", "und", "unidade", "unidades", "cubo", "cubos", "cubinho", "cubinhos",
+  "torrao", "torroes", "pedaco", "pedacos", "medida", "medidas",
 ]);
 const UNCERTAIN_QUANTITY_WORDS = new Set([
   "meio", "meia", "metade", "algum", "alguns", "alguma", "algumas",
@@ -363,8 +367,11 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   const otherSpoons = [...remaining.matchAll(/\bcolher(?:es)?(?: de (?:cha|sopa))?\b/gu)];
   const unsafeOtherSpoon = otherSpoons.some(match => {
     const after = remaining.slice((match.index ?? 0) + match[0].length).trimStart();
-    const bound = /^(?:de|do|da|dos|das)\s+([a-z]+)/u.exec(after);
-    return !bound || bound[1] === spoonSubject;
+    // A subtype may intervene before the actual ingredient: e.g.
+    // "colher de cafe de acucar". Binding only the first genitive to "cafe"
+    // would allow a second sugar quantity to reach the portion resolver.
+    const bound = /^(?:de|do|da|dos|das)\s+([a-z]+)(?:\s+(?:de|do|da|dos|das)\s+([a-z]+))?/u.exec(after);
+    return !bound || bound[1] === spoonSubject || bound[2] === spoonSubject;
   });
   return Boolean(unmeasuredAddition) || Boolean(bareSecondMention) || unsafeOtherSpoon
     || hasUnboundSpoonQuantityContinuation(folded.slice(start + spoon[0].length), spoonSubject ?? "")

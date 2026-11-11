@@ -1,6 +1,8 @@
 import {
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
+  A1339_133906_NEGATIVE,
+  A1339_133906_POSITIVE,
   A1339_133905_POSITIVE,
   A1339_NEW03_AUDIT_POSITIVE,
   A1339_NEW03_METAMORPHIC_NEGATIVE,
@@ -741,6 +743,26 @@ describe("A-133905: unresolved repetition blocks authenticated lookup", () => {
     expect(resolveQuantity).toHaveBeenCalledTimes(1);
     expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
       userId: 17, foodName: "a\u00e7\u00facar", quantity: 1, unit: "colher de ch\u00e1",
+    }));
+  });
+});
+
+
+describe("A-133906: reject competing measure before any authenticated lookup", () => {
+  it.each(A1339_133906_NEGATIVE)("clarifies with zero lookups %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each(A1339_133906_POSITIVE)("preserves valid unique sugar component %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+    expect(resolveQuantity).toHaveBeenCalledTimes(1);
+    expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 17, foodName: "açúcar", unit: "colher de chá", quantity: 1,
     }));
   });
 });
