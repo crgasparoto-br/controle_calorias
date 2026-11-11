@@ -154,7 +154,7 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
     const subjectOffset = compactUnit && isGenitivePreposition(words[index + 1] ?? "") ? 2 :
       hasUnit && words[index + 2] === "a" && words[index + 3] === "mais" &&
         isGenitivePreposition(words[index + 4] ?? "") ? 5 :
-      isGenitivePreposition(words[index + 2] ?? "") ? 3 :
+      hasUnit && isGenitivePreposition(words[index + 2] ?? "") ? 3 :
       isGenitivePreposition(words[index + 3] ?? "") && hasUnit ? 4 : 0;
     // A missing unit is still a quantity when its ingredient is explicit:
     // "duas de <ingredient>" or "meia a mais de <ingredient>". Keep the

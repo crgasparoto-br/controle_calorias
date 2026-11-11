@@ -166,4 +166,5 @@ export const A1339_133905_POSITIVE = [
   ["SEP-14", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e pudim com pitadas de a\u00e7\u00facar"],
   ["SEP-15", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e torta com cobertura extra de a\u00e7\u00facar"],
   ["SEP-16", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e um bolo com gotas de a\u00e7\u00facar"],
+  ["SEP-17", "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar e 2 tortas de a\u00e7\u00facar"],
 ] as const;
