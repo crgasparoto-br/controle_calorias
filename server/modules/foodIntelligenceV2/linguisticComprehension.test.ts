@@ -516,6 +516,18 @@ describe("Camada de Compreensão Linguística #1304", () => {
     }
   });
 
+
+  it.each([
+    ["invalid Date", new Date("invalid")],
+    ["non-Date timestamp", "2026-11-01T12:00:00Z" as unknown as Date],
+  ] as const)("rejects %s before consulting S2", async (_case, invalidNow) => {
+    const governed = store([entry()]);
+    await expect(comprehendFoodLanguage({
+      ...base, rawText: "meu pão", now: invalidNow,
+    }, governed)).rejects.toThrow("invalid-linguistic-region-or-time");
+    expect(governed.load).not.toHaveBeenCalled();
+  });
+
   it("colisões do mesmo escopo não são resolvidas pela ordem do array", async () => {
     const [obs] = await analyze("meu pão", [entry(), entry({ id: 19, targetRef: "outra coisa" })]);
     expect(obs.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2", "S2"]);

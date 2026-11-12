@@ -511,7 +511,7 @@ export async function comprehendFoodLanguage(
     throw new Error("invalid-linguistic-transcription-confidence");
   }
   const now = request.now ?? new Date();
-  if (Number.isNaN(now.getTime()) ||
+  if (!isLinguisticLexiconEntryValidAt(null, null, now) ||
       request.modality !== "image" && (request.imageRegion !== undefined || request.imageRegionRole !== undefined) ||
       request.modality === "image" && request.imageRegion !== undefined &&
         (request.imageRegion === null ||
