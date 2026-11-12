@@ -1,3 +1,4 @@
+import { splitIndependentNounClauses } from "./grammaticalClauses";
 export const UNIT_WORDS = {
   gramas: "g|grs?|gramas?",
   quilos: "kg|quilos?",
@@ -89,57 +90,15 @@ export function countCountableSpoonMentions(text: string): number {
   return [...folded.matchAll(matcher)].length;
 }
 
-/** A coordinated food owns its qualifiers only when it begins a fresh noun
- * phrase. Measures, discourse adjuncts and bare sugar are not food owners.
- * This is a grammatical boundary, not a catalog of food identities. */
-function beginsIndependentFoodClause(candidate: string): boolean {
-  const owner = /^(.+?)\s+(?:com|sem|zero)\b/u.exec(candidate.trim())?.[1];
-  if (!owner) return false;
-  // Only explicit sugar modifiers belong to a separate food clause. A vague
-  // continuation of milk/coffee must remain visible to the quantity guard.
-  const modifier = candidate.trim().slice(owner.length).trimStart();
-  const hasSeparateSugarEvidence = modifier.includes("acucar") && (
-    modifier.startsWith("sem ") || modifier.startsWith("zero ") ||
-    modifier.startsWith("com acucar") ||
-    countCountableSpoonMentions(modifier) > 0
-  );
-  if (!hasSeparateSugarEvidence) return false;
-  const words = owner.trim().split(/\s+/u);
-  let index = 0;
-  while (/^(?:mais|outro|outra|outros|outras)$/u.test(words[index] ?? "")) index += 1;
-  if (parseCountableQuantity(words[index] ?? "") !== null ||
-      /^(?:uns|umas|alguns|algumas|meio|meia)$/u.test(words[index] ?? "")) index += 1;
-  let head = words[index] ?? "";
-  const hasMeasureHead = isMeasureHead(head);
-  if (hasMeasureHead) {
-    // "duas fatias de bolo com ..." names a food. "duas colheres
-    // de açúcar" is a measure of the existing component, not a new food.
-    if (!isGenitivePreposition(words[index + 1] ?? "")) return false;
-    head = words[index + 2] ?? "";
-  }
-  return Boolean(head && !isMeasureHead(head) && !(hasMeasureHead && isSpoonDenomination(head)) &&
-    !/^(?:acucar|com|sem|zero|de|do|da|dos|das|e|ou|mas|por|para|a|o|as|os|mais|menos|so|apenas|tambem|ainda|agora|entao|depois|logo|antes|hoje|ontem|amanha|fim|seguida|novo|novamente|isso|aquilo|nada|tudo|algum|alguma|alguns|algumas|pouco|pouca|pouquinho|pouquinha)$/u.test(head) &&
-    !/mente$/u.test(head));
-}
-
-/** Preserve ambiguous additions in the same scope, but split out a genuinely
- * named food before assigning its spoon or sugar negation to the coffee. */
-function splitIndependentFoodScopes(folded: string): string[] {
-  const parts: string[] = [];
-  let start = 0;
-  const boundaries = /(?<!\d)[,;.!?]|[,;.!?](?!\d)|\s+\b(?:e|mas|ou)\b\s+/gu;
-  for (const boundary of folded.matchAll(boundaries)) {
-    const index = boundary.index ?? 0;
-    const next = index + boundary[0].length;
-    if (!beginsIndependentFoodClause(folded.slice(next))) continue;
-    const prefix = folded.slice(start, index).trim();
-    if (prefix) parts.push(prefix);
-    start = next;
-  }
-  const remaining = folded.slice(start).trim();
-  if (remaining) parts.push(remaining);
-  return parts;
-}
+/** A noun boundary is syntax, not a second food resolver. */
+const sugarClauseGrammar = {
+  subject: "acucar",
+  parseCount: parseCountableQuantity,
+  isMeasure: isMeasureHead,
+  isSubtype: isSpoonDenomination,
+  isGenitive: isGenitivePreposition,
+  countSpoons: countCountableSpoonMentions,
+};
 
 function isCoffeeSugarScope(scope: string): boolean {
   return /\bcafe\b/u.test(scope) &&
@@ -147,7 +106,7 @@ function isCoffeeSugarScope(scope: string): boolean {
 }
 
 export function hasCoffeeSugarSpoonSyntax(text: string): boolean {
-  return splitIndependentFoodScopes(foldQuantityText(text)).some(isCoffeeSugarScope);
+  return splitIndependentNounClauses(foldQuantityText(text), sugarClauseGrammar).some(isCoffeeSugarScope);
 }
 
 /** A second measured component must not vanish when V1 splits coordinated text. */
@@ -545,7 +504,7 @@ function hasConflictingIndependentSugarScope(scope: string): boolean {
 
 export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; unit: string } | null {
   if (!hasCoffeeSugarSpoonSyntax(text)) return null;
-  const scopes = splitIndependentFoodScopes(foldQuantityText(text).trim());
+  const scopes = splitIndependentNounClauses(foldQuantityText(text).trim(), sugarClauseGrammar);
   const coffeeScopes = scopes.filter(isCoffeeSugarScope);
   // The public singular API cannot represent two different coffee portions.
   if (coffeeScopes.length !== 1) return null;
