@@ -1,5 +1,5 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
-import { hasCoffeeSugarSpoonSyntax, readCoffeeSugarSpoonSyntax } from "../../../shared/quantityUnitVocabulary";
+import { countCountableSpoonMentions, hasCoffeeSugarSpoonSyntax, readCoffeeSugarSpoonSyntax } from "../../../shared/quantityUnitVocabulary";
 import {
   prepareCountableFoodRegistrationResolved,
   type CountableFoodResolvedMeasure,
@@ -175,10 +175,16 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   const hasIdentityClarification = prepared.pendingItems.some(
     item => Boolean(item.identityClarification),
   );
+  // A countable composite with an unresolved spoon is not a safe portion to
+  // silently skip while persisting other items from the same meal.
+  const hasUnresolvedCompositeSpoon = prepared.pendingItems.some(
+    item => item.requestedUnit === "un" && countCountableSpoonMentions(item.segment) > 0,
+  );
   if (
     prepared.pendingItems.length > 0 &&
     retainedRegistrationSegments.length > 0 &&
-    !hasIdentityClarification
+    !hasIdentityClarification &&
+    !hasUnresolvedCompositeSpoon
   ) {
     return {
       kind: "ready",

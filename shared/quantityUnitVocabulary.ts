@@ -95,6 +95,16 @@ export function countCountableSpoonMentions(text: string): number {
 function beginsIndependentFoodClause(candidate: string): boolean {
   const owner = /^(.+?)\s+(?:com|sem|zero)\b/u.exec(candidate.trim())?.[1];
   if (!owner) return false;
+  // Only explicit sugar modifiers belong to a separate food clause. A vague
+  // continuation of milk/coffee must remain visible to the quantity guard.
+  const modifier = candidate.trim().slice(owner.length).trimStart();
+  const hasSeparateSugarEvidence = modifier.includes("acucar") && (
+    modifier.startsWith("sem ") || modifier.startsWith("zero ") ||
+    modifier.startsWith("com acucar") ||
+    countCountableSpoonMentions(modifier) > 0 ||
+    scanMeasuredQuantityBindings(modifier).some(subject => subject === "acucar")
+  );
+  if (!hasSeparateSugarEvidence) return false;
   const words = owner.trim().split(/\s+/u);
   let index = 0;
   while (/^(?:mais|outro|outra|outros|outras)$/u.test(words[index] ?? "")) index += 1;

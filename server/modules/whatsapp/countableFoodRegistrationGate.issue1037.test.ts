@@ -63,6 +63,43 @@ describe("countableFoodRegistrationGate issue #1037", () => {
     expect(mocks.prepareResolved).toHaveBeenCalledTimes(1);
   });
 
+  it("A-133914 retains an unresolved spoon inside another food before partial registration", async () => {
+    const text = "café sem açúcar e um pudim com uma colher de chá de açúcar";
+    const unresolved = {
+      segmentIndex: 1,
+      segment: "um pudim com uma colher de chá de açúcar",
+      foodName: "pudim com uma colher de chá de açúcar",
+      brand: null,
+      count: 1,
+      requestedUnit: "un",
+    };
+    mocks.prepareResolved.mockResolvedValue({
+      registrationSegments: ["café sem açúcar", unresolved.segment],
+      registrationText: text,
+      pendingItems: [unresolved],
+      resolutions: [],
+    });
+    mocks.requestClarification.mockResolvedValue({
+      handled: true,
+      action: "clarification_needed",
+      reply: "Informe a quantidade do componente pendente.",
+      eventType: "whatsapp.food_clarification.requested",
+      detail: "Quantidade pendente.",
+    });
+    const result = await prepareWhatsappCountableFoodRegistration({
+      userId: 42,
+      text,
+      originalText: text,
+    });
+    expect(result).toMatchObject({ kind: "clarification" });
+    expect(mocks.requestClarification).toHaveBeenCalledTimes(1);
+    expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      originalText: text,
+      registrationSegments: ["café sem açúcar", unresolved.segment],
+    }));
+  });
+
   it("preserva as resoluções junto com o registrationText no resultado ready", async () => {
     const resolutions = [{
       segmentIndex: 0,
