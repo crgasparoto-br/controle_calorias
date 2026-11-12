@@ -24,6 +24,31 @@ describe("countableFoodRegistrationGate issue #1037", () => {
     vi.clearAllMocks();
   });
 
+  it("A-133913 blocks a source-wide sugar contradiction before any countable resolution", async () => {
+    const text = "café sem açúcar e uma colher de chá de açúcar";
+    await expect(prepareWhatsappCountableFoodRegistration({
+      userId: 42, text, originalText: text,
+    })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ component: text, originalText: text }),
+    });
+    expect(mocks.prepareResolved).not.toHaveBeenCalled();
+    expect(mocks.requestClarification).not.toHaveBeenCalled();
+  });
+
+  it("A-133913 preserves countable preparation when an independent food is sugar-free", async () => {
+    const text = "café com uma colher de chá de açúcar e um pudim sem açúcar";
+    mocks.prepareResolved.mockResolvedValue({
+      registrationSegments: [text], pendingItems: [], resolutions: [],
+      registrationText: text,
+    });
+    const result = await prepareWhatsappCountableFoodRegistration({ userId: 42, text });
+    expect(result).toEqual({
+      kind: "ready", registrationText: text, resolutions: [],
+    });
+    expect(mocks.prepareResolved).toHaveBeenCalledTimes(1);
+  });
+
   it("preserva as resoluções junto com o registrationText no resultado ready", async () => {
     const resolutions = [{
       segmentIndex: 0,

@@ -1,4 +1,5 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { hasCoffeeSugarSpoonSyntax, readCoffeeSugarSpoonSyntax } from "../../../shared/quantityUnitVocabulary";
 import {
   prepareCountableFoodRegistrationResolved,
   type CountableFoodResolvedMeasure,
@@ -49,6 +50,19 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   resolvedSegments?: ResolvedRegistrationSegment[];
 }): Promise<CountableFoodRegistrationGateResult> {
   const text = input.text?.trim() ?? "";
+  // A whole-text sugar spoon contradiction must not be segmented into a
+  // "safe" coffee and an independent countable sugar portion. Check before
+  // the countable resolver can rewrite, skip, or materialize any component.
+  if (hasCoffeeSugarSpoonSyntax(text) && !readCoffeeSugarSpoonSyntax(text)) {
+    throw new MealInferenceError(
+      "A quantidade de açúcar no café está contraditória ou ambígua. Informe novamente a medida de açúcar e o alimento correspondente.",
+      { code: "food_component_quantity_required", context: {
+        component: text,
+        originalText: input.originalText?.trim() || text,
+        acceptedUnits: ["g", "colher de chá", "colher de sopa"],
+      } },
+    );
+  }
   const userTimezone = input.userTimezone ?? DEFAULT_APP_TIME_ZONE;
   const prepared = await prepareCountableFoodRegistrationResolved(
     input.userId,
