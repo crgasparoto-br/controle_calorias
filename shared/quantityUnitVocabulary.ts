@@ -101,8 +101,7 @@ function beginsIndependentFoodClause(candidate: string): boolean {
   const hasSeparateSugarEvidence = modifier.includes("acucar") && (
     modifier.startsWith("sem ") || modifier.startsWith("zero ") ||
     modifier.startsWith("com acucar") ||
-    countCountableSpoonMentions(modifier) > 0 ||
-    scanMeasuredQuantityBindings(modifier).some(subject => subject === "acucar")
+    countCountableSpoonMentions(modifier) > 0
   );
   if (!hasSeparateSugarEvidence) return false;
   const words = owner.trim().split(/\s+/u);
