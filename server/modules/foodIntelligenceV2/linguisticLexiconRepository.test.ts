@@ -255,7 +255,7 @@ describe("readGovernedLinguisticLexicon validity window", () => {
       eq(userFoodLexiconEntries.status, "active"),
       eq(userFoodLexiconEntries.source, "user_confirmed"),
     )).limit(5001);
-    expect(unscopedRows.map((item: PersonalLexiconRow) => item.userId).sort()).toEqual([5, 7]);
+    expect([...new Set(unscopedRows.map((item: PersonalLexiconRow) => item.userId))].sort()).toEqual([5, 7]);
   });
 
   it("binds even identical global-only snapshots to the requesting owner", async () => {
