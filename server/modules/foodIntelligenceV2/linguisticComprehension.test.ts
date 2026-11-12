@@ -520,6 +520,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
   it.each([
     ["invalid Date", new Date("invalid")],
     ["non-Date timestamp", "2026-11-01T12:00:00Z" as unknown as Date],
+    ["explicit null", null as unknown as Date],
   ] as const)("rejects %s before consulting S2", async (_case, invalidNow) => {
     const governed = store([entry()]);
     await expect(comprehendFoodLanguage({

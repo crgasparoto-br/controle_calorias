@@ -231,6 +231,9 @@ describe("readGovernedLinguisticLexicon validity window", () => {
       personalRow({ id: 24, userId: 5, status: "revoked", currentSlot: null, revokedAt: now }),
       personalRow({ id: 25, userId: 5, revokedAt: now }),
       personalRow({ id: 26, userId: 5, locale: "en-US" }),
+      // Corrupted/legacy combinations discriminate status and currentSlot predicates.
+      personalRow({ id: 27, userId: 5, status: "revoked", currentSlot: 1 }),
+      personalRow({ id: 28, userId: 5, currentSlot: null }),
     ]);
     vi.mocked(getDb).mockResolvedValue(db as never);
     const forFive = await readGovernedLinguisticLexicon({ locale: "pt-BR", ownerUserId: 5, now });
@@ -325,6 +328,7 @@ describe("readGovernedLinguisticLexicon validity window", () => {
   it.each([
     ["invalid Date", new Date("invalid")],
     ["non-Date timestamp", "2026-11-01T12:00:00Z" as unknown as Date],
+    ["explicit null", null as unknown as Date],
   ] as const)("rejects %s before querying the database", async (_case, invalidNow) => {
     await expect(readGovernedLinguisticLexicon({
       locale: "pt-BR", ownerUserId: 5, now: invalidNow,

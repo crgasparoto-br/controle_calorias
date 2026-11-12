@@ -510,7 +510,8 @@ export async function comprehendFoodLanguage(
         request.transcriptionConfidence < 0 || request.transcriptionConfidence > 1))) {
     throw new Error("invalid-linguistic-transcription-confidence");
   }
-  const now = request.now ?? new Date();
+  // Only an absent instant defaults to the current time; an explicit null is invalid.
+  const now = request.now === undefined ? new Date() : request.now;
   if (!isLinguisticLexiconEntryValidAt(null, null, now) ||
       request.modality !== "image" && (request.imageRegion !== undefined || request.imageRegionRole !== undefined) ||
       request.modality === "image" && request.imageRegion !== undefined &&
