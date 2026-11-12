@@ -179,7 +179,7 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
 
     const unit = words[index + 1] ?? "";
     // A measured quantity can have an intervening descriptive qualifier.
-    const hasUnit = compactUnit || isMeasureHead(unit);
+    const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit) || PORTION_CONTAINER_HEAD.test(unit);
     const subjectOffset = compactUnit && isGenitivePreposition(words[index + 1] ?? "") ? 2 :
       hasUnit && words[index + 2] === "a" && words[index + 3] === "mais" &&
         isGenitivePreposition(words[index + 4] ?? "") ? 5 :
@@ -230,6 +230,8 @@ const UNCOUNTED_INFORMAL_MEASURE =
   /^(?:colheradas?|colherzinhas?|porcaozinhas?|gotinhas?|pitadinhas?|pouquinhas?|pouquinhos?|poucos?|poucas?|tiquinhos?|tiquinhas?|cadinhos?|cadinhas?|bocados?|restos?|restinhos?|restinhas?|pontinhas?|pontinhos?|toques?|quantidades?|montes?|camadas?|sacos?|potes?|embalagens?|pacotinhos?|punhadinhos?|saquinhos?|saquetas?|tabletes?|pedrinhas?|tampinhas?|canecas?|potinhos?|bisnagas?|envelopes?|embalagemzinhas?|embalage(?:m|ns)|caixas?|caixinhas?|cubos?|cubinhos?|garrafinhas?|frasquinhos?)$/u;
 // Generic container/portion nouns are quantity syntax, not food identities.
 // Keep grammatical diminutives here instead of a catalog of product names.
+const PORTION_CONTAINER_HEAD =
+  /^(?:saquinhos?|saquetas?|tabletes?|pedrinhas?|tampinhas?|canecas?|potinhos?|bisnagas?|envelopes?|embalagemzinhas?|sacos?|potes?|embalage(?:m|ns)|pacotinhos?|caixas?|caixinhas?|cubos?|cubinhos?|garrafinhas?|frasquinhos?)$/u;
 function isMeasureHead(head: string): boolean {
   return UNBOUND_QUANTITY_UNITS.has(head) ||
     UNCOUNTED_HOUSEHOLD_MEASURE.test(head) ||
@@ -380,6 +382,8 @@ function isSeparateFoodAccompaniment(surface: string, sugarIndex: number): boole
   );
   if (withSugarParts.length < 2) return false;
   const segments = withSugarParts[0].trimEnd().split(/(?:[,;.!?]|\b(?:e|ou|mas)\b)\s*/gu);
+  // An uncoordinated mention of sugar remains unresolved, not a separate food.
+  if (segments.length < 2) return false;
   const phrase = segments.at(-1)?.trim() ?? "";
   const withoutModifiers = phrase.split(/^(?:(?:mais|so|apenas|outr[oa]s?)\s+)*/u);
   const words = (withoutModifiers.at(-1) ?? "").split(/\s+/u).filter(Boolean);
