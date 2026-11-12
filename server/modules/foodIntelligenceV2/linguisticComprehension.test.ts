@@ -517,6 +517,68 @@ describe("Camada de Compreensão Linguística #1304", () => {
   });
 
 
+  // Exercise each S2 consumer at the same instant: the repository may have
+  // loaded a snapshot, but no malformed or stale entry may gain authority.
+  const s2ValidityNow = new Date("2026-11-01T12:00:00.000Z");
+  const s2ValidityLater = new Date(s2ValidityNow.getTime() + 1);
+  const s2ValidityCases: Array<{
+    name: string;
+    validFrom: GovernedLexiconEntry["validFrom"];
+    validTo: GovernedLexiconEntry["validTo"];
+    eligible: boolean;
+  }> = [
+    { name: "open bounds", validFrom: null, validTo: null, eligible: true },
+    { name: "inclusive start, exclusive end", validFrom: s2ValidityNow, validTo: s2ValidityLater, eligible: true },
+    { name: "future start", validFrom: s2ValidityLater, validTo: null, eligible: false },
+    { name: "end at now", validFrom: null, validTo: s2ValidityNow, eligible: false },
+    { name: "invalid Date start", validFrom: new Date("invalid"), validTo: null, eligible: false },
+    { name: "invalid Date end", validFrom: null, validTo: new Date("invalid"), eligible: false },
+    { name: "textual start", validFrom: "2026-11-01" as unknown as Date, validTo: null, eligible: false },
+    { name: "undefined end", validFrom: null, validTo: undefined as unknown as Date, eligible: false },
+  ];
+
+  it("unit_term só atribui unidade pela vigência governada, inclusive limites e entradas inválidas", async () => {
+    const rawText = "2 canecas de leite";
+    for (const { name, validFrom, validTo, eligible } of s2ValidityCases) {
+      const [observed] = await analyze(rawText, [entry({
+        id: 760, kind: "unit_term", term: "canecas", normalizedTerm: "canecas",
+        targetRef: "copo", validFrom, validTo,
+      })], { now: s2ValidityNow });
+      expect(observed.quantityHints, name).toMatchObject({
+        value: eligible ? 2 : null, unit: eligible ? "copo" : null,
+      });
+      expect(observed.normalizationPath.map(step => step.stage), name)
+        .toEqual(eligible ? ["S1", "S2"] : ["S1"]);
+      expect(observed.evidence.some(evidence => evidence.field === "quantity.unit" &&
+        evidence.unit === "copo"), name).toBe(eligible);
+      expect(observed.rawInput, name).toBe(rawText);
+      expect(observed.surfaceSpan.span, name).toEqual({ start: 0, end: rawText.length });
+    }
+  });
+
+  it("protected_token só protege conjunção interna durante vigência válida, sem ocultar outros alimentos", async () => {
+    const rawText = "1 Pão e Cia e 1 banana";
+    for (const { name, validFrom, validTo, eligible } of s2ValidityCases) {
+      const observed = await analyze(rawText, [entry({
+        id: 761, kind: "protected_token", term: "Pão e Cia",
+        normalizedTerm: "pão e cia", targetType: "none", targetRef: null,
+        validFrom, validTo,
+      })], { now: s2ValidityNow });
+      expect(observed.map(item => item.identityHints.foodName), name).toEqual(
+        eligible ? ["pao e cia", "banana"] : ["pao", "cia", "banana"],
+      );
+      expect(observed.map(item => item.quantityHints.value), name).toEqual(
+        eligible ? [1, 1] : [1, null, 1],
+      );
+      for (const item of observed) {
+        expect(item.rawInput, name).toBe(rawText);
+        const span = item.surfaceSpan.span;
+        expect(span, name).not.toBeNull();
+        expect(rawText.slice(span!.start, span!.end), name).not.toBe("");
+      }
+    }
+  });
+
   it.each([
     ["invalid Date", new Date("invalid")],
     ["non-Date timestamp", "2026-11-01T12:00:00Z" as unknown as Date],
