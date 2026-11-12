@@ -179,7 +179,7 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
 
     const unit = words[index + 1] ?? "";
     // A measured quantity can have an intervening descriptive qualifier.
-    const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit) || PORTION_CONTAINER_HEAD.test(unit);
+    const hasUnit = compactUnit || isMeasureHead(unit);
     const subjectOffset = compactUnit && isGenitivePreposition(words[index + 1] ?? "") ? 2 :
       hasUnit && words[index + 2] === "a" && words[index + 3] === "mais" &&
         isGenitivePreposition(words[index + 4] ?? "") ? 5 :
@@ -227,16 +227,13 @@ const UNCOUNTED_HOUSEHOLD_MEASURE = new RegExp(
   "u",
 );
 const UNCOUNTED_INFORMAL_MEASURE =
-  /^(?:colheradas?|colherzinhas?|porcaozinhas?|gotinhas?|pitadinhas?|pouquinhas?|pouquinhos?|poucos?|poucas?|tiquinhos?|tiquinhas?|cadinhos?|cadinhas?|bocados?|restos?|restinhos?|restinhas?|pontinhas?|pontinhos?|toques?|quantidades?|montes?|camadas?|sacos?|potes?|embalagens?|pacotinhos?|punhadinhos?)$/u;
+  /^(?:colheradas?|colherzinhas?|porcaozinhas?|gotinhas?|pitadinhas?|pouquinhas?|pouquinhos?|poucos?|poucas?|tiquinhos?|tiquinhas?|cadinhos?|cadinhas?|bocados?|restos?|restinhos?|restinhas?|pontinhas?|pontinhos?|toques?|quantidades?|montes?|camadas?|sacos?|potes?|embalagens?|pacotinhos?|punhadinhos?|saquinhos?|saquetas?|tabletes?|pedrinhas?|tampinhas?|canecas?|potinhos?|bisnagas?|envelopes?|embalagemzinhas?|embalage(?:m|ns)|caixas?|caixinhas?|cubos?|cubinhos?|garrafinhas?|frasquinhos?)$/u;
 // Generic container/portion nouns are quantity syntax, not food identities.
 // Keep grammatical diminutives here instead of a catalog of product names.
-const PORTION_CONTAINER_HEAD =
-  /^(?:saquinhos?|saquetas?|tabletes?|pedrinhas?|tampinhas?|canecas?|potinhos?|bisnagas?|envelopes?|embalagemzinhas?|sacos?|potes?|embalage(?:m|ns)|pacotinhos?|caixas?|caixinhas?|cubos?|cubinhos?|garrafinhas?|frasquinhos?)$/u;
 function isMeasureHead(head: string): boolean {
   return UNBOUND_QUANTITY_UNITS.has(head) ||
     UNCOUNTED_HOUSEHOLD_MEASURE.test(head) ||
-    UNCOUNTED_INFORMAL_MEASURE.test(head) ||
-    PORTION_CONTAINER_HEAD.test(head);
+    UNCOUNTED_INFORMAL_MEASURE.test(head);
 }
 
 /** A genitive is not always another food: an uncounted measure of the same
@@ -376,15 +373,16 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
  * cannot claim a separate food binding. This is syntax, not a food-name list. */
 function isSeparateFoodAccompaniment(surface: string, sugarIndex: number): boolean {
   const preceding = surface.slice(0, sugarIndex).trimEnd();
-  const withSugar = /\bcom(?:\s+(?:mais|menos|algum|alguma|alguns|algumas|muito|muita|pouco|pouca|um|uma|uns|umas))*\s*$/u.exec(preceding);
-  if (!withSugar) return false;
-  const beforeWith = preceding.slice(0, withSugar.index).trimEnd();
-  const boundaries = [...beforeWith.matchAll(/(?:[,;.!?]|\b(?:e|ou|mas)\b)\s*/gu)];
-  const boundary = boundaries.at(-1);
-  if (!boundary) return false;
-  const phrase = beforeWith.slice((boundary.index ?? 0) + boundary[0].length).trim();
-  const words = phrase.split(/\s+/u).filter(Boolean);
-  while (["mais", "so", "apenas", "outro", "outra", "outros", "outras"].includes(words[0])) words.shift();
+  // Split grammatical boundaries without creating another food-name lexicon.
+  // A trailing "com [modifier] acucar" is not enough to identify its owner.
+  const withSugarParts = preceding.split(
+    /\bcom(?:\s+(?:mais|menos|algum|alguma|alguns|algumas|muito|muita|pouco|pouca|um|uma|uns|umas))*\s*$/u,
+  );
+  if (withSugarParts.length < 2) return false;
+  const segments = withSugarParts[0].trimEnd().split(/(?:[,;.!?]|\b(?:e|ou|mas)\b)\s*/gu);
+  const phrase = segments.at(-1)?.trim() ?? "";
+  const withoutModifiers = phrase.split(/^(?:(?:mais|so|apenas|outr[oa]s?)\s+)*/u);
+  const words = (withoutModifiers.at(-1) ?? "").split(/\s+/u).filter(Boolean);
   if (words.length > 1 && (parseCountableQuantity(words[0]) !== null ||
       isFractionalQuantityToken(words[0]))) words.shift();
   let head = words[0];
@@ -393,11 +391,13 @@ function isSeparateFoodAccompaniment(surface: string, sugarIndex: number): boole
     if (!isGenitivePreposition(words[1] ?? "")) return false;
     head = words[2];
   }
-  // No named item or a functional word followed by "com acucar" does not
-  // establish a new food; treat the competing sugar as unresolved.
-  return Boolean(head && !isMeasureHead(head) &&
-    !/^(?:com|sem|de|do|da|dos|das|para|por|no|na|depois|entao|agora|ainda|tambem|logo|enfim|assim|fim|seguida|novo|novamente|mais|menos|acucar|que|isso|aquilo|tudo|nada)$/u.test(head) &&
-    !head.endsWith("mente"));
+  // Function words and circumstantial adverbs are not ingredient owners.
+  // Only quantity syntax is inspected; no food is identified or catalogued.
+  const functional = (head ?? "").split(
+    /^(?:com|sem|de|do|da|dos|das|para|por|no|na|depois|entao|agora|ainda|tambem|logo|enfim|assim|fim|seguida|novo|novamente|mais|menos|acucar|que|isso|aquilo|tudo|nada)$/u,
+  ).length > 1;
+  const adverb = (head ?? "").split(/mente$/u).length > 1;
+  return Boolean(head && !isMeasureHead(head) && !functional && !adverb);
 }
 
 /** Do not split an unresolved competing quantity away from its spoon component. */
