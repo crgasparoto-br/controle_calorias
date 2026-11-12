@@ -179,7 +179,11 @@ function scanMeasuredQuantityBindings(surface: string): Array<string | null> {
 
     const unit = words[index + 1] ?? "";
     // A measured quantity can have an intervening descriptive qualifier.
-    const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit) || PORTION_CONTAINER_HEAD.test(unit);
+    // Unknown gram conversions are still measured amounts when the head is a
+    // generic utensil. Do not broaden this to all unbound colloquial measures:
+    // "leite com duas gotinhas" has its own backwards ingredient binding.
+    const hasUnit = compactUnit || UNBOUND_QUANTITY_UNITS.has(unit) ||
+      PORTION_CONTAINER_HEAD.test(unit) || UNVERIFIED_MEASURE_HEAD.test(unit);
     const subjectOffset = compactUnit && isGenitivePreposition(words[index + 1] ?? "") ? 2 :
       hasUnit && words[index + 2] === "a" && words[index + 3] === "mais" &&
         isGenitivePreposition(words[index + 4] ?? "") ? 5 :
@@ -228,14 +232,15 @@ const UNCOUNTED_HOUSEHOLD_MEASURE = new RegExp(
 );
 const UNCOUNTED_INFORMAL_MEASURE =
   /^(?:colheradas?|colherzinhas?|porcaozinhas?|gotinhas?|pitadinhas?|pouquinhas?|pouquinhos?|poucos?|poucas?|tiquinhos?|tiquinhas?|cadinhos?|cadinhas?|bocados?|restos?|restinhos?|restinhas?|pontinhas?|pontinhos?|toques?|quantidades?|montes?|camadas?|sacos?|potes?|embalagens?|pacotinhos?|punhadinhos?|saquinhos?|saquetas?|tabletes?|pedrinhas?|tampinhas?|canecas?|potinhos?|bisnagas?|envelopes?|embalagemzinhas?|embalage(?:m|ns)|caixas?|caixinhas?|cubos?|cubinhos?|garrafinhas?|frasquinhos?)$/u;
-// Generic container/portion nouns are quantity syntax, not food identities.
-// Keep grammatical diminutives here instead of a catalog of product names.
+// Heads that describe a physical portion but have no safe gram conversion.
+// Only linguistic measure forms belong here, never food identities.
+const UNVERIFIED_MEASURE_HEAD = /^(?:pas?|pazinh[oa]s?|conchas?|conchinhas?|tampas?|scoops?)$/u;
 const PORTION_CONTAINER_HEAD =
   /^(?:saquinhos?|saquetas?|tabletes?|pedrinhas?|tampinhas?|canecas?|potinhos?|bisnagas?|envelopes?|embalagemzinhas?|sacos?|potes?|embalage(?:m|ns)|pacotinhos?|caixas?|caixinhas?|cubos?|cubinhos?|garrafinhas?|frasquinhos?)$/u;
 function isMeasureHead(head: string): boolean {
   return UNBOUND_QUANTITY_UNITS.has(head) ||
     UNCOUNTED_HOUSEHOLD_MEASURE.test(head) ||
-    UNCOUNTED_INFORMAL_MEASURE.test(head);
+    UNCOUNTED_INFORMAL_MEASURE.test(head) || UNVERIFIED_MEASURE_HEAD.test(head);
 }
 
 /** A genitive is not always another food: an uncounted measure of the same
@@ -436,6 +441,11 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   // binding is explicit. Counting all spoon tokens globally rejects milk.
   const otherSpoons = [...remaining.matchAll(/\bcolher(?:es)?(?: de (?:cha|sopa))?\b/gu)];
   const unsafeOtherSpoon = otherSpoons.some(match => {
+    // "brigadeiro de colher" is a food-name modifier, not a second spoon.
+    // A real spoon unit starts a measure phrase; it is not the object of a
+    // preceding genitive inside a different noun phrase.
+    const before = remaining.slice(0, match.index ?? 0).trimEnd();
+    if (/\b(?:de|do|da|dos|das)$/u.test(before)) return false;
     const after = remaining.slice((match.index ?? 0) + match[0].length).trimStart();
     // A denomination is not an ingredient: "colher de cafe" remains
     // unresolved, while "colher de cafe de leite" is explicitly bound.

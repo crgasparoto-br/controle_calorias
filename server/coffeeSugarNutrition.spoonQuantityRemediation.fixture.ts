@@ -279,3 +279,42 @@ export const A1339_133909_POSITIVE = [
   ["P9-16", "café com uma colher de chá de açúcar e 2 potes de leite"],
   ["P9-17", "café com uma colher de chá de açúcar e 3 caixinhas de leite"],
 ] as const;
+
+
+/** A-133911: a competing amount bound to the same sugar cannot vanish because
+ * its utensil lacks a certified gram conversion. These are syntax-only cases. */
+const A1339_INDEPENDENT_AUDIT_BASE = "caf\u00e9 com uma colher de ch\u00e1 de a\u00e7\u00facar";
+export const A1339_133911_NEGATIVE = ([
+  ["S11-01", "duas pazinhas de a\u00e7\u00facar"],
+  ["S11-02", "duas conchas de a\u00e7\u00facar"],
+  ["S11-03", "um scoop de a\u00e7\u00facar"],
+  ["S11-04", "uma tampa de a\u00e7\u00facar"],
+  ["S11-05", "tr\u00eas pazinhas do a\u00e7\u00facar"],
+  ["S11-06", "mais uma concha de a\u00e7\u00facar"],
+  ["S11-07", "2 scoops de a\u00e7\u00facar"],
+  ["S11-08", "outra tampa de a\u00e7\u00facar"],
+  ["S11-09", "conchas de a\u00e7\u00facar"],
+  ["S11-10", "um bolo com a\u00e7\u00facar e uma tampa de a\u00e7\u00facar"],
+  ["S11-11", "mais 2 conchinhas de a\u00e7\u00facar"],
+  ["S11-12", "2 p\u00e1s de a\u00e7\u00facar"],
+  ["S12-N1", "um brigadeiro de colher e mais uma colher"],
+  ["S12-N2", "um brigadeiro de colher e duas colheres de a\u00e7\u00facar"],
+  ["S12-N3", "uma colher de sobremesa"],
+] as const).map(([id, ending]) => [id, A1339_INDEPENDENT_AUDIT_BASE + " e " + ending] as const);
+
+/** A-133912: "de colher" is part of another food's name, not a count of
+ * tablespoons. Binding remains based on syntax, not hardcoded food names. */
+export const A1339_133912_POSITIVE = ([
+  ["S12-01", "um brigadeiro de colher"],
+  ["S12-02", "um pudim de colher"],
+  ["S12-03", "dois brigadeiros de colher"],
+  ["S12-04", "um bolo de colher"],
+  ["S12-05", "um doce de colher"],
+  ["S12-06", "2 brigadeiros de colher e leite"],
+  ["S12-07", "uma colher de sopa de leite e um brigadeiro de colher"],
+  ["S11-P1", "2 conchas de leite"],
+  ["S11-P2", "duas pazinhas de leite"],
+  ["S11-P3", "2 scoops de whey"],
+  ["S11-P4", "2 tortas de a\u00e7\u00facar"],
+  ["S11-P5", "mais uma colher de leite"],
+] as const).map(([id, ending]) => [id, A1339_INDEPENDENT_AUDIT_BASE + " e " + ending] as const);

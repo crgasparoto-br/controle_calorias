@@ -1,5 +1,7 @@
 import {
   A1339_133908_NEGATIVE,
+  A1339_133911_NEGATIVE,
+  A1339_133912_POSITIVE,
   A1339_133909_POSITIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
@@ -623,6 +625,19 @@ describe("A-133908/A-133909: packaged measures vs distinct foods", () => {
   });
 
   it.each(A1339_133909_POSITIVE)("preserves a separate food without inventing sugar grams %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+});
+
+
+describe("A-133911/A-133912: unknown utensils vs independent foods of spoon", () => {
+  it.each(A1339_133911_NEGATIVE)("fails closed on a second measured sugar amount %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+
+  it.each(A1339_133912_POSITIVE)("keeps a single measured spoon with a separate food %s", (_id, text) => {
     expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
   });
 });

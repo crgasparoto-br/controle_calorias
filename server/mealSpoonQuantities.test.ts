@@ -1,5 +1,7 @@
 import {
   A1339_133908_NEGATIVE,
+  A1339_133911_NEGATIVE,
+  A1339_133912_POSITIVE,
   A1339_133909_POSITIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
@@ -812,5 +814,27 @@ describe("A-133908/A-133909: authenticate only an unambiguous sugar measure", ()
     expect(resolveQuantity).toHaveBeenCalledWith(expect.objectContaining({
       userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
     }));
+  });
+});
+
+
+describe("A-133911/A-133912: ingredient-scoped spoon decisions", () => {
+  it.each(A1339_133911_NEGATIVE)("does not query a partial sugar measurement %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each(A1339_133912_POSITIVE)("resolves sugar only under the authenticated identity %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async (_request: Parameters<typeof resolveCanonicalFoodQuantity>[0]) => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "a\u00e7\u00facar", quantity: 1 });
+    const sugarCalls = resolveQuantity.mock.calls.filter(([request]) => request.foodName === "a\u00e7\u00facar");
+    expect(sugarCalls).toHaveLength(1);
+    expect(sugarCalls[0]?.[0]).toEqual(expect.objectContaining({
+      userId: 17, foodName: "a\u00e7\u00facar", quantity: 1, unit: "colher de ch\u00e1",
+    }));
+    expect(resolveQuantity.mock.calls.every(([request]) => request.userId === 17)).toBe(true);
   });
 });

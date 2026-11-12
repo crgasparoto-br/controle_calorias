@@ -1,5 +1,6 @@
 import {
   A1339_133908_NEGATIVE,
+  A1339_133911_NEGATIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
   A1339_133905_NEGATIVE,
   A1339_133906_NEGATIVE,
@@ -466,6 +467,19 @@ describe("A-133907: unbound spoon is clarified before AI inference", () => {
 
 describe("A-133908: competing sugar packaging is clarified before AI", () => {
   it.each(A1339_133908_NEGATIVE)("requires explicit quantity clarification %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("A-133911: competing utensil measurements never reach inference", () => {
+  it.each(A1339_133911_NEGATIVE)("asks for the missing quantity before AI %s", async (_id, text) => {
     createTextResponseMock.mockReset();
     const { processMealInput } = await import("./nutritionEngine");
     await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
