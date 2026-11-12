@@ -289,3 +289,44 @@ describe("processMealInputWithPartialFailures", () => {
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe("A-133913: atomic clarification of an unbound whole-meal measure", () => {
+  beforeEach(() => processMealInputMock.mockReset());
+
+  it("never splits a source-wide ambiguous spoon into separately registered foods", async () => {
+    const text = "café sem açúcar e uma colher de chá de açúcar";
+    processMealInputMock.mockImplementation(async ({ text: segment }: { text?: string }) => {
+      if (segment === text) {
+        throw new MealInferenceError("A medida do açúcar não está vinculada", {
+          code: "food_component_quantity_required",
+          context: { component: text, originalText: text },
+        });
+      }
+      return processed(segment ?? "");
+    });
+    await expect(processMealInputWithPartialFailures({ text })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: { component: text, originalText: text },
+    });
+    expect(processMealInputMock).toHaveBeenCalledTimes(1);
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({ text }));
+  });
+
+  it("keeps independent-food partial registration for an ingredient-specific clarification", async () => {
+    const text = "1 pão francês, café com açúcar";
+    processMealInputMock.mockImplementation(async ({ text: segment }: { text?: string }) => {
+      if ((segment ?? "").includes("café")) {
+        throw new MealInferenceError("Informe quanto açúcar foi usado", {
+          code: "food_component_quantity_required",
+          context: { component: "açúcar", originalText: segment },
+        });
+      }
+      return processed(segment ?? "");
+    });
+    const result = await processMealInputWithPartialFailures({ text });
+    expect(result.processed.items).toHaveLength(1);
+    expect(result.skippedSegments).toHaveLength(1);
+    expect(processMealInputMock).toHaveBeenCalledTimes(3);
+  });
+});

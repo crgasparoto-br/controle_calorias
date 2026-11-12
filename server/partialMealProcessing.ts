@@ -168,7 +168,16 @@ export async function processMealInputWithPartialFailures(
       skippedSegments: [],
     };
   } catch (error) {
-    if (!isPartialRegistrationEligibleError(error) || segments.length <= 1) {
+    // The canonical spoon parser identifies a competing amount with no
+    // distinct ingredient by returning the entire input as its unresolved
+    // component. Splitting that same input would erase the contradiction and
+    // could persist the apparently safe coffee without clarifying its sugar.
+    // A specific ingredient (e.g. just "açúcar") still allows independent
+    // registered foods to follow the normal partial-registration policy.
+    const unresolvedWholeInput = error instanceof MealInferenceError &&
+      error.code === "food_component_quantity_required" &&
+      error.context?.originalText === text && error.context?.component === text;
+    if (unresolvedWholeInput || !isPartialRegistrationEligibleError(error) || segments.length <= 1) {
       throw error;
     }
     return processSegmentsIndividually(input, segments, [], error);

@@ -513,6 +513,11 @@ describe("A-133913: fail-closed only for negation in the coffee's own scope", ()
       code: "food_component_quantity_required",
       context: expect.objectContaining({ component: "açúcar", originalText: text }),
     });
-    expect(createTextResponseMock).not.toHaveBeenCalled();
+    // A real canonical spoon quantity may require a governed external measure
+    // lookup. Do not confuse that scoped request with whole-meal AI inference.
+    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
+    expect(createTextResponseMock.mock.calls.every(([request]) =>
+      (request as { format?: { name?: string } })?.format?.name === "household_measure_lookup"
+    )).toBe(true);
   });
 });
