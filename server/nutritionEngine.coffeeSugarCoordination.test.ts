@@ -1,4 +1,7 @@
 import {
+  A133914_DISTINCT_FOOD_SUGAR_POSITIVE,
+  A133914_OTHER_FOOD_SUGAR_ONLY,
+  A133914_SUGAR_SCOPE_NEGATIVE,
   A133913_INDEPENDENT_NEGATION_POSITIVE,
   A133913_COFFEE_NEGATION_NEGATIVE,
   A1339_133908_NEGATIVE,
@@ -519,5 +522,40 @@ describe("A-133913: fail-closed only for negation in the coffee's own scope", ()
     expect(createTextResponseMock.mock.calls.every(([request]) =>
       (request as { format?: { name?: string } })?.format?.name === "household_measure_lookup"
     )).toBe(true);
+  });
+});
+
+describe("A-133914: distinct sugar spoon owners never become a whole-meal contradiction", () => {
+  it.each(A133914_DISTINCT_FOOD_SUGAR_POSITIVE.slice(0, 4))("asks about an unresolved food, not the whole meal %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    try {
+      await processMealInput({ text, userId: 17 });
+      throw new Error("Expected a measured-food clarification");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "food_component_quantity_required" });
+      const context = (error as { context?: { component?: string; originalText?: string } }).context;
+      expect(context?.originalText).toBe(text);
+      expect(context?.component).not.toBe(text);
+    }
+  });
+
+  it.each(A133914_OTHER_FOOD_SUGAR_ONLY.slice(0, 3))("does not attribute another food's sugar to unsweetened coffee %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+  });
+
+  it.each(A133914_SUGAR_SCOPE_NEGATIVE.slice(0, 3))("keeps real contradictions before AI %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ component: text, originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
   });
 });

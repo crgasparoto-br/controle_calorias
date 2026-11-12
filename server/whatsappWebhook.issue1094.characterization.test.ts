@@ -1,4 +1,7 @@
 import {
+  A133914_DISTINCT_FOOD_SUGAR_POSITIVE,
+  A133914_OTHER_FOOD_SUGAR_ONLY,
+  A133914_SUGAR_SCOPE_NEGATIVE,
   A133913_INDEPENDENT_NEGATION_POSITIVE,
   A133913_COFFEE_NEGATION_NEGATIVE,
   A1339_133908_NEGATIVE,
@@ -3352,6 +3355,43 @@ describe("A-133913: WhatsApp public POST scopes sugar negation before a meal wri
     expect(response.status).toBe(200);
     // The productive path may still need a certified gram conversion. Its
     // separate clarification cannot invent a partial meal or missing macros.
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});
+
+describe("A-133914: public WhatsApp registration keeps independent food scopes", () => {
+  it.each([
+    ...A133914_DISTINCT_FOOD_SUGAR_POSITIVE.slice(0, 3),
+    ...A133914_OTHER_FOOD_SUGAR_ONLY.slice(0, 2),
+  ])("does not persist a meal with unresolved distinct spoon portions %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: "wamid-133914-p-" + id,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+
+  it.each(A133914_SUGAR_SCOPE_NEGATIVE.slice(0, 3))("keeps contradicting portions atomic on POST %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: "wamid-133914-n-" + id,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
     expect(state.metrics.persistedMeals).toBe(0);
     expect(state.metrics.persistedItems).toBe(0);
     expect(await listUserMeals(userId)).toHaveLength(0);

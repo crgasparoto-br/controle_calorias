@@ -358,3 +358,39 @@ export const A133913_COFFEE_NEGATION_NEGATIVE = [
   ["N13-N12", "café zero açúcar com uma colher de chá de açúcar"],
   ["N13-N13", "café sem açúcar e uma colher de chá de açúcar"],
 ] as const;
+
+/** A-133914: a quantified sugar spoon has a food owner, not a global meal owner. */
+const A133914_MEASURED_COFFEE = "café com uma colher de chá de açúcar";
+export const A133914_DISTINCT_FOOD_SUGAR_POSITIVE = [
+  ["S14-P01", A133914_MEASURED_COFFEE + " e um pudim com duas colheres de chá de açúcar"],
+  ["S14-P02", "um pudim com duas colheres de chá de açúcar e " + A133914_MEASURED_COFFEE],
+  ["S14-P03", A133914_MEASURED_COFFEE + " e chá com uma colher de sopa de açúcar"],
+  ["S14-P04", A133914_MEASURED_COFFEE + "; um pudim com duas colheres de chá de açúcar"],
+  ["S14-P05", A133914_MEASURED_COFFEE + ", um pudim com duas colheres de chá de açúcar"],
+  ["S14-P06", "um pudim com duas colheres de chá de açúcar; " + A133914_MEASURED_COFFEE],
+  ["S14-P07", A133914_MEASURED_COFFEE + " e duas fatias de bolo com duas colheres de chá de açúcar"],
+  ["S14-P08", A133914_MEASURED_COFFEE + " e um brigadeiro de colher com duas colheres de chá de açúcar"],
+  ["S14-P09", A133914_MEASURED_COFFEE + " e dois bolos com uma colher de sopa de açúcar"],
+  ["S14-P10", A133914_MEASURED_COFFEE + " e um bolo com duas colheres de chá de açúcar e um iogurte sem açúcar"],
+  ["S14-P11", "chá com uma colher de sopa de açúcar e " + A133914_MEASURED_COFFEE],
+  ["S14-P12", A133914_MEASURED_COFFEE + " e uma banana com uma colher de chá de açúcar"],
+] as const;
+
+/** A spoon belonging exclusively to another food is never a coffee spoon. */
+export const A133914_OTHER_FOOD_SUGAR_ONLY = [
+  ["S14-O01", "café sem açúcar e um pudim com uma colher de chá de açúcar"],
+  ["S14-O02", "um pudim com uma colher de chá de açúcar e café sem açúcar"],
+  ["S14-O03", "café sem açúcar; um pudim com uma colher de chá de açúcar"],
+  ["S14-O04", "café sem açúcar e chá com uma colher de sopa de açúcar"],
+  ["S14-O05", "chá com uma colher de sopa de açúcar e café sem açúcar"],
+] as const;
+
+/** An independent noun phrase cannot launder a contradiction or unbound dose. */
+export const A133914_SUGAR_SCOPE_NEGATIVE = [
+  ["S14-N01", "café sem açúcar e uma colher de chá de açúcar"],
+  ["S14-N02", A133914_MEASURED_COFFEE + " e duas colheres de sopa de açúcar"],
+  ["S14-N03", A133914_MEASURED_COFFEE + " e um bolo sem açúcar e mais uma colher de açúcar"],
+  ["S14-N04", A133914_MEASURED_COFFEE + " e um pudim com duas colheres de chá de açúcar e mais uma colher de açúcar"],
+  ["S14-N05", A133914_MEASURED_COFFEE + " e um bolo com açúcar e 2 saquinhos de açúcar"],
+  ["S14-N06", A133914_MEASURED_COFFEE + " e leite com duas gotinhas e mais duas"],
+] as const;

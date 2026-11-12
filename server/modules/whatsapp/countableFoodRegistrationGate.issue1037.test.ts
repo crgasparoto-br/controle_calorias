@@ -49,6 +49,20 @@ describe("countableFoodRegistrationGate issue #1037", () => {
     expect(mocks.prepareResolved).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    "café com uma colher de chá de açúcar e um pudim com duas colheres de chá de açúcar",
+    "um pudim com duas colheres de chá de açúcar e café com uma colher de chá de açúcar",
+    "café com uma colher de chá de açúcar e chá com uma colher de sopa de açúcar",
+    "café sem açúcar e um pudim com uma colher de chá de açúcar",
+  ])("A-133914 never blocks a second food's spoon in the countable preflight: %s", async text => {
+    mocks.prepareResolved.mockResolvedValue({
+      registrationSegments: [text], pendingItems: [], resolutions: [], registrationText: text,
+    });
+    const result = await prepareWhatsappCountableFoodRegistration({ userId: 42, text });
+    expect(result).toMatchObject({ kind: "ready", registrationText: text });
+    expect(mocks.prepareResolved).toHaveBeenCalledTimes(1);
+  });
+
   it("preserva as resoluções junto com o registrationText no resultado ready", async () => {
     const resolutions = [{
       segmentIndex: 0,

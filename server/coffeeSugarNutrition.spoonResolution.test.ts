@@ -1,4 +1,7 @@
 import {
+  A133914_DISTINCT_FOOD_SUGAR_POSITIVE,
+  A133914_OTHER_FOOD_SUGAR_ONLY,
+  A133914_SUGAR_SCOPE_NEGATIVE,
   A133913_INDEPENDENT_NEGATION_POSITIVE,
   A133913_COFFEE_NEGATION_NEGATIVE,
   A1339_133908_NEGATIVE,
@@ -21,6 +24,7 @@ import {
   appendSugarQuantityToCoffeeText,
   buildCoffeeWithExplicitSugarItem,
   extractCoffeeSugarSpoonRequest,
+  isCoffeeSugarSpoonMention,
   extractExplicitSugarQuantity,
   hasUnresolvedMeasuredCoffeeComposite,
   normalizeSweetenedCoffeeDraftItems,
@@ -654,5 +658,22 @@ describe("A-133913: sugar negation is scoped to its actual food", () => {
     expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
     expect(extractExplicitSugarQuantity(text)).toBeNull();
     expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
+  });
+});
+
+describe("A-133914: independent food owns its sugar spoon", () => {
+  it.each(A133914_DISTINCT_FOOD_SUGAR_POSITIVE)("preserves the coffee's single spoon %s", (_id, text) => {
+    expect(isCoffeeSugarSpoonMention(text)).toBe(true);
+    expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+
+  it.each(A133914_OTHER_FOOD_SUGAR_ONLY)("does not transfer another food's spoon to unsweetened coffee %s", (_id, text) => {
+    expect(isCoffeeSugarSpoonMention(text)).toBe(false);
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+  });
+
+  it.each(A133914_SUGAR_SCOPE_NEGATIVE)("retains genuine contradictions and unbound quantities %s", (_id, text) => {
+    expect(isCoffeeSugarSpoonMention(text)).toBe(true);
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
   });
 });

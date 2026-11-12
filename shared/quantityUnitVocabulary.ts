@@ -89,14 +89,56 @@ export function countCountableSpoonMentions(text: string): number {
   return [...folded.matchAll(matcher)].length;
 }
 
+/** A coordinated food owns its qualifiers only when it begins a fresh noun
+ * phrase. Measures, discourse adjuncts and bare sugar are not food owners.
+ * This is a grammatical boundary, not a catalog of food identities. */
+function beginsIndependentFoodClause(candidate: string): boolean {
+  const owner = /^(.+?)\s+(?:com|sem|zero)\b/u.exec(candidate.trim())?.[1];
+  if (!owner) return false;
+  const words = owner.trim().split(/\s+/u);
+  let index = 0;
+  while (/^(?:mais|outro|outra|outros|outras)$/u.test(words[index] ?? "")) index += 1;
+  if (parseCountableQuantity(words[index] ?? "") !== null ||
+      /^(?:uns|umas|alguns|algumas|meio|meia)$/u.test(words[index] ?? "")) index += 1;
+  let head = words[index] ?? "";
+  const hasMeasureHead = isMeasureHead(head);
+  if (hasMeasureHead) {
+    // "duas fatias de bolo com ..." names a food. "duas colheres
+    // de açúcar" is a measure of the existing component, not a new food.
+    if (!isGenitivePreposition(words[index + 1] ?? "")) return false;
+    head = words[index + 2] ?? "";
+  }
+  return Boolean(head && !isMeasureHead(head) && !(hasMeasureHead && isSpoonDenomination(head)) &&
+    !/^(?:acucar|com|sem|zero|de|do|da|dos|das|e|ou|mas|por|para|a|o|as|os|mais|menos|so|apenas|tambem|ainda|agora|entao|depois|logo|antes|hoje|ontem|amanha|fim|seguida|novo|novamente|isso|aquilo|nada|tudo|algum|alguma|alguns|algumas|pouco|pouca|pouquinho|pouquinha)$/u.test(head) &&
+    !/mente$/u.test(head));
+}
+
+/** Preserve ambiguous additions in the same scope, but split out a genuinely
+ * named food before assigning its spoon or sugar negation to the coffee. */
+function splitIndependentFoodScopes(folded: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  const boundaries = /(?<!\d)[,;.!?]|[,;.!?](?!\d)|\s+\b(?:e|mas|ou)\b\s+/gu;
+  for (const boundary of folded.matchAll(boundaries)) {
+    const index = boundary.index ?? 0;
+    const next = index + boundary[0].length;
+    if (!beginsIndependentFoodClause(folded.slice(next))) continue;
+    const prefix = folded.slice(start, index).trim();
+    if (prefix) parts.push(prefix);
+    start = next;
+  }
+  const remaining = folded.slice(start).trim();
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+
+function isCoffeeSugarScope(scope: string): boolean {
+  return /\bcafe\b/u.test(scope) &&
+    /\bcolher(?:es)?(?: de (?:cha|sopa))?\s+(?:de\s+)?acucar\b/u.test(scope);
+}
+
 export function hasCoffeeSugarSpoonSyntax(text: string): boolean {
-  const folded = foldQuantityText(text);
-  // Co-occurrence is not a component binding: "sem acucar ... colher de leite"
-  // and "5 g de acucar ... colher de leite" are not sugar spoon requests.
-  // A malformed quantity still belongs to the sugar component and must fail
-  // closed, rather than bypass the spoon guard through a missing word boundary.
-  const sugarSpoon = /\bcolher(?:es)?(?: de (?:cha|sopa))?\s+(?:de\s+)?acucar\b/u;
-  return /\bcafe\b/u.test(folded) && sugarSpoon.test(folded);
+  return splitIndependentFoodScopes(foldQuantityText(text)).some(isCoffeeSugarScope);
 }
 
 /** A second measured component must not vanish when V1 splits coordinated text. */
@@ -474,15 +516,40 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
     );
 }
 
+/** A second food is not a free pass for contradictions within that food. */
+function hasConflictingIndependentSugarScope(scope: string): boolean {
+  const sugarNegations = [...scope.matchAll(/\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero\s+acucar)\b/gu)];
+  const sugarSpoons = [...scope.matchAll(/\bcolher(?:es)?(?: de (?:cha|sopa))?\s+(?:de\s+)?acucar\b/gu)];
+  if (sugarSpoons.length > 1) return true;
+  // An unbound continuation after a different food remains a whole-meal
+  // ambiguity, not permission to silently keep only the coffee quantity.
+  if (/\b(?:e|ou|mas)\s+(?:mais|menos|outr[oa]s?)\s+(?:\d+(?:[,.]\d+)?|um|uma|dois|duas|tres|quatro|cinco)\s*$/u.test(scope)) return true;
+  const hasAddition = /\bmais\s+(?:um(?:a)?\s+)?(?:colher(?:es)?|acucar)\b/u.test(scope);
+  const hasAffirmativeSpoon = sugarSpoons.length > 0;
+  if (sugarNegations.length > 1 || (sugarNegations.length && (hasAddition || hasAffirmativeSpoon))) return true;
+  // "bolo com açúcar e 2 saquinhos de açúcar": the extra amount has no
+  // established owner and cannot be silently discarded after segmentation.
+  const plainSugar = /\bcom\s+acucar\b/u.test(scope);
+  const secondPortion = /\b(?:\d+(?:[,.]\d+)?|(?:um|uma|dois|duas|tres|quatro|cinco))\s+\S+\s+(?:de|do|da|dos|das)\s+acucar\b/u.test(scope);
+  return Boolean(plainSugar && secondPortion);
+}
+
 export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; unit: string } | null {
   if (!hasCoffeeSugarSpoonSyntax(text)) return null;
-  const folded = foldQuantityText(text).trim();
+  const scopes = splitIndependentFoodScopes(foldQuantityText(text).trim());
+  const coffeeScopes = scopes.filter(isCoffeeSugarScope);
+  // The public singular API cannot represent two different coffee portions.
+  if (coffeeScopes.length !== 1) return null;
+  const folded = coffeeScopes[0];
   const matcher = new RegExp(
     "\\b(" + COUNTABLE_QUANTITY_PATTERN + ")\\s+(colher(?:es)?(?: de (?:cha|sopa))?)\\s+(?:de\\s+)?acucar\\b",
     "gu",
   );
   const matches = [...folded.matchAll(matcher)];
   if (matches.length !== 1) return null;
+  // A nominal boundary cannot hide a contradictory or unbound sugar claim
+  // inside another food. Only *independently* coherent food scopes are exempt.
+  if (scopes.some(scope => scope !== folded && hasConflictingIndependentSugarScope(scope))) return null;
   // Negation belongs to its own nominal owner. A distinct food may be sugar-
   // free while the coffee still has one measured spoon. If the owner is not
   // explicit, fail closed rather than guessing that the negation is unrelated.
