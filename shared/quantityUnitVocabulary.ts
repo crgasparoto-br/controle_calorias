@@ -375,18 +375,18 @@ function hasUnboundSpoonQuantityContinuation(tail: string, spoonSubject: string)
   });
 }
 
-/** A coordinated food with sugar is not another dose of the coffee's sugar.
- * Require a new noun phrase before "com"; a bare adjunct or household measure
- * cannot claim a separate food binding. This is syntax, not a food-name list. */
+/** A material sugar qualifier after a separate noun phrase belongs to that
+ * food, whether affirmative or negative. An adjunct with no food head cannot
+ * steal the coffee's spoon or its explicit contradiction. */
 function isSeparateFoodAccompaniment(surface: string, sugarIndex: number): boolean {
   const preceding = surface.slice(0, sugarIndex).trimEnd();
-  // Split grammatical boundaries without creating another food-name lexicon.
-  // A trailing "com [modifier] acucar" is not enough to identify its owner.
-  const withSugarParts = preceding.split(
-    /\bcom(?:\s+(?:mais|menos|algum|alguma|alguns|algumas|muito|muita|pouco|pouca|um|uma|uns|umas))*\s*$/u,
+  // Keep the existing nominal-owner check for com/sem/zero qualifiers alike;
+  // no food-identity list or gram conversion is inferred by this grammar.
+  const qualifierParts = preceding.split(
+    /\b(?:com(?:\s+(?:mais|menos|algum|alguma|alguns|algumas|muito|muita|pouco|pouca|um|uma|uns|umas))*|sem(?:\s+adicao\s+de)?|zero)\s*$/u,
   );
-  if (withSugarParts.length < 2) return false;
-  const segments = withSugarParts[0].trimEnd().split(/(?:[,;.!?]|\b(?:e|ou|mas)\b)\s*/gu);
+  if (qualifierParts.length < 2) return false;
+  const segments = qualifierParts[0].trimEnd().split(/(?:[,;.!?]|\b(?:e|ou|mas)\b)\s*/gu);
   // An uncoordinated mention of sugar remains unresolved, not a separate food.
   if (segments.length < 2) return false;
   const phrase = segments.at(-1)?.trim() ?? "";
@@ -407,6 +407,16 @@ function isSeparateFoodAccompaniment(surface: string, sugarIndex: number): boole
   ).length > 1;
   const adverb = (head ?? "").split(/mente$/u).length > 1;
   return Boolean(head && !isMeasureHead(head) && !functional && !adverb);
+}
+
+/** A preceding negation is independent only when a new coffee noun phrase
+ * explicitly starts after it. Without that second owner, do not turn a
+ * contradictory "cafe sem acucar ... colher de acucar" into a valid spoon. */
+function isNegationOutsideMeasuredCoffee(surface: string, sugarIndex: number, spoonStart: number): boolean {
+  if (isSeparateFoodAccompaniment(surface, sugarIndex)) return true;
+  if (sugarIndex >= spoonStart) return false;
+  const intervening = surface.slice(sugarIndex + "acucar".length, spoonStart);
+  return /(?:[,;.!?]|\b(?:e|ou|mas)\b)\s*(?:(?:um|uma)\s+)?cafe\s+com\s*$/u.test(intervening);
 }
 
 /** Do not split an unresolved competing quantity away from its spoon component. */
@@ -432,8 +442,11 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
   // A genitive exempts another food only when its head is not a measure.
   const bareSecondMention = escapedSubject
     ? [...remaining.matchAll(new RegExp(`\\b${escapedSubject}\\b`, "gu"))].some(match => {
-        const previousWord = remaining.slice(0, match.index).trimEnd().match(/[a-z]+$/u)?.[0];
+        const previous = remaining.slice(0, match.index);
+        const previousWord = previous.trimEnd().match(/[a-z]+$/u)?.[0];
+        const isNegation = /\b(?:sem(?:\s+adicao\s+de)?|zero)\s*$/u.test(previous);
         return (!previousWord || !isGenitivePreposition(previousWord)) &&
+          !(isNegation && isNegationOutsideMeasuredCoffee(remaining, match.index ?? 0, start)) &&
           !isSeparateFoodAccompaniment(remaining, match.index ?? 0);
       })
     : false;
@@ -464,14 +477,21 @@ function hasCompetingOrUnboundSugarMeasure(folded: string, spoon: RegExpMatchArr
 export function readCoffeeSugarSpoonSyntax(text: string): { quantity: number; unit: string } | null {
   if (!hasCoffeeSugarSpoonSyntax(text)) return null;
   const folded = foldQuantityText(text).trim();
-  // Contradictory explicit negation is a clarification, not measured sugar.
-  if (/\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero\s+acucar)\b/u.test(folded)) return null;
   const matcher = new RegExp(
     "\\b(" + COUNTABLE_QUANTITY_PATTERN + ")\\s+(colher(?:es)?(?: de (?:cha|sopa))?)\\s+(?:de\\s+)?acucar\\b",
     "gu",
   );
   const matches = [...folded.matchAll(matcher)];
   if (matches.length !== 1) return null;
+  // Negation belongs to its own nominal owner. A distinct food may be sugar-
+  // free while the coffee still has one measured spoon. If the owner is not
+  // explicit, fail closed rather than guessing that the negation is unrelated.
+  const spoon = matches[0];
+  const sugarNegations = [...folded.matchAll(/\b(?:sem\s+(?:adicao\s+de\s+)?acucar|zero\s+acucar)\b/gu)];
+  if (sugarNegations.some(match => {
+    const sugarIndex = (match.index ?? 0) + match[0].lastIndexOf("acucar");
+    return !isNegationOutsideMeasuredCoffee(folded, sugarIndex, spoon.index ?? 0);
+  })) return null;
   // A word boundary can isolate the *last* operand of an expression.
   // Unicode math/dash signs and common fraction separators must behave like
   // their ASCII equivalents; never resolve a fragment as a whole spoon count.

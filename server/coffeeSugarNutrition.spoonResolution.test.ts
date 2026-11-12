@@ -1,4 +1,6 @@
 import {
+  A133913_INDEPENDENT_NEGATION_POSITIVE,
+  A133913_COFFEE_NEGATION_NEGATIVE,
   A1339_133908_NEGATIVE,
   A1339_133911_NEGATIVE,
   A1339_133912_POSITIVE,
@@ -639,5 +641,18 @@ describe("A-133911/A-133912: unknown utensils vs independent foods of spoon", ()
 
   it.each(A1339_133912_POSITIVE)("keeps a single measured spoon with a separate food %s", (_id, text) => {
     expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+});
+
+
+describe("A-133913: sugar negation is scoped to its actual food", () => {
+  it.each(A133913_INDEPENDENT_NEGATION_POSITIVE)("preserves the measured coffee when another food is sugar-free %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toEqual({ quantity: 1, unit: "colher de cha" });
+  });
+
+  it.each(A133913_COFFEE_NEGATION_NEGATIVE)("clarifies a contradiction or unbound second quantity %s", (_id, text) => {
+    expect(extractCoffeeSugarSpoonRequest(text)).toBeNull();
+    expect(extractExplicitSugarQuantity(text)).toBeNull();
+    expect(buildCoffeeWithExplicitSugarItem(text)).toBeNull();
   });
 });

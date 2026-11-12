@@ -1,4 +1,6 @@
 import {
+  A133913_INDEPENDENT_NEGATION_POSITIVE,
+  A133913_COFFEE_NEGATION_NEGATIVE,
   A1339_133908_NEGATIVE,
   A1339_133911_NEGATIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
@@ -485,6 +487,31 @@ describe("A-133911: competing utensil measurements never reach inference", () =>
     await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
       code: "food_component_quantity_required",
       context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("A-133913: fail-closed only for negation in the coffee's own scope", () => {
+  it.each(A133913_COFFEE_NEGATION_NEGATIVE)("rejects unresolved coffee sugar before AI %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ originalText: text }),
+    });
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
+
+  it.each(A133913_INDEPENDENT_NEGATION_POSITIVE)("does not mistake another food's negation for the coffee's own %s", async (_id, text) => {
+    createTextResponseMock.mockReset();
+    const { processMealInput } = await import("./nutritionEngine");
+    // A separate quantity converter may still require evidence for spoon grams,
+    // but that clarification must be about sugar, never the entire input.
+    await expect(processMealInput({ text, userId: 17 })).rejects.toMatchObject({
+      code: "food_component_quantity_required",
+      context: expect.objectContaining({ component: "açúcar", originalText: text }),
     });
     expect(createTextResponseMock).not.toHaveBeenCalled();
   });

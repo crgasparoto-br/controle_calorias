@@ -318,3 +318,43 @@ export const A1339_133912_POSITIVE = ([
   ["S11-P4", "2 tortas de a\u00e7\u00facar"],
   ["S11-P5", "mais uma colher de leite"],
 ] as const).map(([id, ending]) => [id, A1339_INDEPENDENT_AUDIT_BASE + " e " + ending] as const);
+
+
+/** A-133913: negation in another food is not a contradiction of the coffee. */
+const A133913_COFFEE = "café com uma colher de chá de açúcar";
+export const A133913_INDEPENDENT_NEGATION_POSITIVE = [
+  ["N13-P01", A133913_COFFEE + " e um bolo sem açúcar"],
+  ["N13-P02", A133913_COFFEE + " e um pudim de colher sem açúcar"],
+  ["N13-P03", A133913_COFFEE + " e um brigadeiro de colher sem açúcar"],
+  ["N13-P04", A133913_COFFEE + " e um iogurte zero açúcar"],
+  ["N13-P05", A133913_COFFEE + " e leite sem adição de açúcar"],
+  ["N13-P06", A133913_COFFEE + "; um bolo sem açúcar"],
+  ["N13-P07", A133913_COFFEE + ", um bolo sem açúcar"],
+  ["N13-P08", A133913_COFFEE + " e um suco sem açúcar"],
+  ["N13-P09", A133913_COFFEE + " e 2 fatias de bolo sem açúcar"],
+  ["N13-P10", A133913_COFFEE + " e um bolo sem açúcar e um iogurte zero açúcar"],
+  ["N13-P11", A133913_COFFEE + " e uma fatia de bolo sem açúcar"],
+  ["N13-P12", A133913_COFFEE + " e um bolo sem açúcar e 2 g de leite"],
+  ["N13-P13", "um bolo sem açúcar e " + A133913_COFFEE],
+  ["N13-P14", "um bolo sem açúcar; " + A133913_COFFEE],
+  ["N13-P15", "um bolo sem açúcar, " + A133913_COFFEE],
+  ["N13-P16", "um pudim zero açúcar e " + A133913_COFFEE],
+  ["N13-P17", "um bolo sem adição de açúcar e " + A133913_COFFEE],
+] as const;
+
+/** A-133913: no other food owner means clarification before lookup. */
+export const A133913_COFFEE_NEGATION_NEGATIVE = [
+  ["N13-N01", A133913_COFFEE + " e sem açúcar"],
+  ["N13-N02", A133913_COFFEE + "; sem açúcar"],
+  ["N13-N03", A133913_COFFEE + ", zero açúcar"],
+  ["N13-N04", A133913_COFFEE + " e zero açúcar"],
+  ["N13-N05", A133913_COFFEE + " sem açúcar"],
+  ["N13-N06", A133913_COFFEE + " e sem adição de açúcar"],
+  ["N13-N07", A133913_COFFEE + " e um bolo sem açúcar e mais uma colher de açúcar"],
+  ["N13-N08", A133913_COFFEE + " e um bolo sem açúcar e mais açúcar"],
+  ["N13-N09", A133913_COFFEE + " e um bolo sem açúcar e zero açúcar"],
+  ["N13-N10", A133913_COFFEE + " e um bolo sem açúcar; mais uma colher"],
+  ["N13-N11", "café sem açúcar com uma colher de chá de açúcar"],
+  ["N13-N12", "café zero açúcar com uma colher de chá de açúcar"],
+  ["N13-N13", "café sem açúcar e uma colher de chá de açúcar"],
+] as const;

@@ -1,4 +1,6 @@
 import {
+  A133913_INDEPENDENT_NEGATION_POSITIVE,
+  A133913_COFFEE_NEGATION_NEGATIVE,
   A1339_133908_NEGATIVE,
   A1339_133911_NEGATIVE,
   A1339_NEW03_AUDIT_NEGATIVE,
@@ -3313,6 +3315,43 @@ describe("A-133911: public WhatsApp POST does not persist a partial sugar quanti
       text: { body: originalText },
     }));
     expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+});
+
+
+describe("A-133913: WhatsApp public POST scopes sugar negation before a meal write", () => {
+  it.each(A133913_COFFEE_NEGATION_NEGATIVE)("rejects actual contradictions with no nutrition lookup or writes %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: "wamid-133913-n-" + id,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.persistedItems).toBe(0);
+    expect(await listUserMeals(userId)).toHaveLength(0);
+    expect(state.outboundReplies.length).toBeGreaterThan(0);
+    assertSanitizedEvidence(activeLifecycle, true);
+  });
+
+  it.each(A133913_INDEPENDENT_NEGATION_POSITIVE.slice(0, 5))("keeps the sugar spoon's owner when another food is sugar-free %s", async (id, originalText) => {
+    const userId = await startScenario({});
+    const response = await post(activeUrl, payload({
+      id: "wamid-133913-p-" + id,
+      timestamp: "1789556760",
+      type: "text",
+      text: { body: originalText },
+    }));
+    expect(response.status).toBe(200);
+    // The productive path may still need a certified gram conversion. Its
+    // separate clarification cannot invent a partial meal or missing macros.
     expect(state.metrics.persistedMeals).toBe(0);
     expect(state.metrics.persistedItems).toBe(0);
     expect(await listUserMeals(userId)).toHaveLength(0);

@@ -1,4 +1,6 @@
 import {
+  A133913_INDEPENDENT_NEGATION_POSITIVE,
+  A133913_COFFEE_NEGATION_NEGATIVE,
   A1339_133908_NEGATIVE,
   A1339_133911_NEGATIVE,
   A1339_133912_POSITIVE,
@@ -836,5 +838,29 @@ describe("A-133911/A-133912: ingredient-scoped spoon decisions", () => {
       userId: 17, foodName: "a\u00e7\u00facar", quantity: 1, unit: "colher de ch\u00e1",
     }));
     expect(resolveQuantity.mock.calls.every(([request]) => request.userId === 17)).toBe(true);
+  });
+});
+
+
+describe("A-133913: authenticated spoon lookup preserves food-specific negation", () => {
+  it.each(A133913_INDEPENDENT_NEGATION_POSITIVE)("resolves the coffee sugar only for the authenticated owner %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async (_request: Parameters<typeof resolveCanonicalFoodQuantity>[0]) => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    expect(decisions[0]).toMatchObject({ foodName: "açúcar", quantity: 1 });
+    const calls = resolveQuantity.mock.calls.filter(([request]) => request.foodName === "açúcar");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).toEqual(expect.objectContaining({
+      userId: 17, foodName: "açúcar", quantity: 1, unit: "colher de chá",
+    }));
+    expect(resolveQuantity.mock.calls.every(([request]) => request.userId === 17)).toBe(true);
+  });
+
+  it.each(A133913_COFFEE_NEGATION_NEGATIVE)("blocks contradiction before any personal lookup %s", async (_id, text) => {
+    const resolveQuantity = vi.fn(async () => measured(8));
+    const decisions = await readSpoonDecisions(text, 17, { resolveQuantity });
+    // The parser cannot silently reuse the first spoon while negation/second
+    // sugar component remains unresolved.
+    expect(decisions).toEqual([expect.objectContaining({ quantity: 0, resolution: null })]);
+    expect(resolveQuantity).not.toHaveBeenCalled();
   });
 });
