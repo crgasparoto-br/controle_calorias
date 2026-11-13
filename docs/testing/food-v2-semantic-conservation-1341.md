@@ -54,9 +54,12 @@ ordens. Não usa aleatoriedade; semente: `not-applicable`. O contraexemplo
 mínimo deve ser identificado pelo `caseId` e pelo fato da matriz, sem copiar
 texto pessoal para telemetria.
 
-A coleta em CI imprime `C1B_1341_AGGREGATE=` seguido de JSON com o SHA de
-`VERIFICATION_HEAD_SHA`, contagens por tipo, partição e modalidade, revisão de
-léxico, classificação de vínculo, comparação **parcial** V1, e decisão.
+O comando Vitest direto imprime `C1B_1341_AGGREGATE=` seguido de JSON,
+mas o runner de shards suprime stdout dos testes aprovados no log público.
+No CI, a matriz é preservada em `c1b-1341-semantic-conservation.json`
+no artefato existente `food-v2-c3-calibration-<HEAD>`, com
+`VERIFICATION_HEAD_SHA`, contagens por tipo, partição e modalidade, revisão
+de léxico, classificação de vínculo, comparador **parcial** V1 e decisão.
 O extrator V1 `extractExplicitSugarQuantity` apenas informa se encontra uma
 medida numérica singular: **não** representa todo o fluxo público V1 e não
 pode ser usado como oráculo da verdade.

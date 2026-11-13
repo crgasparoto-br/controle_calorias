@@ -17,7 +17,7 @@ export type C1bResult = {
   grade: C1bGrade;
   sourceRange: [number, number];
   scopeRange: [number, number];
-  expected: { owner: string | null; ingredient: string | null; quantity: number | null; unit: string | null };
+  expected: { owner: string | null; ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null };
   observed: { foodNames: (string | null)[]; quantityHints: { value: number | null; unit: string | null }[]; unresolvedReasons: (string | null)[] };
 };
 export type C1bCaseReport = {
@@ -141,7 +141,8 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
       : attached.some(obs => obs.unresolvedReason !== null) ? "traceable-unresolved" : "false-closed";
   }
   return { caseId: testCase.id, factIndex, kind: fact.kind, grade, sourceRange, scopeRange,
-    expected: { owner: fact.owner, ingredient: fact.ingredient, quantity: fact.quantity, unit: fact.unit },
+    expected: { owner: fact.owner, ingredient: fact.ingredient, quantity: fact.quantity, unit: fact.unit,
+      uncertaintyReason: fact.kind === "unbound" ? "owner-unbound" : null },
     observed: { foodNames: attached.map(obs => obs.identityHints.foodName),
       quantityHints: attached.map(obs => ({ value: obs.quantityHints.value, unit: obs.quantityHints.unit })),
       unresolvedReasons: attached.map(obs => obs.unresolvedReason) },

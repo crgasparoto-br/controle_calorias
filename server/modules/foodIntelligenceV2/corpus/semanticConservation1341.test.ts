@@ -122,6 +122,10 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       complete: entry.report.structurallyComplete,
       expected: referenceSignature(cases[index]),
       observed: observedProjection(entry.observations),
+      observedAlternatives: entry.observations.flatMap(obs => obs.alternatives.map(alt => ({
+        foodName: alt.identityHints.foodName,
+        quantity: alt.quantityHints.value, unit: alt.quantityHints.unit,
+      }))),
       facts: entry.report.results,
     }));
     const groups = new Map<string, { expected: Set<string>; observed: Set<string>;
@@ -141,8 +145,8 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       split:g.split, variants:g.variants,
       referenceConsistent:g.expected.size===1,
       observedProjectionEquivalent:g.observed.size===1,
-      structurallyComplete:g.complete,
-      gatePassed:g.expected.size===1 && g.observed.size===1 && g.complete,
+      structurallyComplete:g.complete, evaluable:g.variants>1,
+      gatePassed:g.variants>1 && g.expected.size===1 && g.observed.size===1 && g.complete,
     }]));
     const contrasts = [
       ["coffee1-pudding2spoons","coffee1-pudding2g"],
@@ -169,6 +173,9 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       metamorphic, negativeControls, caseResults,
       clarification:{referenceRequired:cases.filter(x=>x.facts.some(f=>f.kind==="unbound")).length,
         unresolvedSignals:measured.filter(x=>x.observations.some(o=>o.unresolvedReason!==null)).length,
+        potentiallyUnnecessaryUnresolvedSignals:measured.filter((x,i)=>
+          !cases[i].facts.some(f=>f.kind==="unbound") &&
+          x.observations.some(o=>o.unresolvedReason!==null)).length,
         actualClarifications:"not-measured"},
       decision:"adjust-ADR-contract-before-D1-semantic-cutover" };
     console.info("C1B_1341_AGGREGATE="+JSON.stringify(aggregate));
