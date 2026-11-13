@@ -102,6 +102,15 @@ function observationClaimsFact(testCase: C1bCase, observation: FoodObservation, 
  * No new text parser or lexical oracle is introduced. */
 function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fact: C1bFact): boolean {
   const claimRange = uniqueSpan(testCase.text, fact.surface);
+  const scopeRange = uniqueSpan(testCase.text, fact.scope);
+  const observationRange = spanOf(observation);
+  // A proof that also consumes a sibling's clause cannot establish this
+  // independently labelled owner, even when the owner token is present.
+  const anchors = [...observation.evidence.map(item => item.anchor),
+    ...observation.normalizationPath.map(step => step.anchor)];
+  if (observationRange === null || !contains(scopeRange, observationRange) ||
+      anchors.some(anchor => anchor.span === null ||
+        !contains(scopeRange, [anchor.span.start, anchor.span.end]))) return false;
   if (observation.evidence.length === 0 || observation.normalizationPath.length === 0 ||
       !observation.normalizationPath.some(step => step.stage === "S1" &&
         step.anchor.span !== null && contains([step.anchor.span.start, step.anchor.span.end], claimRange))) {

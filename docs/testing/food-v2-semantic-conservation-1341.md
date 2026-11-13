@@ -194,7 +194,9 @@ persistência pública. Os fatos rotulados continuam sendo a referência indepen
   (`invalid-provenance`). Para fatos estruturáveis, o controle exige evidência
   de identidade compatível com a observação e com o texto de sua âncora,
   quantidade/unidade consistente com `quantityHints`, qualificadores cobertos
-  e caminho S1 ancorado no fato. A falta de evidência ou de trilha também falha.
+  e caminho S1 ancorado no fato. O span da observação e suas evidências
+  precisam pertencer ao escopo independente do owner, sem englobar outro
+  alimento da mesma frase. A falta de evidência ou de trilha também falha.
   Esses controles não atribuem vínculos de ingrediente ausentes no contrato.
 
 O relatório C1b utiliza `schemaVersion: 3`. `grades` permanece com denominador
@@ -204,8 +206,9 @@ duplicados, com origem incompatível ou sem prova material. Cada `caseResults`
 carrega `observationIssues` por `observationId` e índice. O bloco
 `remediationControls.reverseCoverageAndEvidence` registra o controle positivo
 sintético e os ataques negativos de alimento fabricado, duplicação, evidência
-identitária contraditória, âncora apenas numérica, evidência vazia, evidência
-de quantidade omitida/adulterada e caminho de normalização incoerente.
+identitária contraditória, âncora apenas numérica, evidência que engloba o
+alimento vizinho, evidência vazia, evidência de quantidade omitida/adulterada
+e caminho de normalização incoerente.
 
 A admissão continua uma **simulação de diagnóstico**, sem substituição do gate
 de escrita pública da #1308. CI verde comprova execução do detector, e não

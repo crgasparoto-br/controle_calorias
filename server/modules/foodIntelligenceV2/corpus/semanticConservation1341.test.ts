@@ -315,6 +315,11 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       evidence: target.evidence.map(item => item.field === "identity.foodName"
         ? { ...item, anchor: { ...item.anchor, span: numeral } } : item),
     });
+    const overWide = { ...target.surfaceSpan, span: { start: 0, end: simpleCase.text.length } };
+    const crossOwnerEvidence = patchTarget({ ...target, surfaceSpan: overWide,
+      evidence: target.evidence.map(item => ({ ...item, anchor: overWide })),
+      normalizationPath: target.normalizationPath.map(step => ({ ...step, anchor: overWide })),
+    });
     const missingProof = patchTarget({ ...target, evidence: [], normalizationPath: [] });
     const missingQuantityProof = patchTarget({ ...target,
       evidence: target.evidence.filter(item => item.field !== "quantity.value"),
@@ -330,7 +335,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     });
     const adversarial = {
       addedFood, duplicatedFood, wrongIdentityProof, identityAnchorWrong,
-      missingProof, missingQuantityProof, wrongQuantityProof, wrongNormalizationAnchor,
+      crossOwnerEvidence, missingProof, missingQuantityProof, wrongQuantityProof, wrongNormalizationAnchor,
     };
     const attacks = Object.fromEntries(Object.entries(adversarial).map(([id, inputs]) => {
       const report = evaluateC1b(simpleCase, inputs);
@@ -344,7 +349,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     }));
     expect(attacks.addedFood.observationIssues).toContain("unexpected-observation");
     expect(attacks.duplicatedFood.observationIssues).toContain("duplicate-observation");
-    for (const id of ["wrongIdentityProof", "identityAnchorWrong", "missingProof",
+    for (const id of ["wrongIdentityProof", "identityAnchorWrong", "crossOwnerEvidence", "missingProof",
       "missingQuantityProof", "wrongQuantityProof", "wrongNormalizationAnchor"] as const) {
       expect(attacks[id].grades, id).toContain("invalid-evidence");
       expect(attacks[id].observationIssues, id).toContain("invalid-evidence");
