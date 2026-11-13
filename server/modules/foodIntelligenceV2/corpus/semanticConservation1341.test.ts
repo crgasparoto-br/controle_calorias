@@ -35,7 +35,7 @@ function anchoredDiagnosticObservation(
   const anchor = { sourceRef: `c1b:${testCase.id}`, span, region: null };
   return { ...template, observationId, rawInput: testCase.text, normalizedInput: testCase.text,
     surfaceSpan: anchor, unresolvedReason: null,
-    quantityHints: { ...template.quantityHints, value, unit: "un" },
+    quantityHints: { ...template.quantityHints, value, unit: "un", servingText: null },
     evidence: template.evidence.map(evidence => ({ ...evidence, anchor,
       value: evidence.field === "quantity.value" ? value : evidence.value,
     })),
