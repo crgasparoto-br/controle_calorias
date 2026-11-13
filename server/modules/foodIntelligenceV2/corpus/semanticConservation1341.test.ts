@@ -176,7 +176,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     if(process.env.C3_EVIDENCE_OUTPUT_DIR){
       await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR,{recursive:true});
       await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,"c1b-1341-semantic-conservation.json"),
-        JSON.stringify(aggregate,null,2)+"\\n","utf8");
+        JSON.stringify(aggregate,null,2),"utf8");
     }
     // Every missing component is an open architectural obligation, not
     // evidence of zero fallback or accurate nutrition in production.
