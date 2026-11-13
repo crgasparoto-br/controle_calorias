@@ -213,3 +213,26 @@ e caminho de normalização incoerente.
 A admissão continua uma **simulação de diagnóstico**, sem substituição do gate
 de escrita pública da #1308. CI verde comprova execução do detector, e não
 aprovação de conservação semântica produtiva nem autorização de S3/cutover.
+
+## Remediação A-1342-17–18 — quantidades repetidas e continuação ambígua
+
+- **A-1342-17:** uma observação representa apenas um `quantityHints` material.
+  O diagnóstico agora vincula cada fato de quantidade estruturado a uma
+  observação distinta por pareamento máximo determinístico. Duas menções do
+  mesmo alimento com a mesma quantidade são fatos separados; uma observação
+  ampla que cobre ambas recebe `shared-quantity-observation` e impede
+  `structurallyComplete`/admissão. Há dois casos independentes no holdout:
+  `2 ovos e mais dois ovos` e `2 ovos e mais 3 ovos`. O índice de owner
+  escolhe a ocorrência ligada ao span do fato, não a primeira na frase.
+- **A-1342-18:** em continuação com alternativas de owner e abstenção, uma
+  quantidade explicitamente rotulada mas não capturada recebe
+  `unbound-quantity-unobserved`; valor/unidade divergente recebe
+  `unbound-quantity-mismatch`. São resultados diagnósticos que não
+  inventam owner nem autorizam escrita.
+- A matriz `schemaVersion: 4` preserva `remediationControls` anteriores
+  e registra `remediationControls.quantityConservation` com negativos
+  (uma observação ampla, valor/unidade alterados, quantidade ausente) e
+  positivos sintéticos (observações distintas e abstenção explícita).
+  As referências do corpus continuam autorais e independentes da saída LCL.
+  CI verde comprova apenas o teste do diagnóstico; S3, nutrição e persistência
+  pública permanecem não avaliadas.

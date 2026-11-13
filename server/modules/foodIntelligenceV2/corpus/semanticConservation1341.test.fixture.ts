@@ -164,6 +164,24 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [food("banana", "1 banana", 1, "un"), food("ovos", "2 ovos", 2, "un")],
   },
   {
+    // Distinct facts for one food in a single sentence, including a repeated
+    // value. Both owner occurrences must remain independently observable.
+    id: "food-repeated-equal", semanticGroup: "eggs2-plus-eggs2", split: "holdout", modality: "text",
+    text: "2 ovos e mais dois ovos",
+    facts: [
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais dois ovos" },
+      { ...food("ovos", "dois ovos", 2, "un"), scope: "2 ovos e mais dois ovos" },
+    ],
+  },
+  {
+    id: "food-repeated-distinct", semanticGroup: "eggs2-plus-eggs3", split: "holdout", modality: "text",
+    text: "2 ovos e mais 3 ovos",
+    facts: [
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 3 ovos" },
+      { ...food("ovos", "3 ovos", 3, "un"), scope: "2 ovos e mais 3 ovos" },
+    ],
+  },
+  {
     id: "food-units", semanticGroup: "bread1-milk200", split: "calibration", modality: "text",
     text: "1 fatia de pão e 200 ml de leite",
     facts: [food("pão", "1 fatia de pão", 1, "fatia"), food("leite", "200 ml de leite", 200, "ml")],

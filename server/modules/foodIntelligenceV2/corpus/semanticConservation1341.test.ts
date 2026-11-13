@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { comprehendFoodLanguage } from "../linguisticComprehension";
 import type { LinguisticLexiconStore } from "../linguisticComprehension";
+import { parseFoodObservation } from "../schemas";
 import { extractExplicitSugarQuantity, normalizeSweetenedCoffeeDraftItems } from "../../../coffeeSugarNutrition";
 import { parseFoodText, splitFoodTextSegments } from "../../../mealTextParsing";
 import { goldenFoodCorpusCases } from "./data";
@@ -24,6 +25,22 @@ const evaluateRealV2 = async (testCase: C1bCase) => {
   }, emptyGovernedLexicon);
   return { observations, report: evaluateC1b(testCase, observations) };
 };
+
+/** A synthetic contract-shaped observation for attacking the C1b oracle only.
+ * Every anchor is set to the explicitly chosen original UTF-16 span. */
+function anchoredDiagnosticObservation(
+  template: Awaited<ReturnType<typeof evaluateRealV2>>["observations"][number],
+  testCase: C1bCase, observationId: string, span: { start: number; end: number }, value: number,
+) {
+  const anchor = { sourceRef: `c1b:${testCase.id}`, span, region: null };
+  return { ...template, observationId, rawInput: testCase.text, normalizedInput: testCase.text,
+    surfaceSpan: anchor, unresolvedReason: null,
+    quantityHints: { ...template.quantityHints, value, unit: "un" },
+    evidence: template.evidence.map(evidence => ({ ...evidence, anchor,
+      value: evidence.field === "quantity.value" ? value : evidence.value,
+    })),
+    normalizationPath: template.normalizationPath.map(step => ({ ...step, anchor })) };
+}
 
 /** Deterministic, not random: no unlogged seed or hand-picked parser output. */
 const generatorVersion = "c1b-cartesian-v2";
@@ -163,6 +180,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     }
     // Controls are not superficial equivalents: changing a unit/owner/quantity
     // must change the independent reference even if a parser collapses outputs.
+    expect(groups.get("eggs2-plus-eggs2")).not.toBe(groups.get("eggs2-plus-eggs3"));
     expect(groups.get("coffee1-pudding2spoons")).not.toBe(groups.get("coffee1-pudding2g"));
     expect(groups.get("coffee1-pudding2spoons")).not.toBe(groups.get("coffee1-pudding2-plus-unbound"));
     const corrupted: C1bCase = { ...cases[0], facts: [
@@ -360,6 +378,115 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(attemptDiagnosticBatchAdmission(simpleCase, duplicatedFood,
       syntheticResolved.map(obs => obs.observationId)).admitted).toBe(false);
 
+    // A-1342-17: a one-quantity observation cannot prove two independent
+    // increments of the SAME food, even with equal values and broad anchors.
+    const repeated = cases.find(c => c.id === "food-repeated-equal")!;
+    const distinct = cases.find(c => c.id === "food-repeated-distinct")!;
+    const eggsTemplate = simpleObservations.find(obs => obs.identityHints.foodName === "ovos")!;
+    const allOfRepeated = { start: 0, end: repeated.text.length };
+    const singleRepeated = anchoredDiagnosticObservation(eggsTemplate, repeated,
+      "c1b-repeated-single", allOfRepeated, 2);
+    const sharedQuantity = evaluateC1b(repeated, [singleRepeated]);
+    const sharedAttempt = attemptDiagnosticBatchAdmission(repeated, [singleRepeated],
+      [singleRepeated.observationId]);
+    expect(parseFoodObservation(singleRepeated).ok).toBe(true);
+    expect(sharedQuantity.results.map(fact => fact.grade))
+      .toContain("shared-quantity-observation");
+    expect(sharedQuantity.structurallyComplete).toBe(false);
+    expect(sharedAttempt.admitted).toBe(false);
+    expect(sharedAttempt.blocked.some(item => item.reason === "shared-quantity-observation")).toBe(true);
+    const occurrenceSpan = (text: string, literal: string) => ({
+      start: text.indexOf(literal), end: text.indexOf(literal) + literal.length,
+    });
+    const independentRepeated = [
+      anchoredDiagnosticObservation(eggsTemplate, repeated, "c1b-repeated-first",
+        occurrenceSpan(repeated.text, "2 ovos"), 2),
+      anchoredDiagnosticObservation(eggsTemplate, repeated, "c1b-repeated-second",
+        occurrenceSpan(repeated.text, "dois ovos"), 2),
+    ];
+    expect(independentRepeated.every(obs => parseFoodObservation(obs).ok)).toBe(true);
+    const independentReport = evaluateC1b(repeated, independentRepeated);
+    expect(independentReport.results.map(fact => fact.grade)).toEqual(["structured", "structured"]);
+    expect(independentReport.observationIssues).toEqual([]);
+    expect(independentReport.structurallyComplete).toBe(true);
+    const independentAttempt = attemptDiagnosticBatchAdmission(repeated, independentRepeated,
+      independentRepeated.map(obs => obs.observationId));
+    expect(independentAttempt.admitted).toBe(true);
+
+    const oneDistinct = anchoredDiagnosticObservation(eggsTemplate, distinct,
+      "c1b-distinct-single", { start: 0, end: distinct.text.length }, 2);
+    const distinctReport = evaluateC1b(distinct, [oneDistinct]);
+    expect(distinctReport.structurallyComplete).toBe(false);
+    expect(attemptDiagnosticBatchAdmission(distinct, [oneDistinct],
+      [oneDistinct.observationId]).admitted).toBe(false);
+    const independentDistinct = [
+      anchoredDiagnosticObservation(eggsTemplate, distinct, "c1b-distinct-first",
+        occurrenceSpan(distinct.text, "2 ovos"), 2),
+      anchoredDiagnosticObservation(eggsTemplate, distinct, "c1b-distinct-second",
+        occurrenceSpan(distinct.text, "3 ovos"), 3),
+    ];
+    expect(evaluateC1b(distinct, independentDistinct).structurallyComplete).toBe(true);
+
+    // A-1342-18: preserve owner ambiguity, but do not hide wrong/missing
+    // numerical content behind a generic traceable-unresolved grade.
+    const gramCase = cases.find(c => c.id === "sugar-extra-gram")!;
+    const gramObservations = measured[cases.indexOf(gramCase)].observations;
+    const continuation = gramObservations.find(obs => {
+      const span = obs.surfaceSpan.span;
+      return span !== null && gramCase.text.slice(span.start, span.end).includes("mais 1 g de açúcar");
+    })!;
+    expect(continuation).toBeDefined();
+    const continuationAnchor = continuation.surfaceSpan;
+    const quantityEvidence = { ...continuation.evidence[0], evidenceId: "c1b-ambiguous-quantity",
+      field: "quantity.value", value: 1, unit: "g", anchor: continuationAnchor };
+    const labelledContinuation = { ...continuation,
+      identityHints: { ...continuation.identityHints, foodName: null },
+      quantityHints: { ...continuation.quantityHints, value: 1, unit: "g" },
+      evidence: [quantityEvidence],
+      alternatives: (["café", "pudim"] as const).map((foodName, index) => ({
+        hypothesisId: `c1b-ambiguous-owner-${index}`, confidence: 0.5, evidenceIds: [],
+        identityHints: { ...continuation.identityHints, foodName },
+        quantityHints: { ...continuation.quantityHints, value: 1, unit: "g" },
+      })),
+    };
+    expect(parseFoodObservation(labelledContinuation).ok).toBe(true);
+    const continuedWith = (observation: typeof labelledContinuation) => gramObservations.map(obs =>
+      obs.observationId === continuation.observationId ? observation : obs);
+    const continuationFact = (obs: typeof labelledContinuation) => evaluateC1b(gramCase, continuedWith(obs))
+      .results.find(fact => fact.kind === "unbound")!.grade;
+    expect(continuationFact(labelledContinuation)).toBe("traceable-unresolved");
+    const wrongQuantity = { ...labelledContinuation,
+      quantityHints: { ...labelledContinuation.quantityHints, value: 999 },
+      evidence: [{ ...quantityEvidence, value: 999 }],
+    };
+    const wrongUnit = { ...labelledContinuation,
+      quantityHints: { ...labelledContinuation.quantityHints, unit: "kg" },
+      evidence: [{ ...quantityEvidence, unit: "kg" }],
+    };
+    const missingQuantity = { ...labelledContinuation,
+      quantityHints: { ...labelledContinuation.quantityHints, value: null, unit: null },
+      evidence: [],
+    };
+    expect(continuationFact(wrongQuantity)).toBe("unbound-quantity-mismatch");
+    expect(continuationFact(wrongUnit)).toBe("unbound-quantity-mismatch");
+    expect(continuationFact(missingQuantity)).toBe("unbound-quantity-unobserved");
+    for (const observation of [wrongQuantity, wrongUnit, missingQuantity]) {
+      expect(attemptDiagnosticBatchAdmission(gramCase, continuedWith(observation),
+        gramObservations.map(obs => obs.observationId)).admitted).toBe(false);
+    }
+    const quantityRemediationControls = {
+      sameOwnerRepeated: { caseId: repeated.id, expected: "shared-quantity-observation",
+        grades: sharedQuantity.results.map(fact => fact.grade),
+        structurallyComplete: sharedQuantity.structurallyComplete, admitted: sharedAttempt.admitted,
+        twoIndependentObservationsComplete: independentReport.structurallyComplete,
+        twoIndependentObservationsAdmitted: independentAttempt.admitted },
+      sameOwnerDifferent: { caseId: distinct.id, incomplete: !distinctReport.structurallyComplete,
+        twoIndependentObservationsComplete: evaluateC1b(distinct, independentDistinct).structurallyComplete },
+      ambiguousQuantity: { caseId: gramCase.id, baseline: continuationFact(labelledContinuation),
+        wrongValue: continuationFact(wrongQuantity), wrongUnit: continuationFact(wrongUnit),
+        missing: continuationFact(missingQuantity) },
+    };
+
     const localNegationIndex = cases.findIndex(c => c.id === "sugar-local-negation");
     const localNegation = cases[localNegationIndex];
     const negationObservations = measured[localNegationIndex].observations;
@@ -383,8 +510,9 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       reverseCoverageAndEvidence: { caseId: simpleCase.id,
         positiveStructurallyComplete: evaluateC1b(simpleCase, syntheticResolved).structurallyComplete,
         positiveSyntheticAdmission: resolvedAttempt.admitted, attacks },
+      quantityConservation: quantityRemediationControls,
     };
-    const aggregate = { schemaVersion:3, issue:1341, generatorVersion,
+    const aggregate = { schemaVersion:4, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
       canonicalCases:goldenFoodCorpusCases.length, canonicalExecuted:canonicalBaseline.length,

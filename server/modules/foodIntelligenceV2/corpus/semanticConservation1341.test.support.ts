@@ -11,6 +11,8 @@ export type C1bGrade =
   | "structured" | "traceable-unresolved" | "missing-component-binding"
   | "ingredient-quantity-unobserved" | "ingredient-quantity-mismatch"
   | "owner-alternatives-missing" | "unbound-as-food" | "misbound"
+  | "unbound-quantity-unobserved" | "unbound-quantity-mismatch"
+  | "shared-quantity-observation"
   | "silent-omission" | "invalid-provenance" | "invalid-evidence" | "false-closed";
 export type C1bResult = {
   caseId: string;
@@ -156,9 +158,17 @@ function equalQuantity(observation: FoodObservation, fact: C1bFact): boolean {
 }
 function ownerRange(testCase: C1bCase, fact: C1bFact, scope: [number, number]): [number, number] | null {
   if (fact.owner === null) return null;
-  const at = testCase.text.slice(scope[0], scope[1]).indexOf(fact.owner);
-  if (at < 0) throw new Error("c1b-reference-owner-not-in-scope");
-  return [scope[0] + at, scope[0] + at + fact.owner.length];
+  const claim = uniqueSpan(testCase.text, fact.surface);
+  const candidates: [number, number][] = [];
+  for (let at = testCase.text.indexOf(fact.owner, scope[0]); at >= 0 && at + fact.owner.length <= scope[1];
+    at = testCase.text.indexOf(fact.owner, at + fact.owner.length)) {
+    candidates.push([at, at + fact.owner.length]);
+  }
+  if (!candidates.length) throw new Error("c1b-reference-owner-not-in-scope");
+  // Repeated owners within one clause must bind to the occurrence belonging
+  // to the material claim, not always the first owner in the sentence.
+  return candidates.find(range => contains(claim, range)) ??
+    [...candidates].reverse().find(range => range[1] <= claim[0]) ?? candidates[0];
 }
 
 /** Fails on an invalid human reference before observing either parser. */
@@ -274,7 +284,11 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
     grade = attached.some(obs => obs.identityHints.foodName !== null)
       ? "unbound-as-food"
       : !abstained ? "false-closed"
-        : alternativesComplete ? "traceable-unresolved" : "owner-alternatives-missing";
+        : !alternativesComplete ? "owner-alternatives-missing"
+          : fact.quantity !== null && attached.every(obs => obs.quantityHints.value === null)
+            ? "unbound-quantity-unobserved"
+            : fact.quantity !== null && attached.some(obs => !equalQuantity(obs, fact))
+              ? "unbound-quantity-mismatch" : "traceable-unresolved";
   }
   if (grade === "structured" && attached.some(obs =>
     observationClaimsFact(testCase, obs, fact) &&
@@ -298,6 +312,35 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
 export function evaluateC1b(testCase: C1bCase, observations: readonly FoodObservation[]): C1bCaseReport {
   validateC1bReference(testCase);
   const results = testCase.facts.map((fact, index) => inspectFact(testCase, fact, index, observations));
+  // FoodObservation has exactly one quantityHints value. Even a perfectly
+  // anchored observation must never count as proof of TWO material quantities,
+  // including repeated mentions of the same owner and the same amount.
+  // Deterministic maximum bipartite matching avoids false collisions when
+  // distinct observations can independently substantiate every quantity fact.
+  const quantityOwners = new Map<number, number>(); // observation index -> fact index
+  const assignQuantity = (factIndex: number, visited: Set<number>): boolean => {
+    const fact = testCase.facts[factIndex];
+    for (const [index, observation] of observations.entries()) {
+      if (visited.has(index) || !hasOriginalProvenance(testCase, observation) ||
+          !observationClaimsFact(testCase, observation, fact) ||
+          !equalQuantity(observation, fact) ||
+          !hasMaterialEvidence(testCase, observation, fact)) continue;
+      visited.add(index);
+      const previouslyAssigned = quantityOwners.get(index);
+      if (previouslyAssigned === undefined || assignQuantity(previouslyAssigned, visited)) {
+        quantityOwners.set(index, factIndex);
+        return true;
+      }
+    }
+    return false;
+  };
+  for (const [index, fact] of testCase.facts.entries()) {
+    if (results[index].grade !== "structured" ||
+        (fact.kind !== "food-quantity" && fact.kind !== "ingredient-quantity")) continue;
+    if (!assignQuantity(index, new Set<number>())) {
+      results[index] = { ...results[index], grade: "shared-quantity-observation" };
+    }
+  }
   const observedFactIndices = new Set<number>();
   const observedIds = new Set<string>();
   const observationIssues: C1bObservationIssue[] = [];
@@ -339,6 +382,8 @@ export function summarizeC1b(reports: readonly C1bCaseReport[]) {
     structured: 0, "traceable-unresolved": 0, "missing-component-binding": 0,
     "ingredient-quantity-unobserved": 0, "ingredient-quantity-mismatch": 0,
     "owner-alternatives-missing": 0, "unbound-as-food": 0, misbound: 0,
+    "unbound-quantity-unobserved": 0, "unbound-quantity-mismatch": 0,
+    "shared-quantity-observation": 0,
     "silent-omission": 0, "invalid-provenance": 0, "invalid-evidence": 0, "false-closed": 0,
   };
   const observationIssues: Record<C1bObservationIssue["grade"], number> = {
