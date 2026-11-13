@@ -221,7 +221,7 @@ aprovação de conservação semântica produtiva nem autorização de S3/cutove
   observação distinta por pareamento máximo determinístico. Duas menções do
   mesmo alimento com a mesma quantidade são fatos separados; uma observação
   ampla que cobre ambas recebe `shared-quantity-observation` e impede
-  `structurallyComplete`/admissão. Há dois casos independentes no holdout:
+  `structurallyComplete`/admissão. Há dois casos novos no split de calibração (regressões conhecidas; holdout preservado):
   `2 ovos e mais dois ovos` e `2 ovos e mais 3 ovos`. O índice de owner
   escolhe a ocorrência ligada ao span do fato, não a primeira na frase.
 - **A-1342-18:** em continuação com alternativas de owner e abstenção, uma

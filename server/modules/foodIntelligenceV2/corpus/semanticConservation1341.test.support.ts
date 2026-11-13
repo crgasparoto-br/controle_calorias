@@ -158,6 +158,7 @@ function equalQuantity(observation: FoodObservation, fact: C1bFact): boolean {
 }
 function ownerRange(testCase: C1bCase, fact: C1bFact, scope: [number, number]): [number, number] | null {
   if (fact.owner === null) return null;
+  if (!fact.owner.trim()) throw new Error("c1b-reference-owner-not-in-scope");
   const claim = uniqueSpan(testCase.text, fact.surface);
   const candidates: [number, number][] = [];
   for (let at = testCase.text.indexOf(fact.owner, scope[0]); at >= 0 && at + fact.owner.length <= scope[1];

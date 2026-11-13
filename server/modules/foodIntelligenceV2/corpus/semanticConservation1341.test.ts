@@ -187,6 +187,10 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       { ...cases[0].facts[0], owner: "pudim" }, ...cases[0].facts.slice(1),
     ] };
     expect(() => validateC1bReference(corrupted)).toThrow("c1b-reference-owner-not-in-scope");
+    const emptyOwner: C1bCase = { ...cases[0], facts: [
+      { ...cases[0].facts[0], owner: "" }, ...cases[0].facts.slice(1),
+    ] };
+    expect(() => validateC1bReference(emptyOwner)).toThrow("c1b-reference-owner-not-in-scope");
     const ambiguous = cases.find(c => c.id === "sugar-extra-unbound")!;
     const incomplete: C1bCase = { ...ambiguous, facts: ambiguous.facts.map(fact =>
       fact.kind === "unbound" ? { ...fact, ownerAlternatives: ["café"] } : fact) };
