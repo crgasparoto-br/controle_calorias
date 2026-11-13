@@ -10,6 +10,7 @@ import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSp
 import type { GovernedUnitAlias, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
 import { parseFoodObservation, type FoodObservation } from "./schemas";
+import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
 
 export type LinguisticModality = "text" | "audio_transcript" | "image";
 export type LexiconKind =
@@ -123,7 +124,7 @@ function emptyQuantity() {
 }
 function applicable(entry: GovernedLexiconEntry, owner: number | null, now: Date): boolean {
   if (!Number.isSafeInteger(entry.id) || entry.id <= 0 || !entry.current || entry.locale !== DEFAULT_FOOD_LOCALE) return false;
-  if (entry.validFrom && entry.validFrom > now || entry.validTo && entry.validTo <= now) return false;
+  if (!isLinguisticLexiconEntryValidAt(entry.validFrom, entry.validTo, now)) return false;
   if (entry.confidence !== null && (!Number.isFinite(entry.confidence) || entry.confidence < 0 || entry.confidence > 1)) return false;
   if (entry.scope === "user") {
     return owner !== null && entry.userId === owner && entry.source === "user_confirmed" && entry.status === "active";
@@ -509,8 +510,9 @@ export async function comprehendFoodLanguage(
         request.transcriptionConfidence < 0 || request.transcriptionConfidence > 1))) {
     throw new Error("invalid-linguistic-transcription-confidence");
   }
-  const now = request.now ?? new Date();
-  if (Number.isNaN(now.getTime()) ||
+  // Only an absent instant defaults to the current time; an explicit null is invalid.
+  const now = request.now === undefined ? new Date() : request.now;
+  if (!isLinguisticLexiconEntryValidAt(null, null, now) ||
       request.modality !== "image" && (request.imageRegion !== undefined || request.imageRegionRole !== undefined) ||
       request.modality === "image" && request.imageRegion !== undefined &&
         (request.imageRegion === null ||

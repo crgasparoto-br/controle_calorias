@@ -49,7 +49,7 @@ ordem invertida, vírgula, ponto e vírgula, escrita por extenso/numeral,
 conversão de unidade **não autorizada** (`g` versus colher), complemento
 solto, negação local, termo `brigadeiro de colher`, quantidade simples de
 alimentos, fração, texto e transcrição. O gerador é cartesiano e
-**determinístico** (`c1b-cartesian-v1`): 2 grafias × 3 delimitadores × 2
+**determinístico** (`c1b-cartesian-v2`): 2 grafias × 3 delimitadores × 2
 ordens. Não usa aleatoriedade; semente: `not-applicable`. O contraexemplo
 mínimo deve ser identificado pelo `caseId` e pelo fato da matriz, sem copiar
 texto pessoal para telemetria.
@@ -97,3 +97,22 @@ recorte de mudança do contrato na #1298/ADR, evoluir a única LCL na #1304,
 adicionar oráculos por fato ao Golden Food Corpus #1299 e somente então
 liberar D1 #1308 para migração decisória. Nenhuma flag V2 deve ser ativada
 por este diagnóstico; revisão independente é etapa separada.
+
+## Remediação de auditoria #1342
+
+- A referência inclui agora alimentos sem quantidade, como `brigadeiro de colher`.
+- O split é feito por família semântica inteira; nenhum grupo atravessa
+  calibração e holdout. O gerador usa `o café` para eliminar duplicata literal.
+- O verificador distingue contradição material de owner/quantidade da ausência
+  estrutural de vínculo tipado: nenhum dos dois autoriza gravar o lote.
+- A comparação por grupos reaproveita a projeção canônica da #1299 e mede
+  divergência de projeções observadas e colisões de controles negativos;
+  um teste diagnóstico verde NÃO equivale a aprovação do gate semântico.
+- A matriz de cada caso contém fatos esperados/observados e resultados por
+  escopo do extrator V1, explicitamente parcial e sem autoridade de owner.
+- Além do console `C1B_1341_AGGREGATE`, a CI salva
+  `c1b-1341-semantic-conservation.json` no artefato já existente
+  `food-v2-c3-calibration-<HEAD>` via `C3_EVIDENCE_OUTPUT_DIR`,
+  sem editar workflows. Essa evidência C1b não é calibração C3.
+- Persistência real, clarificação pública, S3, nutrição e acurácia em produção
+  continuam `not-measured` e dependentes das respectivas issues.

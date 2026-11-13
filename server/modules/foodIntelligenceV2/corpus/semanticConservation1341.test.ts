@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { comprehendFoodLanguage } from "../linguisticComprehension";
 import type { LinguisticLexiconStore } from "../linguisticComprehension";
 import { extractExplicitSugarQuantity } from "../../../coffeeSugarNutrition";
+import { goldenFoodCorpusCases } from "./data";
+import { GOLDEN_CORPUS_VERSION } from "./contracts";
 import { c1bCases } from "./semanticConservation1341.test.fixture";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
-import { evaluateC1b, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support";
+import { evaluateC1b, observedProjection, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support";
 
 /** This suite characterizes production functions, not a mocked resolver. */
 const emptyGovernedLexicon: LinguisticLexiconStore = { load: async () => [] };
@@ -20,7 +24,7 @@ const evaluateRealV2 = async (testCase: C1bCase) => {
 };
 
 /** Deterministic, not random: no unlogged seed or hand-picked parser output. */
-const generatorVersion = "c1b-cartesian-v1";
+const generatorVersion = "c1b-cartesian-v2";
 function generatedEquivalents(): C1bCase[] {
   const cases: C1bCase[] = [];
   for (const [form, coffeeAmount, puddingAmount, coffeeValue, puddingValue] of [
@@ -29,7 +33,7 @@ function generatedEquivalents(): C1bCase[] {
   ] as const) {
     for (const separator of [" e ", ", ", "; "] as const) {
       for (const reversed of [false, true]) {
-        const coffee = `café com ${coffeeAmount} colher de chá de açúcar`;
+        const coffee = `o café com ${coffeeAmount} colher de chá de açúcar`;
         const pudding = `um pudim com ${puddingAmount} colheres de chá de açúcar`;
         const components = reversed ? [pudding, coffee] : [coffee, pudding];
         const facts = [
@@ -43,7 +47,7 @@ function generatedEquivalents(): C1bCase[] {
         cases.push({
           id: `${generatorVersion}-${form}-${separator === " e " ? "conjunction" : separator === ", " ? "comma" : "semicolon"}-${reversed ? "reverse" : "forward"}`,
           text: components.join(separator), semanticGroup: "coffee1-pudding2spoons",
-          modality: "text", split: "calibration", facts,
+          modality: "text", split: "holdout", facts,
         });
       }
     }
@@ -61,8 +65,14 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(new Set(cases.map(c => c.id)).size).toBe(cases.length);
     expect(c1bCases.some(c => c.split === "holdout")).toBe(true);
     for (const testCase of cases) expect(() => validateC1bReference(testCase)).not.toThrow();
+    expect(goldenFoodCorpusCases.length).toBeGreaterThan(0);
+    expect(new Set(cases.map(c => c.text)).size).toBe(cases.length);
+    const groupSplits = new Map<string, string>();
     const groups = new Map<string, string>();
     for (const testCase of cases) {
+      const split = groupSplits.get(testCase.semanticGroup);
+      if (split) expect(testCase.split, testCase.id).toBe(split);
+      else groupSplits.set(testCase.semanticGroup, testCase.split);
       const signature = referenceSignature(testCase);
       const previous = groups.get(testCase.semanticGroup);
       if (previous) expect(signature, testCase.id).toBe(previous);
@@ -96,48 +106,78 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       ["text", "audio_transcript"].map(modality => [modality,
         summarizeC1b(reports.filter(report => report.modality === modality))]),
     );
-    // The V1-specific legacy helper has a singular sugar measure output and
-    // cannot prove owner bindings; it is only a partial V1 comparator.
-    const legacy = { testedCases: cases.length, singleSugarMeasureFound: cases.filter(testCase =>
-      extractExplicitSugarQuantity(testCase.text) !== null).length,
-      ownerBindingVerified: "not-measured" };
+    // V1 comparison is per independently labelled scope, never a binding oracle.
+    const legacy = cases.map(testCase => ({
+      id: testCase.id, facts: testCase.facts.map((fact, factIndex) => {
+        const observed = fact.kind === "ingredient-quantity"
+          ? extractExplicitSugarQuantity(fact.scope) : null;
+        return { factIndex, applicable: fact.kind === "ingredient-quantity",
+          detected: observed !== null, quantity: observed?.quantity ?? null,
+          sourceUnit: observed?.sourceUnit ?? null, ownerVerified: "not-measured" };
+      }),
+    }));
     const caseResults = measured.map((entry, index) => ({
       id: cases[index].id, group: entry.report.semanticGroup,
       split: entry.report.split, modality: entry.report.modality,
       complete: entry.report.structurallyComplete,
-      facts: entry.report.results.map(result => ({ kind: result.kind, grade: result.grade })),
+      expected: referenceSignature(cases[index]),
+      observed: observedProjection(entry.observations),
+      facts: entry.report.results,
     }));
-    const referenceKey = (testCase: C1bCase, index: number) => {
-      const fact = testCase.facts[index];
-      const fold = (value: string | null) => (value ?? "?").normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
-      return [fact.kind, fold(fact.owner), fold(fact.ingredient),
-        fact.quantity, fold(fact.unit)].join(":");
-    };
-    const groupOutcomes = new Map<string, { variants: number; complete: boolean; gradeKeys: Set<string> }>();
-    for (let index = 0; index < cases.length; index++) {
-      const testCase = cases[index], report = reports[index];
-      const gradeKey = report.results.map((fact, j) => `${referenceKey(testCase, j)}=${fact.grade}`)
-        .sort().join(";");
-      const group = groupOutcomes.get(testCase.semanticGroup) ??
-        { variants: 0, complete: true, gradeKeys: new Set<string>() };
+    const groups = new Map<string, { expected: Set<string>; observed: Set<string>;
+      variants: number; complete: boolean; split: string }>();
+    for (let i=0; i<cases.length; i++) {
+      const testCase=cases[i], report=reports[i];
+      const group=groups.get(testCase.semanticGroup) ?? {
+        expected:new Set<string>(), observed:new Set<string>(),
+        variants:0, complete:true, split:testCase.split };
+      group.expected.add(referenceSignature(testCase));
+      group.observed.add(JSON.stringify(observedProjection(measured[i].observations)));
       group.variants++;
       group.complete &&= report.structurallyComplete;
-      group.gradeKeys.add(gradeKey);
-      groupOutcomes.set(testCase.semanticGroup, group);
+      groups.set(testCase.semanticGroup, group);
     }
-    const metamorphic = Object.fromEntries([...groupOutcomes].map(([name, value]) => [name, {
-      variants: value.variants, fullyStructured: value.complete,
-      gradeDivergence: value.gradeKeys.size > 1,
+    const metamorphic = Object.fromEntries([...groups].map(([id,g])=>[id,{
+      split:g.split, variants:g.variants,
+      referenceConsistent:g.expected.size===1,
+      observedProjectionEquivalent:g.observed.size===1,
+      structurallyComplete:g.complete,
+      gatePassed:g.expected.size===1 && g.observed.size===1 && g.complete,
     }]));
-    const aggregate = { schemaVersion: 1, issue: 1341,
-      source: "real-LCL-V2-and-partial-V1-extractor", generatorVersion,
-      sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
-      corpusRevision: "c1b-annotated-v1", lexiconRevision: "c1b-empty-s2",
-      interpreterVersion: null, S3: "not-evaluated", providerCalls: 0,
-      ...summary, byClass, byModality, legacy, metamorphic, caseResults,
-      decision: "adjust-ADR-contract-before-D1-semantic-cutover" };
-    console.info("C1B_1341_AGGREGATE=" + JSON.stringify(aggregate));
+    const contrasts = [
+      ["coffee1-pudding2spoons","coffee1-pudding2g"],
+      ["coffee1-pudding2spoons","coffee-zero-pudding2"],
+      ["coffee1-pudding2spoons","coffee1-pudding-zero"],
+      ["coffee1-pudding2spoons","coffee1-pudding2-plus-unbound"],
+      ["eggs2-banana1","bread1-milk200"],
+    ] as const;
+    const negativeControls=contrasts.map(([left,right])=>{
+      const a=groups.get(left)!, b=groups.get(right)!;
+      const referenceDifferent=[...a.expected][0]!==[...b.expected][0];
+      const observedCollision=[...a.observed].some(key=>b.observed.has(key));
+      return {left,right,referenceDifferent,observedCollision,
+        gatePassed:referenceDifferent && !observedCollision && a.complete && b.complete};
+    });
+    expect(negativeControls.every(item=>item.referenceDifferent)).toBe(true);
+    const aggregate = { schemaVersion:2, issue:1341, generatorVersion,
+      sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+      corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
+      canonicalCases:goldenFoodCorpusCases.length, lexiconRevision:"c1b-empty-s2",
+      S3:"not-evaluated", providerCalls:0, ...summary,
+      byClass, byModality, legacy:{scope:"partial-sugar-extractor",caseResults:legacy,
+        ownerBinding:"not-measured"},
+      metamorphic, negativeControls, caseResults,
+      clarification:{referenceRequired:cases.filter(x=>x.facts.some(f=>f.kind==="unbound")).length,
+        unresolvedSignals:measured.filter(x=>x.observations.some(o=>o.unresolvedReason!==null)).length,
+        actualClarifications:"not-measured"},
+      decision:"adjust-ADR-contract-before-D1-semantic-cutover" };
+    console.info("C1B_1341_AGGREGATE="+JSON.stringify(aggregate));
+    // Existing C3 artifact uploader also preserves this separately named C1b JSON.
+    if(process.env.C3_EVIDENCE_OUTPUT_DIR){
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR,{recursive:true});
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,"c1b-1341-semantic-conservation.json"),
+        JSON.stringify(aggregate,null,2)+"\\n","utf8");
+    }
     // Every missing component is an open architectural obligation, not
     // evidence of zero fallback or accurate nutrition in production.
     for (const report of reports) {
@@ -172,6 +212,24 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(misbound.results.every(x => x.grade === "misbound")).toBe(true);
     expect(misbound.structurallyComplete).toBe(false);
 
+    const compound = cases.find(c=>c.id==="sugar-owners-original")!;
+    const actualCompound=await evaluateRealV2(compound);
+    expect(actualCompound.observations).toHaveLength(2);
+    const exchanged=actualCompound.observations.map((obs,i)=>({...obs,
+      quantityHints:{...obs.quantityHints,value:i===0?2:1,unit:"colher de chá"}}));
+    const mismatch=evaluateC1b(compound,exchanged);
+    expect(mismatch.results.filter(x=>x.kind==="ingredient-quantity")
+      .every(x=>x.grade==="misbound")).toBe(true);
+    const wrongOwners=actualCompound.observations.map((obs,i)=>({...obs,
+      identityHints:{...obs.identityHints,foodName:i===0?"pudim":"café"}}));
+    expect(evaluateC1b(compound,wrongOwners).results.some(x=>x.grade==="misbound")).toBe(true);
+    const brigadeiro=cases.find(c=>c.id==="measure-word-food-name")!;
+    const brigadeiroObserved=await evaluateRealV2(brigadeiro);
+    const omitted=brigadeiroObserved.observations.filter(obs=>{
+      const span=obs.surfaceSpan.span;
+      return !span || !obs.rawInput?.slice(span.start,span.end).includes("brigadeiro");
+    });
+    expect(evaluateC1b(brigadeiro,omitted).results[0].grade).toBe("silent-omission");
     const ambiguous = cases.find(c => c.id === "sugar-extra-unbound")!;
     const actual = await evaluateRealV2(ambiguous);
     expect(actual.report.structurallyComplete).toBe(false);

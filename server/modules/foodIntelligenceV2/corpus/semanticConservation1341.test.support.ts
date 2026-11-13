@@ -4,6 +4,7 @@
  * FoodObservation fields may establish structured semantic coverage.
  */
 import type { FoodObservation } from "../schemas";
+import { projectObservation } from "./projection";
 import type { C1bCase, C1bFact } from "./semanticConservation1341.test.fixture";
 
 export type C1bGrade =
@@ -16,6 +17,8 @@ export type C1bResult = {
   grade: C1bGrade;
   sourceRange: [number, number];
   scopeRange: [number, number];
+  expected: { owner: string | null; ingredient: string | null; quantity: number | null; unit: string | null };
+  observed: { foodNames: (string | null)[]; quantityHints: { value: number | null; unit: string | null }[]; unresolvedReasons: (string | null)[] };
 };
 export type C1bCaseReport = {
   caseId: string;
@@ -72,6 +75,7 @@ export function validateC1bReference(testCase: C1bCase): void {
         (fact.kind === "food-quantity" || fact.kind === "ingredient-quantity") &&
           (fact.quantity === null || !Number.isFinite(fact.quantity) || fact.quantity <= 0 || !fact.unit) ||
         fact.kind === "negation" && (fact.quantity !== null || fact.unit !== null) ||
+        fact.kind === "food-mention" && (fact.quantity !== null || fact.unit !== null || fact.ingredient !== null) ||
         fact.kind === "ingredient-quantity" && !fact.ingredient) {
       throw new Error("c1b-reference-invalid-fact");
     }
@@ -97,10 +101,27 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
   if (!covering.length) grade = "silent-omission";
   else if (!attached.length) grade = "misbound";
   else if (fact.kind === "ingredient-quantity") {
-    // FoodObservation V2 presently has one food quantity, no per-ingredient
-    // amount owner. An arbitrary numeric match inside the same text cannot
-    // establish the ingredient relation. Do not self-certify from raw spans.
-    grade = "missing-component-binding";
+    // No typed ingredient relation exists yet: never call the binding structured.
+    // But reject an explicit quantity or owner claimed by the wrong sibling.
+    const wrongAmount = attached.some(obs => testCase.facts.some(other =>
+      other.kind === "ingredient-quantity" && other.owner !== fact.owner &&
+      other.quantity !== fact.quantity && obs.quantityHints.value === other.quantity &&
+      fold(obs.quantityHints.unit ?? "") === fold(other.unit ?? "")));
+    const wrongOwner = attached.length > 0 && attached.every(obs => {
+      const name = fold(obs.identityHints.foodName ?? "").replace(/^(?:o|a|um|uma)\s+/u, "");
+      const expected = fold(fact.owner ?? "");
+      if (name === expected || name.startsWith(expected + " ")) return false;
+      return testCase.facts.some(other => other.owner && other.owner !== fact.owner &&
+        (name === fold(other.owner) || name.startsWith(fold(other.owner) + " ")));
+    });
+    grade = wrongAmount || wrongOwner ? "misbound" : "missing-component-binding";
+  } else if (fact.kind === "food-mention") {
+    const found = attached.some(obs => {
+      const name = fold(obs.identityHints.foodName ?? "").replace(/^(?:o|a|um|uma)\s+/u, "");
+      return name === fold(fact.owner ?? "");
+    });
+    grade = found ? "structured" : attached.some(obs => obs.unresolvedReason !== null)
+      ? "traceable-unresolved" : "false-closed";
   } else if (fact.kind === "food-quantity") {
     const bound = attached.some(obs => fold(obs.identityHints.foodName ?? "") === fold(fact.owner ?? "") &&
       equalQuantity(obs, fact));
@@ -119,7 +140,12 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
       ? "unbound-as-food"
       : attached.some(obs => obs.unresolvedReason !== null) ? "traceable-unresolved" : "false-closed";
   }
-  return { caseId: testCase.id, factIndex, kind: fact.kind, grade, sourceRange, scopeRange };
+  return { caseId: testCase.id, factIndex, kind: fact.kind, grade, sourceRange, scopeRange,
+    expected: { owner: fact.owner, ingredient: fact.ingredient, quantity: fact.quantity, unit: fact.unit },
+    observed: { foodNames: attached.map(obs => obs.identityHints.foodName),
+      quantityHints: attached.map(obs => ({ value: obs.quantityHints.value, unit: obs.quantityHints.unit })),
+      unresolvedReasons: attached.map(obs => obs.unresolvedReason) },
+  };
 }
 
 export function evaluateC1b(testCase: C1bCase, observations: readonly FoodObservation[]): C1bCaseReport {
@@ -148,4 +174,21 @@ export function summarizeC1b(reports: readonly C1bCaseReport[]) {
     casesStructurallyComplete: reports.filter(report => report.structurallyComplete).length,
     grades, S3: "not-evaluated", nutritionalAccuracy: "not-measured",
     costUsd: "not-measured", latencyMs: "not-measured" } as const;
+}
+
+/** Reuses the canonical #1299 pre-resolution projection (§4.1.8). */
+export function observedProjection(observations: readonly FoodObservation[]) {
+  return observations.map(obs => {
+    const p = projectObservation(obs);
+    return {
+      identity: { name: p.identity.foodName === null ? null
+        : fold(p.identity.foodName).replace(/^(?:o|a|um|uma)\s+/u, ""),
+        brand: p.identity.brand, variant: p.identity.variant,
+        preparation: [...p.identity.preparation].map(fold).sort(),
+        qualifiers: [...p.identity.qualifierValues].map(fold).sort(),
+        barcode: p.identity.barcode },
+      quantity: { value: p.quantity.value, unit: p.quantity.unit },
+      alternatives: p.alternativeCount, unresolvedReason: p.unresolvedReason,
+    };
+  }).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 }

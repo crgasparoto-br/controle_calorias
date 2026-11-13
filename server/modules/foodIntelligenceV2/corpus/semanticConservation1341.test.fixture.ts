@@ -3,7 +3,7 @@
  * These are expected facts, never parser outputs or nutritional truth claims.
  * Holdout examples must not be supplied to S2 aliases or S3 prompts.
  */
-export type C1bFactKind = "food-quantity" | "ingredient-quantity" | "negation" | "unbound";
+export type C1bFactKind = "food-quantity" | "food-mention" | "ingredient-quantity" | "negation" | "unbound";
 export type C1bFact = {
   kind: C1bFactKind;
   /** Literal owner from the original input, null when attachment is ambiguous. */
@@ -30,6 +30,9 @@ const ingredient = (owner: string, scope: string, surface: string, quantity: num
 const food = (owner: string, surface: string, quantity: number, unit: string): C1bFact =>
   ({ kind: "food-quantity", owner, scope: surface, surface,
     ingredient: null, quantity, unit });
+const foodMention = (name: string): C1bFact =>
+  ({ kind: "food-mention", owner: name, scope: name, surface: name,
+    ingredient: null, quantity: null, unit: null });
 const without = (owner: string, scope: string): C1bFact =>
   ({ kind: "negation", owner, scope, surface: "sem açúcar", ingredient: "açúcar",
     quantity: null, unit: null });
@@ -40,7 +43,7 @@ const unbound = (scope: string, surface: string, quantity: number | null = null,
 /** Human-authored labels: no prediction is used to derive a reference. */
 export const c1bCases: readonly C1bCase[] = [
   {
-    id: "sugar-owners-original", semanticGroup: "coffee1-pudding2spoons", split: "calibration", modality: "text",
+    id: "sugar-owners-original", semanticGroup: "coffee1-pudding2spoons", split: "holdout", modality: "text",
     text: "café com uma colher de chá de açúcar e um pudim com duas colheres de chá de açúcar",
     facts: [
       ingredient("café", "café com uma colher de chá de açúcar", "uma colher de chá de açúcar", 1, "colher de chá"),
@@ -48,7 +51,7 @@ export const c1bCases: readonly C1bCase[] = [
     ],
   },
   {
-    id: "sugar-owners-reversed", semanticGroup: "coffee1-pudding2spoons", split: "calibration", modality: "text",
+    id: "sugar-owners-reversed", semanticGroup: "coffee1-pudding2spoons", split: "holdout", modality: "text",
     text: "um pudim com duas colheres de chá de açúcar e café com uma colher de chá de açúcar",
     facts: [
       ingredient("pudim", "um pudim com duas colheres de chá de açúcar", "duas colheres de chá de açúcar", 2, "colher de chá"),
@@ -56,7 +59,7 @@ export const c1bCases: readonly C1bCase[] = [
     ],
   },
   {
-    id: "sugar-owners-comma", semanticGroup: "coffee1-pudding2spoons", split: "calibration", modality: "text",
+    id: "sugar-owners-comma", semanticGroup: "coffee1-pudding2spoons", split: "holdout", modality: "text",
     text: "café com uma colher de chá de açúcar, um pudim com duas colheres de chá de açúcar",
     facts: [
       ingredient("café", "café com uma colher de chá de açúcar", "uma colher de chá de açúcar", 1, "colher de chá"),
@@ -88,7 +91,7 @@ export const c1bCases: readonly C1bCase[] = [
     ],
   },
   {
-    id: "sugar-gram-reversed", semanticGroup: "coffee1-pudding2g", split: "holdout", modality: "text",
+    id: "sugar-gram-reversed", semanticGroup: "coffee1-pudding2g", split: "calibration", modality: "text",
     text: "um pudim com 2 g de açúcar e café com uma colher de chá de açúcar",
     facts: [
       ingredient("pudim", "um pudim com 2 g de açúcar", "2 g de açúcar", 2, "g"),
@@ -140,7 +143,7 @@ export const c1bCases: readonly C1bCase[] = [
   {
     id: "measure-word-food-name", semanticGroup: "brigadeiro-name-coffee1", split: "holdout", modality: "text",
     text: "brigadeiro de colher e café com uma colher de chá de açúcar",
-    facts: [
+    facts: [foodMention("brigadeiro de colher"),
       ingredient("café", "café com uma colher de chá de açúcar", "uma colher de chá de açúcar", 1, "colher de chá"),
     ],
   },
@@ -150,7 +153,7 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [food("ovos", "2 ovos", 2, "un"), food("banana", "1 banana", 1, "un")],
   },
   {
-    id: "food-count-reversed", semanticGroup: "eggs2-banana1", split: "holdout", modality: "text",
+    id: "food-count-reversed", semanticGroup: "eggs2-banana1", split: "calibration", modality: "text",
     text: "1 banana e 2 ovos",
     facts: [food("banana", "1 banana", 1, "un"), food("ovos", "2 ovos", 2, "un")],
   },
@@ -160,7 +163,7 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [food("pão", "1 fatia de pão", 1, "fatia"), food("leite", "200 ml de leite", 200, "ml")],
   },
   {
-    id: "food-written-fraction", semanticGroup: "mortadella1.5", split: "calibration", modality: "text",
+    id: "food-written-fraction", semanticGroup: "mortadella1.5", split: "holdout", modality: "text",
     text: "uma fatia e meia de mortadela",
     facts: [food("mortadela", "uma fatia e meia de mortadela", 1.5, "fatia")],
   },
