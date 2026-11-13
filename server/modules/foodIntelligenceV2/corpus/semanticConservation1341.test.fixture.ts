@@ -14,6 +14,10 @@ export type C1bFact = {
   requiresAbstention?: true;
   /** Exact claim substring: its offset is located independently of either parser. */
   surface: string;
+  /** Explicit UTF-16 start for a repeated literal; never inferred from parser output. */
+  surfaceStart?: number;
+  /** Explicit UTF-16 start when the labelled scope also repeats verbatim. */
+  scopeStart?: number;
   /** Exact, independently labelled clause containing the claim and its owner. */
   scope: string;
   ingredient: string | null;
@@ -171,6 +175,16 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [
       { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais dois ovos" },
       { ...food("ovos", "dois ovos", 2, "un"), scope: "2 ovos e mais dois ovos" },
+    ],
+  },
+  {
+    // Both quantities have the identical surface text but distinct original
+    // UTF-16 occurrences. An unqualified indexOf would silently merge them.
+    id: "food-repeated-literal", semanticGroup: "eggs2-plus-eggs2", split: "calibration", modality: "text",
+    text: "2 ovos e mais 2 ovos",
+    facts: [
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 2 ovos", surfaceStart: 0 },
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 2 ovos", surfaceStart: 14 },
     ],
   },
   {

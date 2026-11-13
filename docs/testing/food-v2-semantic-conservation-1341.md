@@ -236,3 +236,28 @@ aprovação de conservação semântica produtiva nem autorização de S3/cutove
   As referências do corpus continuam autorais e independentes da saída LCL.
   CI verde comprova apenas o teste do diagnóstico; S3, nutrição e persistência
   pública permanecem não avaliadas.
+
+## Remediação A-1342-19–20 — quantidade sem fonte e ocorrências literais
+
+- **A-1342-19:** um fato `food-mention` rotulado sem quantidade não admite
+  `quantityHints.value`, `quantityHints.unit` ou evidência `quantity.value`
+  adicionais como prova de conservação. Os controles sintéticos exercitam
+  `brigadeiro de colher` sem quantidade (positivo), com `99 g` e `1 colher`
+  inventados e com unidade órfã (negativos); a mutação também é comparada
+  contra o caso preexistente `measure-word-food-name` sem alterar seu holdout.
+  Completude e admissão **diagnóstica** são recusadas para as alegações extras.
+- **A-1342-20:** `C1bFact` pode anotar `surfaceStart` e `scopeStart` em
+  offsets UTF-16 explícitos quando o literal se repete no input. Sem offset,
+  literais ambíguos seguem rejeitados; offsets inválidos, substrings que não
+  correspondem à referência e dois fatos da mesma classe no mesmo span
+  falham antes de consultar o parser. A fixture de calibração
+  `food-repeated-literal` cobre `2 ovos e mais 2 ovos` com spans distintos
+  `[0, 6]` e `[14, 20]`. Testes comprovam duas observações independentes
+  aceitas, observação ausente rejeitada e uma única observação que tenta
+  reivindicar ambas rejeitada. A comparação observacional V1 utiliza os
+  offsets rotulados, não `indexOf` da primeira ocorrência.
+- A matriz exact-SHA `schemaVersion: 5` preserva os controles existentes e
+  acrescenta `remediationControls.postAuditLiteralAndMention`. Não há
+  alteração em runtime produtivo, schema, léxico, S3, flags, entrypoints,
+  persistência, workflows ou rulesets. O sucesso do diagnóstico não comprova
+  conservação semântica da LCL, aprovação independente ou autorização de merge.

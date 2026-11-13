@@ -11,7 +11,7 @@ import { GOLDEN_CORPUS_VERSION } from "./contracts";
 import { projectExpectedDecision } from "./projection";
 import { c1bCases } from "./semanticConservation1341.test.fixture";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
-import { attemptDiagnosticBatchAdmission, evaluateC1b, observedProjection, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support";
+import { attemptDiagnosticBatchAdmission, evaluateC1b, factSourceRange, observedProjection, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support";
 
 /** This suite characterizes production functions, not a mocked resolver. */
 const emptyGovernedLexicon: LinguisticLexiconStore = { load: async () => [] };
@@ -137,8 +137,7 @@ function legacyWholeInputBaseline(testCase: C1bCase) {
   return { scope: "full-input-V1-legacy-decomposition-and-coffee-normalization",
     publicPersistence: "not-measured", fullInput: testCase.text,
     parts, coffeeDraft, facts: testCase.facts.map((fact, factIndex) => {
-      const sourceStart = testCase.text.indexOf(fact.surface);
-      const sourceEnd = sourceStart + fact.surface.length;
+      const [sourceStart, sourceEnd] = factSourceRange(testCase, fact);
       const containing = parts.filter(part => part.originalSpan[0] <= sourceStart &&
         part.originalSpan[1] >= sourceEnd);
       return { factIndex, sourceRange: [sourceStart, sourceEnd],
@@ -196,6 +195,18 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       fact.kind === "unbound" ? { ...fact, ownerAlternatives: ["café"] } : fact) };
     expect(() => validateC1bReference(incomplete))
       .toThrow("c1b-reference-ambiguous-owners-incomplete");
+    const repeatedLiteral = cases.find(c => c.id === "food-repeated-literal")!;
+    expect(repeatedLiteral.facts.map(fact => factSourceRange(repeatedLiteral, fact)))
+      .toEqual([[0, 6], [14, 20]]);
+    const replaceSecond = (fact: C1bCase["facts"][number]): C1bCase => ({
+      ...repeatedLiteral, facts: [repeatedLiteral.facts[0], fact],
+    });
+    expect(() => validateC1bReference(replaceSecond({ ...repeatedLiteral.facts[1],
+      surfaceStart: undefined }))).toThrow("c1b-reference-unlocatable-or-ambiguous");
+    expect(() => validateC1bReference(replaceSecond({ ...repeatedLiteral.facts[1],
+      surfaceStart: 13 }))).toThrow("c1b-reference-offset-not-matching-original");
+    expect(() => validateC1bReference(replaceSecond({ ...repeatedLiteral.facts[1],
+      surfaceStart: 0 }))).toThrow("c1b-reference-duplicate-fact-occurrence");
   });
 
   it("mede a LCL real, separando conteúdo rastreável de vínculos demonstrados", async () => {
@@ -417,6 +428,52 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       independentRepeated.map(obs => obs.observationId));
     expect(independentAttempt.admitted).toBe(true);
 
+    // A-1342-20: two EXACTLY equal literals must preserve distinct authored
+    // UTF-16 occurrences, without guessing which occurrence the parser meant.
+    const repeatedLiteral = cases.find(c => c.id === "food-repeated-literal")!;
+    const [firstLiteral, secondLiteral] = repeatedLiteral.facts.map(fact => {
+      const [start, end] = factSourceRange(repeatedLiteral, fact);
+      return { start, end };
+    });
+    const literalFirst = anchoredDiagnosticObservation(eggsTemplate, repeatedLiteral,
+      "c1b-literal-first", firstLiteral, 2);
+    const literalSecond = anchoredDiagnosticObservation(eggsTemplate, repeatedLiteral,
+      "c1b-literal-second", secondLiteral, 2);
+    const literalIndependent = [literalFirst, literalSecond];
+    expect(literalIndependent.every(obs => parseFoodObservation(obs).ok)).toBe(true);
+    const literalPositive = evaluateC1b(repeatedLiteral, literalIndependent);
+    const literalPositiveAttempt = attemptDiagnosticBatchAdmission(repeatedLiteral,
+      literalIndependent, literalIndependent.map(obs => obs.observationId));
+    expect(literalPositive.results.map(fact => fact.sourceRange))
+      .toEqual([[0, 6], [14, 20]]);
+    expect(literalPositive.results.map(fact => fact.grade)).toEqual(["structured", "structured"]);
+    expect(literalPositive.observationIssues).toEqual([]);
+    expect(literalPositive.structurallyComplete).toBe(true);
+    expect(literalPositiveAttempt.admitted).toBe(true);
+    const literalOmitted = evaluateC1b(repeatedLiteral, [literalFirst]);
+    expect(literalOmitted.results.map(fact => fact.grade))
+      .toEqual(["structured", "silent-omission"]);
+    expect(attemptDiagnosticBatchAdmission(repeatedLiteral, [literalFirst],
+      [literalFirst.observationId]).admitted).toBe(false);
+    // Even separate proof anchors for both occurrences cannot turn ONE
+    // quantityHints value into two independent quantities.
+    const oneBroadLiteral = anchoredDiagnosticObservation(eggsTemplate, repeatedLiteral,
+      "c1b-literal-broad", { start: 0, end: repeatedLiteral.text.length }, 2);
+    const broadQuantityProof = oneBroadLiteral.evidence.find(item => item.field === "quantity.value")!;
+    const sharedLiteral = { ...oneBroadLiteral, evidence: [
+      ...oneBroadLiteral.evidence.filter(item => item.field !== "quantity.value"),
+      { ...broadQuantityProof, evidenceId: "c1b-literal-first-proof",
+        anchor: { ...broadQuantityProof.anchor, span: firstLiteral } },
+      { ...broadQuantityProof, evidenceId: "c1b-literal-second-proof",
+        anchor: { ...broadQuantityProof.anchor, span: secondLiteral } },
+    ] };
+    const literalShared = evaluateC1b(repeatedLiteral, [sharedLiteral]);
+    expect(literalShared.results.map(fact => fact.grade))
+      .toContain("shared-quantity-observation");
+    expect(literalShared.structurallyComplete).toBe(false);
+    expect(attemptDiagnosticBatchAdmission(repeatedLiteral, [sharedLiteral],
+      [sharedLiteral.observationId]).admitted).toBe(false);
+
     const oneDistinct = anchoredDiagnosticObservation(eggsTemplate, distinct,
       "c1b-distinct-single", { start: 0, end: distinct.text.length }, 2);
     const distinctReport = evaluateC1b(distinct, [oneDistinct]);
@@ -491,6 +548,81 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         missing: continuationFact(missingQuantity) },
     };
 
+    // A-1342-19: a name containing a measure word has NO measured portion.
+    // Coherent fabricated evidence must never make it structurally complete.
+    const mentionCase: C1bCase = {
+      id: "c1b-regression-food-mention", text: "brigadeiro de colher",
+      semanticGroup: "c1b-regression-food-mention", split: "calibration", modality: "text",
+      facts: [cases.find(c => c.id === "measure-word-food-name")!.facts[0]],
+    };
+    const mentionTemplate = measured[cases.findIndex(c => c.id === "measure-word-food-name")]
+      .observations.find(obs => obs.identityHints.foodName === "brigadeiro de colher")!;
+    const mentionAnchor = { sourceRef: `c1b:${mentionCase.id}`, region: null,
+      span: { start: 0, end: mentionCase.text.length } };
+    const mentionValid = { ...mentionTemplate,
+      observationId: "c1b-food-mention", rawInput: mentionCase.text,
+      normalizedInput: mentionCase.text, surfaceSpan: mentionAnchor,
+      unresolvedReason: null,
+      evidence: mentionTemplate.evidence.map(item => ({ ...item, anchor: mentionAnchor })),
+      normalizationPath: mentionTemplate.normalizationPath.map(step => ({ ...step, anchor: mentionAnchor })),
+    };
+    expect(parseFoodObservation(mentionValid).ok).toBe(true);
+    const mentionPositive = evaluateC1b(mentionCase, [mentionValid]);
+    expect(mentionPositive.results[0].grade).toBe("structured");
+    expect(mentionPositive.structurallyComplete).toBe(true);
+    expect(attemptDiagnosticBatchAdmission(mentionCase, [mentionValid],
+      [mentionValid.observationId]).admitted).toBe(true);
+    const mentionQuantityProof = { ...eggsTemplate.evidence.find(item => item.field === "quantity.value")!,
+      evidenceId: "c1b-invented-quantity", anchor: mentionAnchor };
+    const inventedMention = (value: number, unit: string) => ({ ...mentionValid,
+      quantityHints: { ...mentionValid.quantityHints, value, unit },
+      evidence: [...mentionValid.evidence,
+        { ...mentionQuantityProof, value, unit }],
+    });
+    const inventedVariants = [inventedMention(99, "g"), inventedMention(1, "colher")];
+    const inventedMentionAttacks = inventedVariants.map(observation => {
+      expect(parseFoodObservation(observation).ok).toBe(true);
+      const report = evaluateC1b(mentionCase, [observation]);
+      const admission = attemptDiagnosticBatchAdmission(mentionCase, [observation],
+        [observation.observationId]);
+      expect(report.results[0].grade).toBe("invalid-evidence");
+      expect(report.observationIssues.map(item => item.grade)).toContain("invalid-evidence");
+      expect(report.structurallyComplete).toBe(false);
+      expect(admission.admitted).toBe(false);
+      return { value: observation.quantityHints.value, unit: observation.quantityHints.unit,
+        grade: report.results[0].grade, admitted: admission.admitted };
+    });
+    const leftoverUnitMention = { ...mentionValid,
+      quantityHints: { ...mentionValid.quantityHints, value: null, unit: "g" } };
+    expect(evaluateC1b(mentionCase, [leftoverUnitMention]).results[0].grade)
+      .toBe("invalid-evidence");
+    // A valid first fact cannot become "structured" from a fabricated quantity
+    // merely because a second, independent coffee fact remains incomplete.
+    const actualMentionCase = cases.find(c => c.id === "measure-word-food-name")!;
+    const actualMentionObservations = measured[cases.indexOf(actualMentionCase)].observations;
+    const inventedInHoldout = actualMentionObservations.map(obs =>
+      obs.identityHints.foodName === "brigadeiro de colher" ? {
+        ...obs, quantityHints: { ...obs.quantityHints, value: 99, unit: "g" },
+        evidence: [...obs.evidence, { ...mentionQuantityProof,
+          anchor: obs.surfaceSpan }],
+      } : obs);
+    expect(evaluateC1b(actualMentionCase, inventedInHoldout).results[0].grade)
+      .toBe("invalid-evidence");
+    const newRemediationControls = {
+      unsupportedMentionQuantity: { caseId: mentionCase.id,
+        benignGrade: mentionPositive.results[0].grade,
+        benignSyntheticAdmission: true, inventedVariants: inventedMentionAttacks,
+        leftoverUnitGrade: evaluateC1b(mentionCase, [leftoverUnitMention]).results[0].grade,
+        existingHoldoutGrade: evaluateC1b(actualMentionCase, inventedInHoldout).results[0].grade },
+      identicalLiteralOccurrences: { caseId: repeatedLiteral.id,
+        sourceRanges: literalPositive.results.map(fact => fact.sourceRange),
+        independentGrades: literalPositive.results.map(fact => fact.grade),
+        independentSyntheticAdmission: literalPositiveAttempt.admitted,
+        omittedGrades: literalOmitted.results.map(fact => fact.grade),
+        sharedGrades: literalShared.results.map(fact => fact.grade),
+        sharedSyntheticAdmission: false },
+    };
+
     const localNegationIndex = cases.findIndex(c => c.id === "sugar-local-negation");
     const localNegation = cases[localNegationIndex];
     const negationObservations = measured[localNegationIndex].observations;
@@ -515,8 +647,9 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         positiveStructurallyComplete: evaluateC1b(simpleCase, syntheticResolved).structurallyComplete,
         positiveSyntheticAdmission: resolvedAttempt.admitted, attacks },
       quantityConservation: quantityRemediationControls,
+      postAuditLiteralAndMention: newRemediationControls,
     };
-    const aggregate = { schemaVersion:4, issue:1341, generatorVersion,
+    const aggregate = { schemaVersion:5, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
       canonicalCases:goldenFoodCorpusCases.length, canonicalExecuted:canonicalBaseline.length,

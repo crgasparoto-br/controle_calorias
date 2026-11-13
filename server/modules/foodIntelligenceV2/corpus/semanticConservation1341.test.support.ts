@@ -56,6 +56,20 @@ function uniqueSpan(text: string, literal: string): [number, number] {
   }
   return [start, start + literal.length];
 }
+function locatedSpan(text: string, literal: string, start?: number): [number, number] {
+  if (start === undefined) return uniqueSpan(text, literal);
+  if (!Number.isSafeInteger(start) || start < 0 || text.slice(start, start + literal.length) !== literal) {
+    throw new Error("c1b-reference-offset-not-matching-original");
+  }
+  return [start, start + literal.length];
+}
+/** Authored input offsets are facts about the original text, not parser predictions. */
+export function factSourceRange(testCase: C1bCase, fact: C1bFact): [number, number] {
+  return locatedSpan(testCase.text, fact.surface, fact.surfaceStart);
+}
+function factScopeRange(testCase: C1bCase, fact: C1bFact): [number, number] {
+  return locatedSpan(testCase.text, fact.scope, fact.scopeStart);
+}
 function contains(outer: [number, number], inner: [number, number]): boolean {
   return outer[0] <= inner[0] && outer[1] >= inner[1];
 }
@@ -91,9 +105,9 @@ function ownerMatchesIdentity(foodName: string | null, owner: string | null): bo
  * invent an extra food or duplicate an observed food and still pass coverage. */
 function observationClaimsFact(testCase: C1bCase, observation: FoodObservation, fact: C1bFact): boolean {
   const span = spanOf(observation);
-  if (span === null || !contains(span, uniqueSpan(testCase.text, fact.surface))) return false;
+  if (span === null || !contains(span, factSourceRange(testCase, fact))) return false;
   if (fact.owner === null) return true;
-  const scope = uniqueSpan(testCase.text, fact.scope);
+  const scope = factScopeRange(testCase, fact);
   const owner = ownerRange(testCase, fact, scope);
   return owner !== null && contains(span, owner) &&
     ownerMatchesIdentity(observation.identityHints.foodName, fact.owner);
@@ -103,8 +117,8 @@ function observationClaimsFact(testCase: C1bCase, observation: FoodObservation, 
  * evidence values must substantiate the identity, quantity and qualifiers.
  * No new text parser or lexical oracle is introduced. */
 function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fact: C1bFact): boolean {
-  const claimRange = uniqueSpan(testCase.text, fact.surface);
-  const scopeRange = uniqueSpan(testCase.text, fact.scope);
+  const claimRange = factSourceRange(testCase, fact);
+  const scopeRange = factScopeRange(testCase, fact);
   const observationRange = spanOf(observation);
   // A proof that also consumes a sibling's clause cannot establish this
   // independently labelled owner, even when the owner token is present.
@@ -130,6 +144,10 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
 
   const quantityProofs = observation.evidence.filter(item => item.field === "quantity.value");
   const quantity = observation.quantityHints;
+  // A measure word in a food name is not a labelled portion. The oracle must
+  // refute a self-consistent yet fabricated quantity/evidence for this mention.
+  if (fact.kind === "food-mention" && (quantity.value !== null ||
+      quantity.unit !== null || quantityProofs.length > 0)) return false;
   if (quantity.value !== null) {
     if (quantityProofs.length === 0 || quantityProofs.some(item =>
       item.value !== quantity.value || fold(item.unit ?? "") !== fold(quantity.unit ?? ""))) {
@@ -159,7 +177,7 @@ function equalQuantity(observation: FoodObservation, fact: C1bFact): boolean {
 function ownerRange(testCase: C1bCase, fact: C1bFact, scope: [number, number]): [number, number] | null {
   if (fact.owner === null) return null;
   if (!fact.owner.trim()) throw new Error("c1b-reference-owner-not-in-scope");
-  const claim = uniqueSpan(testCase.text, fact.surface);
+  const claim = factSourceRange(testCase, fact);
   const candidates: [number, number][] = [];
   for (let at = testCase.text.indexOf(fact.owner, scope[0]); at >= 0 && at + fact.owner.length <= scope[1];
     at = testCase.text.indexOf(fact.owner, at + fact.owner.length)) {
@@ -177,10 +195,14 @@ export function validateC1bReference(testCase: C1bCase): void {
   if (!testCase.id || !testCase.semanticGroup || !testCase.facts.length) {
     throw new Error("c1b-reference-incomplete");
   }
+  const occurrences = new Set<string>();
   for (const fact of testCase.facts) {
-    const scope = uniqueSpan(testCase.text, fact.scope);
-    const source = uniqueSpan(testCase.text, fact.surface);
+    const scope = factScopeRange(testCase, fact);
+    const source = factSourceRange(testCase, fact);
     if (!contains(scope, source)) throw new Error("c1b-reference-claim-outside-scope");
+    const occurrenceKey = `${fact.kind}:${source[0]}:${source[1]}`;
+    if (occurrences.has(occurrenceKey)) throw new Error("c1b-reference-duplicate-fact-occurrence");
+    occurrences.add(occurrenceKey);
     ownerRange(testCase, fact, scope);
     if (fact.kind === "unbound") {
       const alternatives = fact.ownerAlternatives ?? [];
@@ -211,8 +233,8 @@ export function validateC1bReference(testCase: C1bCase): void {
 /** A single reference fact is always checked against original UTF-16 spans. */
 function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
   observations: readonly FoodObservation[]): C1bResult {
-  const sourceRange = uniqueSpan(testCase.text, fact.surface);
-  const scopeRange = uniqueSpan(testCase.text, fact.scope);
+  const sourceRange = factSourceRange(testCase, fact);
+  const scopeRange = factScopeRange(testCase, fact);
   const owner = ownerRange(testCase, fact, scopeRange);
   const spanCovering = observations.filter(obs => {
     const span = spanOf(obs);
