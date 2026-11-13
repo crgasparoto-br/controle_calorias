@@ -107,11 +107,12 @@ function ownerMatchesIdentity(foodName: string | null, owner: string | null): bo
  * A visible package amount must never masquerade as a consumed amount. */
 function hasSourceBackedQuantityFields(testCase: C1bCase, observation: FoodObservation,
   fact: C1bFact, hints: FoodObservation["quantityHints"]): boolean {
-  const claimRange = factSourceRange(testCase, fact);
+  const scopeRange = factScopeRange(testCase, fact);
   const serving = hints.servingText;
-  // servingText may describe an unresolved surface, but not introduce words,
-  // numerals or a portion borrowed from a sibling claim.
-  if (serving !== null && !fold(testCase.text.slice(...claimRange)).includes(fold(serving))) {
+  // A local qualifier may retain a legitimate leading portion ("um pudim
+  // sem açúcar"); the full independently authored scope is authoritative.
+  // An invented or sibling-only portion must still be rejected.
+  if (serving !== null && !fold(testCase.text.slice(...scopeRange)).includes(fold(serving))) {
     return false;
   }
   const claim = fact.packageClaim;
