@@ -491,6 +491,106 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(obs.identityHints.foodName).toBe("meu pao");
   });
 
+  it("falha fechada para datas de vigência inválidas e preserva limites válidos", async () => {
+    const now = new Date("2026-11-01T12:00:00.000Z");
+    const nextMillisecond = new Date(now.getTime() + 1);
+    const cases: Array<{ name: string; candidate: GovernedLexiconEntry; expectedS2Id: number | null }> = [
+      { name: "bounds null", candidate: entry({ id: 70 }), expectedS2Id: 70 },
+      { name: "validFrom at now", candidate: entry({ id: 71, validFrom: now, validTo: nextMillisecond }), expectedS2Id: 71 },
+      { name: "validFrom in the future", candidate: entry({ id: 72, validFrom: nextMillisecond }), expectedS2Id: null },
+      { name: "validTo at now", candidate: entry({ id: 73, validTo: now }), expectedS2Id: null },
+      { name: "invalid validFrom", candidate: entry({ id: 74, validFrom: new Date("invalid") }), expectedS2Id: null },
+      { name: "invalid validTo", candidate: entry({ id: 75, validTo: new Date("invalid") }), expectedS2Id: null },
+    ];
+
+    for (const { name, candidate, expectedS2Id } of cases) {
+      const [obs] = await analyze("meu pão", [candidate], { now });
+      expect(obs.normalizationPath.map(step => step.stage), name).toEqual(
+        expectedS2Id === null ? ["S1"] : ["S1", "S2"],
+      );
+      if (expectedS2Id === null) {
+        expect(obs.identityHints.foodName, name).toBe("meu pao");
+      } else {
+        expect(obs.normalizationPath[1].lexiconEntryId, name).toBe(expectedS2Id);
+      }
+    }
+  });
+
+
+  // Exercise each S2 consumer at the same instant: the repository may have
+  // loaded a snapshot, but no malformed or stale entry may gain authority.
+  const s2ValidityNow = new Date("2026-11-01T12:00:00.000Z");
+  const s2ValidityLater = new Date(s2ValidityNow.getTime() + 1);
+  const s2ValidityCases: Array<{
+    name: string;
+    validFrom: GovernedLexiconEntry["validFrom"];
+    validTo: GovernedLexiconEntry["validTo"];
+    eligible: boolean;
+  }> = [
+    { name: "open bounds", validFrom: null, validTo: null, eligible: true },
+    { name: "inclusive start, exclusive end", validFrom: s2ValidityNow, validTo: s2ValidityLater, eligible: true },
+    { name: "future start", validFrom: s2ValidityLater, validTo: null, eligible: false },
+    { name: "end at now", validFrom: null, validTo: s2ValidityNow, eligible: false },
+    { name: "invalid Date start", validFrom: new Date("invalid"), validTo: null, eligible: false },
+    { name: "invalid Date end", validFrom: null, validTo: new Date("invalid"), eligible: false },
+    { name: "textual start", validFrom: "2026-11-01" as unknown as Date, validTo: null, eligible: false },
+    { name: "undefined end", validFrom: null, validTo: undefined as unknown as Date, eligible: false },
+  ];
+
+  it("unit_term só atribui unidade pela vigência governada, inclusive limites e entradas inválidas", async () => {
+    const rawText = "2 canecas de leite";
+    for (const { name, validFrom, validTo, eligible } of s2ValidityCases) {
+      const [observed] = await analyze(rawText, [entry({
+        id: 760, kind: "unit_term", term: "canecas", normalizedTerm: "canecas",
+        targetRef: "copo", validFrom, validTo,
+      })], { now: s2ValidityNow });
+      expect(observed.quantityHints, name).toMatchObject({
+        value: eligible ? 2 : null, unit: eligible ? "copo" : null,
+      });
+      expect(observed.normalizationPath.map(step => step.stage), name)
+        .toEqual(eligible ? ["S1", "S2"] : ["S1"]);
+      expect(observed.evidence.some(evidence => evidence.field === "quantity.unit" &&
+        evidence.unit === "copo"), name).toBe(eligible);
+      expect(observed.rawInput, name).toBe(rawText);
+      expect(observed.surfaceSpan.span, name).toEqual({ start: 0, end: rawText.length });
+    }
+  });
+
+  it("protected_token só protege conjunção interna durante vigência válida, sem ocultar outros alimentos", async () => {
+    const rawText = "1 Pão e Cia e 1 banana";
+    for (const { name, validFrom, validTo, eligible } of s2ValidityCases) {
+      const observed = await analyze(rawText, [entry({
+        id: 761, kind: "protected_token", term: "Pão e Cia",
+        normalizedTerm: "pão e cia", targetType: "none", targetRef: null,
+        validFrom, validTo,
+      })], { now: s2ValidityNow });
+      expect(observed.map(item => item.identityHints.foodName), name).toEqual(
+        eligible ? ["pao e cia", "banana"] : ["pao", "cia", "banana"],
+      );
+      expect(observed.map(item => item.quantityHints.value), name).toEqual(
+        eligible ? [1, 1] : [1, null, 1],
+      );
+      for (const item of observed) {
+        expect(item.rawInput, name).toBe(rawText);
+        const span = item.surfaceSpan.span;
+        expect(span, name).not.toBeNull();
+        expect(rawText.slice(span!.start, span!.end), name).not.toBe("");
+      }
+    }
+  });
+
+  it.each([
+    ["invalid Date", new Date("invalid")],
+    ["non-Date timestamp", "2026-11-01T12:00:00Z" as unknown as Date],
+    ["explicit null", null as unknown as Date],
+  ] as const)("rejects %s before consulting S2", async (_case, invalidNow) => {
+    const governed = store([entry()]);
+    await expect(comprehendFoodLanguage({
+      ...base, rawText: "meu pão", now: invalidNow,
+    }, governed)).rejects.toThrow("invalid-linguistic-region-or-time");
+    expect(governed.load).not.toHaveBeenCalled();
+  });
+
   it("colisões do mesmo escopo não são resolvidas pela ordem do array", async () => {
     const [obs] = await analyze("meu pão", [entry(), entry({ id: 19, targetRef: "outra coisa" })]);
     expect(obs.normalizationPath.map(step => step.stage)).toEqual(["S1", "S2", "S2"]);
