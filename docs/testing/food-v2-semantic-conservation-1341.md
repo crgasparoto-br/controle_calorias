@@ -175,3 +175,38 @@ A matriz CI inclui `remediationControls`, com resultados negativos de origem,
 âncoras, associação da negação e admissão; o Vitest exige resultados
 adversariais explícitos, não apenas a presença das linhas no relatório.
 Nenhuma mudança foi feita no parser, runtime de produção, flags ou persistência.
+
+## Remediação A-1342-15–16 — completude bidirecional e evidências
+
+**Escopo:** somente o verificador C1b, seus testes e a matriz de diagnóstico;
+nenhuma alteração nos parsers, na LCL, no schema de `FoodObservation` ou na
+persistência pública. Os fatos rotulados continuam sendo a referência independente.
+
+- **A-1342-15 — observações sem fato:** a matriz agora confere cada observação
+  contra os fatos independentes por span e owner, além da checagem tradicional
+  fato → observação. Observações extras e observações duplicadas para o mesmo
+  fato recebem, respectivamente, `unexpected-observation` e
+  `duplicate-observation`; ambas bloqueiam `structurallyComplete` e a admissão
+  diagnóstica. Uma seleção que omita observações do lote original também é
+  recusada, mesmo que todos os fatos esperados estejam cobertos no subconjunto.
+- **A-1342-16 — coerência da evidência:** `invalid-evidence` distingue uma
+  observação sem comprovação material de uma origem incorreta
+  (`invalid-provenance`). Para fatos estruturáveis, o controle exige evidência
+  de identidade compatível com a observação e com o texto de sua âncora,
+  quantidade/unidade consistente com `quantityHints`, qualificadores cobertos
+  e caminho S1 ancorado no fato. A falta de evidência ou de trilha também falha.
+  Esses controles não atribuem vínculos de ingrediente ausentes no contrato.
+
+O relatório C1b utiliza `schemaVersion: 3`. `grades` permanece com denominador
+**fatos esperados**; a nova seção `observationIssues` e
+`casesWithObservationIssues` medem separadamente retornos não justificados,
+duplicados, com origem incompatível ou sem prova material. Cada `caseResults`
+carrega `observationIssues` por `observationId` e índice. O bloco
+`remediationControls.reverseCoverageAndEvidence` registra o controle positivo
+sintético e os ataques negativos de alimento fabricado, duplicação, evidência
+identitária contraditória, âncora apenas numérica, evidência vazia, evidência
+de quantidade omitida/adulterada e caminho de normalização incoerente.
+
+A admissão continua uma **simulação de diagnóstico**, sem substituição do gate
+de escrita pública da #1308. CI verde comprova execução do detector, e não
+aprovação de conservação semântica produtiva nem autorização de S3/cutover.

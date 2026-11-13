@@ -11,7 +11,7 @@ export type C1bGrade =
   | "structured" | "traceable-unresolved" | "missing-component-binding"
   | "ingredient-quantity-unobserved" | "ingredient-quantity-mismatch"
   | "owner-alternatives-missing" | "unbound-as-food" | "misbound"
-  | "silent-omission" | "invalid-provenance" | "false-closed";
+  | "silent-omission" | "invalid-provenance" | "invalid-evidence" | "false-closed";
 export type C1bResult = {
   caseId: string;
   factIndex: number;
@@ -25,12 +25,19 @@ export type C1bResult = {
     unresolvedReasons: (string | null)[]; alternativeOwnerNames: string[]; abstained: boolean;
     sourceRefs: string[]; evidenceSourceRefs: string[]; normalizationSourceRefs: string[] };
 };
+export type C1bObservationIssue = {
+  observationIndex: number;
+  observationId: string;
+  grade: "unexpected-observation" | "duplicate-observation" | "invalid-provenance" | "invalid-evidence";
+  matchedFactIndices: number[];
+};
 export type C1bCaseReport = {
   caseId: string;
   semanticGroup: string;
   split: C1bCase["split"];
   modality: C1bCase["modality"];
   results: C1bResult[];
+  observationIssues: C1bObservationIssue[];
   /** Diagnostic admission only. Never substitute this for the public mutation gate. */
   structurallyComplete: boolean;
 };
@@ -78,6 +85,62 @@ function ownerMatchesIdentity(foodName: string | null, owner: string | null): bo
   const expected = fold(owner);
   return name === expected || name.startsWith(expected + " ");
 }
+/** C1b uses the independent fact spans in BOTH directions: a parser cannot
+ * invent an extra food or duplicate an observed food and still pass coverage. */
+function observationClaimsFact(testCase: C1bCase, observation: FoodObservation, fact: C1bFact): boolean {
+  const span = spanOf(observation);
+  if (span === null || !contains(span, uniqueSpan(testCase.text, fact.surface))) return false;
+  if (fact.owner === null) return true;
+  const scope = uniqueSpan(testCase.text, fact.scope);
+  const owner = ownerRange(testCase, fact, scope);
+  return owner !== null && contains(span, owner) &&
+    ownerMatchesIdentity(observation.identityHints.foodName, fact.owner);
+}
+
+/** SourceRef/offset validity alone is insufficient: a text anchor and the
+ * evidence values must substantiate the identity, quantity and qualifiers.
+ * No new text parser or lexical oracle is introduced. */
+function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fact: C1bFact): boolean {
+  const claimRange = uniqueSpan(testCase.text, fact.surface);
+  if (observation.evidence.length === 0 || observation.normalizationPath.length === 0 ||
+      !observation.normalizationPath.some(step => step.stage === "S1" &&
+        step.anchor.span !== null && contains([step.anchor.span.start, step.anchor.span.end], claimRange))) {
+    return false;
+  }
+  const rawAt = (anchor: FoodObservation["surfaceSpan"]): string =>
+    anchor.span === null ? "" : fold(testCase.text.slice(anchor.span.start, anchor.span.end));
+  const identityProofs = observation.evidence.filter(item => item.field === "identity.foodName");
+  const identity = observation.identityHints.foodName;
+  if (identity !== null) {
+    if (identityProofs.length === 0 || identityProofs.some(item =>
+      typeof item.value !== "string" || !fold(item.value).includes(fold(identity)) ||
+      !rawAt(item.anchor).includes(fold(item.value)))) return false;
+  } else if (identityProofs.length > 0) return false;
+
+  const quantityProofs = observation.evidence.filter(item => item.field === "quantity.value");
+  const quantity = observation.quantityHints;
+  if (quantity.value !== null) {
+    if (quantityProofs.length === 0 || quantityProofs.some(item =>
+      item.value !== quantity.value || fold(item.unit ?? "") !== fold(quantity.unit ?? ""))) {
+      return false;
+    }
+    if (fact.kind === "food-quantity" && !quantityProofs.some(item =>
+      item.anchor.span !== null && contains([item.anchor.span.start, item.anchor.span.end], claimRange))) {
+      return false;
+    }
+  } else if (quantityProofs.length > 0) return false;
+
+  // A local negation can be supported by the lexical identity evidence even
+  // when the S1 parser does not emit a separate qualifier evidence record.
+  for (const qualifier of observation.identityHints.qualifiers) {
+    if (!observation.evidence.some(item =>
+      (item.field === "identity.foodName" || item.field === "identity.qualifiers") &&
+      typeof item.value === "string" && fold(item.value).includes(fold(qualifier.value)) &&
+      rawAt(item.anchor).includes(fold(qualifier.value)))) return false;
+  }
+  return true;
+}
+
 function equalQuantity(observation: FoodObservation, fact: C1bFact): boolean {
   return observation.quantityHints.value === fact.quantity &&
     fold(observation.quantityHints.unit ?? "") === fold(fact.unit ?? "");
@@ -204,6 +267,9 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
       : !abstained ? "false-closed"
         : alternativesComplete ? "traceable-unresolved" : "owner-alternatives-missing";
   }
+  if (grade === "structured" && attached.some(obs =>
+    observationClaimsFact(testCase, obs, fact) &&
+    !hasMaterialEvidence(testCase, obs, fact))) grade = "invalid-evidence";
   return { caseId: testCase.id, factIndex, kind: fact.kind, grade, sourceRange, scopeRange,
     expected: { owner: fact.owner, ownerAlternatives: fact.ownerAlternatives ?? [],
       requiresAbstention: fact.requiresAbstention ?? false,
@@ -223,9 +289,30 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
 export function evaluateC1b(testCase: C1bCase, observations: readonly FoodObservation[]): C1bCaseReport {
   validateC1bReference(testCase);
   const results = testCase.facts.map((fact, index) => inspectFact(testCase, fact, index, observations));
+  const observedFactIndices = new Set<number>();
+  const observedIds = new Set<string>();
+  const observationIssues: C1bObservationIssue[] = [];
+  observations.forEach((observation, observationIndex) => {
+    const matchedFactIndices = testCase.facts.flatMap((fact, index) =>
+      observationClaimsFact(testCase, observation, fact) ? [index] : []);
+    let grade: C1bObservationIssue["grade"] | null = null;
+    if (!hasOriginalProvenance(testCase, observation)) grade = "invalid-provenance";
+    else if (matchedFactIndices.length === 0) grade = "unexpected-observation";
+    else if (observedIds.has(observation.observationId) ||
+      matchedFactIndices.some(index => observedFactIndices.has(index))) grade = "duplicate-observation";
+    else if (matchedFactIndices.some(index =>
+      !hasMaterialEvidence(testCase, observation, testCase.facts[index]))) grade = "invalid-evidence";
+    if (grade !== null) observationIssues.push({
+      observationIndex, observationId: observation.observationId, grade, matchedFactIndices,
+    });
+    observedIds.add(observation.observationId);
+    for (const index of matchedFactIndices) observedFactIndices.add(index);
+  });
   return { caseId: testCase.id, semanticGroup: testCase.semanticGroup,
     split: testCase.split, modality: testCase.modality,
-    results, structurallyComplete: results.every(item => item.grade === "structured") };
+    results, observationIssues,
+    structurallyComplete: results.every(item => item.grade === "structured") &&
+      observationIssues.length === 0 };
 }
 
 /** Only source-independent labels are admissible as metamorphic ground truth. */
@@ -243,10 +330,18 @@ export function summarizeC1b(reports: readonly C1bCaseReport[]) {
     structured: 0, "traceable-unresolved": 0, "missing-component-binding": 0,
     "ingredient-quantity-unobserved": 0, "ingredient-quantity-mismatch": 0,
     "owner-alternatives-missing": 0, "unbound-as-food": 0, misbound: 0,
-    "silent-omission": 0, "invalid-provenance": 0, "false-closed": 0,
+    "silent-omission": 0, "invalid-provenance": 0, "invalid-evidence": 0, "false-closed": 0,
   };
-  for (const report of reports) for (const fact of report.results) grades[fact.grade] += 1;
-  return { cases: reports.length, facts: Object.values(grades).reduce((a, b) => a + b, 0),
+  const observationIssues: Record<C1bObservationIssue["grade"], number> = {
+    "unexpected-observation": 0, "duplicate-observation": 0,
+    "invalid-provenance": 0, "invalid-evidence": 0,
+  };
+  for (const report of reports) {
+    for (const fact of report.results) grades[fact.grade] += 1;
+    for (const issue of report.observationIssues) observationIssues[issue.grade] += 1;
+  }
+  return { casesWithObservationIssues: reports.filter(report => report.observationIssues.length > 0).length,
+    observationIssues, cases: reports.length, facts: Object.values(grades).reduce((a, b) => a + b, 0),
     casesStructurallyComplete: reports.filter(report => report.structurallyComplete).length,
     grades, S3: "not-evaluated", nutritionalAccuracy: "not-measured",
     costUsd: "not-measured", latencyMs: "not-measured" } as const;
@@ -279,9 +374,14 @@ export function attemptDiagnosticBatchAdmission(
   const selected = observations.filter(obs => unique.has(obs.observationId));
   const report = evaluateC1b(testCase, selected);
   const invalidSelection = unique.size !== proposedIds.length ||
-    unique.size !== selected.length || selected.length === 0;
-  const blocked = report.results.filter(result => result.grade !== "structured")
-    .map(result => ({ factIndex: result.factIndex, reason: result.grade }));
+    unique.size !== selected.length || selected.length === 0 ||
+    selected.length !== observations.length ||
+    new Set(observations.map(obs => obs.observationId)).size !== observations.length;
+  const blocked = [
+    ...report.results.filter(result => result.grade !== "structured")
+      .map(result => ({ factIndex: result.factIndex, reason: result.grade })),
+    ...report.observationIssues.map(issue => ({ factIndex: null, reason: issue.grade })),
+  ];
   // Semantic extraction and resolution are different stages. A fact may be
   // structurally represented while the candidate still requires clarification.
   const unresolvedObservations = selected.filter(obs => obs.unresolvedReason !== null)

@@ -215,7 +215,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         foodName: alt.identityHints.foodName,
         quantity: alt.quantityHints.value, unit: alt.quantityHints.unit,
       }))),
-      facts: entry.report.results,
+      facts: entry.report.results, observationIssues: entry.report.observationIssues,
     }));
     const groups = new Map<string, { expected: Set<string>; observed: Set<string>;
       variants: number; complete: boolean; split: string }>();
@@ -290,6 +290,71 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(resolvedAttempt.admitted).toBe(true);
     expect(resolvedAttempt.unresolvedObservations).toHaveLength(0);
 
+    // Independent reverse coverage: the detector must reject facts *invented*
+    // by the parser, duplicate observations and contradictory/missing evidence.
+    // These controls use a synthetic resolved state solely to exercise the
+    // diagnostic admission predicate, never a public meal writer.
+    const target = syntheticResolved.find(obs => obs.identityHints.foodName === "ovos")!;
+    const patchTarget = (change: typeof target) => syntheticResolved.map(obs =>
+      obs.observationId === target.observationId ? change : obs);
+    const addedFood = [...syntheticResolved, { ...target,
+      observationId: target.observationId + ":fabricated",
+      identityHints: { ...target.identityHints, foodName: "maçã" },
+      evidence: target.evidence.map(item => item.field === "identity.foodName"
+        ? { ...item, value: "maçã" } : item),
+    }];
+    const duplicatedFood = [...syntheticResolved, { ...target,
+      observationId: target.observationId + ":duplicate" }];
+    const wrongIdentityProof = patchTarget({ ...target,
+      evidence: target.evidence.map(item => item.field === "identity.foodName"
+        ? { ...item, value: "banana" } : item),
+    });
+    const numeral = { start: target.surfaceSpan.span!.start,
+      end: target.surfaceSpan.span!.start + 1 };
+    const identityAnchorWrong = patchTarget({ ...target,
+      evidence: target.evidence.map(item => item.field === "identity.foodName"
+        ? { ...item, anchor: { ...item.anchor, span: numeral } } : item),
+    });
+    const missingProof = patchTarget({ ...target, evidence: [], normalizationPath: [] });
+    const missingQuantityProof = patchTarget({ ...target,
+      evidence: target.evidence.filter(item => item.field !== "quantity.value"),
+    });
+    const wrongQuantityProof = patchTarget({ ...target,
+      evidence: target.evidence.map(item => item.field === "quantity.value"
+        ? { ...item, value: 99 } : item),
+    });
+    const wrongNormalizationAnchor = patchTarget({ ...target,
+      normalizationPath: target.normalizationPath.map(step => ({ ...step,
+        anchor: { ...step.anchor, span: numeral },
+      })),
+    });
+    const adversarial = {
+      addedFood, duplicatedFood, wrongIdentityProof, identityAnchorWrong,
+      missingProof, missingQuantityProof, wrongQuantityProof, wrongNormalizationAnchor,
+    };
+    const attacks = Object.fromEntries(Object.entries(adversarial).map(([id, inputs]) => {
+      const report = evaluateC1b(simpleCase, inputs);
+      const allIds = inputs.map(obs => obs.observationId);
+      const attempt = attemptDiagnosticBatchAdmission(simpleCase, inputs, allIds);
+      expect(report.structurallyComplete, id).toBe(false);
+      expect(attempt.admitted, id).toBe(false);
+      return [id, { grades: report.results.map(item => item.grade),
+        observationIssues: report.observationIssues.map(item => item.grade),
+        structurallyComplete: report.structurallyComplete, admitted: attempt.admitted }];
+    }));
+    expect(attacks.addedFood.observationIssues).toContain("unexpected-observation");
+    expect(attacks.duplicatedFood.observationIssues).toContain("duplicate-observation");
+    for (const id of ["wrongIdentityProof", "identityAnchorWrong", "missingProof",
+      "missingQuantityProof", "wrongQuantityProof", "wrongNormalizationAnchor"] as const) {
+      expect(attacks[id].grades, id).toContain("invalid-evidence");
+      expect(attacks[id].observationIssues, id).toContain("invalid-evidence");
+    }
+    expect(evaluateC1b(simpleCase, syntheticResolved).structurallyComplete).toBe(true);
+    expect(attemptDiagnosticBatchAdmission(simpleCase, addedFood,
+      syntheticResolved.map(obs => obs.observationId)).admitted).toBe(false);
+    expect(attemptDiagnosticBatchAdmission(simpleCase, duplicatedFood,
+      syntheticResolved.map(obs => obs.observationId)).admitted).toBe(false);
+
     const localNegationIndex = cases.findIndex(c => c.id === "sugar-local-negation");
     const localNegation = cases[localNegationIndex];
     const negationObservations = measured[localNegationIndex].observations;
@@ -310,8 +375,11 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         realObservedAdmitted: unresolvedAttempt.admitted,
         syntheticResolvedAdmitted: resolvedAttempt.admitted,
         publicPersistence: "not-measured" },
+      reverseCoverageAndEvidence: { caseId: simpleCase.id,
+        positiveStructurallyComplete: evaluateC1b(simpleCase, syntheticResolved).structurallyComplete,
+        positiveSyntheticAdmission: resolvedAttempt.admitted, attacks },
     };
-    const aggregate = { schemaVersion:2, issue:1341, generatorVersion,
+    const aggregate = { schemaVersion:3, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
       canonicalCases:goldenFoodCorpusCases.length, canonicalExecuted:canonicalBaseline.length,
