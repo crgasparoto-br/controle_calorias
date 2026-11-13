@@ -252,6 +252,65 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         gatePassed:referenceDifferent && !observedCollision && a.complete && b.complete};
     });
     expect(negativeControls.every(item=>item.referenceDifferent)).toBe(true);
+
+    // Negative controls operate on the real LCL output, never on another
+    // parser's prediction. Publish their observed grades with the CI matrix.
+    const simpleIndex = cases.findIndex(c => c.id === "food-count-simple");
+    const simpleCase = cases[simpleIndex];
+    const simpleObservations = measured[simpleIndex].observations;
+    const fullIds = simpleObservations.map(obs => obs.observationId);
+    const unresolvedAttempt = attemptDiagnosticBatchAdmission(simpleCase, simpleObservations, fullIds);
+    const syntheticResolved = simpleObservations.map(obs => ({ ...obs, unresolvedReason: null }));
+    const resolvedAttempt = attemptDiagnosticBatchAdmission(simpleCase, syntheticResolved, fullIds);
+    const changedSource = simpleObservations.map(obs => ({ ...obs,
+      surfaceSpan: { ...obs.surfaceSpan, sourceRef: "c1b:other-input" },
+    }));
+    const changedEvidence = simpleObservations.map(obs => ({ ...obs,
+      evidence: obs.evidence.map((ev, i) => i === 0 ? { ...ev,
+        anchor: { ...ev.anchor, sourceRef: "c1b:other-input" } } : ev),
+    }));
+    const changedNormalization = simpleObservations.map(obs => ({ ...obs,
+      normalizationPath: obs.normalizationPath.map((step, i) => i === 0 ? {
+        ...step, anchor: { ...step.anchor, sourceRef: "c1b:other-input" },
+      } : step),
+    }));
+    expect(simpleObservations.every(obs => obs.evidence.length > 0 && obs.normalizationPath.length > 0)).toBe(true);
+    const sourceReport = evaluateC1b(simpleCase, changedSource);
+    const evidenceReport = evaluateC1b(simpleCase, changedEvidence);
+    const normalizationReport = evaluateC1b(simpleCase, changedNormalization);
+    for (const report of [sourceReport, evidenceReport, normalizationReport]) {
+      expect(report.results.every(x => x.grade === "invalid-provenance")).toBe(true);
+      expect(report.structurallyComplete).toBe(false);
+    }
+    expect(attemptDiagnosticBatchAdmission(simpleCase, changedSource,
+      changedSource.map(obs => obs.observationId)).admitted).toBe(false);
+    expect(measured[simpleIndex].report.structurallyComplete).toBe(true);
+    expect(unresolvedAttempt.admitted).toBe(false);
+    expect(unresolvedAttempt.unresolvedObservations).toHaveLength(simpleObservations.length);
+    expect(resolvedAttempt.admitted).toBe(true);
+    expect(resolvedAttempt.unresolvedObservations).toHaveLength(0);
+
+    const localNegationIndex = cases.findIndex(c => c.id === "sugar-local-negation");
+    const localNegation = cases[localNegationIndex];
+    const negationObservations = measured[localNegationIndex].observations;
+    const wrongNegationOwner = negationObservations.map(obs =>
+      obs.identityHints.qualifiers.some(q => q.role === "sweetening" && q.value === "sem açúcar")
+        ? { ...obs, identityHints: { ...obs.identityHints, foodName: "pudim" } } : obs);
+    const negationReport = evaluateC1b(localNegation, wrongNegationOwner);
+    expect(measured[localNegationIndex].report.results[0].grade).toBe("structured");
+    expect(negationReport.results[0].grade).toBe("misbound");
+    const remediationControls = {
+      provenance: { expected: "invalid-provenance", source: sourceReport.results.map(x => x.grade),
+        evidence: evidenceReport.results.map(x => x.grade),
+        normalization: normalizationReport.results.map(x => x.grade) },
+      negationOwner: { caseId: localNegation.id, expected: "misbound",
+        observed: negationReport.results[0].grade },
+      diagnosticAdmission: { caseId: simpleCase.id,
+        actualUnresolved: unresolvedAttempt.unresolvedObservations,
+        realObservedAdmitted: unresolvedAttempt.admitted,
+        syntheticResolvedAdmitted: resolvedAttempt.admitted,
+        publicPersistence: "not-measured" },
+    };
     const aggregate = { schemaVersion:2, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
@@ -265,7 +324,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         cases:canonicalBaseline },
       legacy:{scope:"full-input-V1-segmentation-and-coffee-normalizer",
         caseResults:legacy, ownerBinding:"not-measured", publicPersistence:"not-measured"},
-      metamorphic, negativeControls, caseResults,
+      metamorphic, negativeControls, remediationControls, caseResults,
       clarification:{referenceRequired:cases.filter(x=>x.facts.some(f=>f.kind==="unbound")).length,
         unresolvedSignals:measured.filter(x=>x.observations.some(o=>o.unresolvedReason!==null)).length,
         potentiallyUnnecessaryUnresolvedSignals:measured.filter((x,i)=>
@@ -359,13 +418,28 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const fullAmbiguousAttempt = attemptDiagnosticBatchAdmission(ambiguous,
       actual.observations, actual.observations.map(obs => obs.observationId));
     expect(fullAmbiguousAttempt.admitted).toBe(false);
-    const allValid = attemptDiagnosticBatchAdmission(testCase, observations,
+    const unresolvedBatch = attemptDiagnosticBatchAdmission(testCase, observations,
       observations.map(obs => obs.observationId));
+    expect(unresolvedBatch.admitted).toBe(false);
+    expect(unresolvedBatch.unresolvedObservations).toHaveLength(observations.length);
+    // The safe positive is a synthetic *diagnostic-only* resolved state. S1's
+    // unknown_surface cannot be treated as a public mutation authorization.
+    const syntheticResolved = observations.map(obs => ({ ...obs, unresolvedReason: null }));
+    const allValid = attemptDiagnosticBatchAdmission(testCase, syntheticResolved,
+      syntheticResolved.map(obs => obs.observationId));
     expect(allValid.admitted).toBe(true);
-    const wrongSubset = attemptDiagnosticBatchAdmission(testCase, observations,
-      [observations[0].observationId]);
+    expect(allValid.unresolvedObservations).toHaveLength(0);
+    const wrongSubset = attemptDiagnosticBatchAdmission(testCase, syntheticResolved,
+      [syntheticResolved[0].observationId]);
     expect(wrongSubset.admitted).toBe(false);
     expect(wrongSubset.blocked.some(item => item.reason === "silent-omission")).toBe(true);
+    const otherNegation = cases.find(c => c.id === "sugar-other-negation")!;
+    const otherNegationObserved = await evaluateRealV2(otherNegation);
+    expect(otherNegationObserved.report.results[1].grade).toBe("structured");
+    const switchedNegationOwner = otherNegationObserved.observations.map(obs =>
+      obs.identityHints.qualifiers.some(q => q.role === "sweetening" && q.value === "sem açúcar")
+        ? { ...obs, identityHints: { ...obs.identityHints, foodName: "café" } } : obs);
+    expect(evaluateC1b(otherNegation, switchedNegationOwner).results[1].grade).toBe("misbound");
     // Deliberately diagnostic-only. The public persistence gate remains #1308.
   });
 });

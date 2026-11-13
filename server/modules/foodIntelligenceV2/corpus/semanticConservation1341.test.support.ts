@@ -11,7 +11,7 @@ export type C1bGrade =
   | "structured" | "traceable-unresolved" | "missing-component-binding"
   | "ingredient-quantity-unobserved" | "ingredient-quantity-mismatch"
   | "owner-alternatives-missing" | "unbound-as-food" | "misbound"
-  | "silent-omission" | "false-closed";
+  | "silent-omission" | "invalid-provenance" | "false-closed";
 export type C1bResult = {
   caseId: string;
   factIndex: number;
@@ -22,7 +22,8 @@ export type C1bResult = {
   expected: { owner: string | null; ownerAlternatives: readonly string[]; requiresAbstention: boolean;
     ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null };
   observed: { foodNames: (string | null)[]; quantityHints: { value: number | null; unit: string | null }[];
-    unresolvedReasons: (string | null)[]; alternativeOwnerNames: string[]; abstained: boolean };
+    unresolvedReasons: (string | null)[]; alternativeOwnerNames: string[]; abstained: boolean;
+    sourceRefs: string[]; evidenceSourceRefs: string[]; normalizationSourceRefs: string[] };
 };
 export type C1bCaseReport = {
   caseId: string;
@@ -52,6 +53,30 @@ function contains(outer: [number, number], inner: [number, number]): boolean {
 function spanOf(observation: FoodObservation): [number, number] | null {
   const span = observation.surfaceSpan.span;
   return span ? [span.start, span.end] : null;
+}
+function hasOriginalProvenance(testCase: C1bCase, observation: FoodObservation): boolean {
+  const source = observation.surfaceSpan;
+  const expectedSourceRef = "c1b:" + testCase.id;
+  const sourceSpan = spanOf(observation);
+  if (observation.rawInput !== testCase.text || observation.modality !== testCase.modality ||
+      source.sourceRef !== expectedSourceRef || source.region !== null ||
+      sourceSpan === null || sourceSpan[0] < 0 || sourceSpan[1] > testCase.text.length) {
+    return false;
+  }
+  // Validate both the material source and its supporting evidence; a correct
+  // textual overlap cannot launder an anchor pointing at a different input.
+  return [...observation.evidence.map(item => item.anchor),
+    ...observation.normalizationPath.map(item => item.anchor)].every(anchor =>
+    anchor.sourceRef === expectedSourceRef && anchor.region === null &&
+    anchor.span !== null && anchor.span.start >= 0 &&
+    anchor.span.end <= testCase.text.length &&
+    contains(sourceSpan, [anchor.span.start, anchor.span.end]));
+}
+function ownerMatchesIdentity(foodName: string | null, owner: string | null): boolean {
+  if (!foodName || !owner) return false;
+  const name = fold(foodName).replace(/^(?:o|a|um|uma)\s+/u, "");
+  const expected = fold(owner);
+  return name === expected || name.startsWith(expected + " ");
 }
 function equalQuantity(observation: FoodObservation, fact: C1bFact): boolean {
   return observation.quantityHints.value === fact.quantity &&
@@ -106,11 +131,12 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
   const sourceRange = uniqueSpan(testCase.text, fact.surface);
   const scopeRange = uniqueSpan(testCase.text, fact.scope);
   const owner = ownerRange(testCase, fact, scopeRange);
-  const covering = observations.filter(obs => {
+  const spanCovering = observations.filter(obs => {
     const span = spanOf(obs);
-    return span !== null && obs.rawInput === testCase.text &&
-      obs.modality === testCase.modality && contains(span, sourceRange);
+    return span !== null && contains(span, sourceRange);
   });
+  const invalidProvenance = spanCovering.some(obs => !hasOriginalProvenance(testCase, obs));
+  const covering = spanCovering.filter(obs => hasOriginalProvenance(testCase, obs));
   const attached = owner === null ? covering : covering.filter(obs => {
     const span = spanOf(obs);
     return span !== null && contains(span, owner);
@@ -120,7 +146,8 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
   const abstained = attached.length > 0 && attached.every(obs =>
     obs.identityHints.foodName === null && obs.unresolvedReason !== null);
   let grade: C1bGrade;
-  if (!covering.length) grade = "silent-omission";
+  if (invalidProvenance) grade = "invalid-provenance";
+  else if (!covering.length) grade = "silent-omission";
   else if (!attached.length) grade = "misbound";
   else if (fact.kind === "ingredient-quantity") {
     // No typed ingredient relation exists yet: never call the binding structured.
@@ -158,10 +185,14 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
     else if (observations.some(obs => !attached.includes(obs) && equalQuantity(obs, fact))) grade = "misbound";
     else grade = attached.some(obs => obs.unresolvedReason !== null) ? "traceable-unresolved" : "false-closed";
   } else if (fact.kind === "negation") {
-    const negated = attached.some(obs => obs.identityHints.qualifiers.some(qualifier =>
+    const asserting = attached.filter(obs => obs.identityHints.qualifiers.some(qualifier =>
       qualifier.role === "sweetening" && fold(qualifier.value) === fold(fact.surface)));
-    grade = negated ? "structured" : attached.some(obs => obs.unresolvedReason !== null)
-      ? "traceable-unresolved" : "false-closed";
+    // Matching the qualifier alone is insufficient: the negation belongs to
+    // its explicitly labelled food, not merely to a covering text span.
+    grade = asserting.some(obs => !ownerMatchesIdentity(obs.identityHints.foodName, fact.owner))
+      ? "misbound" : asserting.length > 0 ? "structured"
+        : attached.some(obs => obs.unresolvedReason !== null)
+          ? "traceable-unresolved" : "false-closed";
   } else {
     // An unattached ingredient continuation is not a new food. An unresolved
     // observation which exposes it as identity is not safe for auto-commit.
@@ -181,7 +212,11 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
     observed: { foodNames: attached.map(obs => obs.identityHints.foodName),
       quantityHints: attached.map(obs => ({ value: obs.quantityHints.value, unit: obs.quantityHints.unit })),
       unresolvedReasons: attached.map(obs => obs.unresolvedReason),
-      alternativeOwnerNames, abstained },
+      alternativeOwnerNames, abstained,
+      sourceRefs: spanCovering.map(obs => obs.surfaceSpan.sourceRef),
+      evidenceSourceRefs: spanCovering.flatMap(obs => obs.evidence.map(item => item.anchor.sourceRef)),
+      normalizationSourceRefs: spanCovering.flatMap(obs =>
+        obs.normalizationPath.map(item => item.anchor.sourceRef)) },
   };
 }
 
@@ -208,7 +243,7 @@ export function summarizeC1b(reports: readonly C1bCaseReport[]) {
     structured: 0, "traceable-unresolved": 0, "missing-component-binding": 0,
     "ingredient-quantity-unobserved": 0, "ingredient-quantity-mismatch": 0,
     "owner-alternatives-missing": 0, "unbound-as-food": 0, misbound: 0,
-    "silent-omission": 0, "false-closed": 0,
+    "silent-omission": 0, "invalid-provenance": 0, "false-closed": 0,
   };
   for (const report of reports) for (const fact of report.results) grades[fact.grade] += 1;
   return { cases: reports.length, facts: Object.values(grades).reduce((a, b) => a + b, 0),
@@ -247,9 +282,13 @@ export function attemptDiagnosticBatchAdmission(
     unique.size !== selected.length || selected.length === 0;
   const blocked = report.results.filter(result => result.grade !== "structured")
     .map(result => ({ factIndex: result.factIndex, reason: result.grade }));
+  // Semantic extraction and resolution are different stages. A fact may be
+  // structurally represented while the candidate still requires clarification.
+  const unresolvedObservations = selected.filter(obs => obs.unresolvedReason !== null)
+    .map(obs => ({ observationId: obs.observationId, unresolvedReason: obs.unresolvedReason }));
   return {
-    admitted: !invalidSelection && blocked.length === 0,
-    invalidSelection, proposedIds: [...proposedIds], blocked, report,
+    admitted: !invalidSelection && blocked.length === 0 && unresolvedObservations.length === 0,
+    invalidSelection, proposedIds: [...proposedIds], blocked, unresolvedObservations, report,
     mutationEffect: "simulation-only-not-a-public-write",
   };
 }

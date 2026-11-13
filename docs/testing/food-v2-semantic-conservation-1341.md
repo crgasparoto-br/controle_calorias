@@ -150,3 +150,28 @@ no artefato oficial do CI `food-v2-c3-calibration-<HEAD>`. Os blocos
 promover equivalência em subclasses ainda não representadas. Não confundir
 projeção de decisão A2 e observação LCL; os campos de nutrição, S3, latência,
 clarificação pública e persistência real permanecem `not-measured`.
+
+## Remediação A-1342-12–14 — rastreabilidade, negação e admissão
+
+- **A-1342-12 — proveniência:** antes de classificar um fato como estruturado, o
+  diagnóstico exige `rawInput`, modalidade, `surfaceSpan.sourceRef` e âncoras de
+  `evidence`/`normalizationPath` coerentes com o `c1b:<caseId>` e com o span
+  UTF-16 original. Uma âncora de outro caso é `invalid-provenance`, não
+  cobertura válida nem mera omissão silenciosa. O controle altera cada classe de
+  âncora separadamente e prova rejeição por caso.
+- **A-1342-13 — negação local:** `sem açúcar` só é `structured` quando o mesmo
+  objeto identifica o alimento rotulado como dono; uma negação do café
+  atribuída ao pudim, ou vice-versa, recebe `misbound`. O teste preserva um
+  controle positivo de cada direção e refuta a troca de proprietário.
+- **A-1342-14 — admissão simulada:** `structurallyComplete` mede a presença de
+  fatos estruturados, não a resolução da identidade. A simulação de admissão
+  rejeita toda observação selecionada com `unresolvedReason` não nulo, mesmo
+  com `structured` para todos os fatos. O controle de aprovação usa apenas
+  observações **sinteticamente resolvidas** para testar o verificador; não é
+  prova de decisão nutricional, autorização de escrita ou comportamento do
+  entrypoint público, que permanece responsabilidade da #1308.
+
+A matriz CI inclui `remediationControls`, com resultados negativos de origem,
+âncoras, associação da negação e admissão; o Vitest exige resultados
+adversariais explícitos, não apenas a presença das linhas no relatório.
+Nenhuma mudança foi feita no parser, runtime de produção, flags ou persistência.
