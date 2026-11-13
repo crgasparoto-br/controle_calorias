@@ -119,3 +119,34 @@ por este diagnóstico; revisão independente é etapa separada.
   sem editar workflows. Essa evidência C1b não é calibração C3.
 - Persistência real, clarificação pública, S3, nutrição e acurácia em produção
   continuam `not-measured` e dependentes das respectivas issues.
+
+## Fechamento técnico da rodada A-1342-07…11 (13/11/2026)
+
+**Regra de evidência:** estes ajustes ampliam o diagnóstico, não modificam a LCL
+produtiva ou aprovam o gate semântico. A matriz continua registrando falhas
+materiais e não deve ser convertida em PASS semântico apenas porque o Vitest
+termina verde. O corpus A2 permanece governado pelo seu contrato e partições.
+
+| Achado | Controle material implementado |
+| --- | --- |
+| A-1342-07 | O diagnóstico executa casos textuais/transcritos reais de `goldenFoodCorpusCases`, com `caseId`, versão, split, classe, controles negativos, expectativas projetadas por `projectExpectedDecision` e observações projetadas por `projectObservation`. Registra cobertura por ID e compara indícios pré-resolução sem equiparar a decisão final ao extrator S1. Os casos da mortadela possuem correspondência literal demonstrável com a anotação C1b. |
+| A-1342-08 | Há agora grades distintos para ingrediente não materializado (`ingredient-quantity-unobserved`), número/unidade incompatíveis (`ingredient-quantity-mismatch`) e número observado sem vínculo tipado (`missing-component-binding`). Troca de dono ou de quantidades entre irmãos permanece `misbound`. Testes mutacionais exercitam as três diferenças; preservar span não substitui nenhum valor. |
+| A-1342-09 | Fatos de continuação ambígua declaram dois donos possíveis, razão, obrigação de abstenção e quantidade quando observada. O validador rejeita referências sem alternativas; o relatório confronta as alternativas observadas da LCL com os candidatos esperados. Ausência de alternativas em estado não resolvido é `owner-alternatives-missing`, não êxito. |
+| A-1342-10 | O baseline V1 recebe a **frase inteira** e executa `splitFoodTextSegments`, `parseFoodText`, `extractExplicitSugarQuantity` em cada segmento resultante e `normalizeSweetenedCoffeeDraftItems`. Registra os segmentos do V1, seus offsets e tentativas de reconhecer açúcar, preservando a identidade do fato esperado apenas como anotação. Não passa `fact.scope` ao V1 nem usa seu resultado como oráculo; o pipeline público completo e efeitos persistidos continuam `not-measured`. |
+| A-1342-11 | `attemptDiagnosticBatchAdmission` recebe explicitamente IDs selecionados de observações e computa novamente cada fato rotulado sobre o subconjunto. Refuta tentativa parcial quando há item irmão ou continuação ambígua, mas admite o controle simples integral. É **simulação** que jamais escreve refeição; o teste real de mutação pública pertence à #1308. |
+
+**Reprodução:**
+
+```sh
+pnpm exec vitest run server/modules/foodIntelligenceV2/corpus/semanticConservation1341.test.ts
+pnpm check
+pnpm agent:check
+```
+
+A matriz do Vitest é publicada como `c1b-1341-semantic-conservation.json`
+no artefato oficial do CI `food-v2-c3-calibration-<HEAD>`. Os blocos
+`canonicalBaseline`, `legacy.caseResults`, `grades`, `metamorphic`,
+`negativeControls` e `caseResults` permitem auditoria por ID e por SHA, sem
+promover equivalência em subclasses ainda não representadas. Não confundir
+projeção de decisão A2 e observação LCL; os campos de nutrição, S3, latência,
+clarificação pública e persistência real permanecem `not-measured`.

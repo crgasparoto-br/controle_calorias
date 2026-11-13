@@ -3,12 +3,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { comprehendFoodLanguage } from "../linguisticComprehension";
 import type { LinguisticLexiconStore } from "../linguisticComprehension";
-import { extractExplicitSugarQuantity } from "../../../coffeeSugarNutrition";
+import { extractExplicitSugarQuantity, normalizeSweetenedCoffeeDraftItems } from "../../../coffeeSugarNutrition";
+import { parseFoodText, splitFoodTextSegments } from "../../../mealTextParsing";
 import { goldenFoodCorpusCases } from "./data";
 import { GOLDEN_CORPUS_VERSION } from "./contracts";
+import { projectExpectedDecision } from "./projection";
 import { c1bCases } from "./semanticConservation1341.test.fixture";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
-import { evaluateC1b, observedProjection, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support";
+import { attemptDiagnosticBatchAdmission, evaluateC1b, observedProjection, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support";
 
 /** This suite characterizes production functions, not a mocked resolver. */
 const emptyGovernedLexicon: LinguisticLexiconStore = { load: async () => [] };
@@ -56,6 +58,81 @@ function generatedEquivalents(): C1bCase[] {
 }
 const cases = [...c1bCases, ...generatedEquivalents()];
 
+/** The A2 reference is the source of these inputs AND expected decisions.
+ * No parser prediction is used to construct the baseline or to train S2/S3.
+ * These decision-level oracles cannot be compared as LCL semantic accuracy. */
+const canonicalBaselineInputs = goldenFoodCorpusCases.filter(testCase =>
+  (testCase.modality === "text" || testCase.modality === "audio_transcript") &&
+  Boolean(testCase.modality === "audio_transcript"
+    ? testCase.input.transcription ?? testCase.input.text : testCase.input.text));
+async function runCanonicalA2Baseline() {
+  return Promise.all(canonicalBaselineInputs.map(async testCase => {
+    const rawText = testCase.modality === "audio_transcript"
+      ? testCase.input.transcription ?? testCase.input.text : testCase.input.text;
+    const observations = await comprehendFoodLanguage({
+      rawText, sourceRef: `golden:${testCase.caseId}`,
+      modality: testCase.modality === "audio_transcript" ? "audio_transcript" : "text",
+      ownerUserId: null, lexiconRevision: "c1b-empty-s2",
+      now: new Date("2026-11-12T12:00:00.000Z"),
+    }, emptyGovernedLexicon);
+    const expectedDecisions = testCase.expected.decisions.map(projectExpectedDecision);
+    return { canonicalCaseId: testCase.caseId, canonicalVersion: GOLDEN_CORPUS_VERSION,
+      split: testCase.split, modality: testCase.modality,
+      referenceClass: testCase.decisionClass, metamorphicGroup: testCase.metamorphicGroup,
+      negativeControlOf: testCase.negativeControlOf,
+      expectedDecisions: expectedDecisions.map(item => ({
+        status: item.status, nextAction: item.nextAction,
+        identity: item.identity, quantity: item.quantity,
+        alternatives: item.alternatives, unresolvedFields: item.unresolvedFields,
+      })),
+      observedObservations: observedProjection(observations),
+      preResolutionQuantityClaims: expectedDecisions.map(decision => ({
+        expectedValue: decision.quantity.value, expectedUnit: decision.quantity.unit,
+        observedHintMatch: decision.quantity.value === null || decision.quantity.unit === null
+          ? "not-applicable" : observations.some(observation =>
+            observation.quantityHints.value === decision.quantity.value &&
+            observation.quantityHints.unit === decision.quantity.unit),
+      })),
+      interpretation: "A2 decision oracle vs S1 pre-resolution observation — diagnostic, not an accuracy score",
+    };
+  }));
+}
+
+/** Characterizes the actual V1 full-input decomposition and coffee normalization.
+ * Never pre-split the full sentence with oracle scopes, and never call V1 truth. */
+function legacyWholeInputBaseline(testCase: C1bCase) {
+  const segments = splitFoodTextSegments(testCase.text);
+  let offset = 0;
+  const parts = segments.map(segment => {
+    const start = testCase.text.indexOf(segment, offset);
+    if (start < 0) throw new Error("c1b-v1-segment-outside-original-input");
+    offset = start + segment.length;
+    const sugar = extractExplicitSugarQuantity(segment);
+    const food = parseFoodText(segment);
+    return { originalSpan: [start, offset], segment, parsedFoodName: food.foodName,
+      quantity: food.quantity ?? null, unit: food.unit ?? null,
+      sugar: sugar && { quantity: sugar.quantity, sourceUnit: sugar.sourceUnit,
+        grams: sugar.grams } };
+  });
+  const coffeeDraft = normalizeSweetenedCoffeeDraftItems([], testCase.text)
+    .map(item => ({ foodName: item.foodName, canonicalName: item.canonicalName,
+      quantity: item.quantity, unit: item.unit }));
+  return { scope: "full-input-V1-legacy-decomposition-and-coffee-normalization",
+    publicPersistence: "not-measured", fullInput: testCase.text,
+    parts, coffeeDraft, facts: testCase.facts.map((fact, factIndex) => {
+      const sourceStart = testCase.text.indexOf(fact.surface);
+      const sourceEnd = sourceStart + fact.surface.length;
+      const containing = parts.filter(part => part.originalSpan[0] <= sourceStart &&
+        part.originalSpan[1] >= sourceEnd);
+      return { factIndex, sourceRange: [sourceStart, sourceEnd],
+        candidateSegments: containing.map(part => part.segment),
+        ownerInSameV1Segment: fact.owner === null ? "not-applicable" :
+          containing.some(part => part.segment.includes(fact.owner!)),
+        extractedSugarQuantities: containing.flatMap(part => part.sugar ? [part.sugar] : []),
+        ownerBinding: "not-measured", interpretation: "observed segmentation; not proven typed owner binding" };
+    }) };
+}
+
 function diagnosticMatrix() {
   return Promise.all(cases.map(evaluateRealV2));
 }
@@ -65,7 +142,13 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(new Set(cases.map(c => c.id)).size).toBe(cases.length);
     expect(c1bCases.some(c => c.split === "holdout")).toBe(true);
     for (const testCase of cases) expect(() => validateC1bReference(testCase)).not.toThrow();
-    expect(goldenFoodCorpusCases.length).toBeGreaterThan(0);
+    expect(canonicalBaselineInputs.length).toBeGreaterThan(0);
+    // The actual canonical A2 references, not locally rewritten labels, are
+    // consumed in runCanonicalA2Baseline. These two references prove lineage.
+    expect(canonicalBaselineInputs.find(c => c.caseId === "c-mortadela-1-5-virgula")?.input.text)
+      .toBe(cases.find(c => c.id === "food-decimal-fraction")?.text);
+    expect(canonicalBaselineInputs.find(c => c.caseId === "c-mortadela-uma-fatia-e-meia")?.input.text)
+      .toBe(cases.find(c => c.id === "food-written-fraction")?.text);
     expect(new Set(cases.map(c => c.text)).size).toBe(cases.length);
     const groupSplits = new Map<string, string>();
     const groups = new Map<string, string>();
@@ -86,6 +169,11 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       { ...cases[0].facts[0], owner: "pudim" }, ...cases[0].facts.slice(1),
     ] };
     expect(() => validateC1bReference(corrupted)).toThrow("c1b-reference-owner-not-in-scope");
+    const ambiguous = cases.find(c => c.id === "sugar-extra-unbound")!;
+    const incomplete: C1bCase = { ...ambiguous, facts: ambiguous.facts.map(fact =>
+      fact.kind === "unbound" ? { ...fact, ownerAlternatives: ["café"] } : fact) };
+    expect(() => validateC1bReference(incomplete))
+      .toThrow("c1b-reference-ambiguous-owners-incomplete");
   });
 
   it("mede a LCL real, separando conteúdo rastreável de vínculos demonstrados", async () => {
@@ -96,7 +184,9 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(summary.cases).toBe(cases.length);
     // The experiment is allowed to find failures. A green test confirms that
     // the detector ran and disclosed them, NOT that V2 passed the semantic gate.
-    expect(summary.grades["missing-component-binding"]).toBeGreaterThan(0);
+    expect(summary.grades["ingredient-quantity-unobserved"] +
+      summary.grades["ingredient-quantity-mismatch"] +
+      summary.grades["missing-component-binding"]).toBeGreaterThan(0);
     expect(summary.casesStructurallyComplete).toBeLessThan(cases.length);
     const byClass = Object.fromEntries(
       ["calibration", "holdout"].map(split => [split,
@@ -106,16 +196,15 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       ["text", "audio_transcript"].map(modality => [modality,
         summarizeC1b(reports.filter(report => report.modality === modality))]),
     );
-    // V1 comparison is per independently labelled scope, never a binding oracle.
-    const legacy = cases.map(testCase => ({
-      id: testCase.id, facts: testCase.facts.map((fact, factIndex) => {
-        const observed = fact.kind === "ingredient-quantity"
-          ? extractExplicitSugarQuantity(fact.scope) : null;
-        return { factIndex, applicable: fact.kind === "ingredient-quantity",
-          detected: observed !== null, quantity: observed?.quantity ?? null,
-          sourceUnit: observed?.sourceUnit ?? null, ownerVerified: "not-measured" };
-      }),
-    }));
+    // Both baselines execute actual source functions on the *whole* input:
+    // A2 canonical decisions remain the independent normative reference; V1
+    // is an observed partial pre-resolution comparator, never an oracle.
+    const canonicalBaseline = await runCanonicalA2Baseline();
+    expect(canonicalBaseline.length).toBe(canonicalBaselineInputs.length);
+    expect(canonicalBaseline.some(row => row.canonicalCaseId === "c-mortadela-1-5-virgula"))
+      .toBe(true);
+    const legacy = cases.map(legacyWholeInputBaseline);
+    expect(legacy.length).toBe(cases.length);
     const caseResults = measured.map((entry, index) => ({
       id: cases[index].id, group: entry.report.semanticGroup,
       split: entry.report.split, modality: entry.report.modality,
@@ -166,10 +255,16 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const aggregate = { schemaVersion:2, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
-      canonicalCases:goldenFoodCorpusCases.length, lexiconRevision:"c1b-empty-s2",
+      canonicalCases:goldenFoodCorpusCases.length, canonicalExecuted:canonicalBaseline.length,
+      lexiconRevision:"c1b-empty-s2",
       S3:"not-evaluated", providerCalls:0, ...summary,
-      byClass, byModality, legacy:{scope:"partial-sugar-extractor",caseResults:legacy,
-        ownerBinding:"not-measured"},
+      byClass, byModality,
+      canonicalBaseline: { source:"Golden Food Corpus #1299",
+        coverage:"all runnable text/audio transcript cases in canonical A2 fixture",
+        referenceKind:"expected decisions; not S1/LCL ground truth",
+        cases:canonicalBaseline },
+      legacy:{scope:"full-input-V1-segmentation-and-coffee-normalizer",
+        caseResults:legacy, ownerBinding:"not-measured", publicPersistence:"not-measured"},
       metamorphic, negativeControls, caseResults,
       clarification:{referenceRequired:cases.filter(x=>x.facts.some(f=>f.kind==="unbound")).length,
         unresolvedSignals:measured.filter(x=>x.observations.some(o=>o.unresolvedReason!==null)).length,
@@ -222,6 +317,20 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const compound = cases.find(c=>c.id==="sugar-owners-original")!;
     const actualCompound=await evaluateRealV2(compound);
     expect(actualCompound.observations).toHaveLength(2);
+    const presentButUntyped = actualCompound.observations.map((obs, i) => ({ ...obs,
+      quantityHints: { ...obs.quantityHints, value: i + 1, unit: "colher de chá" },
+    }));
+    expect(evaluateC1b(compound, presentButUntyped).results.filter(x =>
+      x.kind === "ingredient-quantity").every(x => x.grade === "missing-component-binding"))
+      .toBe(true);
+    const droppedNumeral = presentButUntyped.map((obs, i) => i === 0 ? { ...obs,
+      quantityHints: { ...obs.quantityHints, value: null, unit: null } } : obs);
+    expect(evaluateC1b(compound, droppedNumeral).results[0].grade)
+      .toBe("ingredient-quantity-unobserved");
+    const incompatibleNumber = presentButUntyped.map((obs, i) => i === 0 ? { ...obs,
+      quantityHints: { ...obs.quantityHints, value: 4 } } : obs);
+    expect(evaluateC1b(compound, incompatibleNumber).results[0].grade)
+      .toBe("ingredient-quantity-mismatch");
     const exchanged=actualCompound.observations.map((obs,i)=>({...obs,
       quantityHints:{...obs.quantityHints,value:i===0?2:1,unit:"colher de chá"}}));
     const mismatch=evaluateC1b(compound,exchanged);
@@ -241,7 +350,22 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const actual = await evaluateRealV2(ambiguous);
     expect(actual.report.structurallyComplete).toBe(false);
     expect(actual.report.results.some(x => x.kind === "unbound" && x.grade !== "structured")).toBe(true);
-    // A test-level admission check must never be interpreted as proof of
-    // real public persistence. Public anti-partial-write E2E belongs to #1308.
+    const proposedPartial = actual.observations.slice(0, 2)
+      .map(obs => obs.observationId);
+    const partialAdmission = attemptDiagnosticBatchAdmission(ambiguous,
+      actual.observations, proposedPartial);
+    expect(partialAdmission.admitted).toBe(false);
+    expect(partialAdmission.blocked.length).toBeGreaterThan(0);
+    const fullAmbiguousAttempt = attemptDiagnosticBatchAdmission(ambiguous,
+      actual.observations, actual.observations.map(obs => obs.observationId));
+    expect(fullAmbiguousAttempt.admitted).toBe(false);
+    const allValid = attemptDiagnosticBatchAdmission(testCase, observations,
+      observations.map(obs => obs.observationId));
+    expect(allValid.admitted).toBe(true);
+    const wrongSubset = attemptDiagnosticBatchAdmission(testCase, observations,
+      [observations[0].observationId]);
+    expect(wrongSubset.admitted).toBe(false);
+    expect(wrongSubset.blocked.some(item => item.reason === "silent-omission")).toBe(true);
+    // Deliberately diagnostic-only. The public persistence gate remains #1308.
   });
 });

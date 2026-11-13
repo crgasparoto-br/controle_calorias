@@ -9,7 +9,9 @@ import type { C1bCase, C1bFact } from "./semanticConservation1341.test.fixture";
 
 export type C1bGrade =
   | "structured" | "traceable-unresolved" | "missing-component-binding"
-  | "unbound-as-food" | "misbound" | "silent-omission" | "false-closed";
+  | "ingredient-quantity-unobserved" | "ingredient-quantity-mismatch"
+  | "owner-alternatives-missing" | "unbound-as-food" | "misbound"
+  | "silent-omission" | "false-closed";
 export type C1bResult = {
   caseId: string;
   factIndex: number;
@@ -17,8 +19,10 @@ export type C1bResult = {
   grade: C1bGrade;
   sourceRange: [number, number];
   scopeRange: [number, number];
-  expected: { owner: string | null; ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null };
-  observed: { foodNames: (string | null)[]; quantityHints: { value: number | null; unit: string | null }[]; unresolvedReasons: (string | null)[] };
+  expected: { owner: string | null; ownerAlternatives: readonly string[]; requiresAbstention: boolean;
+    ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null };
+  observed: { foodNames: (string | null)[]; quantityHints: { value: number | null; unit: string | null }[];
+    unresolvedReasons: (string | null)[]; alternativeOwnerNames: string[]; abstained: boolean };
 };
 export type C1bCaseReport = {
   caseId: string;
@@ -70,6 +74,20 @@ export function validateC1bReference(testCase: C1bCase): void {
     const source = uniqueSpan(testCase.text, fact.surface);
     if (!contains(scope, source)) throw new Error("c1b-reference-claim-outside-scope");
     ownerRange(testCase, fact, scope);
+    if (fact.kind === "unbound") {
+      const alternatives = fact.ownerAlternatives ?? [];
+      if (!fact.requiresAbstention || !fact.uncertaintyReason || alternatives.length < 2 ||
+          new Set(alternatives.map(fold)).size !== alternatives.length ||
+          alternatives.some(name => !fold(testCase.text).includes(fold(name)))) {
+        throw new Error("c1b-reference-ambiguous-owners-incomplete");
+      }
+      if ((fact.quantity === null) !== (fact.unit === null) ||
+          (fact.quantity !== null && (!Number.isFinite(fact.quantity) || fact.quantity <= 0))) {
+        throw new Error("c1b-reference-ambiguous-quantity-invalid");
+      }
+    } else if (fact.ownerAlternatives || fact.uncertaintyReason || fact.requiresAbstention) {
+      throw new Error("c1b-reference-unexpected-ambiguity");
+    }
     if (fact.kind === "unbound" && fact.owner !== null ||
         fact.kind !== "unbound" && fact.owner === null ||
         (fact.kind === "food-quantity" || fact.kind === "ingredient-quantity") &&
@@ -97,6 +115,10 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
     const span = spanOf(obs);
     return span !== null && contains(span, owner);
   });
+  const alternativeOwnerNames = [...new Set(attached.flatMap(obs =>
+    obs.alternatives.map(option => option.identityHints.foodName).filter((name): name is string => name !== null)))];
+  const abstained = attached.length > 0 && attached.every(obs =>
+    obs.identityHints.foodName === null && obs.unresolvedReason !== null);
   let grade: C1bGrade;
   if (!covering.length) grade = "silent-omission";
   else if (!attached.length) grade = "misbound";
@@ -114,7 +136,14 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
       return testCase.facts.some(other => other.owner && other.owner !== fact.owner &&
         (name === fold(other.owner) || name.startsWith(fold(other.owner) + " ")));
     });
-    grade = wrongAmount || wrongOwner ? "misbound" : "missing-component-binding";
+    // A span is traceability, not materialized ingredient quantity. Distinguish
+    // absent numbers, incompatible numbers, and a correct hint lacking a typed
+    // owner/ingredient relation. None of these grades authorizes mutation.
+    grade = wrongAmount || wrongOwner ? "misbound"
+      : attached.every(obs => obs.quantityHints.value === null)
+        ? "ingredient-quantity-unobserved"
+        : attached.some(obs => equalQuantity(obs, fact))
+          ? "missing-component-binding" : "ingredient-quantity-mismatch";
   } else if (fact.kind === "food-mention") {
     const found = attached.some(obs => {
       const name = fold(obs.identityHints.foodName ?? "").replace(/^(?:o|a|um|uma)\s+/u, "");
@@ -136,16 +165,23 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
   } else {
     // An unattached ingredient continuation is not a new food. An unresolved
     // observation which exposes it as identity is not safe for auto-commit.
+    const expectedOwners = fact.ownerAlternatives ?? [];
+    const alternativesComplete = expectedOwners.every(name =>
+      alternativeOwnerNames.some(observed => fold(observed) === fold(name)));
     grade = attached.some(obs => obs.identityHints.foodName !== null)
       ? "unbound-as-food"
-      : attached.some(obs => obs.unresolvedReason !== null) ? "traceable-unresolved" : "false-closed";
+      : !abstained ? "false-closed"
+        : alternativesComplete ? "traceable-unresolved" : "owner-alternatives-missing";
   }
   return { caseId: testCase.id, factIndex, kind: fact.kind, grade, sourceRange, scopeRange,
-    expected: { owner: fact.owner, ingredient: fact.ingredient, quantity: fact.quantity, unit: fact.unit,
-      uncertaintyReason: fact.kind === "unbound" ? "owner-unbound" : null },
+    expected: { owner: fact.owner, ownerAlternatives: fact.ownerAlternatives ?? [],
+      requiresAbstention: fact.requiresAbstention ?? false,
+      ingredient: fact.ingredient, quantity: fact.quantity, unit: fact.unit,
+      uncertaintyReason: fact.uncertaintyReason ?? null },
     observed: { foodNames: attached.map(obs => obs.identityHints.foodName),
       quantityHints: attached.map(obs => ({ value: obs.quantityHints.value, unit: obs.quantityHints.unit })),
-      unresolvedReasons: attached.map(obs => obs.unresolvedReason) },
+      unresolvedReasons: attached.map(obs => obs.unresolvedReason),
+      alternativeOwnerNames, abstained },
   };
 }
 
@@ -162,13 +198,17 @@ export function referenceSignature(testCase: C1bCase): string {
   validateC1bReference(testCase);
   return testCase.facts.map(item => [item.kind, fold(item.owner ?? "?"),
     fold(item.ingredient ?? ""), item.quantity === null ? "?" : String(item.quantity),
-    fold(item.unit ?? "")].join("|")).sort().join(";");
+    fold(item.unit ?? ""), (item.ownerAlternatives ?? []).map(fold).sort().join(","),
+    fold(item.uncertaintyReason ?? ""), item.requiresAbstention ? "abstain" : ""].join("|"))
+    .sort().join(";");
 }
 
 export function summarizeC1b(reports: readonly C1bCaseReport[]) {
   const grades: Record<C1bGrade, number> = {
     structured: 0, "traceable-unresolved": 0, "missing-component-binding": 0,
-    "unbound-as-food": 0, misbound: 0, "silent-omission": 0, "false-closed": 0,
+    "ingredient-quantity-unobserved": 0, "ingredient-quantity-mismatch": 0,
+    "owner-alternatives-missing": 0, "unbound-as-food": 0, misbound: 0,
+    "silent-omission": 0, "false-closed": 0,
   };
   for (const report of reports) for (const fact of report.results) grades[fact.grade] += 1;
   return { cases: reports.length, facts: Object.values(grades).reduce((a, b) => a + b, 0),
@@ -192,4 +232,24 @@ export function observedProjection(observations: readonly FoodObservation[]) {
       alternatives: p.alternativeCount, unresolvedReason: p.unresolvedReason,
     };
   }).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+
+/** Simulated *diagnostic* admission, not a runtime writer or a persistence gate.
+ * The caller must propose exact observation IDs; accepting a subset is unsafe
+ * whenever even one independently labelled fact is missing or unresolved. */
+export function attemptDiagnosticBatchAdmission(
+  testCase: C1bCase, observations: readonly FoodObservation[], proposedIds: readonly string[],
+) {
+  const unique = new Set(proposedIds);
+  const selected = observations.filter(obs => unique.has(obs.observationId));
+  const report = evaluateC1b(testCase, selected);
+  const invalidSelection = unique.size !== proposedIds.length ||
+    unique.size !== selected.length || selected.length === 0;
+  const blocked = report.results.filter(result => result.grade !== "structured")
+    .map(result => ({ factIndex: result.factIndex, reason: result.grade }));
+  return {
+    admitted: !invalidSelection && blocked.length === 0,
+    invalidSelection, proposedIds: [...proposedIds], blocked, report,
+    mutationEffect: "simulation-only-not-a-public-write",
+  };
 }

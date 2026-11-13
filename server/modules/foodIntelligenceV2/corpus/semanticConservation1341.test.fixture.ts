@@ -8,6 +8,10 @@ export type C1bFact = {
   kind: C1bFactKind;
   /** Literal owner from the original input, null when attachment is ambiguous. */
   owner: string | null;
+  /** Independent alternatives for a continuation with no uniquely attributable owner. */
+  ownerAlternatives?: readonly string[];
+  uncertaintyReason?: "owner-ambiguous-after-coordinated-items";
+  requiresAbstention?: true;
   /** Exact claim substring: its offset is located independently of either parser. */
   surface: string;
   /** Exact, independently labelled clause containing the claim and its owner. */
@@ -38,7 +42,9 @@ const without = (owner: string, scope: string): C1bFact =>
     quantity: null, unit: null });
 const unbound = (scope: string, surface: string, quantity: number | null = null,
   unit: string | null = null): C1bFact =>
-  ({ kind: "unbound", owner: null, scope, surface, ingredient: "açúcar", quantity, unit });
+  ({ kind: "unbound", owner: null, scope, surface, ingredient: "açúcar", quantity, unit,
+    ownerAlternatives: ["café", "pudim"],
+    uncertaintyReason: "owner-ambiguous-after-coordinated-items", requiresAbstention: true });
 
 /** Human-authored labels: no prediction is used to derive a reference. */
 export const c1bCases: readonly C1bCase[] = [
