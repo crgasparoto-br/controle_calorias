@@ -698,7 +698,10 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       obs.identityHints.qualifiers.some(q => q.role === "sweetening"))!;
     const withSupportedNegation = { ...negationObservation, alternatives: [{
       hypothesisId: "c1b-supported-negation", identityHints: { ...negationObservation.identityHints, foodName: "pudim" },
-      quantityHints: negationObservation.quantityHints, confidence: 0.5,
+      // This alternative asserts the independently labelled negation, not a
+      // consumed serving inferred by the original LCL's numeral parser.
+      quantityHints: { ...negationObservation.quantityHints,
+        value: null, unit: null, servingText: null }, confidence: 0.5,
       evidenceIds: negationObservation.evidence.map(item => item.evidenceId),
     }] };
     expect(parseFoodObservation(withSupportedNegation).ok).toBe(true);
