@@ -103,16 +103,48 @@ function ownerMatchesIdentity(foodName: string | null, owner: string | null): bo
   return name === expected || name.startsWith(expected + " ");
 }
 
+/** Resolve source text to the *same observed occurrence*, not merely a
+ * shared clause. Repeated facts can have identical literals and broad scopes. */
+function overlaps(a: [number, number], b: [number, number]): boolean {
+  return a[0] < b[1] && b[0] < a[1];
+}
+function hasSourceBackedServingText(testCase: C1bCase, observation: FoodObservation,
+  fact: C1bFact, serving: string): boolean {
+  const observed = spanOf(observation);
+  const scope = factScopeRange(testCase, fact);
+  if (observed === null || !contains(scope, observed)) return false;
+  const otherClaims = testCase.facts.filter(other => other !== fact)
+    .map(other => factSourceRange(testCase, other));
+  const proofSpans = [...observation.evidence.map(item => item.anchor.span),
+    ...observation.normalizationPath.map(step => step.anchor.span)]
+    .filter((span): span is { start: number; end: number } => span !== null);
+  const normalizedServing = fold(serving);
+  let supported = false;
+  // Match against original UTF-16 substrings. The small normalization margin
+  // tolerates accents/spacing without deriving a second food parser or owner.
+  for (let start = observed[0]; start < observed[1]; start++) {
+    for (let end = start + 1; end <= Math.min(observed[1], start + serving.length + 16); end++) {
+      const raw = testCase.text.slice(start, end);
+      if (!raw.trim() || raw !== raw.trim() || fold(raw) !== normalizedServing) continue;
+      const range: [number, number] = [start, end];
+      if (!contains(scope, range) || !proofSpans.some(span => contains([span.start, span.end], range))) {
+        continue;
+      }
+      // If any matching occurrence belongs to a sibling fact, the serving
+      // assertion is ambiguous even when another occurrence matches this fact.
+      if (otherClaims.some(other => overlaps(other, range))) return false;
+      supported = true;
+    }
+  }
+  return supported;
+}
+
 /** Source labels, not numeric parsing, decide what a quantity field may assert.
  * A visible package amount must never masquerade as a consumed amount. */
 function hasSourceBackedQuantityFields(testCase: C1bCase, observation: FoodObservation,
   fact: C1bFact, hints: FoodObservation["quantityHints"]): boolean {
-  const scopeRange = factScopeRange(testCase, fact);
   const serving = hints.servingText;
-  // A local qualifier may retain a legitimate leading portion ("um pudim
-  // sem açúcar"); the full independently authored scope is authoritative.
-  // An invented or sibling-only portion must still be rejected.
-  if (serving !== null && !fold(testCase.text.slice(...scopeRange)).includes(fold(serving))) {
+  if (serving !== null && !hasSourceBackedServingText(testCase, observation, fact, serving)) {
     return false;
   }
   const claim = fact.packageClaim;
@@ -124,6 +156,30 @@ function hasSourceBackedQuantityFields(testCase: C1bCase, observation: FoodObser
   const observedRange = spanOf(observation);
   return observedRange !== null && contains(factScopeRange(testCase, fact), packageRange) &&
     contains(observedRange, packageRange);
+}
+
+/** Alternative qualifiers are material hypotheses, not harmless metadata.
+ * Only independently labelled negations for this owner may be asserted. */
+function hasSupportedAlternativeQualifiers(testCase: C1bCase, observation: FoodObservation,
+  alternative: FoodObservation["alternatives"][number]): boolean {
+  const observed = spanOf(observation);
+  return observed !== null && alternative.identityHints.qualifiers.every(qualifier =>
+    (qualifier.role === "sweetening" || qualifier.role === null) &&
+    qualifier.attributeCode === null && testCase.facts.some(reference => {
+      if (reference.kind !== "negation" ||
+          !ownerMatchesIdentity(alternative.identityHints.foodName, reference.owner) ||
+          fold(reference.surface) !== fold(qualifier.value)) return false;
+      const claim = factSourceRange(testCase, reference);
+      if (!contains(observed, claim)) return false;
+      return observation.evidence.some(item =>
+        alternative.evidenceIds.includes(item.evidenceId) &&
+        (item.field === "identity.foodName" || item.field === "identity.qualifiers") &&
+        typeof item.value === "string" && fold(item.value).includes(fold(qualifier.value)) &&
+        item.anchor.span !== null &&
+        contains([item.anchor.span.start, item.anchor.span.end], claim) &&
+        fold(testCase.text.slice(item.anchor.span.start, item.anchor.span.end))
+          .includes(fold(qualifier.value)));
+    }));
 }
 
 /** Every hypothesis is checked against independent owner/quantity labels.
@@ -142,7 +198,8 @@ function hasSupportedAlternatives(testCase: C1bCase, observation: FoodObservatio
     const hints = alternative.quantityHints;
     if (hints.value !== fact.quantity || fold(hints.unit ?? "") !== fold(fact.unit ?? "") ||
         !hasSourceBackedQuantityFields(testCase, observation, fact, hints)) return false;
-    if (alternative.evidenceIds.some(id => !observation.evidence.some(item => item.evidenceId === id))) {
+    if (alternative.evidenceIds.some(id => !observation.evidence.some(item => item.evidenceId === id)) ||
+        !hasSupportedAlternativeQualifiers(testCase, observation, alternative)) {
       return false;
     }
     if (hints.value !== null) {

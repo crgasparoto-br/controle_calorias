@@ -450,6 +450,21 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(literalPositive.observationIssues).toEqual([]);
     expect(literalPositive.structurallyComplete).toBe(true);
     expect(literalPositiveAttempt.admitted).toBe(true);
+    // A-1342-23: a serving phrase from the second identical occurrence must
+    // not prove the first, even when both share the same authored scope.
+    const firstOwnServing = { ...literalFirst, quantityHints: {
+      ...literalFirst.quantityHints, servingText: "2 ovos" } };
+    expect(evaluateC1b(repeatedLiteral, [firstOwnServing, literalSecond]).structurallyComplete).toBe(true);
+    const firstBorrowingSecond = { ...literalFirst, quantityHints: {
+      ...literalFirst.quantityHints, servingText: "mais 2 ovos" } };
+    const borrowedInputs = [firstBorrowingSecond, literalSecond];
+    const borrowedServingReport = evaluateC1b(repeatedLiteral, borrowedInputs);
+    const borrowedServingAdmission = attemptDiagnosticBatchAdmission(repeatedLiteral, borrowedInputs,
+      borrowedInputs.map(obs => obs.observationId));
+    expect(parseFoodObservation(firstBorrowingSecond).ok).toBe(true);
+    expect(borrowedServingReport.results[0].grade).toBe("invalid-evidence");
+    expect(borrowedServingReport.structurallyComplete).toBe(false);
+    expect(borrowedServingAdmission.admitted).toBe(false);
     const literalOmitted = evaluateC1b(repeatedLiteral, [literalFirst]);
     expect(literalOmitted.results.map(fact => fact.grade))
       .toEqual(["structured", "silent-omission"]);
@@ -666,6 +681,30 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const mentionWithInventedOwner = { ...mentionWithBenignAlternative,
       alternatives: [{ ...benignMentionAlternative,
         identityHints: { ...benignMentionAlternative.identityHints, foodName: "laranja" } }] };
+    // A-1342-24: an alternative may not invent a negation or preparation
+    // without a matching, source-anchored independent fact for its owner.
+    const inventedQualifier = { value: "sem açúcar", attributeCode: null,
+      role: "sweetening", confidence: 0.99 };
+    const mentionWithInventedNegation = { ...mentionWithBenignAlternative,
+      alternatives: [{ ...benignMentionAlternative, identityHints: {
+        ...benignMentionAlternative.identityHints, qualifiers: [inventedQualifier] } }] };
+    const mentionWithInventedPreparation = { ...mentionWithBenignAlternative,
+      alternatives: [{ ...benignMentionAlternative, identityHints: {
+        ...benignMentionAlternative.identityHints, qualifiers: [
+          { ...inventedQualifier, value: "assado", role: "preparation" }] } }] };
+    const negationCase = cases.find(c => c.id === "sugar-other-negation")!;
+    const originalNegations = measured[cases.indexOf(negationCase)].observations;
+    const negationObservation = originalNegations.find(obs =>
+      obs.identityHints.qualifiers.some(q => q.role === "sweetening"))!;
+    const withSupportedNegation = { ...negationObservation, alternatives: [{
+      hypothesisId: "c1b-supported-negation", identityHints: negationObservation.identityHints,
+      quantityHints: negationObservation.quantityHints, confidence: 0.5,
+      evidenceIds: negationObservation.evidence.map(item => item.evidenceId),
+    }] };
+    expect(parseFoodObservation(withSupportedNegation).ok).toBe(true);
+    const supportedNegationReport = evaluateC1b(negationCase, originalNegations.map(obs =>
+      obs.observationId === negationObservation.observationId ? withSupportedNegation : obs));
+    expect(supportedNegationReport.results[1].grade).toBe("structured");
 
     // A-1342-22: servingText is original-source text, not a free-form
     // quantity oracle. Visible packaging is separately labelled metadata.
@@ -690,8 +729,9 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const unsupportedCombined = { ...unsupportedPackageValue,
       quantityHints: { ...unsupportedPackageValue.quantityHints, servingText: "99 g" } };
     const secondaryQuantityAttacks = { mentionWithInventedAlternative,
-      mentionWithInventedOwner, unsupportedServing, unsupportedPackageValue,
-      unsupportedPackageUnit, unsupportedPackageAmount, unsupportedCombined };
+      mentionWithInventedOwner, mentionWithInventedNegation, mentionWithInventedPreparation,
+      unsupportedServing, unsupportedPackageValue, unsupportedPackageUnit,
+      unsupportedPackageAmount, unsupportedCombined };
     const secondaryAttackResults = Object.fromEntries(Object.entries(secondaryQuantityAttacks)
       .map(([id, observation]) => {
         expect(parseFoodObservation(observation).ok, id).toBe(true);
@@ -764,6 +804,11 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         unsupportedSecondaryFields: secondaryAttackResults,
         rejectedLabelledPackage: Object.keys(labelledPackageAttacks),
         borrowedServingFromSibling: "invalid-evidence",
+        sameScopeBorrowedServing: { caseId: repeatedLiteral.id,
+          ownServingComplete: true, borrowedGrade: borrowedServingReport.results[0].grade,
+          borrowedComplete: borrowedServingReport.structurallyComplete,
+          borrowedAdmitted: borrowedServingAdmission.admitted },
+        supportedNegationAlternative: supportedNegationReport.results[1].grade,
         publicPersistence: "not-measured",
       },
     };
@@ -794,7 +839,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       quantityConservation: quantityRemediationControls,
       postAuditLiteralAndMention: newRemediationControls,
     };
-    const aggregate = { schemaVersion:6, issue:1341, generatorVersion,
+    const aggregate = { schemaVersion:7, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
       canonicalCases:goldenFoodCorpusCases.length, canonicalExecuted:canonicalBaseline.length,

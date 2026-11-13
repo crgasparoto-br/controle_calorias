@@ -293,3 +293,33 @@ aprovação de conservação semântica produtiva nem autorização de S3/cutove
   persistence. The per-fact report also exposes secondary quantity hints and
   independently labelled package expectations for later review. CI success
   does not certify V2 semantic conservation or authorize merge/cutover.
+
+## Remediação A-1342-23/24 — prova da ocorrência e das hipóteses alternativas
+
+- **A-1342-23 — `servingText` por ocorrência:** o oráculo localiza cada
+  afirmação de porção em offsets UTF-16 do texto original, dentro do
+  `surfaceSpan` e das âncoras de prova da observação, além do escopo autoral.
+  Uma mesma superfície pode ocorrer em dois fatos, mas não se permite usar a
+  ocorrência do irmão como prova; se a afirmação corresponder a qualquer fato
+  irmão dentro do span observado, o resultado é `invalid-evidence`. O teste
+  `food-repeated-literal` mantém o positivo com duas observações independentes
+  de `2 ovos` e refuta a primeira observação alterada para `mais 2 ovos` com
+  `structurallyComplete=false` e admissão diagnóstica recusada.
+- **A-1342-24 — qualificadores de alternativas:** cada hipótese
+  `alternatives[]` que reivindica uma negação deve corresponder a um fato
+  `negation` independente do mesmo dono, no seu span original, sustentado por
+  evidência vinculada à própria hipótese. Qualificadores sem rótulo semântico
+  no C1b não recebem aprovação por coincidência textual; `sem açúcar` e
+  `assado` inventados em alternativa de `brigadeiro de colher` são rejeitados.
+  O positivo com `sem açúcar` realmente rotulado e evidenciado continua
+  `structured`, assim como a hipótese benigna sem novos qualificadores.
+- A matriz `schemaVersion: 7` acrescenta
+  `remediationControls.postAuditLiteralAndMention.alternativeAndSecondaryQuantities`
+  com `sameScopeBorrowedServing`, `supportedNegationAlternative` e as variantes
+  `mentionWithInventedNegation`/`mentionWithInventedPreparation` em
+  `unsupportedSecondaryFields`. O teste afirma os resultados esperados;
+  revisão externa deve confrontar o JSON e o CI no novo SHA exato.
+- Esta remediação é exclusiva do **oráculo diagnóstico**, sem editar parser,
+  schema `FoodObservation`, fluxo público, banco, flags, S3 ou rulesets.
+  Testes verdes e admissão sintética não certificam conservação semântica
+  produtiva, nutrição, persistência nem autorização de release ou merge.
