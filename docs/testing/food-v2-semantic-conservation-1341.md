@@ -261,3 +261,35 @@ aprovação de conservação semântica produtiva nem autorização de S3/cutove
   alteração em runtime produtivo, schema, léxico, S3, flags, entrypoints,
   persistência, workflows ou rulesets. O sucesso do diagnóstico não comprova
   conservação semântica da LCL, aprovação independente ou autorização de merge.
+
+## Remediacao A-1342-21/22 - hypotheses and secondary quantity hints
+
+- **A-1342-21:** C1b now checks *every* `FoodObservation.alternatives[]`
+  against the independently labelled owner and quantity, including units and
+  provenance of an explicit `quantity.value` claim. Unexpected or repeated
+  owner hypotheses, unsupported amounts, changed units, and unsourced
+  `servingText` fail as `invalid-evidence`, even when the primary observation
+  correctly abstains. A benign equivalent hypothesis remains admissible in
+  the isolated diagnostic simulation; ambiguity still blocks admission.
+- **A-1342-22:** `quantityHints.servingText` must be present within the
+  independently labelled fact surface; borrowing a sibling's quantity is
+  rejected. `visiblePackageQuantity` and `visiblePackageUnit` are **not**
+  consumed-portion facts: they are allowed only when the human-authored
+  reference explicitly labels a package value, unit and source surface.
+  Missing, invented, orphaned and contradictory package fields fail closed.
+  The distinct package calibration control uses the raw input
+  `iogurte, embalagem de 170 g`, a source-labelled package claim of `170 g`,
+  and no consumed portion. A valid source-backed package is accepted by the
+  *diagnostic* oracle; incorrect amounts and units are rejected. The existing
+  canonical holdout is not edited or supplied to S2/S3.
+- The `C1bFact.packageClaim` annotation belongs only to the test oracle.
+  The current production `FoodEvidence` vocabulary has no distinct typed
+  package-evidence field, so this test proves source-labelled coverage, **not**
+  production package provenance or nutritional intake. No schema, LCL runtime,
+  persistence, S3, public entrypoint or flag was changed.
+- Exact-SHA diagnostic output uses `schemaVersion: 6` and records
+  `remediationControls.postAuditLiteralAndMention.alternativeAndSecondaryQuantities`,
+  including positive/negative control outcomes and explicit `not-measured`
+  persistence. The per-fact report also exposes secondary quantity hints and
+  independently labelled package expectations for later review. CI success
+  does not certify V2 semantic conservation or authorize merge/cutover.

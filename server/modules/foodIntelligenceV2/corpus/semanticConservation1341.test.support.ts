@@ -22,8 +22,9 @@ export type C1bResult = {
   sourceRange: [number, number];
   scopeRange: [number, number];
   expected: { owner: string | null; ownerAlternatives: readonly string[]; requiresAbstention: boolean;
-    ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null };
-  observed: { foodNames: (string | null)[]; quantityHints: { value: number | null; unit: string | null }[];
+    ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null;
+    packageClaim: { quantity: number; unit: string; sourceRange: [number, number] } | null };
+  observed: { foodNames: (string | null)[]; quantityHints: FoodObservation["quantityHints"][];
     unresolvedReasons: (string | null)[]; alternativeOwnerNames: string[]; abstained: boolean;
     sourceRefs: string[]; evidenceSourceRefs: string[]; normalizationSourceRefs: string[] };
 };
@@ -101,6 +102,58 @@ function ownerMatchesIdentity(foodName: string | null, owner: string | null): bo
   const expected = fold(owner);
   return name === expected || name.startsWith(expected + " ");
 }
+
+/** Source labels, not numeric parsing, decide what a quantity field may assert.
+ * A visible package amount must never masquerade as a consumed amount. */
+function hasSourceBackedQuantityFields(testCase: C1bCase, observation: FoodObservation,
+  fact: C1bFact, hints: FoodObservation["quantityHints"]): boolean {
+  const claimRange = factSourceRange(testCase, fact);
+  const serving = hints.servingText;
+  // servingText may describe an unresolved surface, but not introduce words,
+  // numerals or a portion borrowed from a sibling claim.
+  if (serving !== null && !fold(testCase.text.slice(...claimRange)).includes(fold(serving))) {
+    return false;
+  }
+  const claim = fact.packageClaim;
+  const hasPackageFields = hints.visiblePackageQuantity !== null || hints.visiblePackageUnit !== null;
+  if (!claim) return !hasPackageFields;
+  if (!hasPackageFields || hints.visiblePackageQuantity !== claim.quantity ||
+      fold(hints.visiblePackageUnit ?? "") !== fold(claim.unit)) return false;
+  const packageRange = locatedSpan(testCase.text, claim.surface, claim.surfaceStart);
+  const observedRange = spanOf(observation);
+  return observedRange !== null && contains(factScopeRange(testCase, fact), packageRange) &&
+    contains(observedRange, packageRange);
+}
+
+/** Every hypothesis is checked against independent owner/quantity labels.
+ * A source-spanning observation cannot launder a fabricated alternative. */
+function hasSupportedAlternatives(testCase: C1bCase, observation: FoodObservation,
+  fact: C1bFact): boolean {
+  const allowedOwners = fact.kind === "unbound" ? (fact.ownerAlternatives ?? [])
+    : fact.owner === null ? [] : [fact.owner];
+  const seenOwners = new Set<string>();
+  return observation.alternatives.every(alternative => {
+    const name = alternative.identityHints.foodName;
+    const owner = fold(name ?? "").replace(/^(?:o|a|um|uma)\s+/u, "");
+    if (!owner || !allowedOwners.some(expected => fold(expected) === owner) ||
+        seenOwners.has(owner)) return false;
+    seenOwners.add(owner);
+    const hints = alternative.quantityHints;
+    if (hints.value !== fact.quantity || fold(hints.unit ?? "") !== fold(fact.unit ?? "") ||
+        !hasSourceBackedQuantityFields(testCase, observation, fact, hints)) return false;
+    if (alternative.evidenceIds.some(id => !observation.evidence.some(item => item.evidenceId === id))) {
+      return false;
+    }
+    if (hints.value !== null) {
+      const sourceRange = factSourceRange(testCase, fact);
+      if (!observation.evidence.some(item => item.field === "quantity.value" &&
+          item.value === hints.value && fold(item.unit ?? "") === fold(hints.unit ?? "") &&
+          item.anchor.span !== null && contains(
+            [item.anchor.span.start, item.anchor.span.end], sourceRange))) return false;
+    }
+    return true;
+  });
+}
 /** C1b uses the independent fact spans in BOTH directions: a parser cannot
  * invent an extra food or duplicate an observed food and still pass coverage. */
 function observationClaimsFact(testCase: C1bCase, observation: FoodObservation, fact: C1bFact): boolean {
@@ -132,6 +185,8 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
         step.anchor.span !== null && contains([step.anchor.span.start, step.anchor.span.end], claimRange))) {
     return false;
   }
+  if (!hasSourceBackedQuantityFields(testCase, observation, fact, observation.quantityHints) ||
+      !hasSupportedAlternatives(testCase, observation, fact)) return false;
   const rawAt = (anchor: FoodObservation["surfaceSpan"]): string =>
     anchor.span === null ? "" : fold(testCase.text.slice(anchor.span.start, anchor.span.end));
   const identityProofs = observation.evidence.filter(item => item.field === "identity.foodName");
@@ -200,6 +255,13 @@ export function validateC1bReference(testCase: C1bCase): void {
     const scope = factScopeRange(testCase, fact);
     const source = factSourceRange(testCase, fact);
     if (!contains(scope, source)) throw new Error("c1b-reference-claim-outside-scope");
+    if (fact.packageClaim) {
+      const claim = fact.packageClaim;
+      const packageRange = locatedSpan(testCase.text, claim.surface, claim.surfaceStart);
+      if ((fact.kind !== "food-mention" && fact.kind !== "food-quantity") ||
+          !Number.isFinite(claim.quantity) || claim.quantity <= 0 || !claim.unit.trim() ||
+          !contains(scope, packageRange)) throw new Error("c1b-reference-package-invalid");
+    }
     const occurrenceKey = `${fact.kind}:${source[0]}:${source[1]}`;
     if (occurrences.has(occurrenceKey)) throw new Error("c1b-reference-duplicate-fact-occurrence");
     occurrences.add(occurrenceKey);
@@ -313,16 +375,21 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
             : fact.quantity !== null && attached.some(obs => !equalQuantity(obs, fact))
               ? "unbound-quantity-mismatch" : "traceable-unresolved";
   }
-  if (grade === "structured" && attached.some(obs =>
+  if ((grade === "structured" || grade === "traceable-unresolved" ||
+      grade === "owner-alternatives-missing") && attached.some(obs =>
     observationClaimsFact(testCase, obs, fact) &&
     !hasMaterialEvidence(testCase, obs, fact))) grade = "invalid-evidence";
   return { caseId: testCase.id, factIndex, kind: fact.kind, grade, sourceRange, scopeRange,
     expected: { owner: fact.owner, ownerAlternatives: fact.ownerAlternatives ?? [],
       requiresAbstention: fact.requiresAbstention ?? false,
       ingredient: fact.ingredient, quantity: fact.quantity, unit: fact.unit,
-      uncertaintyReason: fact.uncertaintyReason ?? null },
+      uncertaintyReason: fact.uncertaintyReason ?? null,
+      packageClaim: fact.packageClaim ? { quantity: fact.packageClaim.quantity,
+        unit: fact.packageClaim.unit,
+        sourceRange: locatedSpan(testCase.text, fact.packageClaim.surface,
+          fact.packageClaim.surfaceStart) } : null },
     observed: { foodNames: attached.map(obs => obs.identityHints.foodName),
-      quantityHints: attached.map(obs => ({ value: obs.quantityHints.value, unit: obs.quantityHints.unit })),
+      quantityHints: attached.map(obs => ({ ...obs.quantityHints })),
       unresolvedReasons: attached.map(obs => obs.unresolvedReason),
       alternativeOwnerNames, abstained,
       sourceRefs: spanCovering.map(obs => obs.surfaceSpan.sourceRef),
@@ -396,7 +463,8 @@ export function referenceSignature(testCase: C1bCase): string {
   return testCase.facts.map(item => [item.kind, fold(item.owner ?? "?"),
     fold(item.ingredient ?? ""), item.quantity === null ? "?" : String(item.quantity),
     fold(item.unit ?? ""), (item.ownerAlternatives ?? []).map(fold).sort().join(","),
-    fold(item.uncertaintyReason ?? ""), item.requiresAbstention ? "abstain" : ""].join("|"))
+    fold(item.uncertaintyReason ?? ""), item.requiresAbstention ? "abstain" : "",
+    item.packageClaim ? `${item.packageClaim.quantity}:${fold(item.packageClaim.unit)}` : ""].join("|"))
     .sort().join(";");
 }
 

@@ -535,6 +535,48 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       expect(attemptDiagnosticBatchAdmission(gramCase, continuedWith(observation),
         gramObservations.map(obs => obs.observationId)).admitted).toBe(false);
     }
+    // A-1342-21: alternatives are claims, not harmless annotation. An
+    // unexpected owner, repeated owner or invented amount cannot be hidden
+    // behind a correctly abstaining primary observation.
+    const extraOwner = { ...labelledContinuation, alternatives: [
+      ...labelledContinuation.alternatives,
+      { ...labelledContinuation.alternatives[0], hypothesisId: "c1b-extra-owner",
+        identityHints: { ...labelledContinuation.identityHints, foodName: "laranja" } },
+    ] };
+    const repeatedOwner = { ...labelledContinuation, alternatives: [
+      ...labelledContinuation.alternatives,
+      { ...labelledContinuation.alternatives[0], hypothesisId: "c1b-repeated-owner" },
+    ] };
+    const changedAlternativeQuantity = { ...labelledContinuation, alternatives: [
+      { ...labelledContinuation.alternatives[0], quantityHints: {
+        ...labelledContinuation.alternatives[0].quantityHints, value: 999 } },
+      labelledContinuation.alternatives[1],
+    ] };
+    const changedAlternativeUnit = { ...labelledContinuation, alternatives: [
+      { ...labelledContinuation.alternatives[0], quantityHints: {
+        ...labelledContinuation.alternatives[0].quantityHints, unit: "kg" } },
+      labelledContinuation.alternatives[1],
+    ] };
+    const changedAlternativeServing = { ...labelledContinuation, alternatives: [
+      { ...labelledContinuation.alternatives[0], quantityHints: {
+        ...labelledContinuation.alternatives[0].quantityHints, servingText: "999 g" } },
+      labelledContinuation.alternatives[1],
+    ] };
+    const alternativeAttacks = { extraOwner, repeatedOwner,
+      changedAlternativeQuantity, changedAlternativeUnit, changedAlternativeServing };
+    expect(continuationFact(labelledContinuation)).toBe("traceable-unresolved");
+    const alternativeAttackResults = Object.fromEntries(Object.entries(alternativeAttacks)
+      .map(([id, observation]) => {
+        expect(parseFoodObservation(observation).ok, id).toBe(true);
+        const report = evaluateC1b(gramCase, continuedWith(observation));
+        const grade = report.results.find(fact => fact.kind === "unbound")!.grade;
+        expect(grade, id).toBe("invalid-evidence");
+        expect(report.observationIssues.map(issue => issue.grade), id)
+          .toContain("invalid-evidence");
+        expect(attemptDiagnosticBatchAdmission(gramCase, continuedWith(observation),
+          gramObservations.map(obs => obs.observationId)).admitted, id).toBe(false);
+        return [id, { grade, admitted: false }];
+      }));
     const quantityRemediationControls = {
       sameOwnerRepeated: { caseId: repeated.id, expected: "shared-quantity-observation",
         grades: sharedQuantity.results.map(fact => fact.grade),
@@ -608,6 +650,100 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       } : obs);
     expect(evaluateC1b(actualMentionCase, inventedInHoldout).results[0].grade)
       .toBe("invalid-evidence");
+    // A-1342-21: both fully resolved mentions and unresolved continuations
+    // must reject hypotheses not supported by the manual fact reference.
+    const benignMentionAlternative = { hypothesisId: "c1b-mention-equivalent",
+      identityHints: { ...mentionValid.identityHints },
+      quantityHints: { ...mentionValid.quantityHints },
+      evidenceIds: mentionValid.evidence.map(item => item.evidenceId), confidence: 0.5 };
+    const mentionWithBenignAlternative = { ...mentionValid,
+      alternatives: [benignMentionAlternative] };
+    expect(parseFoodObservation(mentionWithBenignAlternative).ok).toBe(true);
+    expect(evaluateC1b(mentionCase, [mentionWithBenignAlternative]).structurallyComplete).toBe(true);
+    const mentionWithInventedAlternative = { ...mentionWithBenignAlternative,
+      alternatives: [{ ...benignMentionAlternative,
+        quantityHints: { ...benignMentionAlternative.quantityHints, value: 99, unit: "g" } }] };
+    const mentionWithInventedOwner = { ...mentionWithBenignAlternative,
+      alternatives: [{ ...benignMentionAlternative,
+        identityHints: { ...benignMentionAlternative.identityHints, foodName: "laranja" } }] };
+
+    // A-1342-22: servingText is original-source text, not a free-form
+    // quantity oracle. Visible packaging is separately labelled metadata.
+    const sourceBackedServing = { ...mentionValid, quantityHints: {
+      ...mentionValid.quantityHints, servingText: "brigadeiro de colher" } };
+    expect(evaluateC1b(mentionCase, [sourceBackedServing]).structurallyComplete).toBe(true);
+    const unsupportedServing = { ...mentionValid,
+      quantityHints: { ...mentionValid.quantityHints, servingText: "99 g" } };
+    const siblingServing = actualMentionObservations.map(obs =>
+      obs.identityHints.foodName === "brigadeiro de colher" ? { ...obs,
+        quantityHints: { ...obs.quantityHints,
+          servingText: actualMentionCase.facts[1].surface } } : obs);
+    expect(evaluateC1b(actualMentionCase, siblingServing).results[0].grade)
+      .toBe("invalid-evidence");
+    const unsupportedPackageValue = { ...mentionValid,
+      quantityHints: { ...mentionValid.quantityHints, visiblePackageQuantity: 99,
+        visiblePackageUnit: "g" } };
+    const unsupportedPackageUnit = { ...mentionValid,
+      quantityHints: { ...mentionValid.quantityHints, visiblePackageUnit: "g" } };
+    const unsupportedPackageAmount = { ...mentionValid,
+      quantityHints: { ...mentionValid.quantityHints, visiblePackageQuantity: 99 } };
+    const unsupportedCombined = { ...unsupportedPackageValue,
+      quantityHints: { ...unsupportedPackageValue.quantityHints, servingText: "99 g" } };
+    const secondaryQuantityAttacks = { mentionWithInventedAlternative,
+      mentionWithInventedOwner, unsupportedServing, unsupportedPackageValue,
+      unsupportedPackageUnit, unsupportedPackageAmount, unsupportedCombined };
+    const secondaryAttackResults = Object.fromEntries(Object.entries(secondaryQuantityAttacks)
+      .map(([id, observation]) => {
+        expect(parseFoodObservation(observation).ok, id).toBe(true);
+        const report = evaluateC1b(mentionCase, [observation]);
+        const attempt = attemptDiagnosticBatchAdmission(mentionCase, [observation],
+          [observation.observationId]);
+        expect(report.results[0].grade, id).toBe("invalid-evidence");
+        expect(report.observationIssues.map(issue => issue.grade), id)
+          .toContain("invalid-evidence");
+        expect(report.structurallyComplete, id).toBe(false);
+        expect(attempt.admitted, id).toBe(false);
+        return [id, { grade: report.results[0].grade, admitted: attempt.admitted }];
+      }));
+    const packageCase: C1bCase = {
+      id: "c1b-regression-source-backed-package",
+      text: "iogurte, embalagem de 170 g", modality: "text", split: "calibration",
+      semanticGroup: "c1b-regression-source-backed-package",
+      facts: [{ kind: "food-mention", owner: "iogurte", surface: "iogurte",
+        scope: "iogurte, embalagem de 170 g", ingredient: null,
+        quantity: null, unit: null,
+        packageClaim: { surface: "170 g", quantity: 170, unit: "g" } }],
+    };
+    validateC1bReference(packageCase);
+    const packageAnchor = { sourceRef: `c1b:${packageCase.id}`, region: null,
+      span: { start: 0, end: packageCase.text.length } };
+    const packagePositive = { ...mentionValid, observationId: "c1b-source-backed-package",
+      rawInput: packageCase.text, normalizedInput: packageCase.text,
+      surfaceSpan: packageAnchor,
+      identityHints: { ...mentionValid.identityHints, foodName: "iogurte" },
+      quantityHints: { ...mentionValid.quantityHints,
+        visiblePackageQuantity: 170, visiblePackageUnit: "g" },
+      evidence: mentionValid.evidence.map(item => ({ ...item, anchor: packageAnchor,
+        value: item.field === "identity.foodName" ? "iogurte" : item.value })),
+      normalizationPath: mentionValid.normalizationPath.map(step => ({ ...step, anchor: packageAnchor })) };
+    expect(parseFoodObservation(packagePositive).ok).toBe(true);
+    expect(evaluateC1b(packageCase, [packagePositive]).structurallyComplete).toBe(true);
+    expect(attemptDiagnosticBatchAdmission(packageCase, [packagePositive],
+      [packagePositive.observationId]).admitted).toBe(true);
+    const labelledPackageAttacks = {
+      missingPackage: { ...packagePositive, quantityHints: { ...packagePositive.quantityHints,
+        visiblePackageQuantity: null, visiblePackageUnit: null } },
+      wrongAmount: { ...packagePositive, quantityHints: { ...packagePositive.quantityHints,
+        visiblePackageQuantity: 171 } },
+      wrongUnit: { ...packagePositive, quantityHints: { ...packagePositive.quantityHints,
+        visiblePackageUnit: "kg" } },
+    };
+    for (const [id, observation] of Object.entries(labelledPackageAttacks)) {
+      expect(parseFoodObservation(observation).ok, id).toBe(true);
+      expect(evaluateC1b(packageCase, [observation]).structurallyComplete, id).toBe(false);
+      expect(attemptDiagnosticBatchAdmission(packageCase, [observation],
+        [observation.observationId]).admitted, id).toBe(false);
+    }
     const newRemediationControls = {
       unsupportedMentionQuantity: { caseId: mentionCase.id,
         benignGrade: mentionPositive.results[0].grade,
@@ -621,6 +757,15 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         omittedGrades: literalOmitted.results.map(fact => fact.grade),
         sharedGrades: literalShared.results.map(fact => fact.grade),
         sharedSyntheticAdmission: false },
+      alternativeAndSecondaryQuantities: {
+        cases: [mentionCase.id, gramCase.id, packageCase.id],
+        benignMentionAlternative: true, sourceBackedServing: true,
+        sourceBackedPackage: true, unsupportedAlternatives: alternativeAttackResults,
+        unsupportedSecondaryFields: secondaryAttackResults,
+        rejectedLabelledPackage: Object.keys(labelledPackageAttacks),
+        borrowedServingFromSibling: "invalid-evidence",
+        publicPersistence: "not-measured",
+      },
     };
 
     const localNegationIndex = cases.findIndex(c => c.id === "sugar-local-negation");
@@ -649,7 +794,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       quantityConservation: quantityRemediationControls,
       postAuditLiteralAndMention: newRemediationControls,
     };
-    const aggregate = { schemaVersion:5, issue:1341, generatorVersion,
+    const aggregate = { schemaVersion:6, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
       canonicalCases:goldenFoodCorpusCases.length, canonicalExecuted:canonicalBaseline.length,

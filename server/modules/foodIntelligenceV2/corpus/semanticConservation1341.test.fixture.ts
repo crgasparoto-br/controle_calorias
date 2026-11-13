@@ -4,6 +4,13 @@
  * Holdout examples must not be supplied to S2 aliases or S3 prompts.
  */
 export type C1bFactKind = "food-quantity" | "food-mention" | "ingredient-quantity" | "negation" | "unbound";
+/** A source-labelled package claim is metadata, never a consumed portion. */
+export type C1bPackageClaim = {
+  surface: string;
+  surfaceStart?: number;
+  quantity: number;
+  unit: string;
+};
 export type C1bFact = {
   kind: C1bFactKind;
   /** Literal owner from the original input, null when attachment is ambiguous. */
@@ -23,6 +30,8 @@ export type C1bFact = {
   ingredient: string | null;
   quantity: number | null;
   unit: string | null;
+  /** Only set when packaging is independently labelled in the raw input. */
+  packageClaim?: C1bPackageClaim;
 };
 export type C1bCase = {
   id: string;
