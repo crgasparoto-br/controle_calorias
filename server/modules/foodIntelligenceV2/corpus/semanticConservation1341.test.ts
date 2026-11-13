@@ -697,7 +697,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const negationObservation = originalNegations.find(obs =>
       obs.identityHints.qualifiers.some(q => q.role === "sweetening"))!;
     const withSupportedNegation = { ...negationObservation, alternatives: [{
-      hypothesisId: "c1b-supported-negation", identityHints: negationObservation.identityHints,
+      hypothesisId: "c1b-supported-negation", identityHints: { ...negationObservation.identityHints, foodName: "pudim" },
       quantityHints: negationObservation.quantityHints, confidence: 0.5,
       evidenceIds: negationObservation.evidence.map(item => item.evidenceId),
     }] };
