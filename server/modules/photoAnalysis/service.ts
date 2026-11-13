@@ -17,6 +17,7 @@ import { associateMealItemsWithSourceMedia } from "../../mealItemImageProvenance
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
 import { confirmMeal } from "../meals/service";
+import { assertUnmigratedFoodD1EntrypointsOff } from "../foodIntelligenceV2/publicUnmigratedEntrypoints";
 import { searchGlobalFoodCatalog } from "../foods/service";
 import type {
   AnalyzeFoodPhotoInput,
@@ -257,6 +258,14 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
   if (!input.image) {
     throw new MealInferenceError("Envie uma foto para análise.");
   }
+  // Photo confirmation still uses a two-phase legacy DTO, not a native V2 plan.
+  // This legacy photo endpoint has no authenticated visual-role selector.
+  // Its image may be a meal plate, package front, or later nutrition label.
+  // If any of these channels (including image+caption) is assigned to V2,
+  // never allow this generic V1 path to reinterpret the submission.
+  assertUnmigratedFoodD1EntrypointsOff([
+    "plate_image", "packaging", "nutrition_label", "multimodal",
+  ]);
 
   const now = Date.now();
   const pending: FoodPhotoAnalysis = {

@@ -3,6 +3,27 @@ import { calculateMealTotals, roundNutritionValue } from "@/shared/mealTotals";
 import { normalizeMeasurementUnit } from "@shared/measurementUnits";
 import type { ManualMealState, MealItemState } from "./types";
 
+export type MealImageKind = "plate_image" | "packaging" | "nutrition_label";
+
+/** Never assign a photo role without explicit selection for this upload. */
+export function resolveSubmittedImageKind(
+  hasImage: boolean, selected: MealImageKind | null,
+): MealImageKind | null | undefined {
+  return hasImage ? selected : undefined;
+}
+
+/** Confirmed D1 web reviews are tied to an exact instant, not a local day. */
+export function matchesPinnedD1MealDestination(
+  submitted: { mealLabel: string; occurredAt: Date },
+  pinned: { mealLabel: string; occurredAt: string },
+): boolean {
+  const pinnedInstant = new Date(pinned.occurredAt).getTime();
+  return submitted.mealLabel.trim() === pinned.mealLabel &&
+    Number.isFinite(submitted.occurredAt.getTime()) &&
+    Number.isFinite(pinnedInstant) &&
+    submitted.occurredAt.getTime() === pinnedInstant;
+}
+
 const WEIGHT_OR_VOLUME_UNITS = new Set(["g", "ml"]);
 const MAX_QUANTITY = 5000;
 const MAX_SERVINGS = 20;

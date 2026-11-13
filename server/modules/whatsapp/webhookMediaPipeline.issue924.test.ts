@@ -1,5 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// These legacy specs have no D1 pending or route; D1 replay behavior is tested separately.
+vi.mock("./confirmedMealRegistration", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("./confirmedMealRegistration")>();
+  return {
+    ...actual,
+    tryRunPublicFoodD1WhatsAppContinuation: vi.fn(async () => null),
+    assertWhatsAppInboundNotPreviouslyD1Owned: vi.fn(async () => undefined),
+  };
+});
+
+
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();

@@ -1,0 +1,242 @@
+/**
+ * #1308 / D1: durable, fail-closed resolver ownership for an operation.
+ *
+ * This is the routing contract, NOT a storage implementation. A caller must
+ * supply a shared, transactional store with a unique operation key; never use
+ * a process-local Map for production. Native V2 writes remain gated by #1335
+ * and by a separate V2 consumer/persistence adapter.
+ */
+import { createHash } from "node:crypto";
+import { z } from "zod";
+import { parseFoodOperationEnvelope, type FoodOperationEnvelope } from "./schemas";
+import { haveEqualFoodEnvelopeRevisions } from "./contracts";
+import {
+  D1_ENTRYPOINT_IDS,
+  D1_VISUAL_ENTRYPOINT_IDS,
+  D1_WHATSAPP_IMAGE_ENTRYPOINT_IDS,
+  type FoodD1Resolver,
+  type FoodD1Entrypoint,
+} from "./entrypointMigration";
+
+/** Exact opaque submission key syntax, independent of food identity and nutrition.
+ * Keep this check shared by public additions and edits to prevent rule drift.
+ */
+export function isValidD1OperationId(value: unknown): value is string {
+  if (typeof value !== "string" || value.length < 8 || value.length > 80) return false;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    const alphaNumeric = (code >= 48 && code <= 57) ||
+      (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+    if (alphaNumeric) continue;
+    if (index === 0 || (code !== 46 && code !== 95 && code !== 58 && code !== 45)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export type FoodD1PinnedRoute = {
+  operationKey: string;
+  ownerUserId: number;
+  originEntrypoint: FoodD1Entrypoint;
+  resolver: FoodD1Resolver;
+  operationScopeHash: string;
+  versions: FoodOperationEnvelope["revisions"];
+};
+
+const foodD1ResolverSchema = z.union([z.literal("v1"), z.literal("v2")]);
+const foodD1V1ResolverSchema = z.literal("v1");
+const foodD1V2ResolverSchema = z.literal("v2");
+
+export function isD1RouteVersion(value: unknown): value is FoodD1Resolver {
+  return foodD1ResolverSchema.safeParse(value).success;
+}
+
+export function isD1V2Route(value: unknown): value is "v2" {
+  return foodD1V2ResolverSchema.safeParse(value).success;
+}
+
+export function isD1V1Route(value: unknown): value is "v1" {
+  return foodD1V1ResolverSchema.safeParse(value).success;
+}
+
+/**
+ * Immutable identity of the meal operation across retries and later turns.
+ * turnRef is intentionally excluded; a clarification can follow a new turn.
+ */
+export function hashFoodD1OperationScope(
+  envelope: FoodOperationEnvelope, source: "web" | "whatsapp",
+): string {
+  return createHash("sha256").update(JSON.stringify({
+    ownerUserId: envelope.ownerUserId, operationKey: envelope.idempotencyKey,
+    // Continuation may change turnRef, but never its original decision trace.
+    traceId: envelope.traceId,
+    // Original conversation resource is immutable across turns; for a
+    // verified label this binds a route to exact approved photo bytes.
+    conversationRef: envelope.conversationRef,
+    contextSources: envelope.contextSources,
+    source, effectiveTimeZone: envelope.effectiveTimeZone,
+    mealOperation: envelope.mealOperation,
+  })).digest("hex");
+}
+
+/** bindPinnedRoute must be atomic across instances and return the winning row. */
+export type FoodD1RouteStore = {
+  readPinnedRoute(operationKey: string, ownerUserId: number): Promise<FoodD1PinnedRoute | null>;
+  bindPinnedRoute(candidate: FoodD1PinnedRoute): Promise<FoodD1PinnedRoute>;
+};
+
+export type FoodD1GateApproval = {
+  status: "approved";
+  gateAReference: string;
+  rolloutReference: string;
+  auditedBaseSha: string;
+};
+
+/** Flags are server-side, OFF by default; tests may inject a per-test override. */
+export function isFoodD1CutoverRequested(): boolean {
+  return process.env.FOOD_V2_D1_ENABLED?.trim().toLowerCase() === "true";
+}
+
+/**
+ * A second, typed server-side selector limits rollout to named D1 entrypoints.
+ * Absent or malformed selection NEVER opens a production route, even when the
+ * global switch is mistakenly enabled. Tests may exercise the global switch.
+ */
+export function isFoodD1EntrypointCutoverRequested(entrypoint: FoodD1Entrypoint): boolean {
+  if (!isFoodD1CutoverRequested() || !D1_ENTRYPOINT_IDS.includes(entrypoint)) return false;
+  const configured = process.env.FOOD_V2_D1_ENTRYPOINTS;
+  if (configured === undefined) return process.env.NODE_ENV === "test";
+  const selected = configured.split(",").map(value => value.trim());
+  if (!selected.length || selected.some(value =>
+      !value || !D1_ENTRYPOINT_IDS.includes(value as FoodD1Entrypoint)) ||
+      new Set(selected).size !== selected.length) return false;
+  return selected.includes(entrypoint);
+}
+
+export function isFoodD1VisualCutoverRequested(): boolean {
+  return D1_VISUAL_ENTRYPOINT_IDS.some(entrypoint =>
+    isFoodD1EntrypointCutoverRequested(entrypoint));
+}
+
+export function isFoodD1WhatsAppImageCutoverRequested(): boolean {
+  return D1_WHATSAPP_IMAGE_ENTRYPOINT_IDS.some(entrypoint =>
+    isFoodD1EntrypointCutoverRequested(entrypoint));
+}
+
+function enabledForRequest(override: boolean | undefined, original: FoodD1Entrypoint): boolean {
+  return process.env.NODE_ENV === "test" && override !== undefined
+    ? override : isFoodD1EntrypointCutoverRequested(original);
+}
+
+export function isCurrentFoodD1GateApproval(input: FoodD1GateApproval | null | undefined, expectedBaseSha: string | undefined): boolean {
+  return typeof expectedBaseSha === "string" && /^[a-f0-9]{40}$/i.test(expectedBaseSha) &&
+    input?.status === "approved" &&
+    typeof input.gateAReference === "string" && input.gateAReference.trim().length > 5 &&
+    typeof input.rolloutReference === "string" && input.rolloutReference.trim().length > 5 &&
+    typeof input.auditedBaseSha === "string" &&
+    input.auditedBaseSha.toLowerCase() === expectedBaseSha.toLowerCase();
+}
+
+function assertPinnedIdentity(
+  pin: FoodD1PinnedRoute, env: FoodOperationEnvelope, entrypoint: FoodD1Entrypoint,
+  source: "web" | "whatsapp",
+): void {
+  if (!pin || pin.operationKey !== env.idempotencyKey ||
+      pin.ownerUserId !== env.ownerUserId ||
+      !isD1RouteVersion(pin.resolver)) {
+    throw new Error("food-d1-pinned-route-scope-mismatch");
+  }
+  // The original handler owns the operation. A later continuation does not
+  // change its version, while a different new command cannot steal the key.
+  if (pin.originEntrypoint !== entrypoint &&
+      entrypoint !== "continuation" && entrypoint !== "nutrition_label") {
+    throw new Error("food-d1-entrypoint-changed-during-operation");
+  }
+  if (pin.operationScopeHash !== hashFoodD1OperationScope(env, source)) {
+    throw new Error("food-d1-operation-scope-changed");
+  }
+  if (!pin.versions || !haveEqualFoodEnvelopeRevisions(pin.versions, env.revisions)) {
+    throw new Error("food-d1-pinned-versions-changed");
+  }
+}
+
+export type FoodD1RouteRequest<T> = {
+  envelope: FoodOperationEnvelope;
+  authenticatedUserId: number;
+  entrypoint: FoodD1Entrypoint;
+  source: "web" | "whatsapp";
+  store: FoodD1RouteStore;
+  /** V1 callback must retain its current arguments and semantics. */
+  runV1: () => Promise<T>;
+  /** V2 callback must consume native structured decisions, never a V1 round-trip. */
+  runV2: () => Promise<T>;
+  /** No production approval provider is registered until #1335 is certified. */
+  verifyGates?: () => Promise<FoodD1GateApproval | null>;
+  /** Sealed server-side material SHA; never read it from an untrusted inbound. */
+  expectedAuditedBaseSha?: string;
+  enabled?: boolean;
+};
+
+/**
+ * Pins ownership before executing either path; never retries by switching
+ * resolvers. Rollback pauses a pinned V2 operation instead of replaying it
+ * through V1. A pinned V1 operation continues through V1 even if the flag
+ * becomes enabled later.
+ */
+export async function routeFoodD1Operation<T>(request: FoodD1RouteRequest<T>): Promise<T> {
+  const { authenticatedUserId, entrypoint, store } = request;
+  const parsed = parseFoodOperationEnvelope(request.envelope);
+  if (!parsed.ok) throw new Error("invalid-food-d1-envelope:" + parsed.code);
+  const envelope = parsed.value;
+  if (!Number.isSafeInteger(authenticatedUserId) || authenticatedUserId <= 0 ||
+      envelope.ownerUserId !== authenticatedUserId ||
+      !envelope.idempotencyKey?.trim()) {
+    throw new Error("food-d1-owner-mismatch");
+  }
+  let pin = await store.readPinnedRoute(envelope.idempotencyKey, authenticatedUserId);
+  // Resumed operations inherit the original entrypoint's rollout scope.
+  const enabled = enabledForRequest(request.enabled, pin?.originEntrypoint ?? entrypoint);
+  if (!pin && enabled && request.entrypoint === "continuation") {
+    throw new Error("food-d1-orphan-continuation");
+  }
+  let approved = false;
+  if (!pin) {
+    if (enabled) {
+      let proof: FoodD1GateApproval | null = null;
+      try { proof = await request.verifyGates?.() ?? null; }
+      catch { /* Missing Gate A/rollout never permits V2. */ }
+      if (!isCurrentFoodD1GateApproval(proof, request.expectedAuditedBaseSha)) {
+        // A concurrently winning legacy owner remains authoritative even if
+        // the V2 gate is revoked. Never create a new V2 owner without proof.
+        pin = await store.readPinnedRoute(envelope.idempotencyKey, authenticatedUserId);
+        if (!pin) throw new Error("food-d1-independent-gates-not-approved");
+      } else {
+        approved = true;
+      }
+    }
+    if (!pin) {
+      const candidate: FoodD1PinnedRoute = {
+        operationKey: envelope.idempotencyKey,
+        ownerUserId: authenticatedUserId,
+        originEntrypoint: entrypoint,
+        resolver: enabled ? "v2" : "v1",
+        operationScopeHash: hashFoodD1OperationScope(envelope, request.source),
+        versions: { ...envelope.revisions },
+      };
+      pin = await store.bindPinnedRoute(candidate);
+    }
+  }
+  assertPinnedIdentity(pin, envelope, entrypoint, request.source);
+  if (pin.resolver === "v1") return request.runV1();
+  if (!enabled) throw new Error("food-d1-operation-paused-by-rollback");
+  if (!approved) {
+    let proof: FoodD1GateApproval | null = null;
+    try { proof = await request.verifyGates?.() ?? null; }
+    catch { /* Revocation/failure always blocks the pinned V2 path. */ }
+    if (!isCurrentFoodD1GateApproval(proof, request.expectedAuditedBaseSha)) {
+      throw new Error("food-d1-independent-gates-not-approved");
+    }
+  }
+  return request.runV2();
+}

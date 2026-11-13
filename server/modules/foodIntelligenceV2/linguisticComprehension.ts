@@ -260,7 +260,8 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
     q.servingText = quantity.servingText;
   }
   const evidence: FoodObservation["evidence"] = [];
-  const origin = request.modality === "audio_transcript" ? "transcription" : request.modality === "image" ? "ocr" : "text";
+  const origin = request.modality === "audio_transcript" ? "transcription" : request.modality === "image"
+    ? request.imageRegionRole === "caption" ? "vision" : "ocr" : "text";
   // Confidence belongs to the transcription evidence, never to the normalized identity.
   const sourceConfidence = request.modality === "audio_transcript"
     ? request.transcriptionConfidence ?? null : null;

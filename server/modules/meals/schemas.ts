@@ -104,6 +104,8 @@ export const mealItemSchema = mealItemBaseSchema.transform(item => ({
 }));
 
 export const manualMealSchema = z.object({
+  /** Stable per-submit ID, required only when a verified D1 addition is selected. */
+  d1OperationId: z.string().trim().min(8).max(80).optional(),
   mealLabel: mealLabelSchema,
   occurredAt: z.string().min(1),
   notes: z.string().max(500).optional(),
@@ -112,9 +114,37 @@ export const manualMealSchema = z.object({
 
 export const processMealDraftSchema = z.object({
   source: z.enum(["web", "whatsapp"]).default("web"),
+  /** Stable per-submit key; mandatory only when a public D1 draft is selected. */
+  d1OperationId: z.string().trim().min(8).max(80).optional(),
+  mealLabel: mealLabelSchema.optional(),
+  occurredAt: z.string().min(1).optional(),
   text: z.string().optional(),
   image: mediaInputSchema,
+  /** User-selected image intent; never proof that a label or identity is verified. */
+  imageKind: z.enum(["plate_image", "packaging", "nutrition_label"]).optional(),
   audio: mediaInputSchema,
+});
+
+/** Existing physical V2 item only. Labels never create a second meal. */
+export const applyFoodD1NutritionLabelSchema = z.object({
+  d1OperationId: z.string().trim().min(8).max(80),
+  mealId: z.number().int().positive(),
+  mealItemId: z.number().int().positive(),
+  image: mediaInputSchema.refine(Boolean, "Envie a foto do rótulo."),
+});
+export type ApplyFoodD1NutritionLabelInput = z.infer<typeof applyFoodD1NutritionLabelSchema>;
+
+export const confirmFoodD1WebDraftSchema = z.object({
+  draftId: z.string().min(1).max(80),
+  mealLabel: mealLabelSchema,
+  occurredAt: z.string().min(1),
+  notes: z.string().max(500).optional(),
+  items: z.array(z.object({
+    observationId: z.string().min(1).max(200),
+    foodName: z.string().trim().min(1).max(255),
+    quantity: z.number().finite().positive().nullable(),
+    unit: z.string().trim().min(1).max(40).nullable(),
+  }).strict()).min(1).max(80),
 });
 
 export const confirmMealSchema = z.object({
@@ -130,6 +160,8 @@ export const updateMealSchema = manualMealSchema.extend({
 });
 
 export const updateMealItemSchema = z.object({
+  /** Same operation across client retries; absent for existing V1 records. */
+  d1OperationId: z.string().trim().min(8).max(80).optional(),
   mealId: z.number().int().positive(),
   itemIndex: z.number().int().nonnegative(),
   mealLabel: mealLabelSchema,
@@ -188,6 +220,7 @@ export type MediaInput = z.infer<typeof mediaInputSchema>;
 export type MealItemInput = z.infer<typeof mealItemSchema>;
 export type ManualMealInput = z.infer<typeof manualMealSchema>;
 export type ProcessMealDraftInput = z.infer<typeof processMealDraftSchema>;
+export type ConfirmFoodD1WebDraftInput = z.infer<typeof confirmFoodD1WebDraftSchema>;
 export type ConfirmMealInput = z.infer<typeof confirmMealSchema>;
 export type UpdateMealInput = z.infer<typeof updateMealSchema>;
 export type UpdateMealItemInput = z.infer<typeof updateMealItemSchema>;

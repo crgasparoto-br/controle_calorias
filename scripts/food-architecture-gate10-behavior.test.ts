@@ -6,6 +6,27 @@ const gate10 = (files: Array<{path: string; content: string}>) =>
   findFoodStaticCandidates(files).filter(finding => finding.ruleId === "10");
 
 describe("AUD1300 gate 10: proven inert edge vs competing resolver", () => {
+  it("ignores type-only nutrition-engine edges through the public photo database bridge but catches runtime import", () => {
+    const sources = [
+      { path: "server/modules/foodIntelligenceV2/publicPhotoRoute.ts",
+        content: 'import { getDb } from "../../db"; export function read() {return getDb();}' },
+      { path: "server/db.ts",
+        content: 'export { getDb } from "./dbImplementation";' },
+      { path: "server/dbImplementation.ts",
+        content: 'import type { MealDraftItem } from "./nutritionEngine"; export function getDb(){return null;}' },
+      { path: "server/nutritionEngine.ts",
+        content: 'export function processMealInput(){return {calories:100}}' },
+    ];
+    expect(gate10(sources)).toEqual([]);
+    const unsafe = sources.map(item => item.path === "server/dbImplementation.ts"
+      ? { ...item, content: item.content.replace("import type {", "import {") }
+      : item);
+    expect(gate10(unsafe).some(finding =>
+      finding.file === "server/modules/foodIntelligenceV2/publicPhotoRoute.ts" &&
+      finding.symbol.includes("transitive-import:server/nutritionEngine.ts"),
+    )).toBe(true);
+  });
+
   it("does not confuse a provably inert status dependency with a competing food owner", () => {
     const findings = gate10([
       {path: "server/modules/whatsapp/statusHandler.ts",

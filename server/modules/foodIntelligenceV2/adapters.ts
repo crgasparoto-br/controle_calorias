@@ -22,6 +22,7 @@
  * §21.1). As dependências de V1 são apenas de tipo.
  */
 import { z } from "zod";
+import { FOOD_INPUT_TYPES } from "./contracts";
 import type {
   FoodClassificationEstimate,
   MealProcessingResult,
@@ -150,7 +151,7 @@ const historicalSemanticContractSchema = z.strictObject({
   version: z.literal(MEAL_SEMANTIC_CONTRACT_VERSION),
   originalText: z.string(),
   normalizedText: z.string(),
-  inputType: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+  inputType: z.enum(FOOD_INPUT_TYPES),
   intent: z.string(),
   items: z.array(historicalSemanticItemSchema),
   needsClarification: z.boolean(),

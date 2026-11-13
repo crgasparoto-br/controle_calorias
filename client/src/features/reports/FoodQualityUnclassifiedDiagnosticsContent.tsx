@@ -15,7 +15,10 @@ function itemName(item: Item) {
 }
 
 function itemContext(item: Item) {
-  return [item.foodName && item.foodName !== itemName(item) ? item.foodName : null, item.portionText, item.foodCatalogId ? `Catálogo ${item.foodCatalogId}` : null]
+  return [item.foodName && item.foodName !== itemName(item) ? item.foodName : null,
+    item.portionText,
+    item.historicalRef ? `Referência histórica ${item.historicalRef}` :
+      item.foodCatalogId ? `Catálogo ${item.foodCatalogId}` : null]
     .filter(Boolean)
     .join(" · ") || "Sem detalhes adicionais.";
 }

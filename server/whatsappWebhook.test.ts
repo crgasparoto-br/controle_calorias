@@ -1,5 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// These legacy specs have no D1 pending or route; D1 replay behavior is tested separately.
+vi.mock(
+  "./modules/whatsapp/confirmedMealRegistration",
+  async importOriginal => {
+    const actual =
+      await importOriginal<
+        typeof import("./modules/whatsapp/confirmedMealRegistration")
+      >();
+    return {
+      ...actual,
+      tryRunPublicFoodD1WhatsAppContinuation: vi.fn(async () => null),
+      assertWhatsAppInboundNotPreviouslyD1Owned: vi.fn(async () => undefined),
+    };
+  }
+);
+
+
 vi.mock("./storage", () => ({
   storagePut: vi.fn(async (key: string) => ({
     key,
@@ -421,6 +438,33 @@ describe("whatsappWebhook", () => {
     );
     expect(originalImageMedia?.storageUrl).not.toContain("5511777777777");
     expect(originalImageMedia?.storageUrl).not.toContain("image-media-id");
+  });
+
+  it("#1308 blocks selected native WhatsApp image before V1 meal inference", async () => {
+    const oldFlag = process.env.FOOD_V2_D1_ENABLED;
+    const oldSelection = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "packaging";
+      const userId = 2001308;
+      await upsertUserWhatsappConnection({
+        userId, phoneNumber: "5511666130800", displayName: "D1 CI",
+      });
+      const req = { body: { entry: [{ changes: [{ value: { messages: [{
+        id: "d1-guard-image-1308", from: "5511666130800", type: "image",
+        image: { id: "image-media-id", mime_type: "image/jpeg" },
+      }] } }] }] } };
+      const res = createResponse();
+      await handleWhatsAppWebhook(req as never, res as never);
+      expect(processMealInputMock).not.toHaveBeenCalled();
+      expect((await listUserMeals(userId)).filter(meal => meal.source === "whatsapp"))
+        .toHaveLength(0);
+    } finally {
+      if (oldFlag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = oldFlag;
+      if (oldSelection === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = oldSelection;
+    }
   });
 
   it("não registra refeição quando imagem retorna item sem identidade alimentar confiável", async () => {

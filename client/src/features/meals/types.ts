@@ -1,3 +1,9 @@
+import {
+  foodD1WebDraftSchema,
+  type FoodD1WebDraft,
+  type FoodD1WebDraftItem,
+} from "@shared/foodD1WebDraft";
+
 export type MealItemState = {
   foodId?: number;
   portionId?: number;
@@ -18,7 +24,7 @@ export type MealItemState = {
   sourceMediaStorageKey?: string;
 };
 
-export type DraftState = {
+export type LegacyDraftState = {
   draftId: string;
   suggestedOccurredAt?: string;
   processed: {
@@ -36,6 +42,16 @@ export type DraftState = {
     };
   };
 };
+
+export type DraftState = LegacyDraftState | FoodD1WebDraft;
+
+export type FoodD1EditableItemState = Omit<FoodD1WebDraftItem, "quantity"> & {
+  quantityInput: string;
+};
+
+export function isFoodD1WebDraft(value: unknown): value is FoodD1WebDraft {
+  return foodD1WebDraftSchema.safeParse(value).success;
+}
 
 export type FoodPhotoCatalogCandidateState = {
   foodId: number;

@@ -64,9 +64,19 @@ export function createConfirmedMealPersistence(deps: PersistenceDeps) {
     });
   }
 
-  async function persistMealToDb(meal: SavedMealLike) {
+  async function persistMealToDb(
+    meal: SavedMealLike,
+    legacyD1Receipt?: { operationKey: string; operationScopeHash: string }
+  ): Promise<boolean> {
     const db = await deps.getDb();
-    if (!db) return;
+    if (!db) {
+      if (legacyD1Receipt)
+        throw new Error("food-d1-legacy-receipt-db-unavailable");
+      return false;
+    }
+    const receipt = legacyD1Receipt
+      ? { ...legacyD1Receipt, replayed: false }
+      : undefined;
     const resolvedCatalogIds = meal.items.length
       ? await deps.resolveFoodCatalogIds(meal.items, meal.userId)
       : new Map<string, number>();
@@ -84,8 +94,10 @@ export function createConfirmedMealPersistence(deps: PersistenceDeps) {
       items: meal.items,
       media: meal.media,
       resolvedCatalogIds,
+      legacyD1Receipt: receipt,
     });
     meal.id = insertedMealId || meal.id;
+    return receipt?.replayed === true;
   }
 
   async function updateMealInDb(meal: SavedMealLike, expectedPreImage?: string) {

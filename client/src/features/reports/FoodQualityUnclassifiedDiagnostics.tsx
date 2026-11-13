@@ -19,7 +19,8 @@ function diagnosticContext(item: FoodQualityUnclassifiedDiagnostic) {
   const details = [
     item.foodName && item.foodName !== diagnosticName(item) ? item.foodName : null,
     item.portionText,
-    item.foodCatalogId ? `ID catálogo ${item.foodCatalogId}` : null,
+    item.historicalRef ? `Referência histórica ${item.historicalRef}` :
+      item.foodCatalogId ? `ID catálogo ${item.foodCatalogId}` : null,
   ].filter(Boolean);
 
   return details.length ? details.join(" · ") : "Sem detalhes adicionais.";

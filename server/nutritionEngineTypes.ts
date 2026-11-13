@@ -126,6 +126,8 @@ export type MealItemResolutionMetadata = {
 export type MealDraftItem = {
   /** Immutable reference from the confirmed item's persisted snapshot (shadow reads). */
   historicalRef?: string | null;
+  /** Set by the trusted reader only when a V2 snapshot is bound to the physical item. */
+  v2SnapshotVerified?: true;
   foodId?: number;
   /** Persisted governed-catalog identity used by internal adjustment reads. */
   foodVariantId?: number | null;

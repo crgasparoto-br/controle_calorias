@@ -16,6 +16,8 @@ import { analyticsService } from "./analyticsService";
 import { exportUserPrivacyData, requestUserAccountDeletion } from "./db";
 import { generateFoodAssistantSuggestion } from "./modules/assistant/service";
 import { assistantRequestSchema } from "./modules/assistant/schemas";
+import { tryRunPublicFoodD1PhotoAnalysis } from "./modules/foodIntelligenceV2/publicPhotoRoute";
+import { tryRunFoodD1PublicNutritionLabel } from "./modules/foodIntelligenceV2/publicNutritionLabel";
 import {
   analyzeFoodPhoto,
   confirmFoodPhotoAnalysis,
@@ -153,6 +155,8 @@ import {
 } from "./modules/meals/groupOperations";
 import {
   confirmMeal,
+  confirmFoodD1Draft,
+  FoodD1WebDraftNotFoundError,
   copyMeal,
   createManualMeal,
   getDayTotals,
@@ -167,6 +171,8 @@ import {
 } from "./modules/meals/service";
 import {
   confirmMealSchema,
+  confirmFoodD1WebDraftSchema,
+  applyFoodD1NutritionLabelSchema,
   copyMealGroupSchema,
   copyMealSchema,
   dayTotalsSchema,
@@ -350,6 +356,15 @@ export const nutritionRouter = router({
     analyze: protectedProcedure
       .input(analyzeFoodPhotoSchema)
       .mutation(async ({ ctx, input }) => {
+        // Same public analyze endpoint and stable operation key after restart.
+        // V2 uses the durable web draft and its existing confirmFoodD1Draft
+        // mutation, never the legacy in-memory photo confirmation store.
+        const v2 = await tryRunPublicFoodD1PhotoAnalysis({
+          userId: ctx.user.id,
+          input,
+          readTimeZone: () => getEffectiveUserTimeZone(ctx.user.id),
+        });
+        if (v2) return v2;
         const analysis = await analyzeFoodPhoto(ctx.user.id, input);
         return {
           ...analysis,
@@ -806,7 +821,7 @@ export const nutritionRouter = router({
         const result = await createManualMeal(ctx.user.id, {
           ...mealInput,
           occurredAt,
-        });
+        }, timeZone);
         void analyticsService.track("meal_created", {
           source: "web",
           meal_label_category: mealLabelCategory(input.mealLabel),
@@ -833,7 +848,9 @@ export const nutritionRouter = router({
       }),
     updateItem: protectedProcedure
       .input(updateMealItemSchema)
-      .mutation(async ({ ctx, input }) => updateMealItem(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) => updateMealItem(
+        ctx.user.id, input, await getEffectiveUserTimeZone(ctx.user.id),
+      )),
     updateGroup: protectedProcedure
       .input(updateMealGroupMutationSchema)
       .mutation(async ({ ctx, input }) => {
@@ -948,6 +965,48 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => {
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
         return processMealDraft(ctx.user.id, input, timeZone);
+      }),
+    applyD1NutritionLabel: protectedProcedure
+      .input(applyFoodD1NutritionLabelSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await tryRunFoodD1PublicNutritionLabel({
+          userId: ctx.user.id, request: input, timeZone, source: "web",
+        });
+        if (!result) throw new TRPCError({
+          code: "PRECONDITION_FAILED", message: "Rótulo V2 não está habilitado.",
+        });
+        return result;
+      }),
+    confirmFoodD1Draft: protectedProcedure
+      .input(confirmFoodD1WebDraftSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+          const occurredAt = toOwnerOccurredAt(input.occurredAt, timeZone);
+          const result = await confirmFoodD1Draft(ctx.user.id, input, timeZone);
+          if (!result.replayed) {
+            void analyticsService.track("meal_created", {
+              source: "ai_draft",
+              meal_label_category: mealLabelCategory(input.mealLabel),
+              item_count: input.items.length,
+              has_notes: Boolean(input.notes?.trim()),
+              scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
+            });
+            void analyticsService.track("meal_item_added", {
+              source: "ai_draft",
+              item_count: input.items.length,
+              item_type: "food",
+            });
+          }
+          return result;
+        } catch (error) {
+          if (!(error instanceof FoodD1WebDraftNotFoundError)) throw error;
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Rascunho V2 não encontrado ou expirado.",
+          });
+        }
       }),
     confirm: protectedProcedure
       .input(confirmMealMutationSchema)
