@@ -748,6 +748,190 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
         expect(attempt.admitted, id).toBe(false);
         return [id, { grade: report.results[0].grade, admitted: attempt.admitted }];
       }));
+    // A-1342-25/26: a textual match is not authority for identity fields or
+    // semantic qualifier roles. Independent labels are intentionally authored
+    // here, not copied from the S1/LCL's observed output or from an alias.
+    const identityCase: C1bCase = {
+      id: "c1b-regression-labelled-identity", modality: "text", split: "calibration",
+      semanticGroup: "c1b-regression-labelled-identity",
+      text: "iogurte Marca Azul zero lactose gelado 7891234567890 sem açúcar",
+      facts: [{ kind: "food-mention", owner: "iogurte", surface: "iogurte",
+        scope: "iogurte Marca Azul zero lactose gelado 7891234567890 sem açúcar",
+        ingredient: null, quantity: null, unit: null,
+        identityClaims: {
+          brand: { value: "Marca Azul", surface: "Marca Azul" },
+          variant: { value: "zero lactose", surface: "zero lactose" },
+          preparation: [{ value: "gelado", surface: "gelado" }],
+          barcode: { value: "7891234567890", surface: "7891234567890" },
+          qualifiers: [{ value: "sem açúcar", surface: "sem açúcar",
+            role: "sweetening", attributeCode: null }],
+        },
+      }],
+    };
+    validateC1bReference(identityCase);
+    const identityAnchor = { sourceRef: `c1b:${identityCase.id}`, region: null,
+      span: { start: 0, end: identityCase.text.length } };
+    const identityEvidence = mentionValid.evidence.map(item => ({ ...item,
+      anchor: identityAnchor,
+      value: item.field === "identity.foodName" ? "iogurte" : item.value }));
+    const labelledClaims = identityCase.facts[0].identityClaims!;
+    const claimEvidence = (["brand", "variant", "barcode"] as const).map(field => {
+      const claim = labelledClaims[field]!;
+      const start = identityCase.text.indexOf(claim.surface);
+      return { ...identityEvidence[0], evidenceId: `c1b-identity-${field}`,
+        field: `identity.${field}`, value: claim.value,
+        anchor: { ...identityAnchor, span: { start, end: start + claim.surface.length } } };
+    });
+    for (const [field, claim] of [
+      ["preparation", labelledClaims.preparation![0]],
+      ["qualifiers", labelledClaims.qualifiers![0]],
+    ] as const) {
+      const start = identityCase.text.indexOf(claim.surface);
+      claimEvidence.push({ ...identityEvidence[0], evidenceId: `c1b-identity-${field}`,
+        field: `identity.${field}`, value: claim.value,
+        anchor: { ...identityAnchor, span: { start, end: start + claim.surface.length } } });
+    }
+    const identityPositive = { ...mentionValid,
+      observationId: "c1b-identity-supported", rawInput: identityCase.text,
+      normalizedInput: identityCase.text, surfaceSpan: identityAnchor,
+      identityHints: { ...mentionValid.identityHints,
+        foodName: "iogurte", brand: "Marca Azul", variant: "zero lactose",
+        barcode: "7891234567890", preparation: ["gelado"], qualifiers: [{
+          value: "sem açúcar", role: "sweetening", attributeCode: null, confidence: null }] },
+      evidence: [...identityEvidence, ...claimEvidence],
+      normalizationPath: mentionValid.normalizationPath.map(step =>
+        ({ ...step, anchor: identityAnchor })),
+    };
+    const identityAlternative = { hypothesisId: "c1b-supported-identity-alternative",
+      identityHints: { ...identityPositive.identityHints },
+      quantityHints: { ...identityPositive.quantityHints },
+      evidenceIds: identityPositive.evidence.map(item => item.evidenceId), confidence: 0.5 };
+    const identityPositiveWithAlternative = { ...identityPositive,
+      alternatives: [identityAlternative] };
+    for (const observation of [identityPositive, identityPositiveWithAlternative]) {
+      expect(parseFoodObservation(observation).ok).toBe(true);
+      expect(evaluateC1b(identityCase, [observation]).structurallyComplete).toBe(true);
+      expect(attemptDiagnosticBatchAdmission(identityCase, [observation],
+        [observation.observationId]).admitted).toBe(true);
+    }
+    const forgedQual = { value: "de colher", role: "sweetening",
+      attributeCode: null, confidence: 0.99 };
+    const unsupportedIdentityAttacks = {
+      primaryPreparation: { ...mentionValid, identityHints: {
+        ...mentionValid.identityHints, preparation: ["assado"] } },
+      alternativePreparation: { ...mentionWithBenignAlternative, alternatives: [{
+        ...benignMentionAlternative, identityHints: {
+          ...benignMentionAlternative.identityHints, preparation: ["assado"] } }] },
+      primaryBrand: { ...mentionValid, identityHints: {
+        ...mentionValid.identityHints, brand: "Marca Imaginaria" } },
+      alternativeBrand: { ...mentionWithBenignAlternative, alternatives: [{
+        ...benignMentionAlternative, identityHints: {
+          ...benignMentionAlternative.identityHints, brand: "Marca Imaginaria" } }] },
+      primaryVariant: { ...mentionValid, identityHints: {
+        ...mentionValid.identityHints, variant: "sem lactose" } },
+      alternativeVariant: { ...mentionWithBenignAlternative, alternatives: [{
+        ...benignMentionAlternative, identityHints: {
+          ...benignMentionAlternative.identityHints, variant: "sem lactose" } }] },
+      primaryBarcode: { ...mentionValid, identityHints: {
+        ...mentionValid.identityHints, barcode: "7891234567890" } },
+      alternativeBarcode: { ...mentionWithBenignAlternative, alternatives: [{
+        ...benignMentionAlternative, identityHints: {
+          ...benignMentionAlternative.identityHints, barcode: "7891234567890" } }] },
+      primaryWrongQualifierRole: { ...mentionValid, identityHints: {
+        ...mentionValid.identityHints, qualifiers: [forgedQual] } },
+      alternativeWrongQualifierRole: { ...mentionWithBenignAlternative, alternatives: [{
+        ...benignMentionAlternative, identityHints: {
+          ...benignMentionAlternative.identityHints, qualifiers: [forgedQual] } }] },
+    };
+    const identityAttackResults = Object.fromEntries(
+      Object.entries(unsupportedIdentityAttacks).map(([id, observation]) => {
+        expect(parseFoodObservation(observation).ok, id).toBe(true);
+        const report = evaluateC1b(mentionCase, [observation]);
+        const attempt = attemptDiagnosticBatchAdmission(mentionCase,
+          [observation], [observation.observationId]);
+        expect(report.results[0].grade, id).toBe("invalid-evidence");
+        expect(report.observationIssues.map(issue => issue.grade), id)
+          .toContain("invalid-evidence");
+        expect(report.structurallyComplete, id).toBe(false);
+        expect(attempt.admitted, id).toBe(false);
+        return [id, { grade: report.results[0].grade, admitted: attempt.admitted }];
+      }),
+    );
+    const changedPrimaryClaim = (field: "brand" | "variant" | "barcode") => ({
+      ...identityPositive, identityHints: { ...identityPositive.identityHints,
+        [field]: field === "barcode" ? "7890000000000" : "não rotulado" },
+    });
+    const changedAlternativeClaim = (field: "brand" | "variant" | "barcode") => ({
+      ...identityPositiveWithAlternative, alternatives: [{ ...identityAlternative,
+        identityHints: { ...identityAlternative.identityHints,
+          [field]: field === "barcode" ? "7890000000000" : "não rotulado" } }],
+    });
+    const labelledIdentityAttacks = {
+      changedPrimaryBrand: changedPrimaryClaim("brand"),
+      changedPrimaryVariant: changedPrimaryClaim("variant"),
+      changedPrimaryBarcode: changedPrimaryClaim("barcode"),
+      changedAlternativeBrand: changedAlternativeClaim("brand"),
+      changedAlternativeVariant: changedAlternativeClaim("variant"),
+      changedAlternativeBarcode: changedAlternativeClaim("barcode"),
+      changedPrimaryPreparation: { ...identityPositive, identityHints: {
+        ...identityPositive.identityHints, preparation: ["assado"] } },
+      missingPrimaryPreparation: { ...identityPositive, identityHints: {
+        ...identityPositive.identityHints, preparation: [] } },
+      changedAlternativePreparation: { ...identityPositiveWithAlternative,
+        alternatives: [{ ...identityAlternative, identityHints: {
+          ...identityAlternative.identityHints, preparation: ["assado"] } }] },
+      missingLabelledPrimaryQualifier: { ...identityPositive, identityHints: {
+        ...identityPositive.identityHints, qualifiers: [] } },
+      missingLabelledAlternativeQualifier: { ...identityPositiveWithAlternative,
+        alternatives: [{ ...identityAlternative, identityHints: {
+          ...identityAlternative.identityHints, qualifiers: [] } }] },
+      changedPrimaryQualifierRole: { ...identityPositive, identityHints: {
+        ...identityPositive.identityHints, qualifiers: [{
+          ...identityPositive.identityHints.qualifiers[0], role: "preparation" }] } },
+      changedAlternativeQualifierRole: { ...identityPositiveWithAlternative,
+        alternatives: [{ ...identityAlternative, identityHints: {
+          ...identityAlternative.identityHints, qualifiers: [{
+            ...identityAlternative.identityHints.qualifiers[0], role: "preparation" }] } }] },
+      changedPrimaryAttributeCode: { ...identityPositive, identityHints: {
+        ...identityPositive.identityHints, qualifiers: [{
+          ...identityPositive.identityHints.qualifiers[0], attributeCode: "invented-code" }] } },
+      changedAlternativeAttributeCode: { ...identityPositiveWithAlternative,
+        alternatives: [{ ...identityAlternative, identityHints: {
+          ...identityAlternative.identityHints, qualifiers: [{
+            ...identityAlternative.identityHints.qualifiers[0], attributeCode: "invented-code" }] } }] },
+      alternativeMissingProofId: { ...identityPositiveWithAlternative,
+        alternatives: [{ ...identityAlternative,
+          evidenceIds: identityAlternative.evidenceIds.filter(id => id !== "c1b-identity-brand") }] },
+      primaryWrongEvidenceField: { ...identityPositive,
+        evidence: identityPositive.evidence.map(item => item.evidenceId === "c1b-identity-brand"
+          ? { ...item, field: "identity.foodName" } : item) },
+    };
+    const labelledIdentityAttackResults = Object.fromEntries(
+      Object.entries(labelledIdentityAttacks).map(([id, observation]) => {
+        expect(parseFoodObservation(observation).ok, id).toBe(true);
+        const report = evaluateC1b(identityCase, [observation]);
+        const admitted = attemptDiagnosticBatchAdmission(identityCase, [observation],
+          [observation.observationId]).admitted;
+        expect(report.results[0].grade, id).toBe("invalid-evidence");
+        expect(report.structurallyComplete, id).toBe(false);
+        expect(admitted, id).toBe(false);
+        return [id, { grade: report.results[0].grade, admitted }];
+      }),
+    );
+    const corruptedIdentityReference: C1bCase = { ...identityCase,
+      facts: [{ ...identityCase.facts[0], identityClaims: {
+        ...labelledClaims, brand: { value: "Marca Inexistente", surface: "Marca Inexistente" } } }] };
+    expect(() => validateC1bReference(corruptedIdentityReference))
+      .toThrow("c1b-reference-unlocatable-or-ambiguous");
+    const identityRemediationControls = { caseId: identityCase.id,
+      benign: { base: mentionPositive.results[0].grade,
+        labelledPrimary: evaluateC1b(identityCase, [identityPositive]).results[0].grade,
+        labelledAlternative: evaluateC1b(identityCase, [identityPositiveWithAlternative]).results[0].grade,
+        realNegationAlternative: supportedNegationReport.results[1].grade },
+      unsupportedAttributesAndRoles: identityAttackResults,
+      labelledNegativeControls: labelledIdentityAttackResults,
+      syntheticAdmissionOnly: true, publicPersistence: "not-measured" };
+
     const packageCase: C1bCase = {
       id: "c1b-regression-source-backed-package",
       text: "iogurte, embalagem de 170 g", modality: "text", split: "calibration",
@@ -812,6 +996,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
           borrowedComplete: borrowedServingReport.structurallyComplete,
           borrowedAdmitted: borrowedServingAdmission.admitted },
         supportedNegationAlternative: supportedNegationReport.results[1].grade,
+        identityAndQualifierGrounding: identityRemediationControls,
         publicPersistence: "not-measured",
       },
     };
@@ -842,7 +1027,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       quantityConservation: quantityRemediationControls,
       postAuditLiteralAndMention: newRemediationControls,
     };
-    const aggregate = { schemaVersion:7, issue:1341, generatorVersion,
+    const aggregate = { schemaVersion:8, issue:1341, generatorVersion,
       sampleSha:process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
       corpusRevision:"c1b-annotated-v2", canonicalCorpus:GOLDEN_CORPUS_VERSION,
       canonicalCases:goldenFoodCorpusCases.length, canonicalExecuted:canonicalBaseline.length,

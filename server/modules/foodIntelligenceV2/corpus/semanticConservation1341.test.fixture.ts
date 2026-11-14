@@ -11,6 +11,16 @@ export type C1bPackageClaim = {
   quantity: number;
   unit: string;
 };
+/** Independently authored, byte-located identity assertions; never parser-derived. */
+export type C1bTextClaim = { value: string; surface: string; surfaceStart?: number };
+export type C1bQualifierClaim = C1bTextClaim & { role: string | null; attributeCode: string | null };
+export type C1bIdentityClaims = {
+  brand?: C1bTextClaim;
+  variant?: C1bTextClaim;
+  barcode?: C1bTextClaim;
+  preparation?: readonly C1bTextClaim[];
+  qualifiers?: readonly C1bQualifierClaim[];
+};
 export type C1bFact = {
   kind: C1bFactKind;
   /** Literal owner from the original input, null when attachment is ambiguous. */
@@ -32,6 +42,8 @@ export type C1bFact = {
   unit: string | null;
   /** Only set when packaging is independently labelled in the raw input. */
   packageClaim?: C1bPackageClaim;
+  /** Only explicitly labelled fields can count as source-backed identity. */
+  identityClaims?: C1bIdentityClaims;
 };
 export type C1bCase = {
   id: string;

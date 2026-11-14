@@ -5,7 +5,7 @@
  */
 import type { FoodObservation } from "../schemas";
 import { projectObservation } from "./projection";
-import type { C1bCase, C1bFact } from "./semanticConservation1341.test.fixture";
+import type { C1bCase, C1bFact, C1bTextClaim } from "./semanticConservation1341.test.fixture";
 
 export type C1bGrade =
   | "structured" | "traceable-unresolved" | "missing-component-binding"
@@ -23,7 +23,8 @@ export type C1bResult = {
   scopeRange: [number, number];
   expected: { owner: string | null; ownerAlternatives: readonly string[]; requiresAbstention: boolean;
     ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null;
-    packageClaim: { quantity: number; unit: string; sourceRange: [number, number] } | null };
+    packageClaim: { quantity: number; unit: string; sourceRange: [number, number] } | null;
+    identityClaims: C1bFact["identityClaims"] | null };
   observed: { foodNames: (string | null)[]; quantityHints: FoodObservation["quantityHints"][];
     unresolvedReasons: (string | null)[]; alternativeOwnerNames: string[]; abstained: boolean;
     sourceRefs: string[]; evidenceSourceRefs: string[]; normalizationSourceRefs: string[] };
@@ -158,28 +159,75 @@ function hasSourceBackedQuantityFields(testCase: C1bCase, observation: FoodObser
     contains(observedRange, packageRange);
 }
 
-/** Alternative qualifiers are material hypotheses, not harmless metadata.
- * Only independently labelled negations for this owner may be asserted. */
-function hasSupportedAlternativeQualifiers(testCase: C1bCase, observation: FoodObservation,
-  alternative: FoodObservation["alternatives"][number]): boolean {
+/** Every source-backed assertion must have an independent label in its owner's
+ * original scope plus matching field-specific evidence; matching text alone
+ * cannot authorize an invented identity or a wrong semantic qualifier role. */
+function hasLabelledEvidence(testCase: C1bCase, observation: FoodObservation,
+  fact: C1bFact, label: C1bTextClaim, fields: readonly string[], evidenceIds: readonly string[] | null,
+  requireExactValue: boolean): boolean {
+  const source = locatedSpan(testCase.text, label.surface, label.surfaceStart);
   const observed = spanOf(observation);
-  return observed !== null && alternative.identityHints.qualifiers.every(qualifier =>
-    (qualifier.role === "sweetening" || qualifier.role === null) &&
-    qualifier.attributeCode === null && testCase.facts.some(reference => {
-      if (reference.kind !== "negation" ||
-          !ownerMatchesIdentity(alternative.identityHints.foodName, reference.owner) ||
-          fold(reference.surface) !== fold(qualifier.value)) return false;
-      const claim = factSourceRange(testCase, reference);
-      if (!contains(observed, claim)) return false;
-      return observation.evidence.some(item =>
-        alternative.evidenceIds.includes(item.evidenceId) &&
-        (item.field === "identity.foodName" || item.field === "identity.qualifiers") &&
-        typeof item.value === "string" && fold(item.value).includes(fold(qualifier.value)) &&
-        item.anchor.span !== null &&
-        contains([item.anchor.span.start, item.anchor.span.end], claim) &&
-        fold(testCase.text.slice(item.anchor.span.start, item.anchor.span.end))
-          .includes(fold(qualifier.value)));
-    }));
+  if (observed === null || !contains(factScopeRange(testCase, fact), source) ||
+      !contains(observed, source)) return false;
+  // A label of this fact cannot be satisfied by an occurrence owned by a
+  // different fact, even if a broad span also covers that sibling.
+  if (testCase.facts.some(other => other !== fact && other.owner !== fact.owner &&
+      overlaps(factSourceRange(testCase, other), source))) return false;
+  return observation.evidence.some(item =>
+    (evidenceIds === null || evidenceIds.includes(item.evidenceId)) &&
+    fields.includes(item.field) && typeof item.value === "string" &&
+    (requireExactValue ? fold(item.value) === fold(label.value)
+      : fold(item.value).includes(fold(label.value))) &&
+    item.anchor.span !== null &&
+    contains([item.anchor.span.start, item.anchor.span.end], source) &&
+    fold(testCase.text.slice(item.anchor.span.start, item.anchor.span.end))
+      .includes(fold(label.surface)));
+}
+
+function hasSupportedIdentityAssertions(testCase: C1bCase, observation: FoodObservation,
+  fact: C1bFact, identity: FoodObservation["identityHints"],
+  evidenceIds: readonly string[] | null): boolean {
+  const manual = fact.identityClaims;
+  for (const field of ["brand", "variant", "barcode"] as const) {
+    const value = identity[field];
+    const label = manual?.[field];
+    if (value === null && label === undefined) continue;
+    if (value === null || label === undefined ||
+        (field === "barcode" ? value !== label.value : fold(value) !== fold(label.value)) ||
+        !hasLabelledEvidence(testCase, observation, fact, label,
+          [`identity.${field}`], evidenceIds, true)) return false;
+  }
+  const expectedPreparation = manual?.preparation ?? [];
+  if (identity.preparation.length !== expectedPreparation.length) return false;
+  const remaining = [...expectedPreparation];
+  for (const value of identity.preparation) {
+    const index = remaining.findIndex(label => fold(label.value) === fold(value) &&
+      hasLabelledEvidence(testCase, observation, fact, label,
+        ["identity.preparation"], evidenceIds, true));
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+  }
+  for (const qualifier of identity.qualifiers) {
+    const labelled = (manual?.qualifiers ?? []).filter(label =>
+      fold(label.value) === fold(qualifier.value) &&
+      label.role === qualifier.role && label.attributeCode === qualifier.attributeCode);
+    const supported = labelled.some(label => hasLabelledEvidence(testCase, observation, fact,
+      label, ["identity.qualifiers", "identity.foodName"], evidenceIds, false)) ||
+      testCase.facts.some(reference => reference.kind === "negation" &&
+        qualifier.role === "sweetening" && qualifier.attributeCode === null &&
+        ownerMatchesIdentity(identity.foodName, reference.owner) &&
+        fold(reference.surface) === fold(qualifier.value) &&
+        hasLabelledEvidence(testCase, observation, reference,
+          { value: reference.surface, surface: reference.surface,
+            surfaceStart: reference.surfaceStart },
+          ["identity.qualifiers", "identity.foodName"], evidenceIds, false));
+    if (!supported) return false;
+  }
+  // A labelled material qualifier cannot silently disappear either.
+  if ((manual?.qualifiers ?? []).some(label => !identity.qualifiers.some(qualifier =>
+      fold(qualifier.value) === fold(label.value) && qualifier.role === label.role &&
+      qualifier.attributeCode === label.attributeCode))) return false;
+  return true;
 }
 
 /** Every hypothesis is checked against independent owner/quantity labels.
@@ -199,7 +247,8 @@ function hasSupportedAlternatives(testCase: C1bCase, observation: FoodObservatio
     if (hints.value !== fact.quantity || fold(hints.unit ?? "") !== fold(fact.unit ?? "") ||
         !hasSourceBackedQuantityFields(testCase, observation, fact, hints)) return false;
     if (alternative.evidenceIds.some(id => !observation.evidence.some(item => item.evidenceId === id)) ||
-        !hasSupportedAlternativeQualifiers(testCase, observation, alternative)) {
+        !hasSupportedIdentityAssertions(testCase, observation, fact,
+          alternative.identityHints, alternative.evidenceIds)) {
       return false;
     }
     if (hints.value !== null) {
@@ -244,6 +293,7 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
     return false;
   }
   if (!hasSourceBackedQuantityFields(testCase, observation, fact, observation.quantityHints) ||
+      !hasSupportedIdentityAssertions(testCase, observation, fact, observation.identityHints, null) ||
       !hasSupportedAlternatives(testCase, observation, fact)) return false;
   const rawAt = (anchor: FoodObservation["surfaceSpan"]): string =>
     anchor.span === null ? "" : fold(testCase.text.slice(anchor.span.start, anchor.span.end));
@@ -272,14 +322,8 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
     }
   } else if (quantityProofs.length > 0) return false;
 
-  // A local negation can be supported by the lexical identity evidence even
-  // when the S1 parser does not emit a separate qualifier evidence record.
-  for (const qualifier of observation.identityHints.qualifiers) {
-    if (!observation.evidence.some(item =>
-      (item.field === "identity.foodName" || item.field === "identity.qualifiers") &&
-      typeof item.value === "string" && fold(item.value).includes(fold(qualifier.value)) &&
-      rawAt(item.anchor).includes(fold(qualifier.value)))) return false;
-  }
+  // The independent labels, owner and semantic role were checked above;
+  // text overlap alone never proves a claimed qualifier.
   return true;
 }
 
@@ -319,6 +363,25 @@ export function validateC1bReference(testCase: C1bCase): void {
       if ((fact.kind !== "food-mention" && fact.kind !== "food-quantity") ||
           !Number.isFinite(claim.quantity) || claim.quantity <= 0 || !claim.unit.trim() ||
           !contains(scope, packageRange)) throw new Error("c1b-reference-package-invalid");
+    }
+    if (fact.identityClaims) {
+      const claims = fact.identityClaims;
+      const textLabels = [claims.brand, claims.variant, claims.barcode,
+        ...(claims.preparation ?? []), ...(claims.qualifiers ?? [])]
+        .filter((claim): claim is C1bTextClaim => claim !== undefined);
+      for (const claim of textLabels) {
+        if (!claim.value.trim() || !claim.surface.trim() ||
+            !fold(claim.surface).includes(fold(claim.value)) ||
+            !contains(scope, locatedSpan(testCase.text, claim.surface, claim.surfaceStart))) {
+          throw new Error("c1b-reference-identity-claim-invalid");
+        }
+      }
+      if (fact.owner === null || (claims.preparation ?? []).some(claim => !claim.value.trim()) ||
+          (claims.qualifiers ?? []).some(claim =>
+            !((claim.role === null || claim.role.trim()) &&
+              (claim.attributeCode === null || claim.attributeCode.trim())))) {
+        throw new Error("c1b-reference-identity-claim-invalid");
+      }
     }
     const occurrenceKey = `${fact.kind}:${source[0]}:${source[1]}`;
     if (occurrences.has(occurrenceKey)) throw new Error("c1b-reference-duplicate-fact-occurrence");
@@ -445,7 +508,8 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
       packageClaim: fact.packageClaim ? { quantity: fact.packageClaim.quantity,
         unit: fact.packageClaim.unit,
         sourceRange: locatedSpan(testCase.text, fact.packageClaim.surface,
-          fact.packageClaim.surfaceStart) } : null },
+          fact.packageClaim.surfaceStart) } : null,
+      identityClaims: fact.identityClaims ?? null },
     observed: { foodNames: attached.map(obs => obs.identityHints.foodName),
       quantityHints: attached.map(obs => ({ ...obs.quantityHints })),
       unresolvedReasons: attached.map(obs => obs.unresolvedReason),
@@ -522,7 +586,8 @@ export function referenceSignature(testCase: C1bCase): string {
     fold(item.ingredient ?? ""), item.quantity === null ? "?" : String(item.quantity),
     fold(item.unit ?? ""), (item.ownerAlternatives ?? []).map(fold).sort().join(","),
     fold(item.uncertaintyReason ?? ""), item.requiresAbstention ? "abstain" : "",
-    item.packageClaim ? `${item.packageClaim.quantity}:${fold(item.packageClaim.unit)}` : ""].join("|"))
+    item.packageClaim ? `${item.packageClaim.quantity}:${fold(item.packageClaim.unit)}` : "",
+    item.identityClaims ? JSON.stringify(item.identityClaims) : ""].join("|"))
     .sort().join(";");
 }
 

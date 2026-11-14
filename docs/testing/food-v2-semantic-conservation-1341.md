@@ -323,3 +323,33 @@ aprovação de conservação semântica produtiva nem autorização de S3/cutove
   schema `FoodObservation`, fluxo público, banco, flags, S3 ou rulesets.
   Testes verdes e admissão sintética não certificam conservação semântica
   produtiva, nutrição, persistência nem autorização de release ou merge.
+
+
+## Remediação A-1342-25/26 — atributos de identidade e papel semântico
+
+- O oráculo C1b agora exige **rótulos manuais independentes por fato/owner**
+  (`C1bFact.identityClaims`) para marca, variante, preparo, código de barras e
+  qualificadores não representados por negação já rotulada. Cada afirmação deve
+  corresponder ao valor do rótulo, ao trecho original da ocorrência, à âncora
+  e à evidência **do campo específico** (`identity.brand`, `identity.variant`,
+  `identity.preparation`, `identity.barcode`). Alternativas precisam referenciar
+  a evidência pelo próprio `evidenceIds`. Sem rótulo, o atributo **não** é
+  considerado `structured` por coincidência lexical ou por ausência de prova.
+- Qualificadores **primários e alternativos** percorrem a mesma verificação de
+  `value`, `role`, `attributeCode`, owner e fonte original. Negação rotulada
+  `sem açúcar` conserva o papel `sweetening` somente para o alimento dono;
+  `de colher` no nome do alimento não autoriza `sweetening`, e alterar o papel
+  para `preparation` ou forjar `attributeCode` também é rejeitado.
+- O controle positivo independente usa um alimento com marca, variante,
+  preparo, código de barras e qualificador explicitamente rotulados e
+  evidenciados. Controles negativos incluem os ataques originais do auditor
+  (atributos primários/alternativos inventados e falsa classificação de
+  `de colher`), mutações de todos os campos rotulados, troca de papel/código,
+  ausência de prova em `alternatives.evidenceIds` e campo de evidência errado.
+  Todas as negações e quantidades anteriormente rotuladas continuam cobertas.
+- `schemaVersion: 8` da matriz do CI expõe os controles em
+  `remediationControls.postAuditLiteralAndMention.alternativeAndSecondaryQuantities.identityAndQualifierGrounding`,
+  associados ao `sampleSha` exato. A admissão continua **sintética e
+  diagnóstica**. Nenhum parser/runtime produtivo, contrato V2, flag, gate de
+  persistência, workflow ou ruleset foi alterado. CI verde não comprova
+  conservação semântica V2 nem autoriza merge, S3 ou cutover.
