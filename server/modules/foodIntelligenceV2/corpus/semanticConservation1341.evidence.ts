@@ -30,10 +30,8 @@ const overlaps = (left: Span, right: Span): boolean => left[0] < right[1] && rig
 /** A checked assertion must be attributable to its own source, fact and owner. */
 export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: FoodObservation,
   fact: C1bFact, tools: EvidenceLabelTools): boolean {
-  const sourceByModality: Record<string, FoodEvidence["origin"]> = {
-    audio_transcript: "transcription", text: "text",
-  };
-  const originalSource = sourceByModality[testCase.modality];
+  const originalSource: FoodEvidence["origin"] =
+    testCase.modality === "audio_transcript" ? "transcription" : "text";
   const observedSpan = observation.surfaceSpan.span;
   if (!observedSpan) return false;
   const candidates: Candidate[] = [
@@ -47,7 +45,8 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
   // SAME owner. A source-backed claim is checked against every authored fact
   // covered by this observation; the forward facts remain independently graded.
   const quantityReferences = testCase.facts.filter(reference =>
-    new Set(["food-quantity", "ingredient-quantity", "unbound"]).has(reference.kind) &&
+    (reference.kind === "food-quantity" ||
+      reference.kind === "ingredient-quantity" || reference.kind === "unbound") &&
     same(reference.owner, fact.owner) && reference.quantity !== null &&
     contains([observedSpan.start, observedSpan.end], tools.factRange(reference)));
   const matchingQuantity = (evidence: FoodEvidence, candidate: Candidate,
@@ -99,8 +98,8 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
           ((claims?.qualifiers ?? []).some(claim => same(claim.value, qualifier.value) &&
             claim.role === qualifier.role && claim.attributeCode === qualifier.attributeCode &&
             labelled(fact, claim, evidence.field, evidence)) ||
-          testCase.facts.some(reference => new Set(["negation"]).has(reference.kind) &&
-            new Set(["sweetening"]).has(qualifier.role ?? "") && qualifier.attributeCode === null &&
+          testCase.facts.some(reference => reference.kind === "negation" &&
+            qualifier.role === "sweetening" && qualifier.attributeCode === null &&
             reference.owner !== null && tools.ownerMatches(identity.foodName, reference.owner) &&
             same(reference.surface, qualifier.value) && labelled(reference,
               { value: reference.surface, surface: reference.surface,

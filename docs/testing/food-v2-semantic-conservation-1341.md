@@ -412,3 +412,37 @@ shadow, cutover ou gravação real de refeições.
 - O Vitest compara ambos os controles e publica o resultado no artefato
   `c1b-1341-hypothesis-evidence.json` do HEAD exato. Essa prova continua
   diagnóstica, sem alterar contrato público nem autorizar gravação.
+
+## Remediação A-1342-28–31 — fonte de alegações materiais (14/11/2026)
+
+- **A-1342-28:** a inspeção reversa deixa de usar dicionário literal de modalidade
+  e conjuntos literais de classes de fato/qualificador em funções decisórias.
+  As condições tipadas permanecem explícitas, preservando seus resultados.
+  O gate `pnpm architecture:check` continua obrigatório e não foi alterado.
+- **A-1342-29:** `servingText` só pode ser a expressão completa ou prefixo
+  de token da superfície `food-quantity` rotulada manualmente, pertencente
+  ao mesmo owner, quantidade, unidade e ocorrência original, com span de prova.
+  Conectivos como `e mais` e nomes de alimento sem medida são negativos,
+  enquanto `2 ovos`, `2` e a porção explícita `um` do pudim são positivos.
+  Isso usa referência independente, sem criar um segundo parser de quantidades.
+- **A-1342-30:** hipótese alternativa que reivindica apenas identidade e
+  não referencia IDs de evidência quantitativa pode abster-se da contagem
+  primária corretamente rotulada. Uma hipótese que reivindica quantidade
+  divergente ou toma emprestado o ID de prova da porção continua inválida.
+  O caso `um pudim sem açúcar` verifica as duas faces no mesmo harness.
+- **A-1342-31:** no recorte C1b com S2 governado vazio, `normalizedInput`
+  deve ser uma projeção reversível da entrada íntegra, da superfície de
+  observação ou da identidade observada validada por evidência. O teste adversarial
+  altera somente esse campo para `ovos sem açúcar` e `banana` e exige
+  `invalid-evidence`, enquanto `ovos` e o texto original permanecem válidos.
+  Reescritas governadas em S2 e interpretação S3 requerem prova separada
+  com o léxico/versionamento autorizado; o teste C1b não as certifica.
+
+O Vitest `semanticConservation1341.evidence.test.ts` executa as regressões
+e publica `c1b-1341-material-source-claims.json` no artifact já existente do
+runner oficial, além das matrizes C1b anteriores. Os controles são diagnósticos
+e a admissão positiva é exclusivamente **sintética**, sem persistência pública.
+As métricas de produção, custos, latência, nutrição e S3 permanecem
+`not-measured`/`not-evaluated`. A publicação de código e o CI exact-SHA
+devem ser confirmados separadamente antes de solicitar nova auditoria;
+nenhuma aprovação independente ou autorização de merge é inferida.

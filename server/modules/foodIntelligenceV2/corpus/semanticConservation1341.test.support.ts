@@ -114,40 +114,32 @@ function hasSourceBackedServingText(testCase: C1bCase, observation: FoodObservat
   fact: C1bFact, serving: string): boolean {
   const observed = spanOf(observation);
   const scope = factScopeRange(testCase, fact);
-  if (observed === null || !contains(scope, observed)) return false;
-  const otherClaims = testCase.facts.filter(other => other !== fact)
-    .map(other => factSourceRange(testCase, other));
+  if (observed === null || !contains(scope, observed) || !serving.trim()) return false;
+  // Only independently labelled food-quantity facts authorize a serving claim.
+  // Connectors and sibling food names in a broad span are not portion evidence.
+  const portionFacts = testCase.facts.filter(reference =>
+    reference.kind === "food-quantity" && reference.owner === fact.owner &&
+    reference.quantity === observation.quantityHints.value &&
+    fold(reference.unit ?? "") === fold(observation.quantityHints.unit ?? "") &&
+    (fact.kind !== "food-quantity" || reference === fact));
+  if (!portionFacts.length) return false;
   const proofSpans = [...observation.evidence.map(item => item.anchor.span),
     ...observation.normalizationPath.map(step => step.anchor.span)]
     .filter((span): span is { start: number; end: number } => span !== null);
-  const normalizedServing = fold(serving);
-  let supported = false;
-  // Match against original UTF-16 substrings. The small normalization margin
-  // tolerates accents/spacing without deriving a second food parser or owner.
-  for (let start = observed[0]; start < observed[1]; start++) {
-    for (let end = start + 1; end <= Math.min(observed[1], start + serving.length + 16); end++) {
+  const value = fold(serving);
+  return portionFacts.some(reference => {
+    const [start, stop] = factSourceRange(testCase, reference);
+    if (!contains(observed, [start, stop])) return false;
+    // Match a complete quantity phrase or a whole-token prefix of its
+    // human-labelled source. Do not ask a parser to manufacture the oracle.
+    for (let end = start + 1; end <= stop; end++) {
       const raw = testCase.text.slice(start, end);
-      if (!raw.trim() || raw !== raw.trim() || fold(raw) !== normalizedServing) continue;
-      const range: [number, number] = [start, end];
-      if (!contains(scope, range) || !proofSpans.some(span => contains([span.start, span.end], range))) {
-        continue;
-      }
-      // If any matching occurrence belongs to a sibling fact, the serving
-      // assertion is ambiguous even when another occurrence matches this fact.
-      // A local negation can share its observation with the independently
-      // labelled food count ("um pudim sem açúcar"). This does NOT let one
-      // quantity proof cover two quantity facts: those remain occurrence-bound
-      // and subject to the injective fact↔observation matching below.
-      const ownFoodCount = fact.kind === "negation" && testCase.facts.some(other =>
-        other !== fact && other.kind === "food-quantity" && other.owner === fact.owner &&
-        other.quantity === observation.quantityHints.value &&
-        fold(other.unit ?? "") === fold(observation.quantityHints.unit ?? "") &&
-        contains(factSourceRange(testCase, other), range));
-      if (otherClaims.some(other => overlaps(other, range)) && !ownFoodCount) return false;
-      supported = true;
+      if (raw !== raw.trim() || fold(raw) !== value ||
+          (end < stop && !/\s/u.test(testCase.text[end]))) continue;
+      if (proofSpans.some(span => contains([span.start, span.end], [start, end]))) return true;
     }
-  }
-  return supported;
+    return false;
+  });
 }
 
 /** Source labels, not numeric parsing, decide what a quantity field may assert.
@@ -167,6 +159,22 @@ function hasSourceBackedQuantityFields(testCase: C1bCase, observation: FoodObser
   const observedRange = spanOf(observation);
   return observedRange !== null && contains(factScopeRange(testCase, fact), packageRange) &&
     contains(observedRange, packageRange);
+}
+
+/** In this empty-S2 diagnostic, normalizedInput is an existing source
+ * projection or the source-backed observed identity, not a new material fact.
+ * Governed S2 rewrites need their own revision-bound independent oracle. */
+function hasSourceBackedNormalizedInput(testCase: C1bCase,
+  observation: FoodObservation): boolean {
+  const normalized = observation.normalizedInput;
+  if (normalized === null) return true;
+  const value = fold(normalized);
+  const span = spanOf(observation);
+  if (!value || span === null) return false;
+  return value === fold(testCase.text) ||
+    value === fold(testCase.text.slice(span[0], span[1])) ||
+    (observation.identityHints.foodName !== null &&
+      value === fold(observation.identityHints.foodName));
 }
 
 /** Every source-backed assertion must have an independent label in its owner's
@@ -254,7 +262,16 @@ function hasSupportedAlternatives(testCase: C1bCase, observation: FoodObservatio
         seenOwners.has(owner)) return false;
     seenOwners.add(owner);
     const hints = alternative.quantityHints;
-    if (hints.value !== fact.quantity || fold(hints.unit ?? "") !== fold(fact.unit ?? "") ||
+    // An identity-only hypothesis may abstain from a valid primary count,
+    // but it cannot cite quantity evidence that contradicts its empty hints.
+    const claimsQuantityEvidence = alternative.evidenceIds.some(id =>
+      observation.evidence.some(item => item.evidenceId === id &&
+        item.field.startsWith("quantity.")));
+    const abstainsFromPrimaryCount = fact.kind === "food-quantity" &&
+      hints.value === null && hints.unit === null && hints.servingText === null &&
+      !claimsQuantityEvidence;
+    if ((!abstainsFromPrimaryCount &&
+        (hints.value !== fact.quantity || fold(hints.unit ?? "") !== fold(fact.unit ?? ""))) ||
         !hasSourceBackedQuantityFields(testCase, observation, fact, hints)) return false;
     if (alternative.evidenceIds.some(id => !observation.evidence.some(item => item.evidenceId === id)) ||
         !hasSupportedIdentityAssertions(testCase, observation, fact,
@@ -302,7 +319,8 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
         step.anchor.span !== null && contains([step.anchor.span.start, step.anchor.span.end], claimRange))) {
     return false;
   }
-  if (!hasSourceBackedQuantityFields(testCase, observation, fact, observation.quantityHints) ||
+  if (!hasSourceBackedNormalizedInput(testCase, observation) ||
+      !hasSourceBackedQuantityFields(testCase, observation, fact, observation.quantityHints) ||
       !hasSupportedIdentityAssertions(testCase, observation, fact, observation.identityHints, null) ||
       !hasSupportedAlternatives(testCase, observation, fact)) return false;
   const rawAt = (anchor: FoodObservation["surfaceSpan"]): string =>

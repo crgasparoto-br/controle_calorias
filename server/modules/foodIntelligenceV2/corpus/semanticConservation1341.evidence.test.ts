@@ -154,7 +154,10 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
         value: null, unit: null, servingText: null },
       evidenceIds: [withNegation.evidence[0].evidenceId], confidence: 0.5 };
     const validAlternative = { ...withNegation, alternatives: [negationAlternative] };
-    expect(inspect(mixed, [validAlternative]).grades[1]).toBe("structured");
+    const retainedCount = inspect(mixed, [validAlternative]);
+    expect(retainedCount.grades[1]).toBe("structured");
+    expect(retainedCount.grades[2]).toBe("structured");
+    expect(retainedCount.issues).toEqual([]);
     const borrowedCount = { ...withNegation, alternatives: [{ ...negationAlternative,
       evidenceIds: withNegation.evidence.map(evidence => evidence.evidenceId) }] };
     expect(parseFoodObservation(borrowedCount).ok).toBe(true);
@@ -172,6 +175,58 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
           supportedNegationWithQuantity: inspect(mixed, [validAlternative]),
           rejectedBorrowedQuantityByAlternative: borrowedReport,
           publicPersistence: "not-measured",
+        }, null, 2));
+    }
+  });
+
+  it("rejects a connector as a serving claim and a fabricated normalized qualifier", async () => {
+    const repeated = c1bCases.find(item => item.id === "food-repeated-literal")!;
+    const left = observation(repeated, "ovos", 2, "un", 0, 13);
+    const right = observation(repeated, "ovos", 2, "un", 14, 20);
+    const first: FoodObservation = { ...left, observationId: "labelled-first-2-ovos",
+      quantityHints: { ...left.quantityHints, servingText: "2 ovos" } };
+    const second: FoodObservation = { ...right, observationId: "labelled-second-2-ovos",
+      quantityHints: { ...right.quantityHints, servingText: "2" } };
+    expect([first, second].every(item => parseFoodObservation(item).ok)).toBe(true);
+    const validPortions = inspect(repeated, [first, second]);
+    expect(validPortions).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+    const connector = { ...first, quantityHints: { ...first.quantityHints,
+      servingText: "e mais" } };
+    const connectorResult = inspect(repeated, [connector, second]);
+    expect(connectorResult.grades[0]).toBe("invalid-evidence");
+    expect(connectorResult.issues).toContain("invalid-evidence");
+    expect(connectorResult.admitted).toBe(false);
+    const nameNotServing = { ...first, quantityHints: { ...first.quantityHints,
+      servingText: "ovos" } };
+    const nameResult = inspect(repeated, [nameNotServing, second]);
+    expect(nameResult.grades[0]).toBe("invalid-evidence");
+    expect(nameResult.admitted).toBe(false);
+
+    const original = inspect(simple, good);
+    expect(original.complete).toBe(true);
+    const normalizedName = [{ ...good[0], normalizedInput: "ovos" }, good[1]];
+    expect(inspect(simple, normalizedName).complete).toBe(true);
+    const inventedQualifier = [{ ...good[0], normalizedInput: "ovos sem açúcar" }, good[1]];
+    expect(inventedQualifier.every(item => parseFoodObservation(item).ok)).toBe(true);
+    const normalizedResult = inspect(simple, inventedQualifier);
+    expect(normalizedResult.grades[0]).toBe("invalid-evidence");
+    expect(normalizedResult.issues).toContain("invalid-evidence");
+    expect(normalizedResult.admitted).toBe(false);
+    const borrowedIdentity = [{ ...good[0], normalizedInput: "banana" }, good[1]];
+    const borrowedResult = inspect(simple, borrowedIdentity);
+    expect(borrowedResult.grades[0]).toBe("invalid-evidence");
+    expect(borrowedResult.admitted).toBe(false);
+
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-material-source-claims.json"), JSON.stringify({
+          schemaVersion: 1, issue: 1341, findings: ["A-1342-29", "A-1342-31"],
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          positive: { validPortions, original, normalizedName: inspect(simple, normalizedName) },
+          negatives: { connectorResult, nameResult, normalizedResult, borrowedResult },
+          publicPersistence: "not-measured", productionS3: "not-evaluated",
         }, null, 2));
     }
   });
