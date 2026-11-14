@@ -401,3 +401,14 @@ shadow, cutover ou gravação real de refeições.
 - A rodada de CI revelou estes dois contraexemplos e exigiu ajustes positivos
   e negativos adicionais no teste focado, sem remover a validação bidirecional
   nem transformar diagnóstico verde em aprovação da conservação produtiva.
+
+### Verificação da hipótese contra evidência emprestada
+
+- Um identificador de `FoodEvidence` listado em `alternatives[].evidenceIds`
+  precisa sustentar **aquela hipótese**; evidência verdadeira apenas para a
+  observação primária não basta para a alternativa. O controle sintético usa
+  a negação de um pudim com quantidade explícita: uma hipótese que não declara
+  a porção pode citar o nome/negação, mas não o ID de prova da porção primária.
+- O Vitest compara ambos os controles e publica o resultado no artefato
+  `c1b-1341-hypothesis-evidence.json` do HEAD exato. Essa prova continua
+  diagnóstica, sem alterar contrato público nem autorizar gravação.

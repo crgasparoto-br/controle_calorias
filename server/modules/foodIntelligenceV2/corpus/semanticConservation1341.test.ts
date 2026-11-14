@@ -702,7 +702,9 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       // consumed serving inferred by the original LCL's numeral parser.
       quantityHints: { ...negationObservation.quantityHints,
         value: null, unit: null, servingText: null }, confidence: 0.5,
-      evidenceIds: negationObservation.evidence.map(item => item.evidenceId),
+      // Hypothesis has no food count: exclude that primary-only proof ID.
+      evidenceIds: negationObservation.evidence
+        .filter(item => item.field !== "quantity.value").map(item => item.evidenceId),
     }] };
     expect(parseFoodObservation(withSupportedNegation).ok).toBe(true);
     const supportedNegationReport = evaluateC1b(negationCase, originalNegations.map(obs =>

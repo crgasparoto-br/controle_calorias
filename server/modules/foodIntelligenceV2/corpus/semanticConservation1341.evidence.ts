@@ -62,7 +62,9 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
     const identity = candidate.identity;
     const quantity = candidate.quantity;
     const owner = fact.owner;
-    const ownerMatches = owner === null ? fact.kind === "unbound" && identity.foodName === null
+    const ownerMatches = owner === null ? fact.kind === "unbound" &&
+      (identity.foodName === null || (fact.ownerAlternatives ?? []).some(name =>
+        tools.ownerMatches(identity.foodName, name)))
       : tools.ownerMatches(identity.foodName, owner);
     if (!ownerMatches) return false;
     const claims = fact.identityClaims;
@@ -137,8 +139,15 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
     const grounded = evidence.origin === originalSource ||
       (evidence.origin === "catalog" && observation.normalizationPath.some(step => step.stage === "S2"));
     if (!grounded) return false;
-    // Reject source-backed extras even when the primary hints look correct.
-    // An alternative may rely only on IDs actually listed in evidenceIds.
-    return candidates.some(candidate => supports(evidence, candidate));
+    // A hypothesis cannot cite primary evidence that contradicts its own
+    // material claims, even if the primary observation independently supports
+    // the same ID. This closes the reverse owner/hypothesis evidence escape.
+    const claimingAlternatives = candidates.slice(1).filter(candidate =>
+      candidate.evidenceIds?.includes(evidence.evidenceId));
+    if (claimingAlternatives.some(candidate => !supports(evidence, candidate))) return false;
+    // Orphaned evidence still fails: each field needs a valid primary or
+    // explicitly evidence-linked alternative, never just a governed field name.
+    return supports(evidence, candidates[0]) ||
+      claimingAlternatives.some(candidate => supports(evidence, candidate));
   });
 }

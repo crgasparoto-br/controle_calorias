@@ -117,7 +117,7 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
   });
 
 
-  it("keeps two labelled quantities distinct and preserves a local negation with its food count", () => {
+  it("keeps two labelled quantities distinct and preserves a local negation with its food count", async () => {
     // A broad evidence envelope may cite two real source claims, but the
     // diagnostic must still require two independent quantity observations.
     const repeated = c1bCases.find(item => item.id === "food-repeated-literal")!;
@@ -146,6 +146,34 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
     expect(local.grades[1]).toBe("structured");
     expect(local.grades[2]).toBe("structured");
     expect(local.admitted).toBe(false); // independent coffee fact is missing
+    // An alternative which does not claim a food count may cite the food
+    // identity proof but must not borrow the primary count's evidence ID.
+    const negationAlternative = { hypothesisId: "c1b-negative-owner-count-claim",
+      identityHints: { ...withNegation.identityHints, foodName: "pudim" },
+      quantityHints: { ...withNegation.quantityHints,
+        value: null, unit: null, servingText: null },
+      evidenceIds: [withNegation.evidence[0].evidenceId], confidence: 0.5 };
+    const validAlternative = { ...withNegation, alternatives: [negationAlternative] };
+    expect(inspect(mixed, [validAlternative]).grades[1]).toBe("structured");
+    const borrowedCount = { ...withNegation, alternatives: [{ ...negationAlternative,
+      evidenceIds: withNegation.evidence.map(evidence => evidence.evidenceId) }] };
+    expect(parseFoodObservation(borrowedCount).ok).toBe(true);
+    const borrowedReport = inspect(mixed, [borrowedCount]);
+    expect(borrowedReport.grades[1]).toBe("invalid-evidence");
+    expect(borrowedReport.issues).toContain("invalid-evidence");
+    expect(borrowedReport.admitted).toBe(false);
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-hypothesis-evidence.json"), JSON.stringify({
+          schemaVersion: 1, issue: 1341, finding: "A-1342-27", control: "alternative-evidence-owner",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          sameOwnerTwoQuantities: shared,
+          supportedNegationWithQuantity: inspect(mixed, [validAlternative]),
+          rejectedBorrowedQuantityByAlternative: borrowedReport,
+          publicPersistence: "not-measured",
+        }, null, 2));
+    }
   });
 
   it("accepts labelled identity, qualifier, and directly measured physical units", () => {
