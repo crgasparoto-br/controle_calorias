@@ -11,7 +11,7 @@ import { GOLDEN_CORPUS_VERSION } from "./contracts";
 import { projectExpectedDecision } from "./projection";
 import { c1bCases } from "./semanticConservation1341.test.fixture";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
-import { attemptDiagnosticBatchAdmission, evaluateC1b, factSourceRange, observedProjection, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support";
+import { attemptDiagnosticBatchAdmission, evaluateC1b, factSourceRange, observedProjection, referenceSignature, summarizeC1b, validateC1bReference } from "./semanticConservation1341.test.support.fixture";
 
 /** This suite characterizes production functions, not a mocked resolver. */
 const emptyGovernedLexicon: LinguisticLexiconStore = { load: async () => [] };

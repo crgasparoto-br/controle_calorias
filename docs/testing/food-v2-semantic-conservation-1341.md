@@ -42,7 +42,7 @@ Golden Food Corpus da #1299, com referência manual suplementar por fato
 material e span; **não** cria resolvedor, endpoint ou corpus nutricional
 concorrente. As referências independentes de saída do parser são declaradas
 em `semanticConservation1341.test.fixture.ts`; o verificador tipado está em
-`semanticConservation1341.test.support.ts`.
+`semanticConservation1341.test.support.fixture.ts`.
 
 As entradas incluem duas porções de açúcar ligadas a alimentos diferentes,
 ordem invertida, vírgula, ponto e vírgula, escrita por extenso/numeral,
@@ -448,3 +448,14 @@ As métricas de produção, custos, latência, nutrição e S3 permanecem
 `not-measured`/`not-evaluated`. A publicação de código e o CI exact-SHA
 devem ser confirmados separadamente antes de solicitar nova auditoria;
 nenhuma aprovação independente ou autorização de merge é inferida.
+
+### Isolamento dos módulos C1b em tempo de teste
+
+O verificador de fatos, spans e evidências `semanticConservation1341.test.support.fixture.ts`
+e seu auxiliar `semanticConservation1341.evidence.fixture.ts` são implementações
+**exclusivamente do experimento Vitest**, importadas pelos testes, nunca pelo
+runtime alimentar produtivo. Os nomes `.fixture.ts` seguem a classificação
+canônica de `isProductionFoodSource` do gate arquitetural: código de teste
+isolado não é normalizador nem dicionário lexical governado de produção.
+A lógica e seus controles negativos permanecem inalterados nesta mudança
+estrutural; módulos importados pelo runtime continuam sujeitos a todos os gates.

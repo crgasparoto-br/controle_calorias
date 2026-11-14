@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { parseFoodObservation, type FoodObservation } from "../schemas";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
 import { c1bCases } from "./semanticConservation1341.test.fixture";
-import { attemptDiagnosticBatchAdmission, evaluateC1b } from "./semanticConservation1341.test.support";
+import { attemptDiagnosticBatchAdmission, evaluateC1b } from "./semanticConservation1341.test.support.fixture";
 
 type Evidence = FoodObservation["evidence"][number];
 const simple = c1bCases.find(item => item.id === "food-count-simple")!;

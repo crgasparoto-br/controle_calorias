@@ -5,7 +5,7 @@
  */
 import type { FoodObservation } from "../schemas";
 import { projectObservation } from "./projection";
-import { onlyLabelledMaterialEvidence } from "./semanticConservation1341.evidence";
+import { onlyLabelledMaterialEvidence } from "./semanticConservation1341.evidence.fixture";
 import type { C1bCase, C1bFact, C1bTextClaim } from "./semanticConservation1341.test.fixture";
 
 export type C1bGrade =
