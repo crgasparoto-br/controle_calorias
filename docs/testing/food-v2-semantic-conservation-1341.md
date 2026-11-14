@@ -422,8 +422,10 @@ shadow, cutover ou gravação real de refeições.
 - **A-1342-29:** `servingText` só pode ser a expressão completa ou prefixo
   de token da superfície `food-quantity` rotulada manualmente, pertencente
   ao mesmo owner, quantidade, unidade e ocorrência original, com span de prova.
-  Conectivos como `e mais` e nomes de alimento sem medida são negativos,
-  enquanto `2 ovos`, `2` e a porção explícita `um` do pudim são positivos.
+  Conectivos como `e mais` são negativos para porções, enquanto `2 ovos`,
+  `2` e a porção explícita `um` do pudim são positivos. Menções sem quantidade,
+  como `brigadeiro de colher`, podem conservar exatamente o nome autoral em
+  `servingText` como rastro textual, nunca como quantidade consumida.
   Isso usa referência independente, sem criar um segundo parser de quantidades.
 - **A-1342-30:** hipótese alternativa que reivindica apenas identidade e
   não referencia IDs de evidência quantitativa pode abster-se da contagem

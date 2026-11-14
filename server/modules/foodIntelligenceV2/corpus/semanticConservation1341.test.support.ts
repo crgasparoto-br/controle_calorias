@@ -122,6 +122,19 @@ function hasSourceBackedServingText(testCase: C1bCase, observation: FoodObservat
     reference.quantity === observation.quantityHints.value &&
     fold(reference.unit ?? "") === fold(observation.quantityHints.unit ?? "") &&
     (fact.kind !== "food-quantity" || reference === fact));
+  // A no-quantity food mention may retain its exact original name as
+  // servingText for traceability; it cannot turn a measure word in the name
+  // into an actual quantity or borrow a sibling food-count serving.
+  if (fact.kind === "food-mention" && observation.quantityHints.value === null &&
+      observation.quantityHints.unit === null) {
+    const claim = factSourceRange(testCase, fact);
+    const proofAnchors = [...observation.evidence.map(item => item.anchor.span),
+      ...observation.normalizationPath.map(step => step.anchor.span)];
+    return contains(observed, claim) &&
+      fold(testCase.text.slice(claim[0], claim[1])) === fold(serving) &&
+      proofAnchors.some(anchor => anchor !== null &&
+        contains([anchor.start, anchor.end], claim));
+  }
   if (!portionFacts.length) return false;
   const proofSpans = [...observation.evidence.map(item => item.anchor.span),
     ...observation.normalizationPath.map(step => step.anchor.span)]
