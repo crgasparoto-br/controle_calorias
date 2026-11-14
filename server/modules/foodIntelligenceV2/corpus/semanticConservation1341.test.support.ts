@@ -5,6 +5,7 @@
  */
 import type { FoodObservation } from "../schemas";
 import { projectObservation } from "./projection";
+import { onlyLabelledMaterialEvidence } from "./semanticConservation1341.evidence";
 import type { C1bCase, C1bFact, C1bTextClaim } from "./semanticConservation1341.test.fixture";
 
 export type C1bGrade =
@@ -322,9 +323,15 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
     }
   } else if (quantityProofs.length > 0) return false;
 
-  // The independent labels, owner and semantic role were checked above;
-  // text overlap alone never proves a claimed qualifier.
-  return true;
+  // Reverse proof: evidence fields must also be backed by a manual fact.
+  // A benign hint cannot launder an invented, orphaned evidence claim.
+  return onlyLabelledMaterialEvidence(testCase, observation, fact, {
+    factRange: ref => factSourceRange(testCase, ref),
+    scopeRange: ref => factScopeRange(testCase, ref),
+    ownerMatches: ownerMatchesIdentity,
+    labelled: (ref, label, fields, ids, exact) =>
+      hasLabelledEvidence(testCase, observation, ref, label, fields, ids, exact),
+  });
 }
 
 function equalQuantity(observation: FoodObservation, fact: C1bFact): boolean {

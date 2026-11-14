@@ -353,3 +353,35 @@ aprovação de conservação semântica produtiva nem autorização de S3/cutove
   diagnóstica**. Nenhum parser/runtime produtivo, contrato V2, flag, gate de
   persistência, workflow ou ruleset foi alterado. CI verde não comprova
   conservação semântica V2 nem autoriza merge, S3 ou cutover.
+
+## Remediação A-1342-27 — evidências materiais bidirecionais
+
+- A auditoria independente do HEAD `38096db0240012a3b4bcd4448b37a704f1b2972b`
+  reproduziu quatro falsos positivos: evidências extras `identity.brand`,
+  `identity.qualifiers`, `quantity.unit` e `quantity.grams` não rotuladas eram
+  ignoradas mesmo quando o fato principal permanecia `structured`.
+- O verificador C1b passa a conferir **toda** `FoodEvidence` contra o fato
+  rotulado, seu owner, campo, valor, unidade, span de origem e hipótese que a
+  reivindica. Evidências de identidade exigem atributo independente; quantidades
+  físicas só são aceitas quando o fato tem valor e unidade exatos, sem conversão
+  implícita. Campos de decisão/variante/nutrição não têm rótulo pré-resolução
+  no C1b e não podem servir como prova da observação de entrada.
+- O novo `semanticConservation1341.evidence.test.ts` executa controles negativos
+  dos quatro ataques originais e de campos irmãos, além de positivas com marca,
+  qualificador e medidas rotuladas, hipótese alternativa e ocorrência irmã.
+  Os testes exigem `invalid-evidence`, incompletude e recusa da admissão
+  simulada para provas falsas, sem esconder as falhas reais da LCL.
+- O CI publica `c1b-1341-evidence-reversal.json` no mesmo artefato
+  `food-v2-c3-calibration-<HEAD>` já existente, com `sampleSha`, resultados
+  positivos e negativos, e fronteira explícita de persistência não medida.
+- **Recomendação RISK-001:** para uma afirmação textual S1, `ai_estimate` não
+  substitui evidência proveniente do texto/transcrição; `verified=false` por si
+  só não é falha (a LCL observacional não certifica identidade/nutrição).
+  Uma origem `catalog` só é aceita no controle diagnóstico quando vinculada a
+  etapa S2 rastreável. Essa regra **não** homologa a confiança de S3/C2 nem
+  autoriza decisão de persistência; as issues #1298/#1308 governam tais gates.
+
+A referência independente, a matriz C1b preexistente, o corpus canônico e os
+controles A-1342-01…26 permanecem preservados. O CI verde comprova somente a
+execução do diagnóstico, nunca a aprovação semântica da LCL produtiva, S3,
+shadow, cutover ou gravação real de refeições.
