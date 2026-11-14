@@ -328,6 +328,7 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
   return onlyLabelledMaterialEvidence(testCase, observation, fact, {
     factRange: ref => factSourceRange(testCase, ref),
     scopeRange: ref => factScopeRange(testCase, ref),
+    ownerRange: ref => ownerRange(testCase, ref, factScopeRange(testCase, ref)),
     ownerMatches: ownerMatchesIdentity,
     labelled: (ref, label, fields, ids, exact) =>
       hasLabelledEvidence(testCase, observation, ref, label, fields, ids, exact),
@@ -474,7 +475,7 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
     grade = found ? "structured" : attached.some(obs => obs.unresolvedReason !== null)
       ? "traceable-unresolved" : "false-closed";
   } else if (fact.kind === "food-quantity") {
-    const bound = attached.some(obs => fold(obs.identityHints.foodName ?? "") === fold(fact.owner ?? "") &&
+    const bound = attached.some(obs => ownerMatchesIdentity(obs.identityHints.foodName, fact.owner) &&
       equalQuantity(obs, fact));
     if (bound) grade = "structured";
     else if (observations.some(obs => !attached.includes(obs) && equalQuantity(obs, fact))) grade = "misbound";

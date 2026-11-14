@@ -161,6 +161,9 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [
       ingredient("café", "café com uma colher de chá de açúcar", "uma colher de chá de açúcar", 1, "colher de chá"),
       without("pudim", "um pudim sem açúcar"),
+      // 'um pudim' is also an explicit food count; otherwise the observed
+      // one-unit quantity has no independent label and appears fabricated.
+      { ...food("pudim", "um pudim", 1, "un"), scope: "um pudim sem açúcar" },
     ],
   },
   {

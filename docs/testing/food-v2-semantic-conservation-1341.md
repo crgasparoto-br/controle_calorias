@@ -385,3 +385,19 @@ A referência independente, a matriz C1b preexistente, o corpus canônico e os
 controles A-1342-01…26 permanecem preservados. O CI verde comprova somente a
 execução do diagnóstico, nunca a aprovação semântica da LCL produtiva, S3,
 shadow, cutover ou gravação real de refeições.
+
+### Correção de compatibilidade com regressões canônicas (CI #43557788103)
+
+- A refutação inversa exige verificar a **totalidade** das evidências, mas não
+  deve limitar toda evidência ao fato corrente: uma observação pode ancorar
+  duas alegações legitimamente rotuladas do **mesmo proprietário**, mesmo que
+  não possa provar dois fatos de quantidade com um único `quantityHints`.
+  O pareamento injetivo de fatos e observações permanece obrigatório.
+- `identity.foodName` é ancorada na ocorrência original do *proprietário*;
+  sua prova não precisa sobrepor a negação que aparece depois do nome.
+  Em `um pudim sem açúcar`, a referência manual ganhou a quantidade explícita
+  de **um pudim**, distinta da negação local. O texto, a partição holdout e
+  as expectativas de outros casos não foram modificados.
+- A rodada de CI revelou estes dois contraexemplos e exigiu ajustes positivos
+  e negativos adicionais no teste focado, sem remover a validação bidirecional
+  nem transformar diagnóstico verde em aprovação da conservação produtiva.

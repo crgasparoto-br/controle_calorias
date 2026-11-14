@@ -14,6 +14,7 @@ type Candidate = {
 export type EvidenceLabelTools = {
   factRange: (fact: C1bFact) => Span;
   scopeRange: (fact: C1bFact) => Span;
+  ownerRange: (fact: C1bFact) => Span | null;
   ownerMatches: (name: string | null, owner: string | null) => boolean;
   labelled: (fact: C1bFact, label: C1bTextClaim, fields: readonly string[],
     evidenceIds: readonly string[], exact: boolean) => boolean;
@@ -38,6 +39,22 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
   ];
   const manualRange = tools.factRange(fact);
   const scope = tools.scopeRange(fact);
+  // An observation can substantiate a quantity and a local negation for the
+  // SAME owner. A source-backed claim is checked against every authored fact
+  // covered by this observation; the forward facts remain independently graded.
+  const quantityReferences = testCase.facts.filter(reference =>
+    (reference.kind === "food-quantity" || reference.kind === "ingredient-quantity" ||
+      reference.kind === "unbound") &&
+    same(reference.owner, fact.owner) && reference.quantity !== null &&
+    contains([observedSpan.start, observedSpan.end], tools.factRange(reference)));
+  const matchingQuantity = (evidence: FoodEvidence, candidate: Candidate,
+    unit: string | null): boolean => {
+    const anchor = evidence.anchor.span!;
+    return quantityReferences.some(reference =>
+      reference.quantity === evidence.value && reference.quantity === candidate.quantity.value &&
+      same(reference.unit, unit) && same(candidate.quantity.unit, unit) &&
+      contains([anchor.start, anchor.end], tools.factRange(reference)));
+  };
   const labelled = (source: C1bFact, label: C1bTextClaim, field: string,
     evidence: FoodEvidence): boolean => tools.labelled(source, label, [field], [evidence.evidenceId], true);
   const supports = (evidence: FoodEvidence, candidate: Candidate): boolean => {
@@ -54,7 +71,8 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
         if (!owner || !identity.foodName || typeof evidence.value !== "string" ||
             !tools.ownerMatches(evidence.value, owner)) return false;
         const span = evidence.anchor.span!;
-        return overlaps([span.start, span.end], manualRange) &&
+        const ownerRange = tools.ownerRange(fact);
+        return ownerRange !== null && overlaps([span.start, span.end], ownerRange) &&
           fold(testCase.text.slice(span.start, span.end)).includes(fold(evidence.value));
       }
       case "identity.brand":
@@ -84,31 +102,27 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
                 surfaceStart: reference.surfaceStart }, evidence.field, evidence))));
       }
       case "quantity.value": {
-        if (!(["food-quantity", "ingredient-quantity", "unbound"] as string[]).includes(fact.kind) ||
-            typeof evidence.value !== "number" || evidence.value !== fact.quantity ||
-            quantity.value !== fact.quantity || !same(quantity.unit, fact.unit) ||
-            !same(evidence.unit, fact.unit)) return false;
-        const span = evidence.anchor.span!;
-        return contains([span.start, span.end], manualRange);
+        return typeof evidence.value === "number" && same(evidence.unit, quantity.unit) &&
+          matchingQuantity(evidence, candidate, evidence.unit);
       }
       case "quantity.unit": {
-        if (fact.quantity === null || !fact.unit || typeof evidence.value !== "string" ||
-            quantity.value !== fact.quantity || !same(quantity.unit, fact.unit) ||
-            (evidence.unit !== null && !same(evidence.unit, fact.unit))) return false;
+        if (typeof evidence.value !== "string") return false;
         const span = evidence.anchor.span!;
         const source = testCase.text.slice(span.start, span.end);
-        return contains([span.start, span.end], manualRange) &&
-          (same(evidence.value, fact.unit) ||
-            (fold(source).includes(fold(evidence.value)) &&
-              fold(fact.surface).includes(fold(evidence.value))));
+        return quantityReferences.some(reference =>
+          reference.quantity === quantity.value && reference.unit !== null &&
+          same(quantity.unit, reference.unit) &&
+          (evidence.unit === null || same(evidence.unit, reference.unit)) &&
+          contains([span.start, span.end], tools.factRange(reference)) &&
+          (same(evidence.value as string, reference.unit) ||
+            (fold(source).includes(fold(evidence.value as string)) &&
+              fold(reference.surface).includes(fold(evidence.value as string)))));
       }
       case "quantity.grams":
       case "quantity.milliliters": {
         const unit = evidence.field === "quantity.grams" ? "g" : "ml";
-        const span = evidence.anchor.span!;
-        return same(fact.unit, unit) && same(quantity.unit, unit) &&
-          quantity.value === fact.quantity && evidence.value === fact.quantity &&
-          same(evidence.unit, unit) && contains([span.start, span.end], manualRange);
+        return typeof evidence.value === "number" && same(evidence.unit, unit) &&
+          matchingQuantity(evidence, candidate, unit);
       }
       // These claims belong to later resolution/knowledge stages; C1b has no
       // independent label that could prove them from the input surface.

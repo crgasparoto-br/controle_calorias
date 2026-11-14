@@ -116,6 +116,37 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
     }
   });
 
+
+  it("keeps two labelled quantities distinct and preserves a local negation with its food count", () => {
+    // A broad evidence envelope may cite two real source claims, but the
+    // diagnostic must still require two independent quantity observations.
+    const repeated = c1bCases.find(item => item.id === "food-repeated-literal")!;
+    const one = observation(repeated, "ovos", 2, "un", 0, repeated.text.length);
+    const secondQuantity = { ...one.evidence[1], evidenceId: "second-labelled-2-ovos",
+      anchor: source(repeated, 14, 20) };
+    const broad = { ...one, evidence: [...one.evidence, secondQuantity] };
+    expect(parseFoodObservation(broad).ok).toBe(true);
+    const shared = inspect(repeated, [broad]);
+    expect(shared.grades).toContain("shared-quantity-observation");
+    expect(shared.complete).toBe(false);
+    expect(shared.admitted).toBe(false);
+
+    // The original phrase says one pudding *and* says it has no sugar. Both
+    // are independently authored facts; the same observation may prove both.
+    const mixed = c1bCases.find(item => item.id === "sugar-other-negation")!;
+    const start = mixed.text.indexOf("um pudim sem açúcar");
+    const pudding = observation(mixed, "pudim sem açúcar", 1, "un", start, mixed.text.length);
+    const withNegation: FoodObservation = { ...pudding, identityHints: {
+      ...pudding.identityHints, qualifiers: [{ value: "sem açúcar", role: "sweetening",
+        attributeCode: null, confidence: null }],
+    } };
+    expect(parseFoodObservation(withNegation).ok).toBe(true);
+    const local = inspect(mixed, [withNegation]);
+    expect(local.grades[1]).toBe("structured");
+    expect(local.grades[2]).toBe("structured");
+    expect(local.admitted).toBe(false); // independent coffee fact is missing
+  });
+
   it("accepts labelled identity, qualifier, and directly measured physical units", () => {
     const identityCase: C1bCase = { id: "evidence-labelled-identity",
       text: "iogurte Marca Azul sem açúcar", modality: "text", split: "calibration",
