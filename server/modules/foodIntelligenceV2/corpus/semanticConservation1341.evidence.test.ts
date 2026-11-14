@@ -136,10 +136,11 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
     const mixed = c1bCases.find(item => item.id === "sugar-other-negation")!;
     const start = mixed.text.indexOf("um pudim sem açúcar");
     const pudding = observation(mixed, "pudim sem açúcar", 1, "un", start, mixed.text.length);
-    const withNegation: FoodObservation = { ...pudding, identityHints: {
-      ...pudding.identityHints, qualifiers: [{ value: "sem açúcar", role: "sweetening",
-        attributeCode: null, confidence: null }],
-    } };
+    const withNegation: FoodObservation = { ...pudding,
+      quantityHints: { ...pudding.quantityHints, servingText: "um" },
+      identityHints: { ...pudding.identityHints, qualifiers: [{ value: "sem açúcar",
+        role: "sweetening", attributeCode: null, confidence: null }] },
+    };
     expect(parseFoodObservation(withNegation).ok).toBe(true);
     const local = inspect(mixed, [withNegation]);
     expect(local.grades[1]).toBe("structured");

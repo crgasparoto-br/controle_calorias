@@ -134,7 +134,16 @@ function hasSourceBackedServingText(testCase: C1bCase, observation: FoodObservat
       }
       // If any matching occurrence belongs to a sibling fact, the serving
       // assertion is ambiguous even when another occurrence matches this fact.
-      if (otherClaims.some(other => overlaps(other, range))) return false;
+      // A local negation can share its observation with the independently
+      // labelled food count ("um pudim sem açúcar"). This does NOT let one
+      // quantity proof cover two quantity facts: those remain occurrence-bound
+      // and subject to the injective fact↔observation matching below.
+      const ownFoodCount = fact.kind === "negation" && testCase.facts.some(other =>
+        other !== fact && other.kind === "food-quantity" && other.owner === fact.owner &&
+        other.quantity === observation.quantityHints.value &&
+        fold(other.unit ?? "") === fold(observation.quantityHints.unit ?? "") &&
+        contains(factSourceRange(testCase, other), range));
+      if (otherClaims.some(other => overlaps(other, range)) && !ownFoodCount) return false;
       supported = true;
     }
   }
