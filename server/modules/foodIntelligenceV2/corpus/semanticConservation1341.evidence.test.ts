@@ -282,3 +282,93 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
     expect(inspect(gramsCase, [withUnits]).admitted).toBe(true);
   });
 });
+
+/** A-1342-32/33: real oracle escape regressions from an independent audit.
+ * These controls are contract-shaped, not product persistence assertions. */
+describe("#1341 A-1342-32/33 — empty-S2 provenance and per-hypothesis quantities", () => {
+  it("rejects catalog evidence and invented S2 paths in the empty-lexicon experiment", async () => {
+    const benign = inspect(simple, good);
+    expect(benign.complete).toBe(true);
+    const fakeS2 = { ...good[0].normalizationPath[0], stage: "S2" as const,
+      origin: "lexicon" as const, lexiconEntryId: 987654 };
+    const catalog = { ...good[0], evidence: good[0].evidence.map(item => ({
+      ...item, origin: "catalog" as const })) };
+    const attacks: Record<string, FoodObservation> = {
+      catalogWithFakeS2: { ...catalog, normalizationPath: [...catalog.normalizationPath, fakeS2] },
+      catalogWithoutS2: catalog,
+      fakeS2WithTextEvidence: { ...good[0], normalizationPath: [...good[0].normalizationPath, fakeS2] },
+      revisionWithoutLoadedLexicon: { ...good[0], lexiconRevision: "fabricated-s2-revision" },
+      catalogWithFakeRevision: { ...catalog, lexiconRevision: "fabricated-s2-revision",
+        normalizationPath: [...catalog.normalizationPath, fakeS2] },
+    };
+    const results: Record<string, ReturnType<typeof inspect>> = {};
+    for (const [id, attack] of Object.entries(attacks)) {
+      expect(parseFoodObservation(attack).ok, id).toBe(true);
+      const result = inspect(simple, [attack, good[1]]);
+      expect(result.grades[0], id).toBe("invalid-evidence");
+      expect(result.issues, id).toContain("invalid-evidence");
+      expect(result.complete, id).toBe(false);
+      expect(result.admitted, id).toBe(false);
+      results[id] = result;
+    }
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR, "c1b-1341-audit-escape-32.json"),
+        JSON.stringify({ schemaVersion: 1, issue: 1341, finding: "A-1342-32",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          lexiconRevision: "c1b-empty-s2", loadedEntries: 0,
+          positiveTextSource: benign, forgedCatalogAndS2Controls: results,
+          subject: "test-only-oracle", publicPersistence: "not-measured",
+          productionS3: "not-evaluated" }, null, 2));
+    }
+  });
+
+  it("requires the quantity proof ID for each alternative asserting a count", async () => {
+    const identityId = good[0].evidence.find(item => item.field === "identity.foodName")!.evidenceId;
+    const quantityId = good[0].evidence.find(item => item.field === "quantity.value")!.evidenceId;
+    const alternative = { hypothesisId: "c1b-quantity-supported-alternative",
+      identityHints: { ...good[0].identityHints },
+      quantityHints: { ...good[0].quantityHints },
+      evidenceIds: [identityId, quantityId], confidence: 0.5 };
+    const withAlternative = (option: typeof alternative): FoodObservation[] => [
+      { ...good[0], alternatives: [option] }, good[1],
+    ];
+    const positive = inspect(simple, withAlternative(alternative));
+    expect(withAlternative(alternative).every(obs => parseFoodObservation(obs).ok)).toBe(true);
+    expect(positive).toEqual({ grades: ["structured", "structured"], issues: [],
+      complete: true, admitted: true });
+    const abstaining = { ...alternative, quantityHints: { ...alternative.quantityHints,
+      value: null, unit: null, servingText: null }, evidenceIds: [identityId] };
+    const abstention = inspect(simple, withAlternative(abstaining));
+    expect(withAlternative(abstaining).every(obs => parseFoodObservation(obs).ok)).toBe(true);
+    expect(abstention.complete).toBe(true);
+    expect(abstention.admitted).toBe(true);
+    const attacks = {
+      emptyEvidenceIds: { ...alternative, evidenceIds: [] as string[] },
+      identityOnlyEvidenceIds: { ...alternative, evidenceIds: [identityId] },
+      wrongQuantityValue: { ...alternative, quantityHints: {
+        ...alternative.quantityHints, value: 999 } },
+      abstainsButBorrowsQuantityId: { ...abstaining, evidenceIds: [identityId, quantityId] },
+    };
+    const results: Record<string, ReturnType<typeof inspect>> = {};
+    for (const [id, attack] of Object.entries(attacks)) {
+      const observations = withAlternative(attack);
+      expect(observations.every(obs => parseFoodObservation(obs).ok), id).toBe(true);
+      const result = inspect(simple, observations);
+      expect(result.grades[0], id).toBe("invalid-evidence");
+      expect(result.issues, id).toContain("invalid-evidence");
+      expect(result.complete, id).toBe(false);
+      expect(result.admitted, id).toBe(false);
+      results[id] = result;
+    }
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR, "c1b-1341-audit-escape-33.json"),
+        JSON.stringify({ schemaVersion: 1, issue: 1341, finding: "A-1342-33",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          positiveLinkedQuantity: positive, positiveExplicitAbstention: abstention,
+          negativeHypothesisClaims: results, subject: "test-only-oracle",
+          publicPersistence: "not-measured", productionS3: "not-evaluated" }, null, 2));
+    }
+  });
+});

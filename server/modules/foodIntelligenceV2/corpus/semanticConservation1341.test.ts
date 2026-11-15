@@ -520,7 +520,8 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       quantityHints: { ...continuation.quantityHints, value: 1, unit: "g" },
       evidence: [quantityEvidence],
       alternatives: (["café", "pudim"] as const).map((foodName, index) => ({
-        hypothesisId: `c1b-ambiguous-owner-${index}`, confidence: 0.5, evidenceIds: [],
+        hypothesisId: `c1b-ambiguous-owner-${index}`, confidence: 0.5,
+        evidenceIds: [quantityEvidence.evidenceId],
         identityHints: { ...continuation.identityHints, foodName },
         quantityHints: { ...continuation.quantityHints, value: 1, unit: "g" },
       })),

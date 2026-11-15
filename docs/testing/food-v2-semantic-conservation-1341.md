@@ -459,3 +459,31 @@ canônica de `isProductionFoodSource` do gate arquitetural: código de teste
 isolado não é normalizador nem dicionário lexical governado de produção.
 A lógica e seus controles negativos permanecem inalterados nesta mudança
 estrutural; módulos importados pelo runtime continuam sujeitos a todos os gates.
+
+## Remediação A-1342-32/33 — procedência S2 e quantidade de hipóteses
+
+- **A-1342-32:** o experimento C1b executa com léxico governado vazio
+  (`c1b-empty-s2`). O oráculo rejeita evidência `origin=catalog`, revisão
+  incompatível e qualquer passo de normalização S2 inventado nesse recorte,
+  mesmo quando o próprio objeto declara `lexiconEntryId`. A presença da etapa
+  no payload não comprova que uma entrada de léxico foi realmente carregada.
+  O Vitest mantém o positivo de evidência original S1 e refuta catálogo
+  com/sem passo S2, passo S2 com fonte textual e revisão fictícia.
+  A validação de um **léxico não vazio** exige nova fonte independente
+  de `lexiconEntryId`/revisão e teste calibrado próprio; não foi autorizada
+  ou simulada como prova real nesta issue.
+- **A-1342-33:** toda hipótese alternativa que declara quantidade/unidade deve
+  incluir em `evidenceIds` a prova `quantity.value` pertencente ao mesmo
+  fato material, valor, unidade e span de origem. A prova da observação
+  principal não pode suprir o ID omitido na hipótese. Controles negativos
+  cobrem conjunto vazio e somente identidade; positivos preservam a hipótese
+  com referência quantitativa e a abstenção explícita (`value/unit=null`)
+  com referência apenas de identidade. No caso de continuação ambígua,
+  múltiplos owners alternativos podem compartilhar a **mesma** evidência
+  da quantidade original, sem inventar atribuição definitiva.
+- **Evidências exact-SHA:** o workflow existente publica, junto da matriz
+  `c1b-1341-semantic-conservation.json`, os arquivos
+  `c1b-1341-audit-escape-32.json` e `c1b-1341-audit-escape-33.json` com
+  `sampleSha`, positivos, negativos, `invalid-evidence` e resultado da
+  admissão simulada. O teste diagnóstico verde não certifica conservação
+  produtiva, IA S3, precisão nutricional, persistência pública ou cutover.

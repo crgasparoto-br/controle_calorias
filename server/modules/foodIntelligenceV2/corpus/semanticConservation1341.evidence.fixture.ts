@@ -34,6 +34,13 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
     testCase.modality === "audio_transcript" ? "transcription" : "text";
   const observedSpan = observation.surfaceSpan.span;
   if (!observedSpan) return false;
+  // C1b intentionally loads an EMPTY governed lexicon. A self-declared S2
+  // step, entry ID or revision is not evidence of a real catalog lookup.
+  // A nonempty S2 experiment needs a separate, source-backed lexicon oracle.
+  if (observation.lexiconRevision !== "c1b-empty-s2" ||
+      observation.normalizationPath.some(step =>
+        step.stage !== "S1" || step.origin !== "deterministic" ||
+        step.lexiconEntryId !== null)) return false;
   const candidates: Candidate[] = [
     { identity: observation.identityHints, quantity: observation.quantityHints, evidenceIds: null },
     ...observation.alternatives.map(alt => ({ identity: alt.identityHints,
@@ -138,8 +145,9 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
     const anchor = evidence.anchor.span;
     if (!anchor || !contains(scope, [anchor.start, anchor.end]) ||
         !contains([observedSpan.start, observedSpan.end], [anchor.start, anchor.end])) return false;
-    const grounded = evidence.origin === originalSource ||
-      (evidence.origin === "catalog" && observation.normalizationPath.some(step => step.stage === "S2"));
+    // A catalog claim cannot be authorized by metadata supplied by the same
+    // observation: no S2 catalog is loaded in this controlled experiment.
+    const grounded = evidence.origin === originalSource;
     if (!grounded) return false;
     // A hypothesis cannot cite primary evidence that contradicts its own
     // material claims, even if the primary observation independently supports

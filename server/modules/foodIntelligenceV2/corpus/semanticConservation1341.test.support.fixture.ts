@@ -293,8 +293,12 @@ function hasSupportedAlternatives(testCase: C1bCase, observation: FoodObservatio
     }
     if (hints.value !== null) {
       const sourceRange = factSourceRange(testCase, fact);
-      if (!observation.evidence.some(item => item.field === "quantity.value" &&
-          item.value === hints.value && fold(item.unit ?? "") === fold(hints.unit ?? "") &&
+      // Every alternative asserting a quantity must cite its OWN quantity
+      // evidence. A source-backed primary count cannot silently justify an
+      // alternative whose evidenceIds only mention identity (or are empty).
+      if (!observation.evidence.some(item => alternative.evidenceIds.includes(item.evidenceId) &&
+          item.field === "quantity.value" && item.value === hints.value &&
+          fold(item.unit ?? "") === fold(hints.unit ?? "") &&
           item.anchor.span !== null && contains(
             [item.anchor.span.start, item.anchor.span.end], sourceRange))) return false;
     }
