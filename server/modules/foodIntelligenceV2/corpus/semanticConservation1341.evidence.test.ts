@@ -645,8 +645,10 @@ describe("#1341 A-1342-36/37 — owner-bound punctuation and alternatives", () =
 describe("#1341 A-1342-38 — source-labelled identity evidence", () => {
   it("rejects evidence-only connector claims and preserves labelled preparation", async () => {
     const repeated = c1bCases.find(item => item.id === "food-repeated-literal")!;
-    const first = observation(repeated, "ovos", 2, "un", 0, 14);
-    const second = observation(repeated, "ovos", 2, "un", 14, 20);
+    const first: FoodObservation = { ...observation(repeated, "ovos", 2, "un", 0, 14),
+      observationId: "c1b-38-first-occurrence" };
+    const second: FoodObservation = { ...observation(repeated, "ovos", 2, "un", 14, 20),
+      observationId: "c1b-38-second-occurrence" };
     const positiveRepeated = inspect(repeated, [first, second]);
     expect(positiveRepeated).toEqual({ grades: ["structured", "structured"],
       issues: [], complete: true, admitted: true });
