@@ -718,3 +718,105 @@ describe("#1341 A-1342-38 — source-labelled identity evidence", () => {
     }
   });
 });
+
+
+/** A-1342-39: an independent food mention or negation must consume its own
+ * typed material proof, not reuse a single broad observation/qualifier. */
+describe("#1341 A-1342-39 — repeated non-quantity material", () => {
+  it("rejects reused food mentions and negations while preserving independently sourced claims", async () => {
+    const mentions: C1bCase = { id: "c1b-39-mentions", text: "banana e banana",
+      modality: "text", split: "calibration", semanticGroup: "c1b-39-mentions",
+      facts: [0, 9].map(surfaceStart => ({ kind: "food-mention" as const,
+        owner: "banana", scope: "banana e banana", surface: "banana", surfaceStart,
+        ingredient: null, quantity: null, unit: null })) };
+    const mentionBroad = observation(mentions, "banana", null, null, 0, mentions.text.length);
+    const mentionFirst = observation(mentions, "banana", null, null, 0, 6);
+    const mentionSecond: FoodObservation = { ...observation(mentions, "banana", null, null, 9, 15),
+      observationId: "c1b-39-second-banana" };
+    const mentionNegatives = {
+      oneObservation: inspect(mentions, [mentionBroad]),
+      duplicateIdentityProof: inspect(mentions, [{ ...mentionBroad,
+        evidence: [...mentionBroad.evidence, { ...mentionBroad.evidence[0],
+          evidenceId: "c1b-39-duplicate-identity-proof" }] }]),
+      missingSecondObservation: inspect(mentions, [mentionFirst]),
+    };
+    for (const [name, result] of Object.entries(mentionNegatives)) {
+      expect(result.complete, name).toBe(false);
+      expect(result.admitted, name).toBe(false);
+      expect(result.grades.some(grade => grade === "shared-material-observation" ||
+        grade === "silent-omission"), name).toBe(true);
+    }
+    const mentionPositive = inspect(mentions, [mentionFirst, mentionSecond]);
+    expect(mentionPositive).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+
+    const text = "café sem açúcar e café sem açúcar";
+    const firstNegation = text.indexOf("sem açúcar");
+    const secondNegation = text.lastIndexOf("sem açúcar");
+    const secondCafe = text.lastIndexOf("café");
+    const negations: C1bCase = { id: "c1b-39-negations", text,
+      modality: "text", split: "calibration", semanticGroup: "c1b-39-negations",
+      facts: [firstNegation, secondNegation].map(surfaceStart => ({ kind: "negation" as const,
+        owner: "café", scope: text, surface: "sem açúcar", surfaceStart,
+        ingredient: "açúcar", quantity: null, unit: null })) };
+    const qualifier = { value: "sem açúcar", role: "sweetening", attributeCode: null,
+      confidence: null };
+    const withNegation = (obs: FoodObservation, start: number, end: number): FoodObservation => ({
+      ...obs, identityHints: { ...obs.identityHints, qualifiers: [qualifier] },
+      evidence: [...obs.evidence, { ...obs.evidence[0], field: "identity.qualifiers",
+        evidenceId: `c1b-39-negation-proof-${start}`, value: "sem açúcar",
+        anchor: source(negations, start, end) }],
+    });
+    const negationBroad = withNegation(observation(negations, "café", null, null,
+      0, text.length), 0, text.length);
+    const negationFirst = withNegation(observation(negations, "café", null, null,
+      0, firstNegation + "sem açúcar".length), firstNegation,
+      firstNegation + "sem açúcar".length);
+    const negationSecond: FoodObservation = { ...withNegation(observation(negations,
+      "café", null, null, secondCafe, text.length), secondNegation, text.length),
+      observationId: "c1b-39-second-coffee" };
+    const negationNegatives = {
+      oneBroadQualifier: inspect(negations, [negationBroad]),
+      duplicatedQualifierWithoutNewEvidence: inspect(negations, [{ ...negationBroad,
+        identityHints: { ...negationBroad.identityHints, qualifiers: [qualifier, qualifier] } }]),
+      missingSecondProof: inspect(negations, [negationFirst]),
+    };
+    for (const [name, result] of Object.entries(negationNegatives)) {
+      expect(result.complete, name).toBe(false);
+      expect(result.admitted, name).toBe(false);
+      expect(result.grades.some(grade => grade === "shared-material-observation" ||
+        grade === "silent-omission"), name).toBe(true);
+    }
+    const negationPositive = inspect(negations, [negationFirst, negationSecond]);
+    expect(negationPositive).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+    // The same source-spanning observation is permitted only when TWO qualifier
+    // instances have TWO distinct, occurrence-specific evidence anchors.
+    const twoClaims: FoodObservation = { ...negationBroad,
+      identityHints: { ...negationBroad.identityHints, qualifiers: [qualifier, qualifier] },
+      evidence: [negationBroad.evidence[0], negationFirst.evidence[1],
+        negationSecond.evidence[1]] };
+    const twoClaimsPositive = inspect(negations, [twoClaims]);
+    expect(twoClaimsPositive).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+
+    const shaped = [mentionBroad, mentionFirst, mentionSecond, negationBroad,
+      negationFirst, negationSecond, twoClaims];
+    expect(shaped.every(obs => parseFoodObservation(obs).ok)).toBe(true);
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-audit-escape-39.json"), JSON.stringify({
+          schemaVersion: 1, issue: 1341, finding: "A-1342-39",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          subject: "diagnostic-oracle-not-public-persistence",
+          sourceFacts: { mentions: mentions.facts, negations: negations.facts },
+          positives: { independentlyObservedMentions: mentionPositive,
+            independentlyObservedNegations: negationPositive,
+            twoDistinctNegationsInOneEnvelope: twoClaimsPositive },
+          negatives: { mentions: mentionNegatives, negations: negationNegatives },
+          publicPersistence: "not-measured", productionS3: "not-evaluated",
+        }, null, 2));
+    }
+  });
+});

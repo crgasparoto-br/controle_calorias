@@ -599,3 +599,34 @@ A mudança é exclusiva do **oráculo de teste** e não modifica LCL produtiva,
 `FoodObservation`, parser V1, S3, nutrição, persistência, workflows ou rulesets.
 CI verde prova a execução do diagnóstico; **não aprova a conservação semântica
 V2 nem substitui revisão independente**.
+
+
+## Remediação A-1342-39 — menções materiais e negações repetidas
+
+- **Contraexemplos independentes:** `banana e banana` com duas referências
+  `food-mention` e apenas uma observação de banana; `café sem açúcar e café sem
+  açúcar` com duas referências `negation` e apenas um qualificador evidenciado
+  numa observação ampla. Antes da correção, ambos eram falsamente
+  `structured`/`structurallyComplete=true` e admitidos no simulador.
+- **Regra do oráculo:** cada menção alimentar sem quantidade consome um slot
+  distinto de identidade observada; cada negação consome um slot distinto de
+  qualificador, acompanhado de prova no span **da própria ocorrência**. Uma
+  evidência ampla cobrindo duas negações não equivale a duas provas. Falhas
+  ficam em `shared-material-observation` (ou `silent-omission` quando não há
+  observação). O pareamento usa fatos humanos rotulados, jamais o retorno
+  de outro parser.
+- **Compatibilidade:** a observação que representa `um pudim sem açúcar`
+  continua podendo conservar a quantidade e a negação do mesmo alimento,
+  porque são *tipos diferentes de afirmação*. Duas negações em uma observação
+  também são permitidas quando há dois qualificadores e evidências de origem
+  distintas, ancoradas separadamente, sem duplicar fatos.
+- **Controles:** `semanticConservation1341.evidence.test.ts` exercita os dois
+  negativos originais, repetição de evidência ou qualificador, ausência da
+  segunda observação e positivos com cobertura independente. O teste escreve
+  `c1b-1341-audit-escape-39.json` no artefato oficial já existente quando
+  `C3_EVIDENCE_OUTPUT_DIR` está definido, incluindo SHA exato, esperados,
+  observados e os limites da admissão diagnóstica.
+- **Limites:** nenhuma alteração em parser/runtime produtivo, schema,
+  persistência, S3, entrypoints ou CI. A matriz é um diagnóstico da LCL,
+  não um gate semântico de produção aprovado; a auditoria independente do
+  novo HEAD permanece necessária antes de Ready, merge ou encerramento #1341.

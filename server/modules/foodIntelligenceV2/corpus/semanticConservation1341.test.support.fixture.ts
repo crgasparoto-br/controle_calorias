@@ -13,7 +13,7 @@ export type C1bGrade =
   | "ingredient-quantity-unobserved" | "ingredient-quantity-mismatch"
   | "owner-alternatives-missing" | "unbound-as-food" | "misbound"
   | "unbound-quantity-unobserved" | "unbound-quantity-mismatch"
-  | "shared-quantity-observation"
+  | "shared-quantity-observation" | "shared-material-observation"
   | "silent-omission" | "invalid-provenance" | "invalid-evidence" | "false-closed";
 export type C1bResult = {
   caseId: string;
@@ -664,6 +664,70 @@ export function evaluateC1b(testCase: C1bCase, observations: readonly FoodObserv
       results[index] = { ...results[index], grade: "shared-quantity-observation" };
     }
   }
+  // A FoodObservation represents one food identity occurrence. Repeating a
+  // material food mention needs a separate observation, even for the same name.
+  // A negation instead consumes one distinct qualifier slot with occurrence-
+  // specific source evidence. This still allows one observation to prove a
+  // food quantity AND its local negation (different typed material claims).
+  const occurrenceClaims = new Map<string, number>(); // typed claim slot -> fact index
+  const candidateOccurrenceClaims = (factIndex: number): string[] => {
+    const fact = testCase.facts[factIndex];
+    const factRange = factSourceRange(testCase, fact);
+    return observations.flatMap((observation, observationIndex) => {
+      if (!hasOriginalProvenance(testCase, observation) ||
+          !observationClaimsFact(testCase, observation, fact) ||
+          !hasMaterialEvidence(testCase, observation, fact)) return [];
+      if (fact.kind === "food-mention") return [`mention:${observationIndex}`];
+      if (fact.kind !== "negation") return [];
+      return observation.identityHints.qualifiers.flatMap((qualifier, qualifierIndex) => {
+        if (qualifier.role !== "sweetening" ||
+            fold(qualifier.value) !== fold(fact.surface)) return [];
+        // One broad anchor that spans two identical negations is not two
+        // independent proofs, regardless of its evidenceId or the number of
+        // copies of the same qualifier in the observation.
+        const independentlyAnchored = observation.evidence.some(evidence => {
+          if ((evidence.field !== "identity.qualifiers" &&
+               evidence.field !== "identity.foodName") ||
+              typeof evidence.value !== "string" ||
+              !fold(evidence.value).includes(fold(qualifier.value)) ||
+              evidence.anchor.span === null) return false;
+          const proofSpan: [number, number] = [
+            evidence.anchor.span.start, evidence.anchor.span.end];
+          return contains(proofSpan, factRange) && !testCase.facts.some((other, otherIndex) =>
+            otherIndex !== factIndex && other.kind === "negation" &&
+            other.owner === fact.owner &&
+            contains(proofSpan, factSourceRange(testCase, other)));
+        });
+        return independentlyAnchored ? [`negation:${observationIndex}:${qualifierIndex}`] : [];
+      });
+    });
+  };
+  const assignOccurrence = (factIndex: number, visited: Set<string>): boolean => {
+    for (const claim of candidateOccurrenceClaims(factIndex)) {
+      if (visited.has(claim)) continue;
+      visited.add(claim);
+      const earlier = occurrenceClaims.get(claim);
+      if (earlier === undefined || assignOccurrence(earlier, visited)) {
+        occurrenceClaims.set(claim, factIndex);
+        return true;
+      }
+    }
+    return false;
+  };
+  const independentlyCovered = new Set<number>();
+  for (const [index, fact] of testCase.facts.entries()) {
+    if (results[index].grade !== "structured" ||
+        (fact.kind !== "food-mention" && fact.kind !== "negation")) continue;
+    assignOccurrence(index, new Set<string>());
+  }
+  for (const index of occurrenceClaims.values()) independentlyCovered.add(index);
+  for (const [index, fact] of testCase.facts.entries()) {
+    if (results[index].grade === "structured" &&
+        (fact.kind === "food-mention" || fact.kind === "negation") &&
+        !independentlyCovered.has(index)) {
+      results[index] = { ...results[index], grade: "shared-material-observation" };
+    }
+  }
   const observedFactIndices = new Set<number>();
   const observedIds = new Set<string>();
   const observationIssues: C1bObservationIssue[] = [];
@@ -708,7 +772,7 @@ export function summarizeC1b(reports: readonly C1bCaseReport[]) {
     "ingredient-quantity-unobserved": 0, "ingredient-quantity-mismatch": 0,
     "owner-alternatives-missing": 0, "unbound-as-food": 0, misbound: 0,
     "unbound-quantity-unobserved": 0, "unbound-quantity-mismatch": 0,
-    "shared-quantity-observation": 0,
+    "shared-quantity-observation": 0, "shared-material-observation": 0,
     "silent-omission": 0, "invalid-provenance": 0, "invalid-evidence": 0, "false-closed": 0,
   };
   const observationIssues: Record<C1bObservationIssue["grade"], number> = {
