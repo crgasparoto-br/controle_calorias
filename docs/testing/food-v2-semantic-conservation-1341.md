@@ -517,3 +517,28 @@ estrutural; módulos importados pelo runtime continuam sujeitos a todos os gates
   pública, S3, nutrição ou aprovação da LCL. Verificar o CI no SHA novo e
   submeter o candidato a auditoria realmente independente antes de encerrar
   #1341, converter a PR em Ready ou liberar integração.
+
+
+## Remediação A-1342-35 — pontuação não material de preparo rotulado
+
+- **Escape reproduzido:** a prova de `2 ovos cozidos` era `structured`, mas
+  `2 ovos (cozidos)` e `2 ovos, cozidos`, com o mesmo preparo independente,
+  eram falsamente `invalid-evidence`. O oráculo não reconhecia os delimitadores
+  na composição do nome e nas duas conferências da evidência de identidade.
+- **Correção limitada:** somente vírgula e parênteses são normalizados como
+  separadores não materiais durante a comparação de `identity.foodName`;
+  os spans UTF-16, a evidência original, a identidade do owner e a exigência
+  de rótulos e provas específicas de preparo continuam intactos. Conectores,
+  numerais de outros alimentos e conteúdo não rotulado continuam proibidos;
+  essa equivalência não constitui regra alimentar nova nem modifica S1/S2/S3.
+- **Provas adversariais:** o Vitest `semanticConservation1341.evidence.test.ts`
+  contém quatro positivos equivalentes e quatro negativos (preparo sem rótulo,
+  evidência de preparo ausente, conector e alimento irmão). Cada negativo
+  exige `invalid-evidence`, incompletude estrutural e admissão simulada
+  recusada; os positivos exigem `structured` e admissão apenas diagnóstica.
+- **Evidência:** `c1b-1341-audit-escape-35.json` é produzido no artefato
+  `food-v2-c3-calibration-<HEAD>` pelo workflow existente, com `sampleSha`
+  exato, resultados por variante e limites `not-measured`/`not-evaluated`.
+  Nenhum runtime produtivo, schema, endpoint, persistência, flag ou regra de
+  CI foi alterado. CI verde e execução desses controles **não substituem**
+  auditoria independente nem autorizam merge, S3, migração, canário ou cutover.

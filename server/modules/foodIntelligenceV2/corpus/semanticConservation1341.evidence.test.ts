@@ -373,6 +373,76 @@ describe("#1341 A-1342-34 — exact owner-local food identity", () => {
   });
 });
 
+/** A-1342-35: independently labelled preparation must survive harmless
+ * punctuation, without treating connectors or sibling foods as preparation. */
+describe("#1341 A-1342-35 — punctuation equivalence for labelled food names", () => {
+  it("accepts commas and parentheses, but refutes unlabelled material", async () => {
+    const build = (id: string, text: string, foodName = "ovos cozidos") => {
+      const testCase: C1bCase = { id, text, modality: "text", split: "calibration",
+        semanticGroup: "c1b-35-punctuation", facts: [{
+          kind: "food-quantity", owner: "ovos", scope: text,
+          surface: "2 ovos", ingredient: null, quantity: 2, unit: "un",
+          identityClaims: { preparation: [{ value: "cozidos", surface: "cozidos" }] },
+        }] };
+      const base = observation(testCase, foodName, 2, "un", 0, text.length);
+      const prepared: FoodObservation = { ...base,
+        identityHints: { ...base.identityHints, preparation: ["cozidos"] },
+        evidence: [...base.evidence, { ...base.evidence[0],
+          evidenceId: `${id}-preparation`, field: "identity.preparation",
+          value: "cozidos", anchor: source(testCase, text.indexOf("cozidos"),
+            text.indexOf("cozidos") + "cozidos".length) }],
+      };
+      return { testCase, prepared };
+    };
+    const equivalents = [
+      ["plain", "2 ovos cozidos"],
+      ["parentheses", "2 ovos (cozidos)"],
+      ["comma", "2 ovos, cozidos"],
+      ["comma-parentheses", "2 ovos, (cozidos)"],
+    ] as const;
+    const positives: Record<string, ReturnType<typeof inspect>> = {};
+    for (const [id, text] of equivalents) {
+      const { testCase, prepared } = build(`c1b-35-${id}`, text);
+      expect(parseFoodObservation(prepared).ok, id).toBe(true);
+      const result = inspect(testCase, [prepared]);
+      expect(result, id).toEqual({ grades: ["structured"], issues: [],
+        complete: true, admitted: true });
+      positives[id] = result;
+    }
+    const { testCase: punctuated, prepared } = build("c1b-35-neg-label", "2 ovos, cozidos");
+    const noLabel: C1bCase = { ...punctuated, facts: [
+      { ...punctuated.facts[0], identityClaims: undefined }] };
+    const noPreparationProof = { ...prepared, evidence: prepared.evidence.filter(item =>
+      item.field !== "identity.preparation") };
+    const connector = build("c1b-35-neg-connector", "2 ovos, e cozidos", "ovos e cozidos");
+    const sibling = build("c1b-35-neg-sibling", "2 ovos, 1 banana, cozidos",
+      "ovos 1 banana cozidos");
+    const negatives = {
+      unlabelledPreparation: inspect(noLabel, [prepared]),
+      missingPreparationProof: inspect(punctuated, [noPreparationProof]),
+      unlabelledConnector: inspect(connector.testCase, [connector.prepared]),
+      siblingFood: inspect(sibling.testCase, [sibling.prepared]),
+    };
+    for (const [id, result] of Object.entries(negatives)) {
+      expect(result.grades, id).toContain("invalid-evidence");
+      expect(result.issues, id).toContain("invalid-evidence");
+      expect(result.complete, id).toBe(false);
+      expect(result.admitted, id).toBe(false);
+    }
+    for (const observation of [prepared, noPreparationProof, connector.prepared,
+      sibling.prepared]) expect(parseFoodObservation(observation).ok).toBe(true);
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR, "c1b-1341-audit-escape-35.json"),
+        JSON.stringify({ schemaVersion: 1, issue: 1341, finding: "A-1342-35",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          subject: "diagnostic-oracle-not-public-persistence",
+          punctuation: "comma-and-parentheses-only", positives, negatives,
+          publicPersistence: "not-measured", productionS3: "not-evaluated" }, null, 2));
+    }
+  });
+});
+
 /** A-1342-32/33: real oracle escape regressions from an independent audit.
  * These controls are contract-shaped, not product persistence assertions. */
 describe("#1341 A-1342-32/33 — empty-S2 provenance and per-hypothesis quantities", () => {

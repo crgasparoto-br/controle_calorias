@@ -22,6 +22,11 @@ export type EvidenceLabelTools = {
 const fold = (value: string): string => Array.from(value.normalize("NFD"))
   .filter(char => { const code = char.charCodeAt(0); return code < 0x300 || code > 0x36f; })
   .join("").toLocaleLowerCase("pt-BR").split(" ").filter(Boolean).join(" ").trim();
+/** Equivalence of only non-material name delimiters. This is not a food-name
+ * parser: owner, preparation and qualifier still require independent labels. */
+export function foldLabelledFoodName(value: string): string {
+  return fold(value.replace(/[(),]/gu, " ").replace(/\s+/gu, " "));
+}
 const same = (left: string | null, right: string | null): boolean =>
   fold(left ?? "") === fold(right ?? "");
 const contains = (outer: Span, inner: Span): boolean => outer[0] <= inner[0] && outer[1] >= inner[1];
@@ -84,7 +89,8 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
         const span = evidence.anchor.span!;
         const ownerRange = tools.ownerRange(fact);
         return ownerRange !== null && overlaps([span.start, span.end], ownerRange) &&
-          fold(testCase.text.slice(span.start, span.end)).includes(fold(evidence.value));
+          foldLabelledFoodName(testCase.text.slice(span.start, span.end))
+            .includes(foldLabelledFoodName(evidence.value));
       }
       case "identity.brand":
       case "identity.variant":

@@ -5,7 +5,7 @@
  */
 import type { FoodObservation } from "../schemas";
 import { projectObservation } from "./projection";
-import { onlyLabelledMaterialEvidence } from "./semanticConservation1341.evidence.fixture";
+import { foldLabelledFoodName, onlyLabelledMaterialEvidence } from "./semanticConservation1341.evidence.fixture";
 import type { C1bCase, C1bFact, C1bTextClaim } from "./semanticConservation1341.test.fixture";
 
 export type C1bGrade =
@@ -221,8 +221,8 @@ function hasLabelledEvidence(testCase: C1bCase, observation: FoodObservation,
 function hasLabelledFullFoodName(testCase: C1bCase, observation: FoodObservation,
   fact: C1bFact, name: string | null): boolean {
   if (fact.owner === null || name === null) return true;
-  const expected = fold(fact.owner).replace(/^(?:o|a|um|uma)\s+/u, "");
-  const asserted = fold(name).replace(/^(?:o|a|um|uma)\s+/u, "");
+  const expected = foldLabelledFoodName(fact.owner).replace(/^(?:o|a|um|uma)\s+/u, "");
+  const asserted = foldLabelledFoodName(name).replace(/^(?:o|a|um|uma)\s+/u, "");
   if (asserted === expected) return true;
   if (!asserted.startsWith(expected + " ")) return false;
   const scope = factScopeRange(testCase, fact);
@@ -243,12 +243,13 @@ function hasLabelledFullFoodName(testCase: C1bCase, observation: FoodObservation
     range[0] >= owner[1] && contains(scope, range) && contains(observed, range))];
   const limit = Math.min(scope[1], observed[1]);
   for (let end = owner[1] + 1; end <= limit; end++) {
-    if (fold(testCase.text.slice(owner[0], end)) !== asserted) continue;
-    // Only whitespace can separate independently labelled parts of a name.
-    // In particular, 'e mais' and another food cannot be silently appended.
+    if (foldLabelledFoodName(testCase.text.slice(owner[0], end)) !== asserted) continue;
+    // Whitespace, commas and parentheses can separate independently labelled
+    // parts. Letters, numbers and other punctuation outside those spans are
+    // never silently admitted (not even a connector or a sibling food).
     let fullyLabelled = true;
     for (let index = owner[0]; index < end; index++) {
-      if (/\s/u.test(testCase.text[index])) continue;
+      if (/[\s(),]/u.test(testCase.text[index])) continue;
       if (!permitted.some(range => index >= range[0] && index < range[1])) {
         fullyLabelled = false;
         break;
@@ -391,8 +392,9 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
   const identity = observation.identityHints.foodName;
   if (identity !== null) {
     if (identityProofs.length === 0 || identityProofs.some(item =>
-      typeof item.value !== "string" || !fold(item.value).includes(fold(identity)) ||
-      !rawAt(item.anchor).includes(fold(item.value)))) return false;
+      typeof item.value !== "string" ||
+      !foldLabelledFoodName(item.value).includes(foldLabelledFoodName(identity)) ||
+      !foldLabelledFoodName(rawAt(item.anchor)).includes(foldLabelledFoodName(item.value)))) return false;
   } else if (identityProofs.length > 0) return false;
 
   const quantityProofs = observation.evidence.filter(item => item.field === "quantity.value");
