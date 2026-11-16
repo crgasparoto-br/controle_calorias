@@ -532,3 +532,109 @@ describe("#1341 A-1342-32/33 — empty-S2 provenance and per-hypothesis quantiti
     }
   });
 });
+
+/** A-1342-36/37: equivalent punctuation must work for the actual asserted
+ * foodName and every hypothesis, without weakening labelled-source checks. */
+describe("#1341 A-1342-36/37 — owner-bound punctuation and alternatives", () => {
+  it("preserves labelled prepared names in primary observations and alternatives", async () => {
+    const build = (id: string, text: string, foodName: string) => {
+      const testCase: C1bCase = { id, text, modality: "text", split: "calibration",
+        semanticGroup: "c1b-36-37-punctuation", facts: [{
+          kind: "food-quantity", owner: "ovos", scope: text,
+          surface: "2 ovos", ingredient: null, quantity: 2, unit: "un",
+          identityClaims: { preparation: [{ value: "cozidos", surface: "cozidos" }] },
+        }] };
+      const base = observation(testCase, foodName, 2, "un", 0, text.length);
+      const proofId = id + "-preparation-evidence";
+      const prepared: FoodObservation = { ...base,
+        identityHints: { ...base.identityHints, preparation: ["cozidos"] },
+        evidence: [...base.evidence, { ...base.evidence[0],
+          evidenceId: proofId, field: "identity.preparation", value: "cozidos",
+          anchor: source(testCase, text.indexOf("cozidos"),
+            text.indexOf("cozidos") + "cozidos".length) }],
+      };
+      const alternative = {
+        hypothesisId: id + "-alternative", identityHints: { ...prepared.identityHints },
+        quantityHints: { ...prepared.quantityHints },
+        evidenceIds: prepared.evidence.map(item => item.evidenceId),
+        confidence: 0.5,
+      };
+      return { testCase, prepared, alternative, proofId };
+    };
+    const variants = [
+      ["plain", "2 ovos cozidos", "ovos cozidos"],
+      ["parentheses", "2 ovos (cozidos)", "ovos (cozidos)"],
+      ["comma", "2 ovos, cozidos", "ovos, cozidos"],
+      ["comma-parentheses", "2 ovos, (cozidos)", "ovos, (cozidos)"],
+    ] as const;
+    const positives: Record<string, { primary: ReturnType<typeof inspect>;
+      alternative: ReturnType<typeof inspect> }> = {};
+    for (const [id, text, foodName] of variants) {
+      const { testCase, prepared, alternative } = build("c1b-36-37-" + id, text, foodName);
+      const withAlternative: FoodObservation = { ...prepared, alternatives: [alternative] };
+      expect(parseFoodObservation(prepared).ok, id).toBe(true);
+      expect(parseFoodObservation(withAlternative).ok, id).toBe(true);
+      const primary = inspect(testCase, [prepared]);
+      const hypothesis = inspect(testCase, [withAlternative]);
+      for (const result of [primary, hypothesis]) {
+        expect(result, id).toEqual({ grades: ["structured"], issues: [],
+          complete: true, admitted: true });
+      }
+      positives[id] = { primary, alternative: hypothesis };
+    }
+
+    const { testCase, prepared, alternative, proofId } = build(
+      "c1b-36-37-negative", "2 ovos, cozidos", "ovos, cozidos");
+    const missingProof: FoodObservation = { ...prepared, alternatives: [{
+      ...alternative, evidenceIds: alternative.evidenceIds.filter(id => id !== proofId),
+    }] };
+    const duplicatedOwner: FoodObservation = { ...prepared, alternatives: [
+      alternative, { ...alternative, hypothesisId: "same-owner-rewritten",
+        identityHints: { ...alternative.identityHints, foodName: "ovos (cozidos)" } },
+    ] };
+    // The original text mentions the preparation, but the fact has no
+    // independent preparation label. Primary "ovos" remains a valid count.
+    const withoutLabel: C1bCase = { ...testCase, facts: [
+      { ...testCase.facts[0], identityClaims: undefined }] };
+    const ownerOnly = observation(withoutLabel, "ovos", 2, "un", 0, withoutLabel.text.length);
+    const inventedPreparation: FoodObservation = { ...ownerOnly, alternatives: [{
+      ...alternative, identityHints: { ...ownerOnly.identityHints,
+        foodName: "ovos, cozidos", preparation: ["cozidos"] },
+      evidenceIds: ownerOnly.evidence.map(item => item.evidenceId),
+    }] };
+    const connector: FoodObservation = { ...good[0], alternatives: [{
+      ...alternative, hypothesisId: "forged-connector",
+      identityHints: { ...good[0].identityHints, foodName: "ovos e 1 banana",
+        preparation: [] },
+      quantityHints: { ...good[0].quantityHints },
+      evidenceIds: good[0].evidence.map(item => item.evidenceId),
+    }] };
+    const negatives = {
+      alternativeWithoutPreparationEvidence: inspect(testCase, [missingProof]),
+      duplicateOwnerWithDifferentPunctuation: inspect(testCase, [duplicatedOwner]),
+      unlabelledPreparationInAlternative: inspect(withoutLabel, [inventedPreparation]),
+      connectorAndSiblingAsAlternative: inspect(simple, [connector, good[1]]),
+    };
+    expect(inspect(withoutLabel, [ownerOnly]).complete).toBe(true);
+    for (const [id, result] of Object.entries(negatives)) {
+      expect(result.grades, id).toContain("invalid-evidence");
+      expect(result.issues, id).toContain("invalid-evidence");
+      expect(result.complete, id).toBe(false);
+      expect(result.admitted, id).toBe(false);
+    }
+    for (const sample of [missingProof, duplicatedOwner, inventedPreparation, connector]) {
+      expect(parseFoodObservation(sample).ok).toBe(true);
+    }
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-audit-escape-36-37.json"), JSON.stringify({
+          schemaVersion: 1, issue: 1341, findings: ["A-1342-36", "A-1342-37"],
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          subject: "diagnostic-oracle-not-public-persistence",
+          positives, negatives, publicPersistence: "not-measured",
+          productionS3: "not-evaluated",
+        }, null, 2));
+    }
+  });
+});

@@ -542,3 +542,33 @@ estrutural; módulos importados pelo runtime continuam sujeitos a todos os gates
   Nenhum runtime produtivo, schema, endpoint, persistência, flag ou regra de
   CI foi alterado. CI verde e execução desses controles **não substituem**
   auditoria independente nem autorizam merge, S3, migração, canário ou cutover.
+
+## Remediação A-1342-36/37 — identidade pontuada e hipóteses alternativas
+
+- **A-1342-36:** a comparação owner↔`identity.foodName` usa agora a
+  mesma equivalência limitada de vírgulas e parênteses empregada pelo
+  conferidor de nomes integralmente rotulados. Assim `ovos, cozidos` e
+  `ovos (cozidos)` podem manter o owner `ovos` sem dispensar spans,
+  preparo autoral nem evidência de origem. Conectores e alimento irmão
+  continuam material adicional, nunca normalizados como pontuação.
+- **A-1342-37:** hipóteses alternativas de um owner inequívoco podem
+  carregar o preparo rotulado completo. A verificação exige origem
+  independente do nome e `evidenceIds` para preparo e quantidade;
+  nomes com sufixo sem rótulo não são admitidos. Duplicatas que apenas
+  variam pontuação continuam representando o mesmo owner e são rejeitadas.
+  Para continuidades sem owner (`unbound`), a lista de owners permitidos
+  permanece estrita e a admissão ambígua segue bloqueada.
+- **Regressões no SHA novo:** o teste `semanticConservation1341.evidence.test.ts`
+  exerce quatro versões de `identity.foodName` (simples, parênteses,
+  vírgula e ambos), cada qual com e sem hipótese alternativa, e rejeita
+  preparo sem evidência, duplicata do mesmo owner, preparo sem rótulo
+  e hipótese que incorpora conector/alimento irmão. Cada negativo exige
+  `invalid-evidence`, `structurallyComplete=false` e admissão
+  diagnóstica recusada.
+- **Evidência:** o workflow existente publica
+  `c1b-1341-audit-escape-36-37.json` junto à matriz C1b, com SHA
+  exact-HEAD, resultados positivos/negativos e limites explícitos.
+  Admissão positiva é exclusivamente sintética. Não foram alterados
+  runtime alimentar produtivo, schema, IA, persistência ou gates de CI.
+  CI verde exige reauditoria realmente independente para eventual merge;
+  não comprova conservação semântica produtiva, cutover ou S3.

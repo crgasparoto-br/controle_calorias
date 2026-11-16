@@ -100,8 +100,8 @@ function hasOriginalProvenance(testCase: C1bCase, observation: FoodObservation):
 }
 function ownerMatchesIdentity(foodName: string | null, owner: string | null): boolean {
   if (!foodName || !owner) return false;
-  const name = fold(foodName).replace(/^(?:o|a|um|uma)\s+/u, "");
-  const expected = fold(owner);
+  const name = foldLabelledFoodName(foodName).replace(/^(?:o|a|um|uma)\s+/u, "");
+  const expected = foldLabelledFoodName(owner);
   return name === expected || name.startsWith(expected + " ");
 }
 
@@ -316,10 +316,18 @@ function hasSupportedAlternatives(testCase: C1bCase, observation: FoodObservatio
   const seenOwners = new Set<string>();
   return observation.alternatives.every(alternative => {
     const name = alternative.identityHints.foodName;
-    const owner = fold(name ?? "").replace(/^(?:o|a|um|uma)\s+/u, "");
-    if (!owner || !allowedOwners.some(expected => fold(expected) === owner) ||
-        seenOwners.has(owner)) return false;
-    seenOwners.add(owner);
+    // A resolved owner's authored modifiers may appear in an alternative,
+    // but only if the full name is independently labelled in this occurrence.
+    // Unbound continuations retain the strict list of candidate owners.
+    const owner = allowedOwners.find(expected => fact.kind === "unbound"
+      ? fold(name ?? "").replace(/^(?:o|a|um|uma)\s+/u, "") === fold(expected)
+      : ownerMatchesIdentity(name, expected) &&
+        hasLabelledFullFoodName(testCase, observation, fact, name));
+    if (!owner) return false;
+    // Two surface spellings of one owner are not independent alternatives.
+    const ownerKey = fold(owner);
+    if (seenOwners.has(ownerKey)) return false;
+    seenOwners.add(ownerKey);
     const hints = alternative.quantityHints;
     // An identity-only hypothesis may abstain from a valid primary count,
     // but it cannot cite quantity evidence that contradicts its empty hints.
