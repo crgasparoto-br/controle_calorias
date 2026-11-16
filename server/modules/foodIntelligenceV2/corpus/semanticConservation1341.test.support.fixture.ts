@@ -215,9 +215,54 @@ function hasLabelledEvidence(testCase: C1bCase, observation: FoodObservation,
       .includes(fold(label.surface)));
 }
 
+/** Never infer a food name from a prefix alone. Extra tokens require independent
+ * owner-local labels (brand, variant, preparation, qualifier or negation) covering
+ * the entire source phrase; a connector or sibling food is not a modifier. */
+function hasLabelledFullFoodName(testCase: C1bCase, observation: FoodObservation,
+  fact: C1bFact, name: string | null): boolean {
+  if (fact.owner === null || name === null) return true;
+  const expected = fold(fact.owner).replace(/^(?:o|a|um|uma)\s+/u, "");
+  const asserted = fold(name).replace(/^(?:o|a|um|uma)\s+/u, "");
+  if (asserted === expected) return true;
+  if (!asserted.startsWith(expected + " ")) return false;
+  const scope = factScopeRange(testCase, fact);
+  const observed = spanOf(observation);
+  const owner = ownerRange(testCase, fact, scope);
+  if (owner === null || observed === null || !contains(observed, owner)) return false;
+  const manual = fact.identityClaims;
+  const labels: C1bTextClaim[] = [manual?.brand, manual?.variant,
+    ...(manual?.preparation ?? []), ...(manual?.qualifiers ?? []),
+    ...testCase.facts.filter(reference => reference.kind === "negation" &&
+      reference.owner === fact.owner &&
+      contains(scope, factSourceRange(testCase, reference)))
+      .map(reference => ({ value: reference.surface, surface: reference.surface,
+        surfaceStart: reference.surfaceStart }))]
+    .filter((label): label is C1bTextClaim => label !== undefined);
+  const permitted = [owner, ...labels.map(label => locatedSpan(testCase.text,
+    label.surface, label.surfaceStart)).filter(range =>
+    range[0] >= owner[1] && contains(scope, range) && contains(observed, range))];
+  const limit = Math.min(scope[1], observed[1]);
+  for (let end = owner[1] + 1; end <= limit; end++) {
+    if (fold(testCase.text.slice(owner[0], end)) !== asserted) continue;
+    // Only whitespace can separate independently labelled parts of a name.
+    // In particular, 'e mais' and another food cannot be silently appended.
+    let fullyLabelled = true;
+    for (let index = owner[0]; index < end; index++) {
+      if (/\s/u.test(testCase.text[index])) continue;
+      if (!permitted.some(range => index >= range[0] && index < range[1])) {
+        fullyLabelled = false;
+        break;
+      }
+    }
+    if (fullyLabelled) return true;
+  }
+  return false;
+}
+
 function hasSupportedIdentityAssertions(testCase: C1bCase, observation: FoodObservation,
   fact: C1bFact, identity: FoodObservation["identityHints"],
   evidenceIds: readonly string[] | null): boolean {
+  if (!hasLabelledFullFoodName(testCase, observation, fact, identity.foodName)) return false;
   const manual = fact.identityClaims;
   for (const field of ["brand", "variant", "barcode"] as const) {
     const value = identity[field];

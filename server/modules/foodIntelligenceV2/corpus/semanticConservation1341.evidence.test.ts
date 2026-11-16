@@ -283,6 +283,96 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
   });
 });
 
+/** A-1342-34: a food name must have exact independent material backing,
+ * not merely start with an owner token and borrow the rest of a broad span. */
+describe("#1341 A-1342-34 — exact owner-local food identity", () => {
+  it("refutes concatenated connectors and sibling foods without rejecting labelled names", async () => {
+    const repeated = c1bCases.find(item => item.id === "food-repeated-literal")!;
+    const first = { ...observation(repeated, "ovos", 2, "un", 0, 14),
+      observationId: "c1b-34-first-occurrence" };
+    const second = { ...observation(repeated, "ovos", 2, "un", 14, 20),
+      observationId: "c1b-34-second-occurrence" };
+    const positiveRepeated = inspect(repeated, [first, second]);
+    expect(positiveRepeated).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+
+    const forgedConnector: FoodObservation = { ...first,
+      identityHints: { ...first.identityHints, foodName: "ovos e mais" },
+      evidence: first.evidence.map(item => item.field === "identity.foodName"
+        ? { ...item, value: "ovos e mais", anchor: source(repeated, 2, 13) } : item) };
+    const forgedConnectorObservations = [forgedConnector, second];
+    expect(forgedConnectorObservations.every(item => parseFoodObservation(item).ok)).toBe(true);
+    const connectorResult = inspect(repeated, forgedConnectorObservations);
+    expect(connectorResult.grades[0]).toBe("invalid-evidence");
+    expect(connectorResult.issues).toContain("invalid-evidence");
+    expect(connectorResult.complete).toBe(false);
+    expect(connectorResult.admitted).toBe(false);
+
+    const forgedSibling: FoodObservation = { ...good[0],
+      surfaceSpan: source(simple, 0, simple.text.length),
+      identityHints: { ...good[0].identityHints, foodName: "ovos e 1 banana" },
+      evidence: good[0].evidence.map(item => item.field === "identity.foodName"
+        ? { ...item, value: "ovos e 1 banana", anchor: source(simple, 2, 17) } : item) };
+    const forgedSiblingObservations = [forgedSibling, good[1]];
+    expect(forgedSiblingObservations.every(item => parseFoodObservation(item).ok)).toBe(true);
+    const siblingResult = inspect(simple, forgedSiblingObservations);
+    expect(siblingResult.grades[0]).toBe("invalid-evidence");
+    expect(siblingResult.issues).toContain("invalid-evidence");
+    expect(siblingResult.complete).toBe(false);
+    expect(siblingResult.admitted).toBe(false);
+    expect(inspect(simple, good).admitted).toBe(true);
+
+    const compound = c1bCases.find(item => item.id === "measure-word-food-name")!;
+    const compoundName = "brigadeiro de colher";
+    const compoundObs = observation(compound, compoundName, null, null, 0,
+      compoundName.length);
+    expect(parseFoodObservation(compoundObs).ok).toBe(true);
+    const compoundResult = inspect(compound, [compoundObs]);
+    expect(compoundResult.grades[0]).toBe("structured");
+    expect(compoundResult.admitted).toBe(false); // the coffee ingredient is still unobserved
+
+    const preparedCase: C1bCase = { id: "c1b-34-label-preparation",
+      text: "2 ovos cozidos", modality: "text", split: "calibration",
+      semanticGroup: "c1b-34-preparation", facts: [{
+        kind: "food-quantity", owner: "ovos", scope: "2 ovos cozidos",
+        surface: "2 ovos", ingredient: null, quantity: 2, unit: "un",
+        identityClaims: { preparation: [{ value: "cozidos", surface: "cozidos" }] },
+      }] };
+    const preparedBase = observation(preparedCase, "ovos cozidos", 2, "un", 0,
+      preparedCase.text.length);
+    const prepared: FoodObservation = { ...preparedBase,
+      identityHints: { ...preparedBase.identityHints, preparation: ["cozidos"] },
+      evidence: [...preparedBase.evidence, { ...preparedBase.evidence[0],
+        evidenceId: "c1b-34-preparation-proof", field: "identity.preparation",
+        value: "cozidos", anchor: source(preparedCase, 7, 14) }] };
+    expect(parseFoodObservation(prepared).ok).toBe(true);
+    const labelledResult = inspect(preparedCase, [prepared]);
+    expect(labelledResult).toEqual({ grades: ["structured"], issues: [],
+      complete: true, admitted: true });
+    const unlabelledCase: C1bCase = { ...preparedCase, facts: [
+      { ...preparedCase.facts[0], identityClaims: undefined }] };
+    const unlabelledObs: FoodObservation = { ...preparedBase };
+    expect(parseFoodObservation(unlabelledObs).ok).toBe(true);
+    const unlabelledResult = inspect(unlabelledCase, [unlabelledObs]);
+    expect(unlabelledResult.grades[0]).toBe("invalid-evidence");
+    expect(unlabelledResult.complete).toBe(false);
+    expect(unlabelledResult.admitted).toBe(false);
+
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR, "c1b-1341-audit-escape-34.json"),
+        JSON.stringify({ schemaVersion: 1, issue: 1341, finding: "A-1342-34",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          subject: "diagnostic-oracle-not-public-persistence",
+          positives: { repeated: positiveRepeated, sourceLabelledPreparation: labelledResult,
+            materialFoodName: compoundResult },
+          negatives: { connector: connectorResult, sibling: siblingResult,
+            unlabelledPreparation: unlabelledResult },
+          publicPersistence: "not-measured", productionS3: "not-evaluated" }, null, 2));
+    }
+  });
+});
+
 /** A-1342-32/33: real oracle escape regressions from an independent audit.
  * These controls are contract-shaped, not product persistence assertions. */
 describe("#1341 A-1342-32/33 — empty-S2 provenance and per-hypothesis quantities", () => {

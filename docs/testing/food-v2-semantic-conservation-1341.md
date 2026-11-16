@@ -487,3 +487,33 @@ estrutural; módulos importados pelo runtime continuam sujeitos a todos os gates
   `sampleSha`, positivos, negativos, `invalid-evidence` e resultado da
   admissão simulada. O teste diagnóstico verde não certifica conservação
   produtiva, IA S3, precisão nutricional, persistência pública ou cutover.
+
+## Remediação A-1342-34 — identidade alimentar integral rotulada
+
+- **Escape reproduzido:** a validação anterior aceitava qualquer `identity.foodName`
+  iniciado pelo owner. Em `2 ovos e mais 2 ovos`, a primeira observação podia
+  afirmar `ovos e mais`; em `2 ovos e 1 banana`, podia afirmar `ovos e 1 banana`.
+  Bastava ancorar esse valor no texto amplo para obter `structured` e admissão
+  diagnóstica, embora o nome incorporasse conector ou outro alimento não rotulado.
+- **Contrato de refutação:** `hasSupportedIdentityAssertions` agora exige que o
+  nome inteiro corresponda ao owner independente, ou que todo material adicional
+  esteja contido em rótulos independentes do **mesmo owner e scope**: marca,
+  variante, preparo, qualificadores ou negação. Somente espaços entre os trechos
+  rotulados são tolerados; substring/prefixo ou evidência autoafirmada não
+  tornam uma concatenação válida. Nenhum regex alimentar, alias ou schema
+  produtivo foi adicionado.
+- **Controles adversariais:** `semanticConservation1341.evidence.test.ts`
+  preserva dois positivos com quantidades independentes e rejeita os dois
+  falsos positivos, exigindo `invalid-evidence`, `structurallyComplete=false`
+  e `attemptDiagnosticBatchAdmission.admitted=false`. Positivos distintos
+  asseguram que `brigadeiro de colher` continue como nome integral rotulado,
+  `pudim sem açúcar` preserve sua negação local, e `ovos cozidos` permaneça
+  aceitável apenas com preparo explicitamente rotulado e evidenciado. O
+  controle negativo sem rótulo de preparo também é rejeitado.
+- **Evidência da execução:** com `C3_EVIDENCE_OUTPUT_DIR` definido pelo
+  workflow existente, o teste exporta `c1b-1341-audit-escape-34.json`,
+  contendo `sampleSha` do novo HEAD, positivos, negativos e resultados da
+  admissão simulada. Essa prova é do **oráculo diagnóstico**, não de gravação
+  pública, S3, nutrição ou aprovação da LCL. Verificar o CI no SHA novo e
+  submeter o candidato a auditoria realmente independente antes de encerrar
+  #1341, converter a PR em Ready ou liberar integração.
