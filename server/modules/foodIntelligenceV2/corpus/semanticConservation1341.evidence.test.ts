@@ -907,12 +907,25 @@ describe("#1341 A-1342-41 - distinct additive targets for repeated quantities", 
     // The old oracle accepted them, and reported the same signature.
     const attacks = { reusedTarget: retarget(2, 2),
       reversedTarget: retarget(2, 1), sharedEarlierTarget: retarget(1, 1) };
-    const refuted: Record<string, string> = {};
-    for (const [name, attack] of Object.entries(attacks)) {
-      expect(() => validateC1bReference(attack), name)
-        .toThrow("c1b-reference-increment-target-invalid");
-      refuted[name] = "rejected-invalid-occurrence-binding";
-    }
+    const expectedError = "c1b-reference-increment-target-invalid";
+    const refuted: Record<string, {
+      input: string; incrementClaims: Array<{ sourceStart: number | null;
+        scope: string; targetIndex: number | null }>;
+      expected: string; observed: string; passed: boolean;
+    }> = {};
+    const assertRefuted = (name: string, attack: C1bCase): void => {
+      let observed = "accepted";
+      try { validateC1bReference(attack); }
+      catch (error) { observed = error instanceof Error ? error.message : String(error); }
+      expect(observed, name).toBe(expectedError);
+      refuted[name] = { input: attack.text,
+        incrementClaims: attack.facts.filter(fact => fact.kind === "increment").map(fact => ({
+          sourceStart: fact.surfaceStart ?? null, scope: fact.scope,
+          targetIndex: fact.incrementTargetIndex ?? null,
+        })),
+        expected: expectedError, observed, passed: observed === expectedError };
+    };
+    for (const [name, attack] of Object.entries(attacks)) assertRefuted(name, attack);
     // Four identical food facts and two increments: same value/unit/owner,
     // different valid destinations (second+third versus second+fourth).
     const four = (id: string, text: string, foodOffsets: readonly number[],
@@ -936,9 +949,7 @@ describe("#1341 A-1342-41 - distinct additive targets for repeated quantities", 
     const skippedSibling: C1bCase = { ...adjacent, facts: adjacent.facts.map((fact, index) =>
       index === 5 ? { ...fact, scope: adjacent.text, scopeStart: undefined,
         incrementTargetIndex: 3 } : fact) };
-    expect(() => validateC1bReference(skippedSibling))
-      .toThrow("c1b-reference-increment-target-invalid");
-    refuted.skippedSibling = "rejected-nonadjacent-target";
+    assertRefuted("skippedSibling", skippedSibling);
     const quantities = [0, 14, 28].map((start, i) => ({
       ...observation(repeated, "ovos", 2, "un", start, start + 6),
       observationId: `c1b-41-${i}` }));
@@ -956,8 +967,16 @@ describe("#1341 A-1342-41 - distinct additive targets for repeated quantities", 
           repeatedFacts: repeated.facts, writtenFacts: written.facts,
           equivalentSignature: referenceSignature(repeated) === referenceSignature(written) },
         positive: { broadScopeAccepted: true,
+          equivalentSignatures: { literal: referenceSignature(repeated),
+            written: referenceSignature(written) },
+          differentTargetSignatures: { adjacent: referenceSignature(adjacent),
+            separated: referenceSignature(separated) },
           distinctTargetSignatures: referenceSignature(adjacent) !== referenceSignature(separated) },
-        negatives: refuted, diagnostic,
+        negatives: { plausibleWrongImplementation:
+          "choose any equal-valued food quantity inside broad scope, reusing or skipping targets",
+          procedure: "validateC1bReference over independently labelled increment targets",
+          controls: refuted },
+        diagnostic,
         boundaries: { typedIncrementInFoodObservation: false,
           semanticV2Gate: "not-approved", publicPersistence: "not-measured",
           productionS3: "not-evaluated" },
