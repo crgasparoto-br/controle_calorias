@@ -466,6 +466,7 @@ export function validateC1bReference(testCase: C1bCase): void {
     throw new Error("c1b-reference-incomplete");
   }
   const occurrences = new Set<string>();
+  const assignedIncrementTargets = new Set<number>();
   for (const fact of testCase.facts) {
     const scope = factScopeRange(testCase, fact);
     const source = factSourceRange(testCase, fact);
@@ -503,15 +504,26 @@ export function validateC1bReference(testCase: C1bCase): void {
     if (fact.kind === "increment") {
       const index = fact.incrementTargetIndex;
       const target = index === undefined ? undefined : testCase.facts[index];
+      // Find the next independently labelled food-quantity occurrence within
+      // this operator's scope. Equal owner/value/unit elsewhere in a broad
+      // span must not substitute for the actual right-hand destination.
+      const nextTarget = testCase.facts.flatMap((candidate, candidateIndex) => {
+        if (candidate.kind !== "food-quantity") return [];
+        const range = factSourceRange(testCase, candidate);
+        return range[0] >= source[1] && contains(scope, range)
+          ? [{ index: candidateIndex, start: range[0] }] : [];
+      }).sort((a, b) => a.start - b.start)[0]?.index;
       if (!Number.isSafeInteger(index) || target?.kind !== "food-quantity" ||
           target.owner !== fact.owner || fact.ingredient !== null ||
           fact.quantity !== null || fact.unit !== null ||
           fact.packageClaim !== undefined || fact.identityClaims !== undefined ||
           !contains(scope, factSourceRange(testCase, target)) ||
           source[1] > factSourceRange(testCase, target)[0] ||
-          !contains(scope, ownerRange(testCase, target, scope)!)) {
+          !contains(scope, ownerRange(testCase, target, scope)!) ||
+          nextTarget !== index || assignedIncrementTargets.has(index!)) {
         throw new Error("c1b-reference-increment-target-invalid");
       }
+      assignedIncrementTargets.add(index!);
     } else if (fact.incrementTargetIndex !== undefined) {
       throw new Error("c1b-reference-unexpected-increment-target");
     }
@@ -787,6 +799,15 @@ export function evaluateC1b(testCase: C1bCase, observations: readonly FoodObserv
       observationIssues.length === 0 };
 }
 
+/** Stable within-owner occurrence ordinal, independent of absolute UTF-16
+ * offsets and unrelated food order. Repeated equal amounts remain distinct. */
+function materialOccurrenceOrdinal(testCase: C1bCase, fact: C1bFact): number {
+  const start = factSourceRange(testCase, fact)[0];
+  return testCase.facts.filter(other => other.kind === fact.kind &&
+    fold(other.owner ?? "") === fold(fact.owner ?? "") &&
+    factSourceRange(testCase, other)[0] <= start).length;
+}
+
 /** Only source-independent labels are admissible as metamorphic ground truth. */
 export function referenceSignature(testCase: C1bCase): string {
   validateC1bReference(testCase);
@@ -797,7 +818,9 @@ export function referenceSignature(testCase: C1bCase): string {
     item.kind === "increment" ? (() => {
       const target = testCase.facts[item.incrementTargetIndex!]!;
       return ["increment-target", fold(target.owner ?? ""),
-        String(target.quantity), fold(target.unit ?? "")].join(":");
+        String(target.quantity), fold(target.unit ?? ""),
+        `owner-occurrence-${materialOccurrenceOrdinal(testCase, target)}`,
+        `operator-occurrence-${materialOccurrenceOrdinal(testCase, item)}`].join(":");
     })() : "",
     item.packageClaim ? `${item.packageClaim.quantity}:${fold(item.packageClaim.unit)}` : "",
     item.identityClaims ? JSON.stringify(item.identityClaims) : ""].join("|"))

@@ -229,6 +229,31 @@ export const c1bCases: readonly C1bCase[] = [
     ],
   },
   {
+    // Same owner and the same quantity three times. Each material additive
+    // operator belongs to its immediate right-hand occurrence, not any equal
+    // quantity elsewhere in a broad sentence span.
+    id: "food-repeated-triple-literal", semanticGroup: "eggs2-plus2-plus2",
+    split: "calibration", modality: "text", text: "2 ovos e mais 2 ovos e mais 2 ovos",
+    facts: [
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 2 ovos e mais 2 ovos", surfaceStart: 0 },
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 2 ovos e mais 2 ovos", surfaceStart: 14 },
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 2 ovos e mais 2 ovos", surfaceStart: 28 },
+      { ...increment("mais 2 ovos", 1), scopeStart: 9, surfaceStart: 9 },
+      { ...increment("mais 2 ovos", 2), scopeStart: 23, surfaceStart: 23 },
+    ],
+  },
+  {
+    id: "food-repeated-triple-written", semanticGroup: "eggs2-plus2-plus2",
+    split: "calibration", modality: "text", text: "2 ovos e mais dois ovos e mais 2 ovos",
+    facts: [
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais dois ovos e mais 2 ovos", surfaceStart: 0 },
+      { ...food("ovos", "dois ovos", 2, "un"), scope: "2 ovos e mais dois ovos e mais 2 ovos" },
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais dois ovos e mais 2 ovos", surfaceStart: 31 },
+      { ...increment("mais dois ovos", 1), surfaceStart: 9 },
+      { ...increment("mais 2 ovos", 2), surfaceStart: 26 },
+    ],
+  },
+  {
     // Source contrast: identical amounts without an explicitly authored "mais".
     // This does not assert different nutrition, only different source materiality.
     id: "food-repeated-coordinated", semanticGroup: "eggs2-coordinated-eggs2",

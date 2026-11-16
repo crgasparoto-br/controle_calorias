@@ -665,3 +665,29 @@ V2 nem substitui revisão independente**.
   semantica V2. Apenas os casos de calibracao foram estendidos; holdout
   permaneceu intocado. Nao ha alteracao de parser, schema publico, S3,
   persistencia, workflows, flags ou rulesets.
+
+## Remediação A-1342-41 — identidade de ocorrência do alvo aditivo
+
+- **Contraexemplo independente:** `2 ovos e mais 2 ovos e mais 2 ovos`, com
+  três quantidades iguais e dois operadores `mais`. Uma referência adulterada
+  podia apontar ambos ao terceiro `2 ovos`; o verificador anterior a aceitava
+  e emitia assinatura igual à correta, ocultando uma troca de vínculo.
+- **Regra:** um incremento só pode referenciar a próxima ocorrência rotulada de
+  quantidade alimentar dentro do seu escopo, com correspondência injetiva
+  operador–destino. Referências com alvo existente porém saltado, compartilhado
+  ou em ordem incompatível falham antes de qualquer observação do parser.
+- **Projeção:** a assinatura metamórfica inclui a posição ordinal do operador
+  e do alvo entre ocorrências do mesmo alimento; offsets absolutos UTF-16
+  continuam usados para validar origem, mas não para comparar reformulações
+  equivalentes ou reordenações de alimentos independentes.
+- **Controles:** dois casos de calibração, literal e numeral por extenso, são
+  equivalentes; dois conjuntos válidos de quatro menções com destinos 2+3
+  versus 2+4 precisam ter assinaturas diferentes; mutantes de reutilização,
+  salto e inversão de alvos são rejeitados. Três observações estruturadas de
+  quantidade sem prova aditiva permanecem com dois `silent-omission`, lote
+  diagnóstico incompleto e admissão `false`.
+- **Evidência:** o teste `semanticConservation1341.evidence.test.ts` publica
+  `c1b-1341-audit-escape-41.json` no artefato do CI exact-SHA existente.
+  Todos os controles pertencem ao split de calibração. Holdout, parser,
+  contrato público, nutrição, S3, persistência, workflows e rulesets não
+  mudaram. O CI verde do experimento não aprova a LCL para cutover.

@@ -883,3 +883,85 @@ describe("#1341 A-1342-40 - independent increment provenance", () => {
     }
   });
 });
+
+/** A-1342-41: additive relation must bind to the occurrence, not just its value. */
+describe("#1341 A-1342-41 - distinct additive targets for repeated quantities", () => {
+  it("rejects equal-valued target reuse and preserves occurrence-sensitive metamorphics", async () => {
+    const repeated = c1bCases.find(c => c.id === "food-repeated-triple-literal")!;
+    const written = c1bCases.find(c => c.id === "food-repeated-triple-written")!;
+    expect(() => validateC1bReference(repeated)).not.toThrow();
+    expect(() => validateC1bReference(written)).not.toThrow();
+    expect(referenceSignature(repeated)).toBe(referenceSignature(written));
+    // A deliberately broad authored scope is valid, but must not allow the
+    // first "mais" to jump over the second occurrence onto the third one.
+    const wide: C1bCase = { ...repeated, facts: repeated.facts.map(fact =>
+      fact.kind === "increment" ? { ...fact, scope: repeated.text,
+        scopeStart: undefined } : fact) };
+    expect(() => validateC1bReference(wide)).not.toThrow();
+    expect(referenceSignature(wide)).toBe(referenceSignature(repeated));
+    const retarget = (firstTarget: number, secondTarget: number): C1bCase => ({
+      ...wide, facts: wide.facts.map((fact, index) => fact.kind === "increment"
+        ? { ...fact, incrementTargetIndex: index === 3 ? firstTarget : secondTarget } : fact),
+    });
+    // Both references point to existing, identically valued food facts.
+    // The old oracle accepted them, and reported the same signature.
+    const attacks = { reusedTarget: retarget(2, 2),
+      reversedTarget: retarget(2, 1), sharedEarlierTarget: retarget(1, 1) };
+    const refuted: Record<string, string> = {};
+    for (const [name, attack] of Object.entries(attacks)) {
+      expect(() => validateC1bReference(attack), name)
+        .toThrow("c1b-reference-increment-target-invalid");
+      refuted[name] = "rejected-invalid-occurrence-binding";
+    }
+    // Four identical food facts and two increments: same value/unit/owner,
+    // different valid destinations (second+third versus second+fourth).
+    const four = (id: string, text: string, foodOffsets: readonly number[],
+      incrementOffsets: readonly number[], targets: readonly number[]): C1bCase => ({
+      ...repeated, id, text, facts: [
+        ...foodOffsets.map(offset => ({ ...repeated.facts[0], scope: text, surfaceStart: offset })),
+        ...incrementOffsets.map((offset, index) => ({ ...repeated.facts[3],
+          scope: "mais 2 ovos", scopeStart: offset, surfaceStart: offset,
+          incrementTargetIndex: targets[index] })),
+      ],
+    });
+    const adjacent = four("add-to-2-and-3", "2 ovos e mais 2 ovos e mais 2 ovos e 2 ovos",
+      [0, 14, 28, 37], [9, 23], [1, 2]);
+    const separated = four("add-to-2-and-4", "2 ovos e mais 2 ovos e 2 ovos e mais 2 ovos",
+      [0, 14, 23, 37], [9, 32], [1, 3]);
+    expect(() => validateC1bReference(adjacent)).not.toThrow();
+    expect(() => validateC1bReference(separated)).not.toThrow();
+    expect(referenceSignature(adjacent)).not.toBe(referenceSignature(separated));
+    // With a broad source clause, a *valid* later target used to evade the
+    // original validator even though an intervening food occurrence exists.
+    const skippedSibling: C1bCase = { ...adjacent, facts: adjacent.facts.map((fact, index) =>
+      index === 5 ? { ...fact, scope: adjacent.text, scopeStart: undefined,
+        incrementTargetIndex: 3 } : fact) };
+    expect(() => validateC1bReference(skippedSibling))
+      .toThrow("c1b-reference-increment-target-invalid");
+    refuted.skippedSibling = "rejected-nonadjacent-target";
+    const quantities = [0, 14, 28].map((start, i) => ({
+      ...observation(repeated, "ovos", 2, "un", start, start + 6),
+      observationId: `c1b-41-${i}` }));
+    expect(quantities.every(o => parseFoodObservation(o).ok)).toBe(true);
+    const diagnostic = inspect(repeated, quantities);
+    expect(diagnostic).toEqual({ grades: ["structured", "structured", "structured",
+      "silent-omission", "silent-omission"], issues: [], complete: false, admitted: false });
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-audit-escape-41.json"), JSON.stringify({
+        schemaVersion: 1, issue: 1341, finding: "A-1342-41",
+        sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+        reference: { literalCaseId: repeated.id, writtenCaseId: written.id,
+          repeatedFacts: repeated.facts, writtenFacts: written.facts,
+          equivalentSignature: referenceSignature(repeated) === referenceSignature(written) },
+        positive: { broadScopeAccepted: true,
+          distinctTargetSignatures: referenceSignature(adjacent) !== referenceSignature(separated) },
+        negatives: refuted, diagnostic,
+        boundaries: { typedIncrementInFoodObservation: false,
+          semanticV2Gate: "not-approved", publicPersistence: "not-measured",
+          productionS3: "not-evaluated" },
+      }, null, 2));
+    }
+  });
+});
