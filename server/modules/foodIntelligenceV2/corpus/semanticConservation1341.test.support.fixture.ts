@@ -679,6 +679,10 @@ export function evaluateC1b(testCase: C1bCase, observations: readonly FoodObserv
           !hasMaterialEvidence(testCase, observation, fact)) return [];
       if (fact.kind === "food-mention") return [`mention:${observationIndex}`];
       if (fact.kind !== "negation") return [];
+      // The canonical FoodObservation schema forbids repeated qualifier values.
+      // A schema-invalid duplicate must not become an extra material claim.
+      const values = observation.identityHints.qualifiers.map(item => fold(item.value));
+      if (new Set(values).size !== values.length) return [];
       return observation.identityHints.qualifiers.flatMap((qualifier, qualifierIndex) => {
         if (qualifier.role !== "sweetening" ||
             fold(qualifier.value) !== fold(fact.surface)) return [];

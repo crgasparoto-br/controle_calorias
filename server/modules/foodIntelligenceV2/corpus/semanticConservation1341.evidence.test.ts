@@ -790,18 +790,19 @@ describe("#1341 A-1342-39 — repeated non-quantity material", () => {
     const negationPositive = inspect(negations, [negationFirst, negationSecond]);
     expect(negationPositive).toEqual({ grades: ["structured", "structured"],
       issues: [], complete: true, admitted: true });
-    // The same source-spanning observation is permitted only when TWO qualifier
-    // instances have TWO distinct, occurrence-specific evidence anchors.
-    const twoClaims: FoodObservation = { ...negationBroad,
+    // Two identical qualifier slots violate the canonical schema even with
+    // separate evidence. The diagnostic must refuse this schema-shaped bypass.
+    const duplicateClaims: FoodObservation = { ...negationBroad,
       identityHints: { ...negationBroad.identityHints, qualifiers: [qualifier, qualifier] },
       evidence: [negationBroad.evidence[0], negationFirst.evidence[1],
         negationSecond.evidence[1]] };
-    const twoClaimsPositive = inspect(negations, [twoClaims]);
-    expect(twoClaimsPositive).toEqual({ grades: ["structured", "structured"],
-      issues: [], complete: true, admitted: true });
+    const duplicatedWithSeparateEvidence = inspect(negations, [duplicateClaims]);
+    expect(duplicatedWithSeparateEvidence.complete).toBe(false);
+    expect(duplicatedWithSeparateEvidence.admitted).toBe(false);
+    expect(parseFoodObservation(duplicateClaims).ok).toBe(false);
 
     const shaped = [mentionBroad, mentionFirst, mentionSecond, negationBroad,
-      negationFirst, negationSecond, twoClaims];
+      negationFirst, negationSecond];
     expect(shaped.every(obs => parseFoodObservation(obs).ok)).toBe(true);
     if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
       await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
@@ -812,9 +813,9 @@ describe("#1341 A-1342-39 — repeated non-quantity material", () => {
           subject: "diagnostic-oracle-not-public-persistence",
           sourceFacts: { mentions: mentions.facts, negations: negations.facts },
           positives: { independentlyObservedMentions: mentionPositive,
-            independentlyObservedNegations: negationPositive,
-            twoDistinctNegationsInOneEnvelope: twoClaimsPositive },
-          negatives: { mentions: mentionNegatives, negations: negationNegatives },
+            independentlyObservedNegations: negationPositive },
+          negatives: { mentions: mentionNegatives, negations: negationNegatives,
+            duplicateQualifierDespiteSeparateEvidence: duplicatedWithSeparateEvidence },
           publicPersistence: "not-measured", productionS3: "not-evaluated",
         }, null, 2));
     }

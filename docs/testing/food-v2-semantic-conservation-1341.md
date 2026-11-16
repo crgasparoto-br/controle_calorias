@@ -617,9 +617,10 @@ V2 nem substitui revisão independente**.
   de outro parser.
 - **Compatibilidade:** a observação que representa `um pudim sem açúcar`
   continua podendo conservar a quantidade e a negação do mesmo alimento,
-  porque são *tipos diferentes de afirmação*. Duas negações em uma observação
-  também são permitidas quando há dois qualificadores e evidências de origem
-  distintas, ancoradas separadamente, sem duplicar fatos.
+  porque são *tipos diferentes de afirmação*. Duas negações idênticas não
+  podem ser representadas pela repetição de um qualificador na mesma observação:
+  o próprio schema canônico rejeita duplicatas. Devem ser observadas e
+  evidenciadas como ocorrências independentes.
 - **Controles:** `semanticConservation1341.evidence.test.ts` exercita os dois
   negativos originais, repetição de evidência ou qualificador, ausência da
   segunda observação e positivos com cobertura independente. O teste escreve
