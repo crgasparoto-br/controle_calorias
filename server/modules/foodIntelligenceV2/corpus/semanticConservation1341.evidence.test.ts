@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { parseFoodObservation, type FoodObservation } from "../schemas";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
 import { c1bCases } from "./semanticConservation1341.test.fixture";
-import { attemptDiagnosticBatchAdmission, evaluateC1b } from "./semanticConservation1341.test.support.fixture";
+import { attemptDiagnosticBatchAdmission, evaluateC1b, referenceSignature, validateC1bReference } from "./semanticConservation1341.test.support.fixture";
 
 type Evidence = FoodObservation["evidence"][number];
 const simple = c1bCases.find(item => item.id === "food-count-simple")!;
@@ -189,8 +189,8 @@ describe("#1341 A-1342-27 — reversible material evidence and source authority"
       quantityHints: { ...right.quantityHints, servingText: "2" } };
     expect([first, second].every(item => parseFoodObservation(item).ok)).toBe(true);
     const validPortions = inspect(repeated, [first, second]);
-    expect(validPortions).toEqual({ grades: ["structured", "structured"],
-      issues: [], complete: true, admitted: true });
+    expect(validPortions).toEqual({ grades: ["structured", "structured", "misbound"],
+      issues: [], complete: false, admitted: false });
     const connector = { ...first, quantityHints: { ...first.quantityHints,
       servingText: "e mais" } };
     const connectorResult = inspect(repeated, [connector, second]);
@@ -293,8 +293,8 @@ describe("#1341 A-1342-34 — exact owner-local food identity", () => {
     const second = { ...observation(repeated, "ovos", 2, "un", 14, 20),
       observationId: "c1b-34-second-occurrence" };
     const positiveRepeated = inspect(repeated, [first, second]);
-    expect(positiveRepeated).toEqual({ grades: ["structured", "structured"],
-      issues: [], complete: true, admitted: true });
+    expect(positiveRepeated).toEqual({ grades: ["structured", "structured", "misbound"],
+      issues: [], complete: false, admitted: false });
 
     const forgedConnector: FoodObservation = { ...first,
       identityHints: { ...first.identityHints, foodName: "ovos e mais" },
@@ -650,8 +650,8 @@ describe("#1341 A-1342-38 — source-labelled identity evidence", () => {
     const second: FoodObservation = { ...observation(repeated, "ovos", 2, "un", 14, 20),
       observationId: "c1b-38-second-occurrence" };
     const positiveRepeated = inspect(repeated, [first, second]);
-    expect(positiveRepeated).toEqual({ grades: ["structured", "structured"],
-      issues: [], complete: true, admitted: true });
+    expect(positiveRepeated).toEqual({ grades: ["structured", "structured", "misbound"],
+      issues: [], complete: false, admitted: false });
     // The actual foodName and count remain valid; only the evidence.value
     // claims new, non-labelled words within the original source span.
     const forged = [
@@ -817,6 +817,68 @@ describe("#1341 A-1342-39 — repeated non-quantity material", () => {
           negatives: { mentions: mentionNegatives, negations: negationNegatives,
             duplicateQualifierDespiteSeparateEvidence: duplicatedWithSeparateEvidence },
           publicPersistence: "not-measured", productionS3: "not-evaluated",
+        }, null, 2));
+    }
+  });
+});
+
+
+/** A-1342-40: an additive operator is separate material evidence, not a quantity. */
+describe("#1341 A-1342-40 - independent increment provenance", () => {
+  it("refutes quantity-only closure, untyped source spans and malformed targets", async () => {
+    const plus = c1bCases.find(c => c.id === "food-repeated-literal")!;
+    const plain = c1bCases.find(c => c.id === "food-repeated-coordinated")!;
+    const first = observation(plus, "ovos", 2, "un", 0, 6);
+    const second = { ...observation(plus, "ovos", 2, "un", 14, 20),
+      observationId: "c1b-40-second" };
+    const omission = inspect(plus, [first, second]);
+    expect(omission).toEqual({ grades: ["structured", "structured", "silent-omission"],
+      issues: [], complete: false, admitted: false });
+    const broad: FoodObservation = { ...observation(plus, "ovos", 2, "un", 9, 20),
+      observationId: "c1b-40-broad" };
+    const unsupported = inspect(plus, [first, broad]);
+    expect(unsupported.grades[2]).toBe("increment-unproven");
+    expect(unsupported.complete).toBe(false);
+    expect(unsupported.admitted).toBe(false);
+    const pending: FoodObservation = { ...broad, unresolvedReason: "unknown_surface" };
+    const pendingResult = inspect(plus, [first, pending]);
+    expect(pendingResult.grades).toEqual(["structured", "structured", "traceable-unresolved"]);
+    expect(pendingResult.complete).toBe(false);
+    expect(pendingResult.admitted).toBe(false);
+    expect([first, second, broad, pending].every(o => parseFoodObservation(o).ok)).toBe(true);
+    const left = observation(plain, "ovos", 2, "un", 0, 6);
+    const right: FoodObservation = { ...observation(plain, "ovos", 2, "un", 9, 15),
+      observationId: "c1b-40-plain-second" };
+    const control = inspect(plain, [left, right]);
+    expect(control).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+    expect(referenceSignature(plus)).not.toBe(referenceSignature(plain));
+    const siblings = ["food-repeated-equal", "food-repeated-distinct"].map(id => {
+      const c = c1bCases.find(item => item.id === id)!;
+      expect(() => validateC1bReference(c)).not.toThrow();
+      expect(c.facts[2].kind).toBe("increment");
+      return { id, grade: evaluateC1b(c, []).results[2].grade };
+    });
+    expect(siblings.every(item => item.grade === "silent-omission")).toBe(true);
+    for (const target of [undefined, 0]) {
+      const corrupted: C1bCase = { ...plus, facts: plus.facts.map(fact =>
+        fact.kind === "increment" ? { ...fact, incrementTargetIndex: target } : fact) };
+      expect(() => validateC1bReference(corrupted))
+        .toThrow("c1b-reference-increment-target-invalid");
+    }
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-audit-escape-40.json"), JSON.stringify({
+          schemaVersion: 1, issue: 1341, finding: "A-1342-40",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          reference: { withIncrement: plus.facts, withoutIncrement: plain.facts,
+            signaturesDifferent: referenceSignature(plus) !== referenceSignature(plain) },
+          negatives: { omission, unsupported, pendingResult, siblings, invalidTargetIndices: [null, 0] },
+          positive: { control },
+          boundaries: { typedIncrementInFoodObservation: false,
+            semanticV2Gate: "not-approved", publicPersistence: "not-measured",
+            nutritionalAccuracy: "not-measured", productionS3: "not-evaluated" },
         }, null, 2));
     }
   });

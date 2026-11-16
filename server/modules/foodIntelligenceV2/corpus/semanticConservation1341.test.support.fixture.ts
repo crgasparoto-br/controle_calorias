@@ -14,6 +14,7 @@ export type C1bGrade =
   | "owner-alternatives-missing" | "unbound-as-food" | "misbound"
   | "unbound-quantity-unobserved" | "unbound-quantity-mismatch"
   | "shared-quantity-observation" | "shared-material-observation"
+  | "increment-unproven"
   | "silent-omission" | "invalid-provenance" | "invalid-evidence" | "false-closed";
 export type C1bResult = {
   caseId: string;
@@ -25,7 +26,8 @@ export type C1bResult = {
   expected: { owner: string | null; ownerAlternatives: readonly string[]; requiresAbstention: boolean;
     ingredient: string | null; quantity: number | null; unit: string | null; uncertaintyReason: string | null;
     packageClaim: { quantity: number; unit: string; sourceRange: [number, number] } | null;
-    identityClaims: C1bFact["identityClaims"] | null };
+    identityClaims: C1bFact["identityClaims"] | null;
+    incrementTargetIndex: number | null };
   observed: { foodNames: (string | null)[]; quantityHints: FoodObservation["quantityHints"][];
     unresolvedReasons: (string | null)[]; alternativeOwnerNames: string[]; abstained: boolean;
     sourceRefs: string[]; evidenceSourceRefs: string[]; normalizationSourceRefs: string[] };
@@ -498,6 +500,21 @@ export function validateC1bReference(testCase: C1bCase): void {
     if (occurrences.has(occurrenceKey)) throw new Error("c1b-reference-duplicate-fact-occurrence");
     occurrences.add(occurrenceKey);
     ownerRange(testCase, fact, scope);
+    if (fact.kind === "increment") {
+      const index = fact.incrementTargetIndex;
+      const target = index === undefined ? undefined : testCase.facts[index];
+      if (!Number.isSafeInteger(index) || target?.kind !== "food-quantity" ||
+          target.owner !== fact.owner || fact.ingredient !== null ||
+          fact.quantity !== null || fact.unit !== null ||
+          fact.packageClaim !== undefined || fact.identityClaims !== undefined ||
+          !contains(scope, factSourceRange(testCase, target)) ||
+          source[1] > factSourceRange(testCase, target)[0] ||
+          !contains(scope, ownerRange(testCase, target, scope)!)) {
+        throw new Error("c1b-reference-increment-target-invalid");
+      }
+    } else if (fact.incrementTargetIndex !== undefined) {
+      throw new Error("c1b-reference-unexpected-increment-target");
+    }
     if (fact.kind === "unbound") {
       const alternatives = fact.ownerAlternatives ?? [];
       if (!fact.requiresAbstention || !fact.uncertaintyReason || alternatives.length < 2 ||
@@ -570,6 +587,17 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
         ? "ingredient-quantity-unobserved"
         : attached.some(obs => equalQuantity(obs, fact))
           ? "missing-component-binding" : "ingredient-quantity-mismatch";
+  } else if (fact.kind === "increment") {
+    const target = testCase.facts[fact.incrementTargetIndex!]!;
+    const targetRange = factSourceRange(testCase, target);
+    // FoodObservation has no typed additive relation. Text alone cannot close
+    // an increment. Only an explicit unresolved state anchored to this source
+    // can count as a traceable pending relation; never as "structured".
+    const pending = attached.some(obs => obs.unresolvedReason !== null &&
+      contains(spanOf(obs)!, targetRange) &&
+      obs.normalizationPath.some(step => step.anchor.span !== null &&
+        contains([step.anchor.span.start, step.anchor.span.end], sourceRange)));
+    grade = pending ? "traceable-unresolved" : "increment-unproven";
   } else if (fact.kind === "food-mention") {
     const found = attached.some(obs => {
       const name = fold(obs.identityHints.foodName ?? "").replace(/^(?:o|a|um|uma)\s+/u, "");
@@ -620,7 +648,8 @@ function inspectFact(testCase: C1bCase, fact: C1bFact, factIndex: number,
         unit: fact.packageClaim.unit,
         sourceRange: locatedSpan(testCase.text, fact.packageClaim.surface,
           fact.packageClaim.surfaceStart) } : null,
-      identityClaims: fact.identityClaims ?? null },
+      identityClaims: fact.identityClaims ?? null,
+       incrementTargetIndex: fact.incrementTargetIndex ?? null },
     observed: { foodNames: attached.map(obs => obs.identityHints.foodName),
       quantityHints: attached.map(obs => ({ ...obs.quantityHints })),
       unresolvedReasons: attached.map(obs => obs.unresolvedReason),
@@ -765,6 +794,11 @@ export function referenceSignature(testCase: C1bCase): string {
     fold(item.ingredient ?? ""), item.quantity === null ? "?" : String(item.quantity),
     fold(item.unit ?? ""), (item.ownerAlternatives ?? []).map(fold).sort().join(","),
     fold(item.uncertaintyReason ?? ""), item.requiresAbstention ? "abstain" : "",
+    item.kind === "increment" ? (() => {
+      const target = testCase.facts[item.incrementTargetIndex!]!;
+      return ["increment-target", fold(target.owner ?? ""),
+        String(target.quantity), fold(target.unit ?? "")].join(":");
+    })() : "",
     item.packageClaim ? `${item.packageClaim.quantity}:${fold(item.packageClaim.unit)}` : "",
     item.identityClaims ? JSON.stringify(item.identityClaims) : ""].join("|"))
     .sort().join(";");
@@ -777,6 +811,7 @@ export function summarizeC1b(reports: readonly C1bCaseReport[]) {
     "owner-alternatives-missing": 0, "unbound-as-food": 0, misbound: 0,
     "unbound-quantity-unobserved": 0, "unbound-quantity-mismatch": 0,
     "shared-quantity-observation": 0, "shared-material-observation": 0,
+    "increment-unproven": 0,
     "silent-omission": 0, "invalid-provenance": 0, "invalid-evidence": 0, "false-closed": 0,
   };
   const observationIssues: Record<C1bObservationIssue["grade"], number> = {

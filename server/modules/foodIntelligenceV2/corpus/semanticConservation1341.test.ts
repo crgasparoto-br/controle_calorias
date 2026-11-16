@@ -180,6 +180,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     // Controls are not superficial equivalents: changing a unit/owner/quantity
     // must change the independent reference even if a parser collapses outputs.
     expect(groups.get("eggs2-plus-eggs2")).not.toBe(groups.get("eggs2-plus-eggs3"));
+    expect(groups.get("eggs2-plus-eggs2")).not.toBe(groups.get("eggs2-coordinated-eggs2"));
     expect(groups.get("coffee1-pudding2spoons")).not.toBe(groups.get("coffee1-pudding2g"));
     expect(groups.get("coffee1-pudding2spoons")).not.toBe(groups.get("coffee1-pudding2-plus-unbound"));
     const corrupted: C1bCase = { ...cases[0], facts: [
@@ -197,7 +198,12 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       .toThrow("c1b-reference-ambiguous-owners-incomplete");
     const repeatedLiteral = cases.find(c => c.id === "food-repeated-literal")!;
     expect(repeatedLiteral.facts.map(fact => factSourceRange(repeatedLiteral, fact)))
-      .toEqual([[0, 6], [14, 20]]);
+      .toEqual([[0, 6], [14, 20], [9, 13]]);
+    const invalidIncrement: C1bCase = { ...repeatedLiteral, facts:
+      repeatedLiteral.facts.map(fact => fact.kind === "increment"
+        ? { ...fact, incrementTargetIndex: 0 } : fact) };
+    expect(() => validateC1bReference(invalidIncrement))
+      .toThrow("c1b-reference-increment-target-invalid");
     const replaceSecond = (fact: C1bCase["facts"][number]): C1bCase => ({
       ...repeatedLiteral, facts: [repeatedLiteral.facts[0], fact],
     });
@@ -276,6 +282,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       ["coffee1-pudding2spoons","coffee1-pudding-zero"],
       ["coffee1-pudding2spoons","coffee1-pudding2-plus-unbound"],
       ["eggs2-banana1","bread1-milk200"],
+      ["eggs2-plus-eggs2", "eggs2-coordinated-eggs2"],
     ] as const;
     const negativeControls=contrasts.map(([left,right])=>{
       const a=groups.get(left)!, b=groups.get(right)!;
@@ -421,17 +428,19 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     ];
     expect(independentRepeated.every(obs => parseFoodObservation(obs).ok)).toBe(true);
     const independentReport = evaluateC1b(repeated, independentRepeated);
-    expect(independentReport.results.map(fact => fact.grade)).toEqual(["structured", "structured"]);
+    expect(independentReport.results.map(fact => fact.grade))
+      .toEqual(["structured", "structured", "silent-omission"]);
     expect(independentReport.observationIssues).toEqual([]);
-    expect(independentReport.structurallyComplete).toBe(true);
+    expect(independentReport.structurallyComplete).toBe(false);
     const independentAttempt = attemptDiagnosticBatchAdmission(repeated, independentRepeated,
       independentRepeated.map(obs => obs.observationId));
-    expect(independentAttempt.admitted).toBe(true);
+    expect(independentAttempt.admitted).toBe(false);
 
     // A-1342-20: two EXACTLY equal literals must preserve distinct authored
     // UTF-16 occurrences, without guessing which occurrence the parser meant.
     const repeatedLiteral = cases.find(c => c.id === "food-repeated-literal")!;
-    const [firstLiteral, secondLiteral] = repeatedLiteral.facts.map(fact => {
+    const [firstLiteral, secondLiteral] = repeatedLiteral.facts
+      .filter(fact => fact.kind === "food-quantity").map(fact => {
       const [start, end] = factSourceRange(repeatedLiteral, fact);
       return { start, end };
     });
@@ -445,16 +454,18 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     const literalPositiveAttempt = attemptDiagnosticBatchAdmission(repeatedLiteral,
       literalIndependent, literalIndependent.map(obs => obs.observationId));
     expect(literalPositive.results.map(fact => fact.sourceRange))
-      .toEqual([[0, 6], [14, 20]]);
-    expect(literalPositive.results.map(fact => fact.grade)).toEqual(["structured", "structured"]);
+      .toEqual([[0, 6], [14, 20], [9, 13]]);
+    expect(literalPositive.results.map(fact => fact.grade))
+      .toEqual(["structured", "structured", "silent-omission"]);
     expect(literalPositive.observationIssues).toEqual([]);
-    expect(literalPositive.structurallyComplete).toBe(true);
-    expect(literalPositiveAttempt.admitted).toBe(true);
+    expect(literalPositive.structurallyComplete).toBe(false);
+    expect(literalPositiveAttempt.admitted).toBe(false);
     // A-1342-23: a serving phrase from the second identical occurrence must
     // not prove the first, even when both share the same authored scope.
     const firstOwnServing = { ...literalFirst, quantityHints: {
       ...literalFirst.quantityHints, servingText: "2 ovos" } };
-    expect(evaluateC1b(repeatedLiteral, [firstOwnServing, literalSecond]).structurallyComplete).toBe(true);
+    expect(evaluateC1b(repeatedLiteral, [firstOwnServing, literalSecond])
+      .results.slice(0, 2).map(item => item.grade)).toEqual(["structured", "structured"]);
     const firstBorrowingSecond = { ...literalFirst, quantityHints: {
       ...literalFirst.quantityHints, servingText: "mais 2 ovos" } };
     const borrowedInputs = [firstBorrowingSecond, literalSecond];
@@ -467,7 +478,7 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     expect(borrowedServingAdmission.admitted).toBe(false);
     const literalOmitted = evaluateC1b(repeatedLiteral, [literalFirst]);
     expect(literalOmitted.results.map(fact => fact.grade))
-      .toEqual(["structured", "silent-omission"]);
+      .toEqual(["structured", "silent-omission", "silent-omission"]);
     expect(attemptDiagnosticBatchAdmission(repeatedLiteral, [literalFirst],
       [literalFirst.observationId]).admitted).toBe(false);
     // Even separate proof anchors for both occurrences cannot turn ONE
@@ -501,7 +512,8 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       anchoredDiagnosticObservation(eggsTemplate, distinct, "c1b-distinct-second",
         occurrenceSpan(distinct.text, "3 ovos"), 3),
     ];
-    expect(evaluateC1b(distinct, independentDistinct).structurallyComplete).toBe(true);
+    expect(evaluateC1b(distinct, independentDistinct).results.map(item => item.grade))
+      .toEqual(["structured", "structured", "silent-omission"]);
 
     // A-1342-18: preserve owner ambiguity, but do not hide wrong/missing
     // numerical content behind a generic traceable-unresolved grade.
@@ -597,9 +609,14 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
       sameOwnerRepeated: { caseId: repeated.id, expected: "shared-quantity-observation",
         grades: sharedQuantity.results.map(fact => fact.grade),
         structurallyComplete: sharedQuantity.structurallyComplete, admitted: sharedAttempt.admitted,
+        twoIndependentQuantityFactsStructured: independentReport.results.slice(0, 2)
+          .every(fact => fact.grade === "structured"),
+        incrementGrade: independentReport.results[2].grade,
         twoIndependentObservationsComplete: independentReport.structurallyComplete,
         twoIndependentObservationsAdmitted: independentAttempt.admitted },
       sameOwnerDifferent: { caseId: distinct.id, incomplete: !distinctReport.structurallyComplete,
+        twoIndependentQuantityFactsStructured: evaluateC1b(distinct, independentDistinct)
+          .results.slice(0, 2).every(item => item.grade === "structured"),
         twoIndependentObservationsComplete: evaluateC1b(distinct, independentDistinct).structurallyComplete },
       ambiguousQuantity: { caseId: gramCase.id, baseline: continuationFact(labelledContinuation),
         wrongValue: continuationFact(wrongQuantity), wrongUnit: continuationFact(wrongUnit),

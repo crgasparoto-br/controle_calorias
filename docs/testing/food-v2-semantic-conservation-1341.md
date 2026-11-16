@@ -631,3 +631,37 @@ V2 nem substitui revisão independente**.
   persistência, S3, entrypoints ou CI. A matriz é um diagnóstico da LCL,
   não um gate semântico de produção aprovado; a auditoria independente do
   novo HEAD permanece necessária antes de Ready, merge ou encerramento #1341.
+
+## Remediacao A-1342-40 - incremento material independente
+
+- **Falha anterior:** os controles sinteticos `2 ovos e mais dois ovos`,
+  `2 ovos e mais 2 ovos` e `2 ovos e mais 3 ovos` comprovavam duas medidas,
+  mas admitiam o lote sem uma referencia ou prova separada do operador
+  material `mais`. O texto em `rawInput` por si so nao demonstra a relacao.
+- **Oraculo autoral:** a classe `increment` tem span UTF-16 proprio de `mais`,
+  scope da segunda ocorrencia e `incrementTargetIndex` apontando para o fato
+  independente de quantidade a que o acrescimo se refere. A referencia e
+  validada antes de executar o parser. A assinatura metamorfica inclui a
+  relacao e seu alvo (owner/valor/unidade), nao apenas as duas quantidades.
+- **Classificacao fail-closed:** sem observacao da origem, `silent-omission`;
+  com span amplo mas sem pendencia sustentada, `increment-unproven`; com span
+  e caminho S1 incluindo a origem do operador, o alvo e
+  `unresolvedReason` nao nulo, `traceable-unresolved` (nunca `structured`).
+  Mesmo a pendencia correta bloqueia `structurallyComplete` e a admissao
+  simulada. O contrato produtivo `FoodObservation` nao representa relacao
+  aditiva tipada; nenhuma evidencia textual e promovida a vinculo aprovado.
+- **Controles independentes:** duas quantidades com o mesmo alimento e
+  sem `mais` (`2 ovos e 2 ovos`) permanecem `structured` e admissiveis
+  somente no simulador. O par com `mais` e uma referencia materialmente
+  diferente (sem inferir diferenca de macros); falsos positivos com operador
+  omitido, apenas capturado no span, ou resolvido sem prova sao rejeitados.
+  Testes irmaos cobrem quantidade igual escrita por extenso e quantidade
+  distinta, alem de referencia malformada/target errado.
+- **Prova CI:** `semanticConservation1341.evidence.test.ts` exporta
+  `c1b-1341-audit-escape-40.json` no artifact existente
+  `food-v2-c3-calibration-<HEAD>`, incluindo resultados por controle,
+  `sampleSha` e limites. A matriz principal passa a contar a relacao como
+  fato adicional, mas mantem teste diagnostico verde diferente de aprovacao
+  semantica V2. Apenas os casos de calibracao foram estendidos; holdout
+  permaneceu intocado. Nao ha alteracao de parser, schema publico, S3,
+  persistencia, workflows, flags ou rulesets.

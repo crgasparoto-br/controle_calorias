@@ -3,7 +3,7 @@
  * These are expected facts, never parser outputs or nutritional truth claims.
  * Holdout examples must not be supplied to S2 aliases or S3 prompts.
  */
-export type C1bFactKind = "food-quantity" | "food-mention" | "ingredient-quantity" | "negation" | "unbound";
+export type C1bFactKind = "food-quantity" | "food-mention" | "ingredient-quantity" | "negation" | "unbound" | "increment";
 /** A source-labelled package claim is metadata, never a consumed portion. */
 export type C1bPackageClaim = {
   surface: string;
@@ -40,6 +40,8 @@ export type C1bFact = {
   ingredient: string | null;
   quantity: number | null;
   unit: string | null;
+  /** For an increment, the independently labelled right-hand quantity occurrence. */
+  incrementTargetIndex?: number;
   /** Only set when packaging is independently labelled in the raw input. */
   packageClaim?: C1bPackageClaim;
   /** Only explicitly labelled fields can count as source-backed identity. */
@@ -65,6 +67,10 @@ const foodMention = (name: string): C1bFact =>
 const without = (owner: string, scope: string): C1bFact =>
   ({ kind: "negation", owner, scope, surface: "sem açúcar", ingredient: "açúcar",
     quantity: null, unit: null });
+const increment = (scope: string, targetIndex: number): C1bFact => ({
+  kind: "increment", owner: "ovos", scope, surface: "mais",
+  ingredient: null, quantity: null, unit: null, incrementTargetIndex: targetIndex,
+});
 const unbound = (scope: string, surface: string, quantity: number | null = null,
   unit: string | null = null): C1bFact =>
   ({ kind: "unbound", owner: null, scope, surface, ingredient: "açúcar", quantity, unit,
@@ -199,6 +205,7 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [
       { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais dois ovos" },
       { ...food("ovos", "dois ovos", 2, "un"), scope: "2 ovos e mais dois ovos" },
+      increment("mais dois ovos", 1),
     ],
   },
   {
@@ -209,6 +216,7 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [
       { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 2 ovos", surfaceStart: 0 },
       { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 2 ovos", surfaceStart: 14 },
+      increment("mais 2 ovos", 1),
     ],
   },
   {
@@ -217,6 +225,17 @@ export const c1bCases: readonly C1bCase[] = [
     facts: [
       { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e mais 3 ovos" },
       { ...food("ovos", "3 ovos", 3, "un"), scope: "2 ovos e mais 3 ovos" },
+      increment("mais 3 ovos", 1),
+    ],
+  },
+  {
+    // Source contrast: identical amounts without an explicitly authored "mais".
+    // This does not assert different nutrition, only different source materiality.
+    id: "food-repeated-coordinated", semanticGroup: "eggs2-coordinated-eggs2",
+    split: "calibration", modality: "text", text: "2 ovos e 2 ovos",
+    facts: [
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e 2 ovos", surfaceStart: 0 },
+      { ...food("ovos", "2 ovos", 2, "un"), scope: "2 ovos e 2 ovos", surfaceStart: 9 },
     ],
   },
   {
