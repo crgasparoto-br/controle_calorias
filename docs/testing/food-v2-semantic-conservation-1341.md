@@ -572,3 +572,30 @@ estrutural; módulos importados pelo runtime continuam sujeitos a todos os gates
   runtime alimentar produtivo, schema, IA, persistência ou gates de CI.
   CI verde exige reauditoria realmente independente para eventual merge;
   não comprova conservação semântica produtiva, cutover ou S3.
+
+
+## Remediação A-1342-38 — autoridade do valor de evidência identitária
+
+O valor de `evidence` com campo `identity.foodName` é também uma afirmação de
+identidade material e deve passar pelo **mesmo oráculo independente** aplicado a
+`identityHints.foodName`: owner da ocorrência, span original e rótulos
+explícitos de preparação, marca, variante, qualificadores ou negação. A
+simples presença do `foodName` dentro de uma evidência maior **não** é prova
+de que conectores, incrementos ou alimentos irmãos pertençam à identidade.
+O verificador exige que a ocorrência rotulada esteja dentro do próprio
+`evidence.anchor.span`, evitando obter prova de outro trecho do mesmo escopo.
+
+O controle adversarial altera **somente** `identity.foodName` em `evidence`,
+mantendo a identidade e a quantidade tipadas intactas: `ovos e` e
+`ovos e mais`, extraídos de `2 ovos e mais 2 ovos`, precisam produzir
+`invalid-evidence`, incompletude e admissão diagnóstica recusada. Os
+positivos mantêm as duas ocorrências de ovos com quantidades separadas e
+aceitam `2 ovos, (cozidos)` com preparação rotulada, inclusive em hipótese
+alternativa com `evidenceIds` válidos. A matriz reproduzível é
+`c1b-1341-audit-escape-38.json`, exportada no artefato oficial do CI pelo
+runner existente e vinculada a `VERIFICATION_HEAD_SHA`.
+
+A mudança é exclusiva do **oráculo de teste** e não modifica LCL produtiva,
+`FoodObservation`, parser V1, S3, nutrição, persistência, workflows ou rulesets.
+CI verde prova a execução do diagnóstico; **não aprova a conservação semântica
+V2 nem substitui revisão independente**.

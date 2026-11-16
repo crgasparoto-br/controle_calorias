@@ -16,6 +16,7 @@ export type EvidenceLabelTools = {
   scopeRange: (fact: C1bFact) => Span;
   ownerRange: (fact: C1bFact) => Span | null;
   ownerMatches: (name: string | null, owner: string | null) => boolean;
+  fullName: (fact: C1bFact, name: string, anchor: Span) => boolean;
   labelled: (fact: C1bFact, label: C1bTextClaim, fields: readonly string[],
     evidenceIds: readonly string[], exact: boolean) => boolean;
 };
@@ -84,9 +85,12 @@ export function onlyLabelledMaterialEvidence(testCase: C1bCase, observation: Foo
     const claims = fact.identityClaims;
     switch (evidence.field) {
       case "identity.foodName": {
-        if (!owner || !identity.foodName || typeof evidence.value !== "string" ||
-            !tools.ownerMatches(evidence.value, owner)) return false;
+        if (!owner || !identity.foodName || typeof evidence.value !== "string") return false;
         const span = evidence.anchor.span!;
+        // Proof is itself a material assertion: a valid identity hint cannot
+        // launder extra connector/sibling tokens through a broader text anchor.
+        if (!tools.ownerMatches(evidence.value, owner) ||
+            !tools.fullName(fact, evidence.value, [span.start, span.end])) return false;
         const ownerRange = tools.ownerRange(fact);
         return ownerRange !== null && overlaps([span.start, span.end], ownerRange) &&
           foldLabelledFoodName(testCase.text.slice(span.start, span.end))

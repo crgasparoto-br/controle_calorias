@@ -219,16 +219,17 @@ function hasLabelledEvidence(testCase: C1bCase, observation: FoodObservation,
  * owner-local labels (brand, variant, preparation, qualifier or negation) covering
  * the entire source phrase; a connector or sibling food is not a modifier. */
 function hasLabelledFullFoodName(testCase: C1bCase, observation: FoodObservation,
-  fact: C1bFact, name: string | null): boolean {
+  fact: C1bFact, name: string | null, evidenceRange?: [number, number]): boolean {
   if (fact.owner === null || name === null) return true;
   const expected = foldLabelledFoodName(fact.owner).replace(/^(?:o|a|um|uma)\s+/u, "");
   const asserted = foldLabelledFoodName(name).replace(/^(?:o|a|um|uma)\s+/u, "");
-  if (asserted === expected) return true;
-  if (!asserted.startsWith(expected + " ")) return false;
   const scope = factScopeRange(testCase, fact);
   const observed = spanOf(observation);
   const owner = ownerRange(testCase, fact, scope);
-  if (owner === null || observed === null || !contains(observed, owner)) return false;
+  if (owner === null || observed === null || !contains(observed, owner) ||
+      (evidenceRange !== undefined && !contains(evidenceRange, owner))) return false;
+  if (asserted === expected) return true;
+  if (!asserted.startsWith(expected + " ")) return false;
   const manual = fact.identityClaims;
   const labels: C1bTextClaim[] = [manual?.brand, manual?.variant,
     ...(manual?.preparation ?? []), ...(manual?.qualifiers ?? []),
@@ -243,7 +244,8 @@ function hasLabelledFullFoodName(testCase: C1bCase, observation: FoodObservation
     range[0] >= owner[1] && contains(scope, range) && contains(observed, range))];
   const limit = Math.min(scope[1], observed[1]);
   for (let end = owner[1] + 1; end <= limit; end++) {
-    if (foldLabelledFoodName(testCase.text.slice(owner[0], end)) !== asserted) continue;
+    if (foldLabelledFoodName(testCase.text.slice(owner[0], end)) !== asserted ||
+        (evidenceRange !== undefined && !contains(evidenceRange, [owner[0], end]))) continue;
     // Whitespace, commas and parentheses can separate independently labelled
     // parts. Letters, numbers and other punctuation outside those spans are
     // never silently admitted (not even a connector or a sibling food).
@@ -429,6 +431,8 @@ function hasMaterialEvidence(testCase: C1bCase, observation: FoodObservation, fa
     scopeRange: ref => factScopeRange(testCase, ref),
     ownerRange: ref => ownerRange(testCase, ref, factScopeRange(testCase, ref)),
     ownerMatches: ownerMatchesIdentity,
+    fullName: (ref, name, anchor) =>
+      hasLabelledFullFoodName(testCase, observation, ref, name, anchor),
     labelled: (ref, label, fields, ids, exact) =>
       hasLabelledEvidence(testCase, observation, ref, label, fields, ids, exact),
   });

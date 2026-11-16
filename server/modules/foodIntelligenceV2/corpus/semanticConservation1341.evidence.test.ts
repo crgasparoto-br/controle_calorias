@@ -638,3 +638,81 @@ describe("#1341 A-1342-36/37 — owner-bound punctuation and alternatives", () =
     }
   });
 });
+
+
+/** A-1342-38: the identity evidence value, not just identityHints.foodName,
+ * must be independently labelled within the precise source occurrence. */
+describe("#1341 A-1342-38 — source-labelled identity evidence", () => {
+  it("rejects evidence-only connector claims and preserves labelled preparation", async () => {
+    const repeated = c1bCases.find(item => item.id === "food-repeated-literal")!;
+    const first = observation(repeated, "ovos", 2, "un", 0, 14);
+    const second = observation(repeated, "ovos", 2, "un", 14, 20);
+    const positiveRepeated = inspect(repeated, [first, second]);
+    expect(positiveRepeated).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+    // The actual foodName and count remain valid; only the evidence.value
+    // claims new, non-labelled words within the original source span.
+    const forged = [
+      { id: "connector", value: "ovos e", start: 2, end: 8 },
+      { id: "connector-and-increment", value: "ovos e mais", start: 2, end: 13 },
+    ];
+    const negatives: Record<string, ReturnType<typeof inspect>> = {};
+    for (const attack of forged) {
+      const altered: FoodObservation = { ...first,
+        evidence: first.evidence.map(item => item.field === "identity.foodName"
+          ? { ...item, value: attack.value, anchor: source(repeated, attack.start, attack.end) }
+          : item),
+      };
+      const observations = [altered, second];
+      expect(observations.every(item => parseFoodObservation(item).ok), attack.id).toBe(true);
+      const result = inspect(repeated, observations);
+      expect(result.grades[0], attack.id).toBe("invalid-evidence");
+      expect(result.issues, attack.id).toContain("invalid-evidence");
+      expect(result.complete, attack.id).toBe(false);
+      expect(result.admitted, attack.id).toBe(false);
+      negatives[attack.id] = result;
+    }
+
+    // Harmless commas and parentheses do not erase explicitly labelled
+    // preparation; both primary and alternative retain field-specific proofs.
+    const text = "2 ovos, (cozidos)";
+    const labelledCase: C1bCase = { id: "c1b-38-preparation", text, modality: "text",
+      split: "calibration", semanticGroup: "c1b-38-preparation", facts: [{
+        kind: "food-quantity", owner: "ovos", scope: text, surface: "2 ovos",
+        ingredient: null, quantity: 2, unit: "un",
+        identityClaims: { preparation: [{ value: "cozidos", surface: "cozidos" }] },
+      }] };
+    const preparedBase = observation(labelledCase, "ovos, (cozidos)", 2, "un", 0, text.length);
+    const prepared: FoodObservation = { ...preparedBase,
+      identityHints: { ...preparedBase.identityHints, preparation: ["cozidos"] },
+      evidence: [...preparedBase.evidence, { ...preparedBase.evidence[0],
+        evidenceId: "c1b-38-preparation-proof", field: "identity.preparation",
+        value: "cozidos", anchor: source(labelledCase, 9, 16) }],
+    };
+    const alternative: FoodObservation = { ...prepared, alternatives: [{
+      hypothesisId: "c1b-38-source-labelled-alternative",
+      identityHints: prepared.identityHints, quantityHints: prepared.quantityHints,
+      evidenceIds: prepared.evidence.map(item => item.evidenceId), confidence: 0.5,
+    }] };
+    expect(parseFoodObservation(prepared).ok).toBe(true);
+    expect(parseFoodObservation(alternative).ok).toBe(true);
+    const positivePrepared = inspect(labelledCase, [prepared]);
+    const positiveAlternative = inspect(labelledCase, [alternative]);
+    for (const result of [positivePrepared, positiveAlternative]) {
+      expect(result).toEqual({ grades: ["structured"], issues: [],
+        complete: true, admitted: true });
+    }
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-audit-escape-38.json"), JSON.stringify({
+          schemaVersion: 1, issue: 1341, finding: "A-1342-38",
+          sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+          subject: "diagnostic-oracle-not-public-persistence",
+          positives: { original: positiveRepeated, labelledPreparation: positivePrepared,
+            labelledAlternative: positiveAlternative },
+          negatives, publicPersistence: "not-measured", productionS3: "not-evaluated",
+        }, null, 2));
+    }
+  });
+});
