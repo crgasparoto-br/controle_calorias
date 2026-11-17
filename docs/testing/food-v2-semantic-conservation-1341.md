@@ -691,3 +691,25 @@ V2 nem substitui revisão independente**.
   Todos os controles pertencem ao split de calibração. Holdout, parser,
   contrato público, nutrição, S3, persistência, workflows e rulesets não
   mudaram. O CI verde do experimento não aprova a LCL para cutover.
+
+## Remediation A-1342-42 - complete lexical owner identity
+
+- **Failure class:** the diagnostic reference validator previously accepted
+  `owner="ov"` inside the source name `ovos`, even if a forged observation and
+  its evidence used the same fragment. That is a false positive for authored
+  source material, not a failure of productive LCL extraction.
+- **Correction:** `sourceOwnerOccurrences` now requires exact original-text
+  matching with Unicode lexical boundaries (letters, combining marks, numbers,
+  connectors, hyphens and apostrophes). The same source rule protects declared
+  owner alternatives. It does not infer synonyms, nutrition or pluralization.
+- **Adversarial controls:** reject prefix, interior, suffix, accented-word and
+  hyphenated-name fragments, including a schema-valid forged observation and
+  ambiguous owner alternatives; accept complete names, punctuation delimiters,
+  and an independent later `ovo` despite an earlier `ovos`.
+- **Proof:** the existing Vitest runner writes
+  `c1b-1341-audit-escape-42.json` into the C3 calibration artifact with
+  exact-HEAD `sampleSha`, positive/negative results, and the boundaries of the
+  claim. Mutations are calibration-only; the authored holdout remains intact.
+- **Boundaries:** diagnostic oracle only, with no changes to the productive
+  parser, `FoodObservation` schema, S3, flags, entrypoints or persistence. A
+  green diagnostic is not a V2 semantic approval, independent audit or merge.

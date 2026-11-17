@@ -444,15 +444,29 @@ function equalQuantity(observation: FoodObservation, fact: C1bFact): boolean {
   return observation.quantityHints.value === fact.quantity &&
     fold(observation.quantityHints.unit ?? "") === fold(fact.unit ?? "");
 }
+/** An authored owner must occupy complete lexical material in the original
+ * input. Substrings inside "ovos", "banana" or hyphenated names are not food
+ * identity evidence, even when a forged observation repeats the same fragment. */
+function sourceOwnerOccurrences(text: string, owner: string,
+  scope: [number, number]): [number, number][] {
+  if (!owner.trim() || owner.trim() !== owner) return [];
+  const lexicalEnd = /[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}'\u2019]$/u;
+  const lexicalStart = /^[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}'\u2019]/u;
+  const candidates: [number, number][] = [];
+  for (let at = text.indexOf(owner, scope[0]); at >= 0 && at + owner.length <= scope[1];
+    at = text.indexOf(owner, at + owner.length)) {
+    if (!lexicalEnd.test(text.slice(0, at)) &&
+        !lexicalStart.test(text.slice(at + owner.length))) {
+      candidates.push([at, at + owner.length]);
+    }
+  }
+  return candidates;
+}
+
 function ownerRange(testCase: C1bCase, fact: C1bFact, scope: [number, number]): [number, number] | null {
   if (fact.owner === null) return null;
-  if (!fact.owner.trim()) throw new Error("c1b-reference-owner-not-in-scope");
   const claim = factSourceRange(testCase, fact);
-  const candidates: [number, number][] = [];
-  for (let at = testCase.text.indexOf(fact.owner, scope[0]); at >= 0 && at + fact.owner.length <= scope[1];
-    at = testCase.text.indexOf(fact.owner, at + fact.owner.length)) {
-    candidates.push([at, at + fact.owner.length]);
-  }
+  const candidates = sourceOwnerOccurrences(testCase.text, fact.owner, scope);
   if (!candidates.length) throw new Error("c1b-reference-owner-not-in-scope");
   // Repeated owners within one clause must bind to the occurrence belonging
   // to the material claim, not always the first owner in the sentence.
@@ -531,7 +545,8 @@ export function validateC1bReference(testCase: C1bCase): void {
       const alternatives = fact.ownerAlternatives ?? [];
       if (!fact.requiresAbstention || !fact.uncertaintyReason || alternatives.length < 2 ||
           new Set(alternatives.map(fold)).size !== alternatives.length ||
-          alternatives.some(name => !fold(testCase.text).includes(fold(name)))) {
+          alternatives.some(name => sourceOwnerOccurrences(testCase.text, name,
+            [0, testCase.text.length]).length === 0)) {
         throw new Error("c1b-reference-ambiguous-owners-incomplete");
       }
       if ((fact.quantity === null) !== (fact.unit === null) ||

@@ -984,3 +984,122 @@ describe("#1341 A-1342-41 - distinct additive targets for repeated quantities", 
     }
   });
 });
+
+/** A-1342-42: authored food owners require whole lexical occurrences. A
+ * fabricated fragment corroborated by fabricated observation evidence must
+ * never be promoted to a structured fact or diagnostic admission. */
+describe("#1341 A-1342-42 - whole source owner identity", () => {
+  it("rejects interior, prefix, suffix and hyphen fragments without rejecting valid sibling owners", async () => {
+    const coffee = c1bCases.find(item => item.id === "sugar-gram-other-food")!;
+    const attacks = [
+      { id: "egg-prefix", base: simple, index: 0, owner: "ov" },
+      { id: "egg-suffix", base: simple, index: 0, owner: "vos" },
+      { id: "banana-prefix", base: simple, index: 1, owner: "ban" },
+      { id: "banana-inside", base: simple, index: 1, owner: "ana" },
+      { id: "accented-suffix", base: coffee, index: 0, owner: "f\u00e9" },
+    ];
+    const rejected: Record<string, { expected: string; observed: string; passed: boolean }> = {};
+    for (const { id, base, index, owner } of attacks) {
+      const reference: C1bCase = { ...base, facts: base.facts.map((fact, i) =>
+        i === index ? { ...fact, owner } : fact) };
+      let observed = "accepted";
+      try { validateC1bReference(reference); }
+      catch (error) { observed = error instanceof Error ? error.message : String(error); }
+      expect(observed, id).toBe("c1b-reference-owner-not-in-scope");
+      expect(() => evaluateC1b(reference, []), id)
+        .toThrow("c1b-reference-owner-not-in-scope");
+      rejected[id] = { expected: "c1b-reference-owner-not-in-scope", observed,
+        passed: observed === "c1b-reference-owner-not-in-scope" };
+    }
+    const invalidReference: C1bCase = { ...simple, facts: simple.facts.map((fact, i) =>
+      i === 0 ? { ...fact, owner: "ov" } : fact) };
+    const forgedObservations = [observation(simple, "ov", 2, "un", 0, 6), good[1]];
+    expect(forgedObservations.every(obs => parseFoodObservation(obs).ok)).toBe(true);
+    let forgedAdmission = "accepted";
+    try { attemptDiagnosticBatchAdmission(invalidReference, forgedObservations,
+      forgedObservations.map(obs => obs.observationId)); }
+    catch (error) { forgedAdmission = error instanceof Error ? error.message : String(error); }
+    expect(forgedAdmission).toBe("c1b-reference-owner-not-in-scope");
+
+    // Earlier prefix "ovo" inside "ovos" must be skipped when the later
+    // independent singular occurrence really exists and owns the quantity.
+    const singular: C1bCase = { ...simple, id: "c1b-42-singular-sibling",
+      text: "2 ovos e 1 ovo", facts: [
+        { ...simple.facts[0], owner: "ovos", scope: "2 ovos", surface: "2 ovos" },
+        { ...simple.facts[1], owner: "ovo", scope: "1 ovo", surface: "1 ovo" },
+      ] };
+    expect(() => validateC1bReference(singular)).not.toThrow();
+    const singularObservations = [observation(singular, "ovos", 2, "un", 0, 6),
+      observation(singular, "ovo", 1, "un", 9, 14)];
+    const singularPositive = inspect(singular, singularObservations);
+    expect(singularPositive).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+
+    // A full hyphenated name is allowed; neither half can independently
+    // claim the same source occurrence as an entire food identity.
+    const hyphen: C1bCase = { id: "c1b-42-hyphen", text: "(coca-cola)",
+      modality: "text", split: "calibration", semanticGroup: "c1b-42-hyphen",
+      facts: [{ kind: "food-mention", owner: "coca-cola", scope: "coca-cola",
+        surface: "coca-cola", ingredient: null, quantity: null, unit: null }] };
+    expect(() => validateC1bReference(hyphen)).not.toThrow();
+    const hyphenPositive = inspect(hyphen, [observation(hyphen, "coca-cola", null, null, 1, 10)]);
+    expect(hyphenPositive).toEqual({ grades: ["structured"],
+      issues: [], complete: true, admitted: true });
+    for (const fragment of ["coca", "cola"]) {
+      const invalid: C1bCase = { ...hyphen, facts: [{ ...hyphen.facts[0], owner: fragment }] };
+      let observed = "accepted";
+      try { validateC1bReference(invalid); }
+      catch (error) { observed = error instanceof Error ? error.message : String(error); }
+      expect(observed, fragment).toBe("c1b-reference-owner-not-in-scope");
+      rejected["hyphen-" + fragment] = { expected: "c1b-reference-owner-not-in-scope",
+        observed, passed: observed === "c1b-reference-owner-not-in-scope" };
+    }
+
+    // Alternatives are also human-authored owner claims. Their source proof
+    // must not be satisfied merely by a substring of a different food name.
+    const ambiguous: C1bCase = { id: "c1b-42-ambiguous", split: "calibration",
+      modality: "text", semanticGroup: "c1b-42-ambiguous",
+      text: "caf\u00e9 e pudim e mais a\u00e7\u00facar", facts: [
+        { kind: "food-mention", owner: "caf\u00e9", scope: "caf\u00e9", surface: "caf\u00e9",
+          ingredient: null, quantity: null, unit: null },
+        { kind: "food-mention", owner: "pudim", scope: "pudim", surface: "pudim",
+          ingredient: null, quantity: null, unit: null },
+        { kind: "unbound", owner: null, scope: "mais a\u00e7\u00facar", surface: "mais a\u00e7\u00facar",
+          ingredient: "a\u00e7\u00facar", quantity: null, unit: null,
+          ownerAlternatives: ["caf\u00e9", "pudim"],
+          uncertaintyReason: "owner-ambiguous-after-coordinated-items",
+          requiresAbstention: true },
+      ] };
+    expect(() => validateC1bReference(ambiguous)).not.toThrow();
+    for (const fragment of ["f\u00e9", "pudi"]) {
+      const invalid: C1bCase = { ...ambiguous, facts: ambiguous.facts.map(fact =>
+        fact.kind === "unbound" ? { ...fact, ownerAlternatives: [fragment, "pudim"] } : fact) };
+      let observed = "accepted";
+      try { validateC1bReference(invalid); }
+      catch (error) { observed = error instanceof Error ? error.message : String(error); }
+      expect(observed, fragment).toBe("c1b-reference-ambiguous-owners-incomplete");
+      rejected["ambiguous-" + fragment] = {
+        expected: "c1b-reference-ambiguous-owners-incomplete", observed,
+        passed: observed === "c1b-reference-ambiguous-owners-incomplete" };
+    }
+    const originalPositive = inspect(simple, good);
+    expect(originalPositive).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-audit-escape-42.json"), JSON.stringify({
+        schemaVersion: 1, issue: 1341, finding: "A-1342-42",
+        sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+        subject: "diagnostic-oracle-not-public-persistence",
+        positives: { originalPositive, singularPositive, hyphenPositive,
+          ambiguityReferenceAccepted: true },
+        negatives: { plausibleWrongImplementation: "indexOf accepts fragments inside food names",
+          procedure: "validateC1bReference and diagnostic admission over authored food owners",
+          rejected, forgedObservationSchemaValid: true, forgedAdmission },
+        boundaries: { productionParserUnchanged: true, publicPersistence: "not-measured",
+          nutritionalAccuracy: "not-measured", productionS3: "not-evaluated" },
+      }, null, 2));
+    }
+  });
+});
