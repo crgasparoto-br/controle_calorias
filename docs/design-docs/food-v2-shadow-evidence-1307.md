@@ -12,6 +12,73 @@ em #1335.
 Fonte normativa: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
 §§1.3, 8.12, 8.14, 19.7, 19.9 e 20/Fase C.
 
+## Rastreabilidade técnica e pendências de certificação (17/11/2026)
+
+Este levantamento documenta **integração de código e CI histórica**, não uma
+aprovação independente, Gate A ou autorização para tráfego real. Referência de
+inspeção: `develop@838ed0a466873a059f335a808947082b7818ff0e`; qualquer
+auditoria posterior deve reconsultar o SHA efetivo, o contrato normativo e as
+evidências do candidato auditado. Não reutilizar checks de PR ancestral como
+prova de que a `develop` corrente foi executada nesses mesmos checks.
+
+| Fase técnica | Issue dependente | Implementação integrada à `develop` | Estado de aceite |
+| --- | --- | --- | --- |
+| A1: contratos/adapters | #1298 | PRs #1314, #1315 e #1328 mergeadas | Issue aberta; certificação própria deve ser conferida |
+| A2: corpus/harness | #1299 | PRs #1316 e #1327 mergeadas | Issue aberta; corpus sintético não homologa Gate A |
+| B1: persistência | #1301 | PR #1326 mergeada | Issue aberta; validar prova de migrations e histórico |
+| B2: conhecimento | #1302 | PR #1329 mergeada | Issue aberta; validar proveniência e revogação |
+| C1: linguagem | #1304 | PRs #1330 e #1343 mergeadas | Issue aberta; observar correção posterior de validade governada |
+| C2: resolvedor | #1305 | PR #1331 mergeada | Issue aberta; validar fail-closed e contrato do núcleo |
+
+O estado **aberto** das issues não prova ausência de implementação, e o
+estado **merged** das PRs não prova aceite independente. Antes de declarar
+`TECHNICAL_READY`, reconciliar separadamente cada requisito/dependência com
+seus testes, decisões da ADR e parecer independente no SHA avaliado. Não fechar
+ou reclassificar as seis issues por inferência nesta documentação.
+
+A implementação C4 foi incorporada pela [PR #1334](https://github.com/crgasparoto-br/controle_calorias/pull/1334)
+(HEAD material `2a9d1a44f577cd1bfdd7edc1be5311ee33b496f8`, merge
+`a471fee99f3733dcaeac1fdce4ab472f3dcbb769`). Sua CI
+[Agent-first gate #41364416124](https://github.com/crgasparoto-br/controle_calorias/actions/runs/41364416124)
+concluiu com `success` nos três jobs (`CI risk classification`,
+`Merge preview integration`, `Agent-first gate`). O artefato
+`agent-first-verification-2a9d1a44f577cd1bfdd7edc1be5311ee33b496f8`
+tem ID `13106614291` e digest declarado pelo GitHub
+`sha256:4fce231bc7048a64d4b257ca01a73ce0a52b02f47aee2d50907434ea70f6f208`.
+Isso demonstra execução de CI no HEAD da PR, **não** auditoria independente,
+oráculo nutricional real ou execução no SHA corrente da `develop`.
+
+A separação formal entre prontidão técnica e aprovação operacional da ADR
+foi incorporada pela [PR #1337](https://github.com/crgasparoto-br/controle_calorias/pull/1337)
+(HEAD `c38dc81de9ad098dfa198ec6884a7267f5c5168d`; merge
+`abf7ff19c1c5927b6f79ed098534ebb74c9eea9f`), com
+[Agent-first gate #42283977337](https://github.com/crgasparoto-br/controle_calorias/actions/runs/42283977337)
+terminal `success`. A revisão da camada de linguagem na PR #1343 também
+apresenta [Agent-first gate #43314264242](https://github.com/crgasparoto-br/controle_calorias/actions/runs/43314264242)
+terminal `success` no HEAD `4fef481206a15afb42d2d8e619fa21683d585e38`.
+
+**Ledger da revisão de 17/11/2026 (IDs distintos dos achados A-001 etc.
+registrados historicamente na PR #1334):**
+
+- `AUD-1307-20261117-A001`: reconciliar as seis dependências acima por
+  contrato, código, teste negativo e parecer próprio. **Integrações comprovadas;
+  aceite independente ainda não comprovado**.
+- `AUD-1307-20261117-A002`: reconstruir a auditoria independente C4 contra
+  a identidade atual, confrontando os cinco critérios da issue com código,
+  testes efetivamente executados, fixtures discriminantes, sanitização,
+  preservação de V1 e histórico, replay/custos, e a cadeia CI exact-SHA.
+  **Pendente de contexto auditor independente e da execução requerida**.
+- `AUD-1307-20261117-REC001`: reconciliar referências a PRs #1334/#1337
+  como integradas, em vez de propostas pendentes, sem marcar aceite técnico
+  ou operacional antes da prova. **Retificação documental preparada**.
+
+**Limite de fase:** a saída desta reconciliação não substitui o Gate A, corpus
+real, LGPD/sink, baseline, Gate B ou rollback da [#1335](https://github.com/crgasparoto-br/controle_calorias/issues/1335).
+O runner, as flags e o V1 continuam sujeitos aos bloqueios já especificados.
+A issue #1307 somente pode ser encerrada após parecer independente favorável
+aos critérios técnicos e às dependências; nenhuma aprovação de Gate A/B é
+inferida do merge ou deste ledger.
+
 ## Contrato executável C4
 
 - `shadowRunner.ts`: executa **uma vez** a função V1 recebida e devolve o
