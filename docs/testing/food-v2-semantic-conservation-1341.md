@@ -713,3 +713,29 @@ V2 nem substitui revisão independente**.
 - **Boundaries:** diagnostic oracle only, with no changes to the productive
   parser, `FoodObservation` schema, S3, flags, entrypoints or persistence. A
   green diagnostic is not a V2 semantic approval, independent audit or merge.
+
+## Remediação A-1342-43 — proprietário da quantidade na ocorrência correta
+
+- **Falha demonstrada:** o oráculo podia validar `2 ovos` como quantidade de
+  `banana`, ou `1 banana` como quantidade de `ovos`, quando a referência e a
+  observação falsificadas usavam um escopo amplo. A identidade localizada em
+  outra parte da frase não comprova o vínculo desta quantidade.
+- **Invariante do oráculo:** cada `food-quantity` ou `food-mention` precisa
+  conter exatamente uma ocorrência lexical íntegra do proprietário no próprio
+  `surface` rotulado. Uma referência alimentar não pode englobar o fato
+  alimentar independente de um irmão. Modificadores, negações e incrementos
+  continuam podendo apontar para o proprietário dentro de `scope` sem exigir
+  que o nome apareça no modificador.
+- **Refutação:** o Vitest existente `semanticConservation1341.evidence.test.ts`
+  rejeita as duas atribuições trocadas, duas superfícies amplas que englobam
+  alimento irmão e uma menção emprestada. Confere também
+  `validateC1bReference`, `evaluateC1b` e `attemptDiagnosticBatchAdmission`.
+  Controles positivos preservam a frase simples com escopo amplo e claims
+  locais, ordem inversa, quantidades repetidas e fração escrita por extenso.
+- **Evidência exact-SHA:** arquivo `c1b-1341-audit-escape-43.json` no artefato
+  já publicado pelo runner existente (`food-v2-c3-calibration-<HEAD>`), com
+  casos esperados/observados e `sampleSha`. Sem mudanças no parser, no
+  contrato público `FoodObservation`, nutrição, S3, gravação ou workflows.
+  Um teste diagnóstico verde não certifica a conservação semântica produtiva;
+  manter `adjust-ADR-contract-before-D1-semantic-cutover` e exigir auditoria
+  independente no novo HEAD antes de Ready, merge ou fechamento da #1341.

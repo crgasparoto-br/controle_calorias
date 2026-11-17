@@ -1103,3 +1103,85 @@ describe("#1341 A-1342-42 - whole source owner identity", () => {
     }
   });
 });
+
+
+/** A-1342-43: a quantity's human-authored owner must belong to the SAME
+ * material occurrence. A forged label and equally forged evidence must not
+ * jointly certify a cross-food assignment. This is an oracle check, not a
+ * replacement parser or a change to the public FoodObservation contract. */
+describe("#1341 A-1342-43 - quantity-to-food occurrence binding", () => {
+  it("rejects swapped owners and broad sibling claims while preserving valid labels", async () => {
+    const attacks = [
+      { id: "eggs-count-as-banana", index: 0, owner: "banana",
+        surface: "2 ovos", expected: "c1b-reference-owner-not-in-claim" },
+      { id: "banana-count-as-eggs", index: 1, owner: "ovos",
+        surface: "1 banana", expected: "c1b-reference-owner-not-in-claim" },
+      { id: "broad-eggs-claims-banana", index: 0, owner: "ovos",
+        surface: simple.text, expected: "c1b-reference-overlapping-food-claims" },
+      { id: "broad-banana-claims-eggs", index: 1, owner: "banana",
+        surface: simple.text, expected: "c1b-reference-overlapping-food-claims" },
+      { id: "food-mention-borrows-sibling", index: 0, owner: "banana",
+        surface: "2 ovos", expected: "c1b-reference-owner-not-in-claim",
+        kind: "food-mention" as const },
+    ];
+    const negatives: Record<string, { expected: string; observed: string;
+      evaluated: string; admitted: string; passed: boolean }> = {};
+    for (const attack of attacks) {
+      const forged: C1bCase = { ...simple, facts: simple.facts.map((fact, index) =>
+        index !== attack.index ? fact : {
+          ...fact, kind: attack.kind ?? "food-quantity", owner: attack.owner,
+          scope: simple.text, surface: attack.surface,
+          quantity: attack.kind === "food-mention" ? null : fact.quantity,
+          unit: attack.kind === "food-mention" ? null : fact.unit,
+        }) };
+      const observations = forged.facts.map((fact, index) => ({
+        ...observation(forged, fact.owner!, fact.quantity, fact.unit, 0, simple.text.length),
+        observationId: `c1b-43-forged-${attack.id}-${index}`,
+      }));
+      expect(observations.every(item => parseFoodObservation(item).ok), attack.id).toBe(true);
+      const rejectedBy = (check: () => unknown): string => {
+        try { check(); return "accepted"; }
+        catch (error) { return error instanceof Error ? error.message : String(error); }
+      };
+      const observed = rejectedBy(() => validateC1bReference(forged));
+      const evaluated = rejectedBy(() => evaluateC1b(forged, observations));
+      const admitted = rejectedBy(() => attemptDiagnosticBatchAdmission(forged, observations,
+        observations.map(item => item.observationId)));
+      expect(observed, attack.id).toBe(attack.expected);
+      expect(evaluated, attack.id).toBe(attack.expected);
+      expect(admitted, attack.id).toBe(attack.expected);
+      negatives[attack.id] = { expected: attack.expected, observed, evaluated, admitted,
+        passed: observed === attack.expected && evaluated === attack.expected &&
+          admitted === attack.expected };
+    }
+    // Broad CLAUSE context is permitted when each material claim is tightly
+    // authored. Repeated owner occurrences, fractions, and reversed order must
+    // continue passing the independent reference validator.
+    const validCases = [simple, c1bCases.find(item => item.id === "food-count-reversed")!,
+      c1bCases.find(item => item.id === "food-repeated-literal")!,
+      c1bCases.find(item => item.id === "food-written-fraction")!,
+      c1bCases.find(item => item.id === "food-units")!];
+    for (const testCase of validCases) {
+      expect(() => validateC1bReference(testCase), testCase.id).not.toThrow();
+    }
+    const broadScopes: C1bCase = { ...simple,
+      facts: simple.facts.map(fact => ({ ...fact, scope: simple.text })) };
+    expect(() => validateC1bReference(broadScopes)).not.toThrow();
+    const positive = inspect(broadScopes, good);
+    expect(positive).toEqual({ grades: ["structured", "structured"],
+      issues: [], complete: true, admitted: true });
+    if (process.env.C3_EVIDENCE_OUTPUT_DIR) {
+      await mkdir(process.env.C3_EVIDENCE_OUTPUT_DIR, { recursive: true });
+      await writeFile(join(process.env.C3_EVIDENCE_OUTPUT_DIR,
+        "c1b-1341-audit-escape-43.json"), JSON.stringify({
+        schemaVersion: 1, issue: 1341, finding: "A-1342-43",
+        sampleSha: process.env.VERIFICATION_HEAD_SHA || "local-unpinned",
+        subject: "diagnostic-reference-and-oracle-not-public-persistence",
+        negatives, positive, validReferenceIds: validCases.map(item => item.id),
+        plausibleWrongImplementation: "owner from broad clause validates quantity of sibling food",
+        decision: "adjust-ADR-contract-before-D1-semantic-cutover",
+        publicPersistence: "not-measured", semanticV2Gate: "not-approved",
+      }, null, 2));
+    }
+  });
+});

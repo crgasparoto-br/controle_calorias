@@ -468,8 +468,16 @@ function ownerRange(testCase: C1bCase, fact: C1bFact, scope: [number, number]): 
   const claim = factSourceRange(testCase, fact);
   const candidates = sourceOwnerOccurrences(testCase.text, fact.owner, scope);
   if (!candidates.length) throw new Error("c1b-reference-owner-not-in-scope");
-  // Repeated owners within one clause must bind to the occurrence belonging
-  // to the material claim, not always the first owner in the sentence.
+  // A consumed food count or a food mention must name its owner in its OWN
+  // material span. A broad clause cannot supply a neighbouring food's owner
+  // to a count anchored to another food (e.g. 2 ovos -> banana).
+  if (fact.kind === "food-quantity" || fact.kind === "food-mention") {
+    const local = candidates.filter(range => contains(claim, range));
+    if (local.length !== 1) throw new Error("c1b-reference-owner-not-in-claim");
+    return local[0];
+  }
+  // Ingredient modifiers, negations and increments legitimately name their
+  // owner outside the material claim, but still require an owner in scope.
   return candidates.find(range => contains(claim, range)) ??
     [...candidates].reverse().find(range => range[1] <= claim[0]) ?? candidates[0];
 }
@@ -515,6 +523,15 @@ export function validateC1bReference(testCase: C1bCase): void {
     if (occurrences.has(occurrenceKey)) throw new Error("c1b-reference-duplicate-fact-occurrence");
     occurrences.add(occurrenceKey);
     ownerRange(testCase, fact, scope);
+    // One food/count reference may not consume the independently labelled
+    // material occurrence of a sibling food. This also rejects forged broad
+    // claims that include their owner but borrow a different food's quantity.
+    if ((fact.kind === "food-quantity" || fact.kind === "food-mention") &&
+        testCase.facts.some(other => other !== fact &&
+          (other.kind === "food-quantity" || other.kind === "food-mention") &&
+          overlaps(source, factSourceRange(testCase, other)))) {
+      throw new Error("c1b-reference-overlapping-food-claims");
+    }
     if (fact.kind === "increment") {
       const index = fact.incrementTargetIndex;
       const target = index === undefined ? undefined : testCase.facts[index];
