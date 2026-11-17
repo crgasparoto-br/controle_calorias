@@ -79,6 +79,106 @@ A issue #1307 somente pode ser encerrada após parecer independente favorável
 aos critérios técnicos e às dependências; nenhuma aprovação de Gate A/B é
 inferida do merge ou deste ledger.
 
+## Matriz de verificação por requisito e dependência (17/11/2026)
+
+**Natureza:** índice técnico reproduzível para auditor independente. Não é uma aprovação.
+Base de inspeção: `develop@838ed0a466873a059f335a808947082b7818ff0e`;
+HEAD documental anterior da PR #1344: `6dfe4459d22efea63706b535d607ce8dc71f66f5`.
+Os testes listados são declarações de código, não execução individual comprovada.
+Um SHA posterior exige revisão dos paths, oráculos e runs, sem transportar a aprovação.
+
+### A-001 — dependências técnicas e suas CIs de origem
+
+| Dependência | Última PR / HEAD de implementação | CI exact-HEAD | Evidência a certificar |
+| --- | --- | --- | --- |
+| #1298 / A1 | #1328 `02d9dbffcf51fa3ac05c1fc138abd76b5b166b8b` | [Agent-first #39587848259](https://github.com/crgasparoto-br/controle_calorias/actions/runs/39587848259) concluído `success` | Contratos, adapters e idempotência |
+| #1299 / A2 | #1327 `790c104023d85e0c655f86eb713a7b8af68cb50c` | [Agent-first #39434592503](https://github.com/crgasparoto-br/controle_calorias/actions/runs/39434592503) concluído `success` | Corpus, negativos e isolamento do oráculo |
+| #1301 / B1 | #1326 `65d0376ce80917b0025c79f4d289be09fc849550` | [Agent-first #39604692778](https://github.com/crgasparoto-br/controle_calorias/actions/runs/39604692778) concluído `success` | Migrations, concorrência e histórico; TiDB #39604692838 |
+| #1302 / B2 | #1329 `0de11f484cdfa4ef8209dde1c74d39a5e4a4251b` | [Agent-first #39888102527](https://github.com/crgasparoto-br/controle_calorias/actions/runs/39888102527) concluído `success` | Fontes, revogação e quarentena |
+| #1304 / C1 | #1343 `4fef481206a15afb42d2d8e619fa21683d585e38` | [Agent-first #43314264242](https://github.com/crgasparoto-br/controle_calorias/actions/runs/43314264242) concluído `success` | Léxico versionado, spans, locale e ownership do parser |
+| #1305 / C2 | #1331 `6c17cfe6b49175d30e47c92741727c92a0cd30aa` | [Agent-first #40572015728](https://github.com/crgasparoto-br/controle_calorias/actions/runs/40572015728) concluído `success` | Proveniência, monotonicidade e corpus |
+
+
+Os runs são do HEAD de cada PR, não do SHA corrente da `develop`.
+Para B1, a integração real de migration tem também
+[Food V2 migration TiDB #39604692838](https://github.com/crgasparoto-br/controle_calorias/actions/runs/39604692838),
+concluída com `success` no HEAD #1326. Na PR #1343 a revisão registrada
+foi `APROVADA INTERNAMENTE`, não auditoria independente.
+
+#### Rastreabilidade dos trinta critérios das seis dependências
+
+| ID e critério | Testes/contratos versionados a reexecutar | Controle discriminante |
+| --- | --- | --- |
+| A1.1: schema inválido, sem mutação | `server/modules/foodIntelligenceV2/contracts.test.ts:36-62` | Versão/campo/confiança inválidos rejeitados |
+| A1.2: origem distinta de texto e áudio | `server/modules/foodIntelligenceV2/adapters.test.ts:55` | Mesmo texto não colapsa a modalidade |
+| A1.3: snapshot sem reinferência | `server/modules/foodIntelligenceV2/adapters.test.ts:307-352` | Versão desconhecida não causa recálculo |
+| A1.4: restart/retry idempotente | `server/modules/foodIntelligenceV2/pendingOperation.test.ts:536-627` | Não duplicar efeitos nem perder versão |
+| A1.5: entrypoints V1 preservados | `server/modules/foodIntelligenceV2/noProductionConsumer.test.ts:99-137` | Import produtivo real é recusado |
+| A2.1: referência e controles negativos | `server/modules/foodIntelligenceV2/corpus/data.test.ts:208-221`; `server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts:206-237` | Não expor oráculo/caseId ao resolvedor |
+| A2.2: meta 95% calculável | `server/modules/foodIntelligenceV2/corpus/harness.test.ts:218-254` | Denominador zero ou falseado não vira sucesso |
+| A2.3: clarificação/rejeição verificáveis | `server/modules/foodIntelligenceV2/corpus/data.test.ts:281-304`; `server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts:332-413` | Não contar abstenção como resolução |
+| A2.4: metamórficos de superfície | `server/modules/foodIntelligenceV2/corpus/harness.test.ts:265-311` | Equivalência com resultado errado reprova |
+| A2.5: relatório segmentado | `server/modules/foodIntelligenceV2/corpus/harness.test.ts:161-211` | Dimensões/custo ausente não viram média global |
+| B1.1: migration e rollback | `scripts/issue-1301-schema-contract.test.mjs:10-36`; `scripts/test-food-v2-migration-tidb.mjs` | DDL reversível apenas conforme pré-condições; run TiDB #39604692838 |
+| B1.2: unicidade concorrente | `scripts/issue-1301-schema-contract.test.mjs:37-44`; `server/foodIntelligenceV2Persistence.issue1301.test.ts` | Sem unicidade apenas em memória |
+| B1.3: histórico estável | `scripts/issue-1301-schema-contract.test.mjs:15-24`; `server/repositories/mealsRepository.shadow.test.ts:109-161` | Não reescrever macro ou ID persistido |
+| B1.4: estados separados | `scripts/issue-1301-schema-contract.test.mjs:37-44`; `server/foodIntelligenceV2Persistence.issue1301.test.ts` | Outcome/estrutura/governança não colapsam |
+| B1.5: integridade de banco | `scripts/test-food-v2-migration-tidb.mjs` | Conferir run TiDB #39604692838 no SHA de B1 |
+| B2.1: governado antes da rede | `server/modules/foodIntelligenceV2/knowledgeRead.test.ts:33-55` | Hit local impede chamada externa |
+| B2.2: externo apenas provisório | `server/modules/foodIntelligenceV2/knowledgeRead.test.ts:55-91` | Sem autorização e evidência não persistir |
+| B2.3: revogação e cache | `server/modules/foodIntelligenceV2/sourceGrants.test.ts:26-43`; `server/modules/foodIntelligenceV2/repositoryGovernance.test.ts:444-480` | Revogado não reaparece em leitura futura |
+| B2.4: quarentena isolada | `server/modules/foodIntelligenceV2/privateQuarantine.test.ts:96`; `server/modules/foodIntelligenceV2/knowledgeEligibility.test.ts:8-27` | Não publicar órfão pessoal globalmente |
+| B2.5: novo alimento sem hardcode | `server/modules/foodIntelligenceV2/knowledgeRead.test.ts:33-55`; `server/modules/foodIntelligenceV2/repositoryGovernance.test.ts:64-99` | Inspecionar também escrita/cadastro; teste nominal não prova sozinho |
+| C1.1: equivalência linguística | `server/modules/foodIntelligenceV2/linguisticComprehension.test.ts:33-80` | Mudança de numeral/ordem não troca alimento |
+| C1.2: span original | `server/modules/foodIntelligenceV2/linguisticComprehension.test.ts:401-414` | Offsets UTF-16 não são apagados |
+| C1.3: desconhecido preservado | `server/modules/foodIntelligenceV2/linguisticComprehension.test.ts:422-449` | OCR incerto não gera identidade inventada |
+| C1.4: locale não suportado | `server/modules/foodIntelligenceV2/linguisticComprehension.test.ts:449-462` | Sem fallback de idioma silencioso |
+| C1.5: parser único | `server/modules/foodIntelligenceV2/noProductionConsumer.test.ts:99-137`; `server/modules/foodIntelligenceV2/foodArchitectureSemanticBoundaries.test.ts` | Provar ownership de MealOperation na fronteira canônica |
+| C2.1: estado e proveniência | `server/modules/foodIntelligenceV2/resolver.test.ts:59-103`; `server/modules/foodIntelligenceV2/contracts.test.ts:472-526` | Não aceitar verified por confiança isolada |
+| C2.2: quantidade monotônica | `server/modules/foodIntelligenceV2/resolver.test.ts:308-338` | Omissão/contradição não reabre valor sem prova |
+| C2.3: fontes conflitantes | `server/modules/foodIntelligenceV2/resolver.test.ts:270-281` | Última escrita não ganha por ordem |
+| C2.4: origem nutricional obrigatória | `server/modules/foodIntelligenceV2/resolver.test.ts:234-270`; `server/modules/foodIntelligenceV2/resolver.golden.test.ts:69` | Não converter ausente em macro zero |
+| C2.5: corpus atravessa resolvedor | `server/modules/foodIntelligenceV2/resolver.golden.test.ts:69`; `server/modules/foodIntelligenceV2/corpus/harness.test.ts:101-108` | Verificar execução de núcleo real e não só double |
+
+
+### A-002 — cinco critérios técnicos C4
+
+| Critério | Código/testes no SHA auditado | Implementação incorreta a refutar |
+| --- | --- | --- |
+| C4.1: Divergência por classe/modalidade | `server/modules/foodIntelligenceV2/shadowComparison.ts`; `server/modules/foodIntelligenceV2/shadowBaseline.ts`; `server/modules/foodIntelligenceV2/shadowRunner.test.ts:442`; `server/modules/foodIntelligenceV2/shadowBaselineReplay.test.ts:31` | Troca de segmento ou parcial contado como par completo |
+| C4.2: Fallback e diferenças de macro | `server/modules/foodIntelligenceV2/shadowComparison.ts`; `server/modules/foodIntelligenceV2/shadowPairing.adversarial.test.ts:53-152`; `server/modules/foodIntelligenceV2/shadowBaselineReplay.test.ts:54-107` | Marca/variante conflitantes indevidamente pareadas |
+| C4.3: Chamadas, retries e custo | `server/_core/ai/observability.ts`; `server/modules/foodIntelligenceV2/shadowRunner.test.ts:918-966`; `server/modules/foodIntelligenceV2/shadowBaselineReplay.test.ts:735-909` | Ausência de medida convertida em custo zero |
+| C4.4: Histórico sem recalcular | `server/repositories/mealsRepository.shadow.test.ts:109-196`; `server/modules/insights/foodQuality.shadow.test.ts`; `server/householdMeasureMealUpdate.shadow.test.ts` | Catálogo atual usado no lugar do snapshot persistido |
+| C4.5: Preparação fail-closed | `server/modules/foodIntelligenceV2/shadowRunner.ts`; `server/modules/foodIntelligenceV2/shadowRunner.test.ts:59-179`; `server/modules/foodIntelligenceV2/noProductionConsumer.test.ts:99-137` | Flag sozinha ativa V2 ou V2 substitui V1 |
+
+
+### Execuções verificadas e limites da prova
+
+- No checkout offline do HEAD documental anterior #1344,
+  `node --test scripts/issue-1301-schema-contract.test.mjs scripts/issue-1302-schema-contract.test.mjs`
+  teve **11/11** testes aprovados (contratos SQL, snapshot e rollback estático).
+- A verificação dirigida de pareamento reportou **17/17** controles e
+  **800/800** casos determinísticos favoráveis; três mutações incorretas
+  foram detectadas. Essas medições pertencem ao código/identidade da
+  sessão anterior, não constituem auditoria de um SHA futuro.
+- [CI C4 #41364416124](https://github.com/crgasparoto-br/controle_calorias/actions/runs/41364416124)
+  executou 24/24 shards no HEAD #1334 `2a9d1a44f577cd1bfdd7edc1be5311ee33b496f8`.
+  [CI documental #44100005644](https://github.com/crgasparoto-br/controle_calorias/actions/runs/44100005644)
+  executou 24/24 shards no HEAD #1344 `6dfe4459d22efea63706b535d607ce8dc71f66f5`.
+  A última classificou a alteração como documental: TypeScript e arquitetura
+  foram `skipped` nesse run. Os logs de shards não provam por si sós
+  cada teste individual como `reached`/`passed`.
+- O teste local `node --test scripts/check-food-v2-check-enforcement.test.mjs`
+  não iniciou porque este ambiente offline não tem `mysql2` instalado.
+  Não confundir a falta da dependência local com uma falha do código nem
+  com uma execução local positiva; o gate TiDB remoto é evidência distinta.
+
+**Estado após esta preparação:** A-001 e A-002 continuam bloqueados até
+a auditoria independente de todas as seis dependências e dos cinco critérios
+C4 no HEAD final. A matriz não marca checkboxes nem autoriza fechamento
+da #1307. Gate A real, LGPD, baseline, shadow real, Gate B e cutover
+continuam em #1335, mantendo V1 como único decisor produtivo.
+
 ## Contrato executável C4
 
 - `shadowRunner.ts`: executa **uma vez** a função V1 recebida e devolve o
