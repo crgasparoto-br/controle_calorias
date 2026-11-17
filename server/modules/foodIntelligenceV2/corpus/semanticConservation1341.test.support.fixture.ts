@@ -527,9 +527,17 @@ export function validateC1bReference(testCase: C1bCase): void {
     // material occurrence of a sibling food. This also rejects forged broad
     // claims that include their owner but borrow a different food's quantity.
     if ((fact.kind === "food-quantity" || fact.kind === "food-mention") &&
-        testCase.facts.some(other => other !== fact &&
-          (other.kind === "food-quantity" || other.kind === "food-mention") &&
-          overlaps(source, factSourceRange(testCase, other)))) {
+        testCase.facts.some(other => {
+          if (other === fact ||
+              (other.kind !== "food-quantity" && other.kind !== "food-mention")) return false;
+          const sibling = factSourceRange(testCase, other);
+          // Equal-kind identical occurrences are diagnosed by the existing
+          // duplicate-fact guard, not reclassified as cross-food overlap.
+          if (other.kind === fact.kind && source[0] === sibling[0] && source[1] === sibling[1]) {
+            return false;
+          }
+          return overlaps(source, sibling);
+        })) {
       throw new Error("c1b-reference-overlapping-food-claims");
     }
     if (fact.kind === "increment") {
