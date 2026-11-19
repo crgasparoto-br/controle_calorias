@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "mode": "disabled",
+  "assurance": "operator-attested-session-review",
+  "acknowledgement": "separate-context-declared-not-cryptographically-proven",
+  "operators": [
+    {
+      "id": 255721831,
+      "login": "crgasparoto-br"
+    }
+  ],
+  "implementation_provenance": {
+    "mode": "enabled",
+    "type": "github-implementation-provenance"
+  }
+}

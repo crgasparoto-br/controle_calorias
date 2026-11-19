@@ -26,3 +26,7 @@ O workflow mantém o check obrigatório `Agent-first gate`, executa o teste dete
 Sequência segura: (1) auditar este bootstrap com o contrato vigente; (2) fazer merge autorizado desta PR em `develop`; (3) atualizar a base de PRs de migração já abertas, como #1318, para conter o contrato confiável; (4) executar novos checks exact-head e auditoria independente GitHub-native; (5) retirar transporte legado apenas depois de verificar consumidores externos. Não remover `.delivery-v2/` como consequência automática da adoção.
 
 O ruleset GitHub deve exigir `Agent-first gate` em `develop` e `main`. A efetividade do ruleset deve ser verificada pela API GitHub, não inferida deste documento. Nenhuma etapa faz merge automático.
+
+## Revisao de operador unico (adocao faseada)
+
+A [issue #1345](https://github.com/crgasparoto-br/controle_calorias/issues/1345) define a modalidade `operator-attested-session-review` como **declaracao de sessao separada**, distinta de auditoria humana independente e de atestacao Ed25519 solo. A etapa M1 adiciona apenas [preflight read-only](operator-session-rollout.md); a politica permanece `disabled` e nenhum parecer ou check de certificacao e gerado ate a implantacao validada de M2. O contrato GitHub-native atual e o `Agent-first gate` permanecem inalterados.

@@ -1,0 +1,45 @@
+name: Operator session certification preflight
+
+# M1 only. No comment processing, no Checks writer and no approval authority.
+# Transition to the official exact-SHA publisher requires M2 evidence and approval.
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - '.github/operator-session-integration.json'
+      - '.github/session-review-policy.json'
+      - '.github/workflows/operator-session-preflight.yml'
+      - 'scripts/operator_session_preflight.py'
+      - 'tests/test_operator_session_preflight.py'
+      - 'docs/audit/**'
+  push:
+    branches: [develop, main]
+    paths:
+      - '.github/operator-session-integration.json'
+      - '.github/session-review-policy.json'
+      - '.github/workflows/operator-session-preflight.yml'
+      - 'scripts/operator_session_preflight.py'
+      - 'tests/test_operator_session_preflight.py'
+      - 'docs/audit/**'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Operator session safety preflight (non-certifying)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate for read-only deterministic preflight
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Execute positive and adversarial preflight tests
+        run: python -m unittest discover -s tests -p 'test_operator_session_preflight.py' -v
+      - name: Validate governance and fail-closed bootstrap
+        run: python scripts/operator_session_preflight.py

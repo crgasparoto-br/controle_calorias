@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 1345,
+  "stage": "preflight-only",
+  "session_review_check_enabled": false,
+  "session_review_required": false,
+  "official_source": {
+    "repository": "crgasparoto-br/skill",
+    "ref": "71217ab40be73f64180f253816d7b5214cb23100",
+    "policy_blob": "ad12fb42b4254ce7c09ca97d7aa05bebff6621c5",
+    "verifier_blob": "088f9c91c9933ec367e3e367723d6d27985d1b0c"
+  },
+  "operator": {
+    "github_id": 255721831,
+    "github_login": "crgasparoto-br"
+  },
+  "existing_required_check": "Agent-first gate",
+  "prerequisites": [
+    "certified-semantic-handoff",
+    "real-junit-positive-negative-regression",
+    "trusted-neutral-audit-packet",
+    "exact-sha-evidence",
+    "separate-real-audit-context",
+    "authenticated-session-review-receipt",
+    "verified-default-and-base-installation"
+  ]
+}
