@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -206,11 +207,95 @@ def validate(integration: dict, policy: dict, workflow: str,
                 f"{path}: real technical checks or fail-closed behavior missing")
 
 
+
+def verify_official_mirror(manifest: dict | None = None) -> None:
+    """Validate pinned upstream Git blob identities; not a reviewer verdict."""
+    if manifest is None:
+        manifest = strict_json(
+            (ROOT / ".github/operator-session-tooling-lock.json").read_text())
+    require(set(manifest) == {
+        "schema_version", "repository", "official_repository", "official_commit", "required_paths"
+    }, "tooling lock schema drift")
+    require(type(manifest["schema_version"]) is int and manifest["schema_version"] == 1
+            and manifest["repository"] == REPOSITORY
+            and manifest["official_repository"] == SOURCE_REPOSITORY,
+            "tooling lock provenance mismatch")
+    pinned = strict_json((ROOT / ".github/operator-session-integration.json").read_text())
+    require(manifest["official_commit"] == pinned["official_source"]["ref"],
+            "tooling lock is not pinned to official Skill source")
+    expected = (
+        "scripts/session_review.py", "scripts/session_review_github.py",
+        "scripts/verify_session_review.py", "scripts/verify_independent_pr_audit.py",
+        "entregar-issue/scripts/specification.py",
+        "entregar-issue/scripts/require_actions_handoff_certificate.py",
+        "entregar-issue/scripts/handoff_merge_preview.py",
+        "entregar-issue/scripts/handoff_postcondition.py",
+        "entregar-issue/scripts/handoff_postcondition_records.py",
+        "entregar-issue/scripts/certificate_postcondition_replay.py",
+        "entregar-issue/scripts/certificate_replay_io.py",
+        "entregar-issue/scripts/certificate_replay_source.py",
+        "entregar-issue/scripts/audit_artifact_io.py",
+        "entregar-issue/scripts/certificate_replay_inputs.py",
+        "entregar-issue/scripts/build_test_candidate_index.py",
+    )
+    files = manifest["required_paths"]
+    require(isinstance(files, dict) and set(files) == set(expected),
+            "official verifier mirror is incomplete or has extra paths")
+    for path, wanted in files.items():
+        require(isinstance(wanted, str) and PIN_PATTERN.fullmatch(wanted),
+                "invalid official Git blob identifier")
+        raw = (ROOT / path).read_bytes()
+        actual = hashlib.sha1(
+            b"blob " + str(len(raw)).encode("ascii") + b"\\x00" + raw,
+            usedforsecurity=False).hexdigest()
+        require(actual == wanted, f"official mirrored tooling differs from pinned blob: {path}")
+
+
+def verify_bootstrap_wrappers(session: str | None = None, packet: str | None = None) -> None:
+    if session is None:
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+    if packet is None:
+        packet = (ROOT / ".github/workflows/prepare-neutral-audit-packet.yml").read_text()
+    skill = "ref: " + strict_json(
+        (ROOT / ".github/operator-session-integration.json").read_text()
+    )["official_source"]["ref"]
+    require("name: Verify operator-attested session review" in session
+            and "vars.SOLVERIT_SESSION_REVIEW_ENABLED == 'true'" in session
+            and "ref: ${{ github.workflow_sha }}" in session
+            and skill in session
+            and "repository: crgasparoto-br/skill" in session
+            and "python .solverit-skill/scripts/verify_session_review.py" in session,
+            "session verifier must use trusted source and disabled rollout guard")
+    require("checks: write" in session
+            and "persist-credentials: false" in session
+            and "cp .github/session-review-policy.json" in session
+            and "cp .github/workflows/session-review.yml" in session
+            and "continue-on-error:" not in session,
+            "session verifier missing trusted boundaries")
+    require("name: Prepare neutral independent audit packet" in packet
+            and "ref: ${{ github.workflow_sha }}" in packet
+            and skill in packet
+            and "python - <<'PY'" in packet
+            and "from verify_session_review import evaluate, resolve_targets" in packet
+            and "if-no-files-found: error" in packet,
+            "neutral packet must use trusted exact-SHA evidence reader")
+    require("checks: write" not in packet
+            and "contents: write" not in packet
+            and "github.event.repository.default_branch" in packet
+            and "github.event.comment.body == '/solverit-audit-packet'" in packet
+            and "persist-credentials: false" in packet,
+            "neutral packet must be read-only default-branch request")
+    require("continue-on-error:" not in packet,
+            "neutral evidence cannot be silently skipped")
+
+
 def main() -> None:
     integration = strict_json((ROOT / ".github/operator-session-integration.json").read_text())
     policy = strict_json((ROOT / ".github/session-review-policy.json").read_text())
     workflow = (ROOT / ".github/workflows/operator-session-preflight.yml").read_text()
     validate(integration, policy, workflow)
+    verify_official_mirror()
+    verify_bootstrap_wrappers()
     print("PASS: operator-session M1 metadata and read-only preflight are fail-closed")
     print("NOT CERTIFIED: no session receipt or independent audit approval is issued")
 
