@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PIN_PATTERN = re.compile(r"[0-9a-f]{40}\\Z")
+PIN_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 REPOSITORY = "crgasparoto-br/controle_calorias"
 SOURCE_REPOSITORY = "crgasparoto-br/skill"
 OPERATOR_ID = 255721831
@@ -94,11 +94,11 @@ def validate(integration: dict, policy: dict, workflow: str) -> None:
     require("name: Operator session certification preflight" in workflow
             and "Operator session safety preflight (non-certifying)" in workflow,
             "unexpected workflow identity")
-    require(re.search(r"(?m)^permissions:\\s*\\n\\s+contents: read\\s*$", workflow) is not None,
+    require(re.search(r"(?m)^permissions:\s*\n\s+contents: read\s*$", workflow) is not None,
             "workflow must have globally read-only permissions")
-    require(re.search(r"(?m)^\\s*(checks|issues|pull-requests|actions):\\s*write\\s*$", workflow) is None,
+    require(re.search(r"(?m)^\s*(checks|issues|pull-requests|actions):\s*write\s*$", workflow) is None,
             "M1 workflow cannot write checks or reviews")
-    require(re.search(r"(?m)^\\s*pull_request_target:\\s*$", workflow) is None,
+    require(re.search(r"(?m)^\s*pull_request_target:\s*$", workflow) is None,
             "M1 cannot run elevated pull_request_target event")
     require("persist-credentials: false" in workflow
             and "python scripts/operator_session_preflight.py" in workflow
