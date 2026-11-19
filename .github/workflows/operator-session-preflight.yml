@@ -71,6 +71,7 @@ jobs:
       - name: Run official session reviewer and ruleset adversarial suites
         run: |
           cd .skill-source
+          export PYTHONPATH="$PWD/scripts:$PWD/entregar-issue/scripts:$PWD/auditar-issue/scripts:${PYTHONPATH:-}"
           python -m pytest -q \
             tests/test_session_review.py \
             tests/test_session_review_dossier.py \
