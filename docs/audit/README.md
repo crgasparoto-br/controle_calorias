@@ -34,3 +34,7 @@ A [issue #1345](https://github.com/crgasparoto-br/controle_calorias/issues/1345)
 ## Coletor/publisher piloto (nao certifica sessao)
 
 A [PR de governanca #1347](https://github.com/crgasparoto-br/controle_calorias/pull/1347) integra o [coletor oficial fixado](../../.github/workflows/handoff-evidence.yml) por label, com bloqueio em falta de closure/JUnit, e prepara [publicador confiavel](../../.github/workflows/publish-certified-handoff.yml) na default branch. Ambos sao controles de handoff da entrega, **nao** o gate `Verify session review (exact SHA)`. Ver [sequenciamento e rollout](operator-session-rollout.md). Nunca considerar a presenca dos YAMLs na branch candidata como ativacao do gate de revisao.
+
+## Verificador de sessao ainda nao habilitado
+
+A PR #1347 inclui o [verificador de sessao](../../.github/workflows/session-review.yml) com codigo oficial fixado por SHA e fonte critica espelhada em [manifesto de integridade](../../.github/operator-session-tooling-lock.json). O job de escrita esta condicionado a `SOLVERIT_SESSION_REVIEW_ENABLED=true`, variavel que **nao deve ser ativada antes de M2**. O [pacote neutro](../../.github/workflows/prepare-neutral-audit-packet.yml) nao publica aprovacao. A mera existencia desses arquivos no head nao e certificacao.

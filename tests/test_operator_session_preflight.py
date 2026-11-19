@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from operator_session_preflight import strict_json, validate  # noqa: E402
+from operator_session_preflight import strict_json, validate, verify_official_mirror, verify_bootstrap_wrappers  # noqa: E402
 
 
 class OperatorSessionPreflightTests(unittest.TestCase):
@@ -161,6 +161,66 @@ class OperatorSessionPreflightTests(unittest.TestCase):
             self.assertIn(name, text)
             self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", text)
             self.assertIn("fetch-depth: 0", text)
+
+
+    def test_pinned_official_mirror_is_complete(self):
+        verify_official_mirror()
+
+    def test_official_mirror_rejects_hash_mismatch(self):
+        manifest = json.loads((ROOT / ".github/operator-session-tooling-lock.json").read_text())
+        manifest["required_paths"]["scripts/session_review.py"] = "0" * 40
+        with self.assertRaises(ValueError):
+            verify_official_mirror(manifest)
+
+    def test_official_mirror_rejects_unpinned_source(self):
+        manifest = json.loads((ROOT / ".github/operator-session-tooling-lock.json").read_text())
+        manifest["official_commit"] = "0" * 40
+        with self.assertRaises(ValueError):
+            verify_official_mirror(manifest)
+
+    def test_official_mirror_rejects_missing_validator(self):
+        manifest = json.loads((ROOT / ".github/operator-session-tooling-lock.json").read_text())
+        manifest["required_paths"].pop("scripts/verify_session_review.py")
+        with self.assertRaises(ValueError):
+            verify_official_mirror(manifest)
+
+    def test_trusted_upstream_review_and_packet_bootstrap(self):
+        verify_bootstrap_wrappers()
+
+    def test_session_writer_cannot_be_armed_in_pr(self):
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+        with self.assertRaises(ValueError):
+            verify_bootstrap_wrappers(
+                session=session.replace(
+                    "vars.SOLVERIT_SESSION_REVIEW_ENABLED == 'true'", "true"))
+
+    def test_session_writer_cannot_execute_candidate_code(self):
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+        with self.assertRaises(ValueError):
+            verify_bootstrap_wrappers(
+                session=session.replace(
+                    "ref: ${{ github.workflow_sha }}", "ref: ${{ github.event.pull_request.head.sha }}"))
+
+    def test_session_writer_requires_pinned_skill_revision(self):
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+        with self.assertRaises(ValueError):
+            verify_bootstrap_wrappers(
+                session=session.replace(
+                    "ref: 71217ab40be73f64180f253816d7b5214cb23100", "ref: develop"))
+
+    def test_neutral_packet_cannot_write_checks(self):
+        packet = (ROOT / ".github/workflows/prepare-neutral-audit-packet.yml").read_text()
+        with self.assertRaises(ValueError):
+            verify_bootstrap_wrappers(
+                packet=packet.replace(
+                    "  checks: read", "  checks: write"))
+
+    def test_neutral_packet_must_bind_default_branch(self):
+        packet = (ROOT / ".github/workflows/prepare-neutral-audit-packet.yml").read_text()
+        with self.assertRaises(ValueError):
+            verify_bootstrap_wrappers(
+                packet=packet.replace(
+                    "github.event.repository.default_branch", "'develop'"))
 
     def test_duplicate_json_key(self):
         with self.assertRaises(ValueError):

@@ -246,7 +246,7 @@ def verify_official_mirror(manifest: dict | None = None) -> None:
                 "invalid official Git blob identifier")
         raw = (ROOT / path).read_bytes()
         actual = hashlib.sha1(
-            b"blob " + str(len(raw)).encode("ascii") + b"\\x00" + raw,
+            b"blob " + str(len(raw)).encode("ascii") + b"\x00" + raw,
             usedforsecurity=False).hexdigest()
         require(actual == wanted, f"official mirrored tooling differs from pinned blob: {path}")
 

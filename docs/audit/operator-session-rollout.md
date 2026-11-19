@@ -14,6 +14,24 @@ imutavel e lista TODOS os prerequisitos. A politica local
 `.github/session-review-policy.json` permanece `mode=disabled` para impedir ativacao
 autorizada pelo proprio candidato. Nenhum job cria Check Run de aprovacao.
 
+### Verificador de sessao e pacote neutro instalados em modo bloqueado
+
+A PR traz copia byte a byte de 15 fontes criticas da Skill oficial,
+registradas por Git blob SHA no manifesto `.github/operator-session-tooling-lock.json`.
+O codigo executado no runner vem do repositorio Skill no commit fixado;
+nao e executado codigo da PR com `checks: write`. O workflow
+`.github/workflows/session-review.yml` so executa o verificador se a
+variavel de repositório `SOLVERIT_SESSION_REVIEW_ENABLED` for `true`;
+ela nao deve ser ativada ate os ensaios M2. O workflow de pacote neutro
+so roda na default branch confiavel, em eventos de certificado ou pedido
+`/solverit-audit-packet`, e nao concede aprovacao.
+
+O verificador autentica a fonte das copias criticas contra a **base SHA da PR**.
+A insercao nesta PR so e bootstrap, pois as copias ainda nao estao na base
+protegida: nenhum check valido pode ser reivindicado antes de promover essa
+versao para `develop`, depois para `main`, com hashes byte a byte iguais.
+O parecer de sessao ainda deve ser feito fora da conversa implementadora.
+
 ### Checks tecnicos oficiais (sem enfraquecer a CI)
 
 Os checks `Structure and tests` e `Offline authorization tests` sao
