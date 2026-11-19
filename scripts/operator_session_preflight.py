@@ -122,12 +122,12 @@ def validate(integration: dict, policy: dict, workflow: str,
             "trusted upstream adversarial suites and source pin are required")
 
     collector = (collector_workflow if collector_workflow is not None
-                 else (ROOT / ".github/workflows/collect-certified-handoff.yml").read_text())
+                 else (ROOT / ".github/workflows/handoff-evidence.yml").read_text())
     expected = (f"uses: {SOURCE_REPOSITORY}/.github/workflows/reusable-handoff.yml@"
                 f"{source['ref']}")
     require("name: Collect and certify exact-SHA handoff" in collector
             and expected in collector
-            and "name: Pilot certified semantic handoff (fail closed)" in collector,
+            and "name: Certified semantic handoff pilot (fail closed)" in collector,
             "missing or unpinned official handoff producer")
     require(re.search(r"(?m)^permissions:\s*\n\s+contents: read\s*\n\s+issues: read\s*\n\s+pull-requests: read\s*$",
                       collector) is not None,
@@ -172,7 +172,7 @@ def validate(integration: dict, policy: dict, workflow: str,
             and "    steps:" not in publisher,
             "handoff publisher must not execute candidate code or accept untrusted dispatch")
     require("base-ref: develop" in publisher
-            and "producer-path: .github/workflows/collect-certified-handoff.yml" in publisher
+            and "producer-path: .github/workflows/handoff-evidence.yml" in publisher
             and "required-checks: Collect and certify exact-SHA handoff" in publisher,
             "publisher does not bind exact consumer producer and base")
 

@@ -16,7 +16,7 @@ class OperatorSessionPreflightTests(unittest.TestCase):
         cls.integration = json.loads((ROOT / ".github/operator-session-integration.json").read_text())
         cls.policy = json.loads((ROOT / ".github/session-review-policy.json").read_text())
         cls.workflow = (ROOT / ".github/workflows/operator-session-preflight.yml").read_text()
-        cls.collector = (ROOT / ".github/workflows/collect-certified-handoff.yml").read_text()
+        cls.collector = (ROOT / ".github/workflows/handoff-evidence.yml").read_text()
         cls.publisher = (ROOT / ".github/workflows/publish-certified-handoff.yml").read_text()
 
     def assert_blocked(self, *, integration=None, policy=None, workflow=None, collector=None,
@@ -148,7 +148,7 @@ class OperatorSessionPreflightTests(unittest.TestCase):
 
     def test_publisher_must_use_exact_producer_path(self):
         self.assert_blocked(publisher=self.publisher.replace(
-            "producer-path: .github/workflows/collect-certified-handoff.yml",
+            "producer-path: .github/workflows/handoff-evidence.yml",
             "producer-path: .github/workflows/unknown.yml"))
 
     def test_duplicate_json_key(self):

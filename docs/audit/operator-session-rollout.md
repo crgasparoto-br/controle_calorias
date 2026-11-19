@@ -17,7 +17,7 @@ autorizada pelo proprio candidato. Nenhum job cria Check Run de aprovacao.
 ### Coleta e publicacao do handoff (piloto somente)
 
 A integracao fixa o produtor oficial
-`.github/workflows/collect-certified-handoff.yml` no commit da Skill indicado
+`.github/workflows/handoff-evidence.yml` no commit da Skill indicado
 acima. Por enquanto, somente PRs rotuladas `solverit-certified-handoff`
 executam a coleta. O produtor usa `pytest --junitxml` com casos realmente
 executados, `produce_actions_handoff_evidence.py` e um certificador separado.

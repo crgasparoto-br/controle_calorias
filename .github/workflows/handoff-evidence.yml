@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   collect:
-    name: Pilot certified semantic handoff (fail closed)
+    name: Certified semantic handoff pilot (fail closed)
     if: ${{ contains(github.event.pull_request.labels.*.name, 'solverit-certified-handoff') }}
     uses: crgasparoto-br/skill/.github/workflows/reusable-handoff.yml@71217ab40be73f64180f253816d7b5214cb23100
     with:

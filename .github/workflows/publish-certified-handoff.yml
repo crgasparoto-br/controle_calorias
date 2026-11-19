@@ -25,5 +25,5 @@ jobs:
     with:
       base-ref: develop
       tooling-repository: crgasparoto-br/skill
-      producer-path: .github/workflows/collect-certified-handoff.yml
+      producer-path: .github/workflows/handoff-evidence.yml
       required-checks: Collect and certify exact-SHA handoff
