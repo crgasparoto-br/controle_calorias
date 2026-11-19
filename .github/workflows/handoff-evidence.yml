@@ -15,15 +15,16 @@ permissions:
 jobs:
   collect:
     name: Certified semantic handoff pilot (fail closed)
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'solverit-certified-handoff') }}
+    if: ${{ github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'solverit-certified-handoff') }}
     uses: crgasparoto-br/skill/.github/workflows/reusable-handoff.yml@71217ab40be73f64180f253816d7b5214cb23100
     with:
       base-ref: develop
       tooling-repository: crgasparoto-br/skill
       python-version: '3.12'
-      # The official locked tool dependencies already include pytest.
-      # These are real governance controls, not fabricated JUnit results.
-      test-command: 'python -m pytest -vv tests/test_operator_session_preflight.py --junitxml="$EVIDENCE_DIR/pytest-exact-head.xml"'
+      # Full executed Vitest JUnit evidence, not automatically mapped to requirements.
+      # The official preflight remains validated by its dedicated workflow.
+      install-command: 'npm install --global pnpm@10.4.1 && pnpm install --frozen-lockfile'
+      test-command: 'NODE_OPTIONS=--max-old-space-size=4096 bash scripts/collect-solverit-certification-tests.sh'
       # A separately reviewed semantic closure is mandatory. Missing closure
       # is a failure, never equivalent to absence of findings or success.
       evidence-command: 'python "$HANDOFF_TOOLING/entregar-issue/scripts/produce_actions_handoff_evidence.py" --root . --out "$EVIDENCE_DIR" --event "$GITHUB_EVENT_PATH" --base-ref "$BASE_REF"'
