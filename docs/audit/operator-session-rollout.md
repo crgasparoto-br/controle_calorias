@@ -14,6 +14,32 @@ imutavel e lista TODOS os prerequisitos. A politica local
 `.github/session-review-policy.json` permanece `mode=disabled` para impedir ativacao
 autorizada pelo proprio candidato. Nenhum job cria Check Run de aprovacao.
 
+### Coleta e publicacao do handoff (piloto somente)
+
+A integracao fixa o produtor oficial
+`.github/workflows/collect-certified-handoff.yml` no commit da Skill indicado
+acima. Por enquanto, somente PRs rotuladas `solverit-certified-handoff`
+executam a coleta. O produtor usa `pytest --junitxml` com casos realmente
+executados, `produce_actions_handoff_evidence.py` e um certificador separado.
+**Sem uma closure semantica revisada, o certificador deve falhar**, e o
+workflow nao pode ser considerado pronto nem requerido pelos rulesets.
+
+O publicador `.github/workflows/publish-certified-handoff.yml` foi preparado
+para executar somente a partir de `workflow_run` na default branch confiavel,
+apos sucesso autenticado do produtor. Usa `reusable-publish-handoff.yml`
+fixado por commit da Skill; o codigo da PR nao e executado com
+`contents: write`. Este wrapper permanecera inerte enquanto nao for
+promovido de modo revisado para `main`; sua presenca na branch candidata
+**nao** comprova instalacao na default branch nem permissao para publicar.
+
+Os controles de qualidade executam as suites oficiais fixadas no mesmo commit:
+`test_session_review`, `test_session_review_dossier`,
+`test_session_review_runner`, `test_session_review_workflows`,
+`test_session_certificate_event` e `test_plan_session_ruleset_m2`.
+O comando local de validacao e `python -m unittest discover -s tests -p
+'test_operator_session_preflight.py' -v`; a fonte e o oraculo official
+continuam separados do candidato.
+
 **Limite:** esta etapa nao gera `Verify session review (exact SHA)`, nao certifica a
 implementacao, nao satisfaz auditoria independente nem permite encerrar a #1298.
 CI verde neste workflow demonstra somente preflight estrutural, nao um review.

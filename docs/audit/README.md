@@ -30,3 +30,7 @@ O ruleset GitHub deve exigir `Agent-first gate` em `develop` e `main`. A efetivi
 ## Revisao de operador unico (adocao faseada)
 
 A [issue #1345](https://github.com/crgasparoto-br/controle_calorias/issues/1345) define a modalidade `operator-attested-session-review` como **declaracao de sessao separada**, distinta de auditoria humana independente e de atestacao Ed25519 solo. A etapa M1 adiciona apenas [preflight read-only](operator-session-rollout.md); a politica permanece `disabled` e nenhum parecer ou check de certificacao e gerado ate a implantacao validada de M2. O contrato GitHub-native atual e o `Agent-first gate` permanecem inalterados.
+
+## Coletor/publisher piloto (nao certifica sessao)
+
+A [PR de governanca #1347](https://github.com/crgasparoto-br/controle_calorias/pull/1347) integra o [coletor oficial fixado](../../.github/workflows/collect-certified-handoff.yml) por label, com bloqueio em falta de closure/JUnit, e prepara [publicador confiavel](../../.github/workflows/publish-certified-handoff.yml) na default branch. Ambos sao controles de handoff da entrega, **nao** o gate `Verify session review (exact SHA)`. Ver [sequenciamento e rollout](operator-session-rollout.md). Nunca considerar a presenca dos YAMLs na branch candidata como ativacao do gate de revisao.

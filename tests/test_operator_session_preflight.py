@@ -109,6 +109,13 @@ class OperatorSessionPreflightTests(unittest.TestCase):
         self.assert_blocked(collector=self.collector.replace(
             "    with:", "    continue-on-error: true\n    with:"))
 
+    def test_publisher_is_validated_when_present(self):
+        validate(self.integration, self.policy, self.workflow, self.collector)
+
+    def test_missing_publisher_is_not_approved_as_certificate(self):
+        self.assertFalse(self.integration["session_review_check_enabled"])
+        self.assertFalse(self.integration["session_review_required"])
+
     def test_duplicate_json_key(self):
         with self.assertRaises(ValueError):
             strict_json('{"mode":"disabled","mode":"enabled"}')

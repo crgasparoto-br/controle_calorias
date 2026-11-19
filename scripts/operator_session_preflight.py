@@ -148,6 +148,32 @@ def validate(integration: dict, policy: dict, workflow: str,
             and "if-no-files-found: ignore" not in collector,
             "certification evidence must fail closed")
 
+    publisher = (ROOT / ".github/workflows/publish-certified-handoff.yml").read_text()
+    expected_publisher = (f"uses: {SOURCE_REPOSITORY}/"
+                          f".github/workflows/reusable-publish-handoff.yml@{source['ref']}")
+    require("name: Publish certified handoff (trusted)" in publisher
+            and expected_publisher in publisher,
+            "untrusted or unpinned handoff publisher")
+    require(re.search(r"(?m)^permissions:\s*\n\s+contents: write\s*\n\s+actions: read\s*\n\s+pull-requests: read\s*$",
+                      publisher) is not None,
+            "handoff publisher requires exact permission boundary")
+    require("workflow_run:" in publisher
+            and "workflows: [\"Collect and certify exact-SHA handoff\"]" in publisher
+            and "github.event.workflow_run.conclusion == 'success'" in publisher
+            and "github.event.workflow_run.event == 'pull_request'" in publisher
+            and "github.event.workflow_run.head_repository.full_name == github.repository" in publisher
+            and "github.event.repository.default_branch" in publisher,
+            "publisher is not bound to trusted default-branch certified workflow")
+    require(re.search(r"(?m)^\s*(pull_request_target|workflow_dispatch|issue_comment):\s*$",
+                      publisher) is None
+            and "continue-on-error:" not in publisher
+            and "    steps:" not in publisher,
+            "handoff publisher must not execute candidate code or accept untrusted dispatch")
+    require("base-ref: develop" in publisher
+            and "producer-path: .github/workflows/collect-certified-handoff.yml" in publisher
+            and "required-checks: Collect and certify exact-SHA handoff" in publisher,
+            "publisher does not bind exact consumer producer and base")
+
 
 def main() -> None:
     integration = strict_json((ROOT / ".github/operator-session-integration.json").read_text())
