@@ -46,7 +46,8 @@ def strict_json(text: str) -> dict:
 
 
 def validate(integration: dict, policy: dict, workflow: str,
-             collector_workflow: str | None = None) -> None:
+             collector_workflow: str | None = None,
+             publisher_workflow: str | None = None) -> None:
     require(set(integration) == {
         "schema_version", "repository", "issue", "stage",
         "session_review_check_enabled", "session_review_required",
@@ -148,7 +149,8 @@ def validate(integration: dict, policy: dict, workflow: str,
             and "if-no-files-found: ignore" not in collector,
             "certification evidence must fail closed")
 
-    publisher = (ROOT / ".github/workflows/publish-certified-handoff.yml").read_text()
+    publisher = (publisher_workflow if publisher_workflow is not None
+                 else (ROOT / ".github/workflows/publish-certified-handoff.yml").read_text())
     expected_publisher = (f"uses: {SOURCE_REPOSITORY}/"
                           f".github/workflows/reusable-publish-handoff.yml@{source['ref']}")
     require("name: Publish certified handoff (trusted)" in publisher
