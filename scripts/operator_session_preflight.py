@@ -106,6 +106,20 @@ def validate(integration: dict, policy: dict, workflow: str,
             and "python -m unittest discover" in workflow,
             "missing unprivileged preflight or self-test")
 
+    require("Pinned official session contract regression (non-certifying)" in workflow
+            and "repository: crgasparoto-br/skill" in workflow
+            and f"ref: {source['ref']}" in workflow
+            and "python -m pytest -q" in workflow
+            and all(case in workflow for case in (
+                "tests/test_session_review.py",
+                "tests/test_session_review_dossier.py",
+                "tests/test_session_review_runner.py",
+                "tests/test_session_review_workflows.py",
+                "tests/test_session_certificate_event.py",
+                "tests/test_plan_session_ruleset_m2.py",
+            )),
+            "trusted upstream adversarial suites and source pin are required")
+
     collector = (collector_workflow if collector_workflow is not None
                  else (ROOT / ".github/workflows/collect-certified-handoff.yml").read_text())
     expected = (f"uses: {SOURCE_REPOSITORY}/.github/workflows/reusable-handoff.yml@"
