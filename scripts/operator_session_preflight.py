@@ -177,6 +177,34 @@ def validate(integration: dict, policy: dict, workflow: str,
             "publisher does not bind exact consumer producer and base")
 
 
+
+
+    # Official consumer TECHNICAL checks must come from the paths and names
+    # authenticated by verify_independent_pr_audit.py. These are supplemental
+    # to the existing Agent-first gate and cannot be converted to a no-op.
+    technical = (
+        (".github/workflows/validate.yml", "name: Structure and tests",
+         ("pnpm check", "pnpm architecture:check", "pnpm docs:check", "pnpm build",
+          "node --test scripts/ci-classifier.test.mjs")),
+        (".github/workflows/github-audit-mcp.yml", "name: Offline authorization tests",
+         ("pnpm exec vitest run", "server/auth.local.test.ts",
+          "server/auth.logout.test.ts", "whatsappAuthorization.test.ts",
+          "billingRolloutAdminAuthorization.test.ts")),
+    )
+    for path, expected_name, commands in technical:
+        source = (ROOT / path).read_text()
+        require(expected_name in source and "ref: ${{ github.event.pull_request.head.sha }}" in source,
+                f"{path}: missing authenticated check identity or exact-HEAD checkout")
+        require(re.search(r"(?m)^permissions:\s*\n\s+contents: read\s*$", source) is not None
+                and re.search(r"(?m)^\s*(checks|contents|issues|pull-requests|actions):\s*write\s*$", source) is None,
+                f"{path}: privileged technical checks are forbidden")
+        require(all(command in source for command in commands)
+                and "persist-credentials: false" in source
+                and "pnpm install --frozen-lockfile" in source
+                and "continue-on-error:" not in source,
+                f"{path}: real technical checks or fail-closed behavior missing")
+
+
 def main() -> None:
     integration = strict_json((ROOT / ".github/operator-session-integration.json").read_text())
     policy = strict_json((ROOT / ".github/session-review-policy.json").read_text())

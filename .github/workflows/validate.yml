@@ -1,0 +1,51 @@
+name: Validate skills
+
+# Secondary authenticated technical check for the official session review.
+# Preserves (does not replace) the existing required Agent-first gate.
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Structure and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate TypeScript
+        run: pnpm check
+      - name: Validate architecture
+        run: pnpm architecture:check
+      - name: Validate documentation
+        run: pnpm docs:check
+      - name: Execute CI and architecture unit regressions
+        run: |
+          node --test scripts/ci-classifier.test.mjs scripts/run-vitest-shards.test.mjs
+          node --test scripts/food-architecture-syntax-guard.test.mjs
+          node scripts/food-architecture-syntax-guard.mjs
+          node scripts/check-github-native-audit-contract.mjs
+      - name: Build
+        run: pnpm build

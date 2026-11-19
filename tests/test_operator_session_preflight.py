@@ -151,6 +151,16 @@ class OperatorSessionPreflightTests(unittest.TestCase):
             "producer-path: .github/workflows/handoff-evidence.yml",
             "producer-path: .github/workflows/unknown.yml"))
 
+
+    def test_official_technical_check_paths_exist(self):
+        for path, name in (
+            (".github/workflows/validate.yml", "name: Structure and tests"),
+            (".github/workflows/github-audit-mcp.yml", "name: Offline authorization tests"),
+        ):
+            text = (ROOT / path).read_text()
+            self.assertIn(name, text)
+            self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", text)
+
     def test_duplicate_json_key(self):
         with self.assertRaises(ValueError):
             strict_json('{"mode":"disabled","mode":"enabled"}')

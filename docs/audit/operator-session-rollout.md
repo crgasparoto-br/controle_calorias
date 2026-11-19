@@ -14,6 +14,16 @@ imutavel e lista TODOS os prerequisitos. A politica local
 `.github/session-review-policy.json` permanece `mode=disabled` para impedir ativacao
 autorizada pelo proprio candidato. Nenhum job cria Check Run de aprovacao.
 
+### Checks tecnicos oficiais (sem enfraquecer a CI)
+
+Os checks `Structure and tests` e `Offline authorization tests` sao
+executados em PRs reais a partir das fontes esperadas pelo autenticador oficial
+`.github/workflows/validate.yml` e `.github/workflows/github-audit-mcp.yml`.
+Executam comandos de build/TypeScript/docs/arquitetura e suites reais de
+autorizacao, no commit exato da PR, com permissoes read-only.
+**Sao checks adicionais**; o `Agent-first gate` segue sendo obrigatorio.
+A adocao dos nomes da Skill nao equivale a revisao independente.
+
 ### Coleta e publicacao do handoff (piloto somente)
 
 A integracao fixa o produtor oficial
