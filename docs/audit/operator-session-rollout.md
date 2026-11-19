@@ -47,15 +47,18 @@ A adocao dos nomes da Skill nao equivale a revisao independente.
 A integracao fixa o produtor oficial
 `.github/workflows/handoff-evidence.yml` no commit da Skill indicado
 acima. Por enquanto, somente PRs rotuladas `solverit-certified-handoff`
-executam a coleta. O produtor roda `scripts/collect-solverit-certification-tests.sh` com os 24 shards
-Vitest (concorrencia 2), gera um JUnit factual agregado e usa
+executam a coleta. O produtor executa primeiro o `pytest` de preflight previsto no contrato
+da #1347 e preserva seu XML como `junit-shards/shard-25.xml`. Depois roda
+`scripts/collect-solverit-certification-tests.sh` com os 24 shards Vitest
+(concorrencia 2). O agregador combina **25 shards reais** em um unico JUnit
+factual, indexado pelo produtor oficial, e usa
 `produce_actions_handoff_evidence.py` com certificador separado. A coleta
 recusa shard ausente, IDs repetidos entre shards, contagens inconsistentes,
 resultados falhos e conjuntos sem testes efetivamente executados; skipped
 permanece skipped. Casos parametrizados com mesmo nome preservam cada
 execucao com ID reprodutivel e nome original. O `Agent-first gate` exercita
 testes positivos e adversariais desse consolidador. O preflight da Skill
-(40 testes locais e 300 oficiais) continua no workflow dedicado.
+(40 testes locais e 300 oficiais) continua tambem no workflow dedicado.
 **O JUnit tecnico nao substitui o dossie semantico:** o mapeamento dos
 casos a requisitos permanece `UNKNOWN` ate uma closure revisada.
 **Sem uma closure semantica revisada, o certificador deve falhar**, e o

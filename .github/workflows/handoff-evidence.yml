@@ -21,10 +21,10 @@ jobs:
       base-ref: develop
       tooling-repository: crgasparoto-br/skill
       python-version: '3.12'
-      # Full executed Vitest JUnit evidence, not automatically mapped to requirements.
-      # The official preflight remains validated by its dedicated workflow.
+      # Preserve the required Python governance JUnit, then add all 24 Vitest
+      # shards as technical candidates; none become semantic closure automatically.
       install-command: 'npm install --global pnpm@10.4.1 && pnpm install --frozen-lockfile'
-      test-command: 'NODE_OPTIONS=--max-old-space-size=4096 bash scripts/collect-solverit-certification-tests.sh'
+      test-command: 'python -m pytest -vv tests/test_operator_session_preflight.py --junitxml="$EVIDENCE_DIR/pytest-exact-head.xml" && NODE_OPTIONS=--max-old-space-size=4096 bash scripts/collect-solverit-certification-tests.sh'
       # A separately reviewed semantic closure is mandatory. Missing closure
       # is a failure, never equivalent to absence of findings or success.
       evidence-command: 'python "$HANDOFF_TOOLING/entregar-issue/scripts/produce_actions_handoff_evidence.py" --root . --out "$EVIDENCE_DIR" --event "$GITHUB_EVENT_PATH" --base-ref "$BASE_REF"'
