@@ -143,6 +143,23 @@ vi.mock("./whatsappWebhook", () => ({
   handleWhatsAppWebhook: fallbackWebhookMock,
 }));
 
+// These legacy specs have no D1 pending or route; D1 replay behavior is tested separately.
+vi.mock(
+  "./modules/whatsapp/confirmedMealRegistration",
+  async importOriginal => {
+    const actual =
+      await importOriginal<
+        typeof import("./modules/whatsapp/confirmedMealRegistration")
+      >();
+    return {
+      ...actual,
+      tryRunPublicFoodD1WhatsAppContinuation: vi.fn(async () => null),
+      assertWhatsAppInboundNotPreviouslyD1Owned: vi.fn(async () => undefined),
+    };
+  }
+);
+
+
 const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
 const { handleWhatsAppWebhookWithAnnotatedImages } = await import("./whatsappAnnotatedImageWebhook");
 const { __resetWhatsAppAnnotatedImageDeduplicationForTests } = await import("./whatsappAnnotatedImageWebhook");
@@ -499,6 +516,69 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       expect.objectContaining({ userId: 42, text: expect.stringContaining("Almoço Registrado") }),
     );
     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+  });
+
+  it("#1308 rejects selected V2 image without a legacy nutrition decision", async () => {
+    const flag = process.env.FOOD_V2_D1_ENABLED;
+    const selector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "nutrition_label";
+      await handleWhatsAppWebhookWithTextIntent(
+        createImageWebhookRequest("d1-native-label-not-migrated") as never,
+        createResponse() as never,
+      );
+      expect(processMealInputMock).not.toHaveBeenCalled();
+      expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+      expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    } finally {
+      if (flag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = flag;
+      if (selector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = selector;
+    }
+  });
+
+  it("#1308 preserves a durable V1 label pending after selecting V2", async () => {
+    const flag = process.env.FOOD_V2_D1_ENABLED;
+    const selector = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "nutrition_label";
+      listActiveNutritionLabelPhotoRequestsMock.mockResolvedValueOnce([{
+        target: {
+          kind: "nutrition_label_photo_request", mealId: 10, itemIndex: 0,
+          identityKey: "danone-natural-integral",
+          originalFoodName: "Iogurte Natural Integral Danone",
+          originalCanonicalName: "Iogurte Natural Integral Danone",
+          originalBrand: "Danone", originalProductVariant: "Natural Integral",
+        },
+      }]);
+      resolveNutritionLabelPhotoEvidenceMock.mockResolvedValueOnce({
+        handled: true, action: "nutrition_label_photo_applied",
+        reply: "Rótulo associado ao mesmo alimento.",
+        eventType: "whatsapp.nutrition_label_photo.applied",
+        detail: "Operação V1 já persistida.",
+      });
+      await handleWhatsAppWebhookWithTextIntent(
+        createImageWebhookRequest("d1-legacy-label-owned") as never,
+        createResponse() as never,
+      );
+      expect(processMealInputMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nutritionLabelIdentityContext: expect.objectContaining({
+            originalBrand: "Danone",
+          }),
+        }),
+      );
+      expect(resolveNutritionLabelPhotoEvidenceMock).toHaveBeenCalledOnce();
+      expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    } finally {
+      if (flag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = flag;
+      if (selector === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = selector;
+    }
   });
 
   it("mantém a correlação da mensagem entre mídia e inferência anotada", async () => {

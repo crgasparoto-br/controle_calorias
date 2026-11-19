@@ -5,6 +5,7 @@ import {
   upsertUserWhatsappConnection,
 } from "../../db";
 import { processMealDraft } from "../meals/service";
+import { tryRunPublicFoodD1Simulation } from "../foodIntelligenceV2/publicSimulator";
 import { processProfessionalAccessWhatsappResponse } from "../professionals/service";
 import {
   getMissingWhatsAppChannelConfig,
@@ -252,6 +253,25 @@ async function handleProfessionalAccessDecision(userId: number, text?: string | 
 }
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
+  // The authenticated tRPC endpoint is the same. A selected V2 simulation is
+  // read-only and must obtain independent approval before any V1 side effect.
+  // The public caller may omit pendingContextKind. Preserve server-known
+  // conversation state before the read-only V2 simulator can interpret text.
+  const activeConversation = getWhatsappConversationPendingContext(userId, input.receivedAt);
+  const d1Input = activeConversation && input.pendingContextKind === undefined
+    ? { ...input, pendingContextKind: activeConversation.kind }
+    : input;
+  const d1Plan = await tryRunPublicFoodD1Simulation(userId, d1Input);
+  if (d1Plan) {
+    return {
+      handled: true,
+      action: "food_v2_simulated",
+      reply: "A simulação V2 produziu um plano para revisão, sem registrar refeições.",
+      eventType: "whatsapp.simulator.food_v2_preview",
+      detail: "Plano técnico V2 read-only; nenhum item persistido.",
+      data: { foodV2Plan: d1Plan },
+    };
+  }
   const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
   const receivedAt = input.receivedAt ?? new Date();
   const skipTextDedupe = shouldSkipTextIdempotencyForContextReply(userId, text, receivedAt);

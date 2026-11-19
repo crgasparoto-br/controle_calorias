@@ -100,6 +100,12 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
+import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
+import { tryRunPublicFoodD1WhatsAppRegistration,
+  tryRunPublicFoodD1WhatsAppVisualRegistration,
+  tryRunPublicFoodD1WhatsAppContinuation,
+  tryRunPublicFoodD1WhatsAppNutritionLabel,
+  assertWhatsAppInboundNotPreviouslyD1Owned } from "./modules/whatsapp/confirmedMealRegistration";
 import {
   addImageIdentityClarifications,
   buildMealSemanticContract,
@@ -600,6 +606,28 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
       const userTimezone = timeZoneResolution.timeZone;
 
+      // Durable V2 clarification has precedence over fresh V1 interpretation,
+      // AI question handling or other pending stores. Rollback must not
+      // silently reclassify a reply as a new legacy food operation.
+      const d1Continuation = await tryRunPublicFoodD1WhatsAppContinuation({
+        userId, replyText: message.text?.body ?? null,
+        externalMessageId: message.id ?? null,
+        receivedAt: resolveWhatsAppMessageOccurredAt(message),
+        timeZone: userTimezone,
+      });
+      if (d1Continuation) {
+        const replyResult = await sendFinalText(d1Continuation.reply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId, origin: "whatsapp", status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: "Falha ao entregar resposta da continuação V2.",
+          });
+        }
+        continue;
+      }
+      await assertWhatsAppInboundNotPreviouslyD1Owned(userId, message.id);
+
       const aiQuestionResult = await executeWhatsappAiQuestionIntent(userId, {
         text: message.text?.body,
         receivedAt: resolveWhatsAppMessageOccurredAt(message),
@@ -850,6 +878,21 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       if (canInterpretAudioTranscriptIntent(message, prepared)) {
+        // This is the trusted, server-transcribed audio boundary. If selected,
+        // V2 must execute (or fail closed) before any legacy food intent may write.
+        const migrated = await tryRunPublicFoodD1WhatsAppRegistration({
+          userId, originalText: prepared.transcript!,
+          externalMessageId: message.id ?? null, modality: "audio_transcript",
+          receivedAt: resolveWhatsAppMessageOccurredAt(message), timeZone: userTimezone,
+        });
+        if (migrated) {
+          await acknowledgement?.beforeFinalReply();
+          await sendInterpretedTextIntentReply({
+            userId, sourcePhone, interpreted: migrated, lifecycleHandle,
+            replyText: composeFinalReply(migrated.reply), response: res,
+          });
+          continue;
+        }
         const interpreted = await executeWhatsappTextIntent(userId, {
           text: prepared.transcript,
           receivedAt: resolveWhatsAppMessageOccurredAt(message),
@@ -888,6 +931,81 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
       }
 
+      // Food entrypoints not connected to V2 cannot silently run V1 once
+      // selected. Place after non-food intent routing, before food inference.
+      // Persisted V1 pending items and verified legacy label targets retain V1
+      // ownership across a flag change; an unrelated new item never inherits it.
+      if (resolvedSegments.length === 0 && !nutritionLabelProcessingContext) {
+        // Fresh, authenticated text can now go straight to native V2, keeping
+        // the same lifecycle receipt and logical WhatsApp reply as the V1 path.
+        // V1 pending continuations and labels are deliberately excluded.
+        if (!message.image?.id && !message.audio?.id && prepared.text?.trim()) {
+          const migrated = await tryRunPublicFoodD1WhatsAppRegistration({
+            userId, originalText: prepared.text,
+            externalMessageId: message.id ?? null, modality: "text",
+            receivedAt: occurredAt, timeZone: userTimezone,
+          });
+          if (migrated) {
+            await acknowledgement?.beforeFinalReply();
+            await sendInterpretedTextIntentReply({
+              userId, sourcePhone, interpreted: migrated, lifecycleHandle,
+              replyText: composeFinalReply(migrated.reply), response: res,
+            });
+            continue;
+          }
+        }
+        if (message.image?.id && prepared.imageAnalysisUrl) {
+          const verifiedLabel = await tryRunPublicFoodD1WhatsAppNutritionLabel({
+            userId, externalMessageId: message.id ?? null,
+            imageAnalysisUrl: prepared.imageAnalysisUrl,
+            caption: message.image.caption ?? null, timeZone: userTimezone,
+          });
+          if (verifiedLabel) {
+            await acknowledgement?.beforeFinalReply();
+            await sendInterpretedTextIntentReply({
+              userId, sourcePhone, interpreted: verifiedLabel, lifecycleHandle,
+              replyText: composeFinalReply(verifiedLabel.reply), response: res,
+            });
+            continue;
+          }
+          let selectedVisual: Awaited<ReturnType<typeof tryRunPublicFoodD1WhatsAppVisualRegistration>> = null;
+          try {
+            selectedVisual = await tryRunPublicFoodD1WhatsAppVisualRegistration({
+              userId, externalMessageId: message.id ?? null,
+              imageAnalysisUrl: prepared.imageAnalysisUrl,
+              caption: message.image.caption ?? null,
+              transcript: prepared.transcript ?? null,
+              receivedAt: occurredAt, timeZone: userTimezone,
+            });
+          } catch (error) {
+            if (error instanceof Error &&
+                error.message === "food-d1-whatsapp-visual-explicit-role-required") {
+              const reply = await sendFinalText(
+                "Para registrar esta foto na versão nova, reenvie-a com a legenda \`#prato @almoco\` ou \`#embalagem @jantar\` (escolha a refeição correta). Uma foto de rótulo exige um alimento já registrado."
+              );
+              if (!reply.ok) logInferenceEvent({ userId, origin: "whatsapp",
+                status: "warning", eventType: "whatsapp.reply_failed",
+                detail: "Falha ao entregar orientação de papel visual V2." });
+              continue;
+            }
+            throw error;
+          }
+          if (selectedVisual) {
+            await acknowledgement?.beforeFinalReply();
+            await sendInterpretedTextIntentReply({
+              userId, sourcePhone, interpreted: selectedVisual, lifecycleHandle,
+              replyText: composeFinalReply(selectedVisual.reply), response: res,
+            });
+            continue;
+          }
+        }
+        assertUnmigratedFoodD1EntrypointsOff([
+          ...(message.image?.id ? ["plate_image", "packaging", "nutrition_label"] as const : []),
+          ...(message.audio?.id ? ["audio_transcript"] as const : []),
+          ...(message.image?.id || message.audio?.id ? ["multimodal"] as const : []),
+          ...(!message.image?.id && !message.audio?.id ? ["text"] as const : []),
+        ]);
+      }
       let partialProcessing: Awaited<
         ReturnType<typeof processMealInputWithPartialFailures>
       >;

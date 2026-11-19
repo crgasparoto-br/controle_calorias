@@ -25,6 +25,9 @@ export class HouseholdMeasureLearningUpdateError extends Error {
 function preserveResolvedCatalogIds(items: MealDraftItem[]) {
   const ids = new Map<string, number>();
   for (const item of items) {
+    // V2 physical items own an immutable variant snapshot, never a legacy
+    // name-to-catalog mapping even when the caller retains a legacy ID.
+    if (item.v2SnapshotVerified === true) continue;
     const id = Number(item.foodCatalogId);
     if (!Number.isFinite(id) || id <= 0) continue;
     ids.set(foodCatalogDirectKey(id), id);
@@ -40,17 +43,25 @@ function preserveResolvedCatalogIds(items: MealDraftItem[]) {
  * from the unchanged V1 household-measure update behavior below.
  */
 export function projectHistoricalHouseholdItemsForShadow(items: readonly MealDraftItem[]) {
-  return items.map(item => Object.freeze({
-    historicalRef: item.historicalRef ??
-      (item.foodCatalogId ? "catalog:" + item.foodCatalogId : null),
-    foodCatalogId: item.foodCatalogId ?? null,
-    estimatedGrams: item.estimatedGrams,
-    calories: item.calories,
-    protein: item.protein,
-    carbs: item.carbs,
-    fat: item.fat,
-    classification: item.classification ? Object.freeze({ ...item.classification }) : null,
-  }));
+  return items.map(item => {
+    const verifiedV2 = item.v2SnapshotVerified === true;
+    // A verified physical V2 item must carry the exact historical variant
+    // reference. Never silently downgrade it to a mutable legacy catalog ID.
+    if (verifiedV2 && !/^variant:[1-9]\d*$/.test(item.historicalRef ?? "")) {
+      throw new Error("food-v2-historical-variant-reference-required");
+    }
+    return Object.freeze({
+      historicalRef: verifiedV2 ? item.historicalRef :
+        item.historicalRef ?? (item.foodCatalogId ? "catalog:" + item.foodCatalogId : null),
+      foodCatalogId: verifiedV2 ? null : item.foodCatalogId ?? null,
+      estimatedGrams: item.estimatedGrams,
+      calories: item.calories,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+      classification: item.classification ? Object.freeze({ ...item.classification }) : null,
+    });
+  });
 }
 
 export async function updateMealAndHouseholdMeasureLearning(input: {

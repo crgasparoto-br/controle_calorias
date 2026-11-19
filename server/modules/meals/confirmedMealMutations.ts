@@ -59,10 +59,15 @@ type MutationDeps = {
   nextMealId: () => number;
   nextFavoriteMealId: () => number;
   loadMealsFromDb: (userId: number, options?: any) => Promise<MealRecord[] | null>;
-  persistMealToDb: (meal: MealRecord) => Promise<void>;
+  persistMealToDb: (
+    meal: MealRecord,
+    legacyD1Receipt?: { operationKey: string; operationScopeHash: string }
+  ) => Promise<boolean>;
   updateMealInDb: (meal: MealRecord) => Promise<any>;
   deleteMealFromDb: (userId: number, mealId: number) => Promise<void>;
   updateHabitsFromMeal: (meal: MealRecord) => Promise<void>;
+  rebuildUserMealHabits: (userId: number) => Promise<unknown>;
+  assertLegacyMealProjectionSafe: (items: MealDraftItem[]) => void;
   syncHabitsMealLabelFromMeals: (
     userId: number,
     meals: MealRecord[]
@@ -249,7 +254,9 @@ export function createConfirmedMealMutations(deps: MutationDeps) {
     occurredAt: string;
     notes?: string;
     items: MealDraftItem[];
+    legacyD1Receipt?: { operationKey: string; operationScopeHash: string };
   }) {
+    deps.assertLegacyMealProjectionSafe(input.items);
     const savedMeal: MealRecord = {
       id: deps.nextMealId(),
       userId: input.userId,
@@ -265,7 +272,20 @@ export function createConfirmedMealMutations(deps: MutationDeps) {
       createdAt: Date.now(),
     };
     const current = await listUserMeals(input.userId);
-    await deps.persistMealToDb(savedMeal);
+    const replayed = await deps.persistMealToDb(
+      savedMeal,
+      input.legacyD1Receipt
+    );
+    if (replayed) {
+      const committed = (await deps.loadMealsFromDb(input.userId))?.find(
+        meal => meal.id === savedMeal.id
+      );
+      if (!committed) {
+        throw new Error("food-d1-legacy-receipt-meal-unavailable");
+      }
+      await deps.rebuildUserMealHabits(input.userId);
+      return { ...committed, totals: deps.sumMealItems(committed.items) };
+    }
     deps.mealStore.set(input.userId, [
       savedMeal,
       ...current.filter(meal => meal.id !== savedMeal.id),
@@ -337,6 +357,7 @@ export function createConfirmedMealMutations(deps: MutationDeps) {
     if (!meal) {
       throw new Error("Refeição não encontrada para favoritar.");
     }
+    deps.assertLegacyMealProjectionSafe(meal.items);
     const favorite: FavoriteMeal = {
       id: deps.nextFavoriteMealId(),
       userId: input.userId,

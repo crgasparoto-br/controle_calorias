@@ -7,6 +7,14 @@ export class StrictBase64Error extends Error {
   }
 }
 
+export function parseBase64DataUrl(value?: string): {
+  mimeType: string;
+  base64: string;
+} | null {
+  const match = value?.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/u);
+  return match ? { mimeType: match[1], base64: match[2] } : null;
+}
+
 function decodedByteLength(dataLength: number): number {
   return Math.floor((dataLength * 6) / 8);
 }

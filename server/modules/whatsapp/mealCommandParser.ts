@@ -3,6 +3,7 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { addDaysToZonedDate, getZonedParts, makeDateInTimeZone } from "./intent/dateTime";
 import { normalizeWhatsAppIntentText, stripDiacritics } from "./webhookUtils";
 import { joinUnitWords } from "./quantityUnitVocabulary";
+import { z } from "zod";
 
 export type MealCommandIntent =
   | "add_items_to_meal"
@@ -76,6 +77,76 @@ export type MealCommandContext = {
   timeZone?: string;
   mealLabels?: string[];
 };
+
+export type D1WhatsAppVisualIntent = {
+  kind: "plate_image" | "packaging";
+  mealLabel: string;
+  description: string | null;
+};
+
+const d1WhatsAppVisualCommandSchema = z.enum(["#prato", "#embalagem"]);
+const d1WhatsAppVisualMealCommandSchema = z.enum([
+  "almoco",
+  "jantar",
+  "lanche",
+  "ceia",
+  "cafe",
+]);
+
+/** Parse only explicit transport commands; this is not food/identity inference. */
+export function parseD1WhatsAppVisualIntent(
+  caption: string | null | undefined
+): D1WhatsAppVisualIntent | null {
+  if (!caption || caption.length > 600) return null;
+  const lines = caption.split("\n");
+  const header = lines.shift()?.trim() ?? "";
+  const parts = header.split(/\s+/);
+  if (parts.length !== 2) return null;
+  const command = d1WhatsAppVisualCommandSchema.safeParse(parts[0]);
+  const destination = d1WhatsAppVisualMealCommandSchema.safeParse(
+    parts[1].slice(1)
+  );
+  if (!command.success || !parts[1].startsWith("@") || !destination.success)
+    return null;
+  const description = lines.join("\n").trim();
+  if (description.length > 400) return null;
+  return {
+    kind: command.data === "#prato" ? "plate_image" : "packaging",
+    mealLabel: normalizeMealType(destination.data),
+    description: description || null,
+  };
+}
+
+export type D1WhatsAppExistingItemTarget = { mealId: number; itemId: number };
+
+/** Parse the typed WhatsApp command targeting one already registered item. */
+export function parseD1WhatsAppExistingItemCommand(
+  caption: string | null | undefined
+): D1WhatsAppExistingItemTarget | null {
+  if (!caption) return null;
+  const parts = caption.trim().split(/\s+/);
+  if (
+    parts.length !== 2 ||
+    parts[0] !== "#rotulo" ||
+    !parts[1].startsWith("@")
+  ) {
+    return null;
+  }
+  const target = parts[1].slice(1).split(":");
+  if (target.length !== 2 || target.some(value => value.length > 10))
+    return null;
+  const [mealId, itemId] = target.map(Number);
+  if (
+    ![mealId, itemId].every(value => Number.isSafeInteger(value) && value > 0) ||
+    target.some(
+      (value, index) => String(index === 0 ? mealId : itemId) !== value
+    )
+  ) {
+    return null;
+  }
+  return { mealId, itemId };
+}
+
 const QUANTITY_UNIT_PATTERN = joinUnitWords([
   "gramas",
   "quilos",

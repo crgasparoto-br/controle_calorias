@@ -110,6 +110,49 @@ describe("quick edit meal update confirmation", () => {
     sendReplyMock.mockResolvedValue({ primaryOk: true, sends: [{ ok: true }] });
   });
 
+  it("never sends a physical V2 item through the V1 quick-edit resolver", async () => {
+    getQuickEditMealMock.mockResolvedValueOnce({
+      meal: {
+        ...currentMeal,
+        items: [{ ...currentMeal.items[0], v2SnapshotVerified: true,
+          historicalRef: "variant:987", foodCatalogId: null }],
+      },
+      timeZone: "America/Sao_Paulo",
+    });
+    await expect(updateQuickEditMealWithWhatsappConfirmation(
+      "x".repeat(32),
+      {
+        mealLabel: "Lanche",
+        dateTimeLocal: "2026-07-22T12:00",
+        items: [{ ...currentMeal.items[0], foodName: "Outra comida", calories: 999 }],
+      },
+    )).rejects.toThrow("food-v2-legacy-item-mutation-not-supported");
+    expect(getHabitSnapshotsMock).not.toHaveBeenCalled();
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(updateQuickEditMealMock).not.toHaveBeenCalled();
+    expect(sendReplyMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "quick_edit.meal_update_failed",
+      detail: expect.stringContaining("stage=recalculate"),
+    }));
+  });
+
+  it("rejects even an unchanged V2 item so it cannot be reserialized by V1", async () => {
+    getQuickEditMealMock.mockResolvedValueOnce({
+      meal: { ...currentMeal, items: [
+        { ...currentMeal.items[0], v2SnapshotVerified: true, historicalRef: "variant:987" },
+      ] },
+      timeZone: "America/Sao_Paulo",
+    });
+    await expect(updateQuickEditMealWithWhatsappConfirmation("x".repeat(32), {
+      mealLabel: "Lanche",
+      dateTimeLocal: "2026-07-22T12:00",
+      items: currentMeal.items,
+    })).rejects.toThrow("food-v2-legacy-item-mutation-not-supported");
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(updateQuickEditMealMock).not.toHaveBeenCalled();
+  });
+
   it("recalcula alimento alterado no backend e envia confirmação pelo WhatsApp", async () => {
     const result = await updateQuickEditMealWithWhatsappConfirmation(
       "x".repeat(32),

@@ -255,12 +255,15 @@ export function buildHistoricalFoodQualityForShadow(
   return calculateHistoricalQualityIndicators(meals, waterMl);
 }
 
-function collectFoodQualityLookupNames(mealsByDay: ReportRangeData["mealsByDay"]) {
+function gatherLegacyCatalogSearchTerms(mealsByDay: ReportRangeData["mealsByDay"]) {
   const names = new Set<string>();
 
   for (const meals of mealsByDay) {
     for (const meal of meals) {
       for (const item of meal.items) {
+        // An authenticated V2 physical snapshot is self-contained. Never
+        // consult today's mutable catalog for its immutable identity.
+        if (item.v2SnapshotVerified === true) continue;
         addFoodLookupName(names, item.canonicalName);
         addFoodLookupName(names, item.foodName);
         addFoodLookupName(names, item.portionText);
@@ -296,6 +299,7 @@ function collectFoodLookupCatalogIds(mealsByDay: ReportRangeData["mealsByDay"]) 
   for (const meals of mealsByDay) {
     for (const meal of meals) {
       for (const item of meal.items) {
+        if (item.v2SnapshotVerified === true) continue;
         if (item.foodCatalogId) {
           ids.add(item.foodCatalogId);
         }
@@ -306,8 +310,8 @@ function collectFoodLookupCatalogIds(mealsByDay: ReportRangeData["mealsByDay"]) 
   return Array.from(ids);
 }
 
-async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
-  const lookupNames = collectFoodQualityLookupNames(mealsByDay);
+async function hydrateLegacyQualityReportCatalog(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
+  const lookupNames = gatherLegacyCatalogSearchTerms(mealsByDay);
   const catalogIds = collectFoodLookupCatalogIds(mealsByDay);
   if (!lookupNames.length && !catalogIds.length) {
     return createFoodLookup([]);
@@ -485,7 +489,7 @@ async function buildWeeklyReportSummary(
     loadReportRangeData(userId, dateKeys, timeZone),
   ]);
   const foodLookup = options.includeFoodQualityDetails
-    ? await buildFoodLookupForMeals(userId, rangeData.mealsByDay)
+    ? await hydrateLegacyQualityReportCatalog(userId, rangeData.mealsByDay)
     : undefined;
 
   return rangeData.dates.map((date, index) => {
@@ -711,7 +715,7 @@ export async function getDashboardTodayOverview(
   const todayTotals = calculateDayTotals(todaysMeals);
   const todayBurnedCalories = todaysExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
   const todayWaterMl = todaysWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
-  const foodLookup = options.includeQualityDetails ? await buildFoodLookupForMeals(userId, [todaysMeals]) : undefined;
+  const foodLookup = options.includeQualityDetails ? await hydrateLegacyQualityReportCatalog(userId, [todaysMeals]) : undefined;
   const todayQuality = calculateQualityIndicators(todaysMeals, todayWaterMl, foodLookup);
   const adjustedGoalCalories = calculateAdjustedGoalCalories(plannedGoal.calories, todayBurnedCalories, plannedGoal.includeExerciseCalories);
 
@@ -832,7 +836,7 @@ export async function getPeriodReportBundle(
   const meals = rangeData.mealsByDay.flat();
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals, timeZone);
-  const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
+  const foodLookup = await hydrateLegacyQualityReportCatalog(userId, rangeData.mealsByDay);
   const daily = dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
     const dailyMeals = rangeData.mealsByDay[index] ?? [];

@@ -23,6 +23,8 @@ export type FoodLookup = {
 export type MealFoodQualityItem = {
   foodCatalogId?: number | null;
   historicalRef?: string | null;
+  /** Trusted reader marker: a historicalRef alone also exists for V1 shadow records. */
+  v2SnapshotVerified?: true;
   /** Classification copied from the item at confirmation; never looked up again. */
   classification?: {
     processingLevel: FoodProcessingLevel;
@@ -216,7 +218,9 @@ export function calculateQualityIndicators(
         const itemCalories = Number(item.calories || 0);
         acc.proteinGrams += Number(item.protein || 0);
 
-        if (readMode === "historical_snapshot") {
+        // A shadow V1 record can carry historicalRef too. Only a physically
+        // verified V2 snapshot opts into frozen classification in mixed reports.
+        if (readMode === "historical_snapshot" || item.v2SnapshotVerified === true) {
           // §8.14/Gate 19: the snapshot is the only authority for past
           // classifications. A missing snapshot stays unknown, even if the
           // current catalog has a plausible name or a different category.

@@ -14,6 +14,7 @@ import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
 import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
+import { newFoodOperationSubmissionId } from "@/features/meals/operationSubmissionId";
 import { SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
 import { ArrowRight, BrainCircuit, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -165,9 +166,11 @@ export default function Home() {
   );
   const [assistantMessage, setAssistantMessage] = React.useState("");
   const [assistantSuggestion, setAssistantSuggestion] = React.useState<AssistantSuggestion | null>(null);
+  const assistantSubmissionRef = React.useRef<{ fingerprint: string; id: string } | null>(null);
 
   const assistantSuggest = trpc.nutrition.assistant.suggest.useMutation({
     onSuccess: result => {
+      assistantSubmissionRef.current = null;
       setAssistantSuggestion(result as AssistantSuggestion);
     },
     onError: error => toast.error(error.message || "Não foi possível gerar uma sugestão agora."),
@@ -175,6 +178,7 @@ export default function Home() {
 
   const saveAssistantMeal = trpc.nutrition.meals.createManual.useMutation({
     onSuccess: async () => {
+      assistantSubmissionRef.current = null;
       await Promise.all([
         utils.nutrition.dashboard.overview.invalidate(),
         utils.nutrition.dashboard.today.invalidate(),
@@ -204,7 +208,7 @@ export default function Home() {
       return;
     }
 
-    saveAssistantMeal.mutate({
+    const payload = {
       mealLabel: "jantar",
       dateTimeLocal: `${selectedDate}T12:00`,
       notes: "Sugestão educativa do assistente alimentar.",
@@ -221,7 +225,12 @@ export default function Home() {
         confidence: 0.7,
         source: "heuristic" as const,
       })),
-    });
+    };
+    const fingerprint = JSON.stringify(payload);
+    if (assistantSubmissionRef.current?.fingerprint !== fingerprint) {
+      assistantSubmissionRef.current = { fingerprint, id: newFoodOperationSubmissionId() };
+    }
+    saveAssistantMeal.mutate({ ...payload, d1OperationId: assistantSubmissionRef.current.id });
   };
 
   const selectedDayMeals = overview.data?.meals ?? [];

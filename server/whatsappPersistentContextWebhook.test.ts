@@ -7,6 +7,23 @@ import type {
 import type { WhatsAppConversationMessageEnrichmentRepository } from "./repositories/whatsappConversationMessageEnrichmentRepository";
 import type { WhatsAppProcessingClaimRepository } from "./repositories/whatsappProcessingClaimRepository";
 
+// These legacy specs have no D1 pending or route; D1 replay behavior is tested separately.
+vi.mock(
+  "./modules/whatsapp/confirmedMealRegistration",
+  async importOriginal => {
+    const actual =
+      await importOriginal<
+        typeof import("./modules/whatsapp/confirmedMealRegistration")
+      >();
+    return {
+      ...actual,
+      tryRunPublicFoodD1WhatsAppContinuation: vi.fn(async () => null),
+      assertWhatsAppInboundNotPreviouslyD1Owned: vi.fn(async () => undefined),
+    };
+  }
+);
+
+
 const processMealInputMock = vi.fn(async () => ({
   detectedMealLabel: "Refeição",
   sourceText: "alimento de teste",

@@ -9,6 +9,7 @@ import {
 } from "../../db";
 import { normalizeText } from "../../mealTextParsing";
 import { processMealInput } from "../../nutritionEngine";
+import { assertLegacyMealProjectionSafe } from "../meals/foodV2Snapshot";
 import { composeWhatsAppMealActionReply } from "../whatsapp/mealActionReplyComposer";
 import { textReply } from "../whatsapp/replyContract";
 import { sendWhatsAppLogicalReply } from "../whatsapp/replyTransport";
@@ -245,6 +246,10 @@ export async function updateQuickEditMealWithWhatsappConfirmation(
     }
 
     stage = "recalculate";
+    // The signed quick-edit link is not a native D1 revision boundary. Reject
+    // physically bound V2 items BEFORE any legacy nutrition inference, habit
+    // lookup, provider call or V1 DTO write, including no-op submissions.
+    assertLegacyMealProjectionSafe(current.meal.items ?? []);
     const items = await recalculateChangedItems({
       userId,
       currentItems: (current.meal.items ?? []) as MealItemInput[],

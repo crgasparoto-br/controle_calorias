@@ -279,12 +279,17 @@ describe("RegisteredMealGroups", () => {
       mealId: group.meals[0].id,
       itemIndex: 0,
       mealLabel: "jantar",
+      d1OperationId: expect.stringMatching(/^[a-z0-9-]{8,80}$/i),
       item: expect.objectContaining({
         foodName: "Arroz",
         portionText: "120 g",
         estimatedGrams: 120,
       }),
     });
+    const firstId = updateItemMutateMock.mock.calls[0][0].d1OperationId;
+    await user.click(screen.getByRole("button", { name: /confirmar edição individual/i }));
+    expect(updateItemMutateMock).toHaveBeenCalledTimes(2);
+    expect(updateItemMutateMock.mock.calls[1][0].d1OperationId).toBe(firstId);
     expect(mutateMock).not.toHaveBeenCalled();
   });
 

@@ -23,13 +23,14 @@ type MealLabelInputProps = {
   value: string;
   onChange: (value: string) => void;
   suggestedLabel?: string | null;
+  disabled?: boolean;
 };
 
 function normalizeLabel(value: string) {
   return value.trim().toLocaleLowerCase("pt-BR");
 }
 
-export function MealLabelInput({ value, onChange, suggestedLabel }: MealLabelInputProps) {
+export function MealLabelInput({ value, onChange, suggestedLabel, disabled = false }: MealLabelInputProps) {
   const schedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const previousSuggestedLabelRef = React.useRef<string | null | undefined>(suggestedLabel);
   const [open, setOpen] = React.useState(false);
@@ -85,6 +86,7 @@ export function MealLabelInput({ value, onChange, suggestedLabel }: MealLabelInp
             type="button"
             variant="outline"
             role="combobox"
+            disabled={disabled}
             aria-expanded={open}
             className="w-full justify-between rounded-2xl font-normal"
           >

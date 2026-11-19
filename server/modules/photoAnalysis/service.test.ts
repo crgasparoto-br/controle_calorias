@@ -111,6 +111,29 @@ describe("photoAnalysis service", () => {
     registerMealImageUrlMock.mockReset();
   });
 
+  it.each(["packaging", "nutrition_label", "multimodal"])(
+    "blocks selected %s before any generic photo V1 inference or upload", async selected => {
+      const priorEnabled = process.env.FOOD_V2_D1_ENABLED;
+      const priorEntrypoints = process.env.FOOD_V2_D1_ENTRYPOINTS;
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = selected;
+      try {
+        const { analyzeFoodPhoto } = await import("./service");
+        await expect(analyzeFoodPhoto(42, {
+          image: { base64: "Zml4dHVyZQ==", mimeType: "image/jpeg" },
+        })).rejects.toThrow("food-d1-public-entrypoint-migration-incomplete");
+        expect(storagePutMock).not.toHaveBeenCalled();
+        expect(processMealInputMock).not.toHaveBeenCalled();
+        expect(getHabitSnapshotsMock).not.toHaveBeenCalled();
+      } finally {
+        if (priorEnabled === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+        else process.env.FOOD_V2_D1_ENABLED = priorEnabled;
+        if (priorEntrypoints === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+        else process.env.FOOD_V2_D1_ENTRYPOINTS = priorEntrypoints;
+      }
+    },
+  );
+
   it("usa mídia inline na inferência e mantém a URL persistida quando o upload funciona", async () => {
     const { analyzeFoodPhoto } = await import("./service");
 

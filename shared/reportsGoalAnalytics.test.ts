@@ -204,6 +204,22 @@ describe("reportsGoalAnalytics", () => {
     ]);
   });
 
+  it("mantém referências de variantes históricas diferentes até no diagnóstico visível", () => {
+    const summary = calculateFoodQualitySummary([{ date: "2026-06-01", items: [
+      { calories: 72, canonicalName: "Leite", historicalRef: "variant:101",
+        isClassified: false, unclassifiedReason: "unknown" },
+      { calories: 110, canonicalName: "Leite", historicalRef: "variant:102",
+        isClassified: false, unclassifiedReason: "unknown" },
+    ] }]);
+    expect(summary.unclassifiedItems.map(item => item.historicalRef).sort())
+      .toEqual(["variant:101", "variant:102"]);
+    expect(summary.unclassifiedItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ historicalRef: "variant:101", totalCalories: 72 }),
+      expect.objectContaining({ historicalRef: "variant:102", totalCalories: 110 }),
+    ]));
+    expect(summary.totalCalories).toBe(182);
+  });
+
   it("retorna estado vazio para qualidade alimentar sem calorias registradas", () => {
     const summary = calculateFoodQualitySummary([{ date: "2026-06-01", items: [] }], 1);
 

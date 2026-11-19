@@ -260,6 +260,9 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
       meals: {
+        confirmFoodD1Draft: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         processDraft: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
