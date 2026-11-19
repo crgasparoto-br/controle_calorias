@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from contextlib import ExitStack
+import os
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -17,7 +19,7 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
         raise ValueError("invalid shard count")
     if not directory.is_dir() or directory.is_symlink():
         raise ValueError("JUnit shard directory is missing or unsafe")
-    if destination.exists() and destination.is_symlink():
+    if destination.is_symlink():
         raise ValueError("JUnit destination cannot be a symlink")
 
     aggregate = ET.Element("testsuites")
@@ -29,6 +31,16 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
             declared = node.get(key)
             if declared is not None and (not declared.isdecimal() or int(declared) != expected):
                 raise ValueError(f"inconsistent JUnit {key} count in {location}")
+
+    def require_children(node: ET.Element, allowed: set[str], location: str) -> None:
+        for child in node:
+            if child.tag not in allowed:
+                raise ValueError(f"unexpected JUnit element {child.tag} in {location}")
+            if child.tag == "properties":
+                require_children(child, {"property"}, location)
+            elif child.tag == "property" or child.tag not in {"testsuite", "testcase"}:
+                require_children(child, set(), location)
+
     counts = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
     for number in range(1, shards + 1):
         source = directory / f"shard-{number}.xml"
@@ -41,6 +53,7 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
         if root.tag == "testsuite":
             suites = [root]
         elif root.tag == "testsuites":
+            require_children(root, {"testsuite"}, f"shard {number} root")
             suites = root.findall("testsuite")
         else:
             raise ValueError(f"unsupported JUnit root in shard {number}: {root.tag}")
@@ -56,14 +69,14 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
         shard_cases = 0
         shard_counts = {key: 0 for key in counts}
         for suite in suites:
-            if suite.find("testsuite") is not None:
-                raise ValueError(f"nested JUnit suites are unsupported in shard {number}")
+            require_children(suite, {"testcase", "properties", "system-out", "system-err"},
+                             f"shard {number} suite")
             cases = suite.findall("testcase")
             suite_counts = {key: 0 for key in counts}
             shard_cases += len(cases)
-            if not cases:
-                continue
             for case in cases:
+                require_children(case, {"failure", "error", "skipped", "system-out", "system-err", "properties"},
+                                 f"shard {number} testcase")
                 name = case.get("name", "").strip()
                 classname = case.get("classname", "").strip()
                 if not name or not classname:
@@ -99,14 +112,37 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
             verify_counts(root, shard_counts, f"shard {number} root")
         if shard_cases == 0:
             raise ValueError(f"JUnit shard {number} has no executed or skipped tests")
+        if shard_counts["tests"] == shard_counts["skipped"]:
+            raise ValueError(f"JUnit shard {number} has no executed non-skipped testcases")
     if counts["failures"] or counts["errors"]:
         raise ValueError("JUnit contains failing or errored testcases")
     if counts["tests"] == counts["skipped"]:
         raise ValueError("JUnit contains no executed non-skipped testcases")
     for key, value in counts.items():
         aggregate.set(key, str(value))
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    ET.ElementTree(aggregate).write(destination, encoding="utf-8", xml_declaration=True)
+    # Walk parents by file descriptor: neither an existing nor a racing
+    # symlink may redirect the evidence output outside its designated tree.
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        raise ValueError("secure JUnit output requires no-follow directory support")
+    if ".." in destination.parts:
+        raise ValueError("JUnit destination cannot traverse parent directories")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    with ExitStack() as opened:
+        parent_fd = os.open("/" if destination.is_absolute() else ".", directory_flags)
+        opened.callback(os.close, parent_fd)
+        for component in destination.parent.parts:
+            if component in {"/", "."}:
+                continue
+            try:
+                os.mkdir(component, dir_fd=parent_fd)
+            except FileExistsError:
+                pass
+            parent_fd = os.open(component, directory_flags, dir_fd=parent_fd)
+            opened.callback(os.close, parent_fd)
+        output_fd = os.open(destination.name, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                            0o644, dir_fd=parent_fd)
+        with os.fdopen(output_fd, "wb") as output:
+            ET.ElementTree(aggregate).write(output, encoding="utf-8", xml_declaration=True)
     return counts
 
 

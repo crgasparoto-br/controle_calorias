@@ -54,8 +54,11 @@ da #1347 e preserva seu XML como `junit-shards/shard-25.xml`. Depois roda
 factual, indexado pelo produtor oficial, e usa
 `produce_actions_handoff_evidence.py` com certificador separado. A coleta
 recusa shard ausente, IDs repetidos entre shards, contagens inconsistentes,
-resultados falhos e conjuntos sem testes efetivamente executados; skipped
-permanece skipped. Casos parametrizados com mesmo nome preservam cada
+resultados falhos, suites vazias com contagens falsas, casos fora da hierarquia
+JUnit e qualquer shard sem teste nao-skipped efetivamente executado. Os casos
+skipped permanecem skipped em shards com execucao real. A saida recusa symlinks
+de arquivo/diretorio, inclusive destino inexistente e trocas concorrentes.
+Casos parametrizados com mesmo nome preservam cada
 execucao com ID reprodutivel e nome original. O `Agent-first gate` exercita
 testes positivos e adversariais desse consolidador. O preflight da Skill
 (40 testes locais e 300 oficiais) continua tambem no workflow dedicado.
