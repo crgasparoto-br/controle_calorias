@@ -16,12 +16,14 @@ class OperatorSessionPreflightTests(unittest.TestCase):
         cls.integration = json.loads((ROOT / ".github/operator-session-integration.json").read_text())
         cls.policy = json.loads((ROOT / ".github/session-review-policy.json").read_text())
         cls.workflow = (ROOT / ".github/workflows/operator-session-preflight.yml").read_text()
+        cls.collector = (ROOT / ".github/workflows/collect-certified-handoff.yml").read_text()
 
-    def assert_blocked(self, *, integration=None, policy=None, workflow=None):
+    def assert_blocked(self, *, integration=None, policy=None, workflow=None, collector=None):
         with self.assertRaises(ValueError):
             validate(integration if integration is not None else self.integration,
                      policy if policy is not None else self.policy,
-                     workflow if workflow is not None else self.workflow)
+                     workflow if workflow is not None else self.workflow,
+                     collector if collector is not None else self.collector)
 
     def test_valid_preflight_without_approval(self):
         validate(self.integration, self.policy, self.workflow)
@@ -73,6 +75,39 @@ class OperatorSessionPreflightTests(unittest.TestCase):
     def test_missing_tests(self):
         self.assert_blocked(workflow=self.workflow.replace(
             "python -m unittest discover", "python -m other discover"))
+
+
+    def test_unpinned_official_reusable_workflow(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "@71217ab40be73f64180f253816d7b5214cb23100", "@develop"))
+
+    def test_wrong_official_reusable_workflow(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "reusable-handoff.yml", "unknown-handoff.yml"))
+
+    def test_collector_privileged_token(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "  pull-requests: read", "  pull-requests: read\n  checks: write"))
+
+    def test_collector_elevated_event(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "  pull_request:", "  pull_request_target:"))
+
+    def test_collector_requires_explicit_opt_in_label(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "'solverit-certified-handoff'", "'no-label-gate'"))
+
+    def test_collector_must_run_real_junit(self):
+        self.assert_blocked(collector=self.collector.replace(
+            '--junitxml="$EVIDENCE_DIR/pytest-exact-head.xml"', "--no-junit-report"))
+
+    def test_collector_must_inspect_reviewed_closure(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "produce_actions_handoff_evidence.py", "echo"))
+
+    def test_collector_must_fail_closed(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "    with:", "    continue-on-error: true\n    with:"))
 
     def test_duplicate_json_key(self):
         with self.assertRaises(ValueError):
