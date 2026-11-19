@@ -26,3 +26,66 @@ O workflow mantém o check obrigatório `Agent-first gate`, executa o teste dete
 Sequência segura: (1) auditar este bootstrap com o contrato vigente; (2) fazer merge autorizado desta PR em `develop`; (3) atualizar a base de PRs de migração já abertas, como #1318, para conter o contrato confiável; (4) executar novos checks exact-head e auditoria independente GitHub-native; (5) retirar transporte legado apenas depois de verificar consumidores externos. Não remover `.delivery-v2/` como consequência automática da adoção.
 
 O ruleset GitHub deve exigir `Agent-first gate` em `develop` e `main`. A efetividade do ruleset deve ser verificada pela API GitHub, não inferida deste documento. Nenhuma etapa faz merge automático.
+
+## Revisão de operador único — implantação controlada (#1345)
+
+**Decisão:** `operator-attested-session-review`: o operador pode implementar e
+revisar em conversas reais diferentes. A atestação prova vínculos de evidência
+GitHub e declara a separação; **não prova duas pessoas nem equivale a um
+parecer humano independente**. Não confundir com a modalidade Ed25519
+`single-operator-separate-context`.
+
+### M1 — pipeline de evidências instalado, enforcement desligado
+
+- Fonte executável canônica: `crgasparoto-br/skill` no commit imutável
+  `71217ab40be73f64180f253816d7b5214cb23100`, pelo reusable workflow
+  `.github/workflows/reusable-handoff.yml`. Mudança de SHA exige revisão e
+  recertificação da integração. Nenhum token/secret de IA é utilizado.
+- `.github/workflows/handoff-evidence.yml` executa **somente** em PR aberta
+  não-draft contra `develop` que declare a linha exata
+  `SolverIT-Certification-Pilot: true` no corpo da PR. O gatilho executa
+  código candidato apenas com `contents/issues/pull-requests: read`.
+- O coletor obtém o objeto de PR, issue, SHA de base/HEAD e merge preview pela
+  API autenticada, roda a suíte de 24 shards com JUnit factual e publica
+  `handoff-evidence-<PR>-<HEAD>` com logs, índice JUnit e diagnóstico.
+- `scripts/merge-vitest-junit.py` recusa shard ausente, teste duplicado,
+  resultado falho ou XML inválido. Teste skipped continua skipped; nenhum
+  resultado é mapeado automaticamente a critério de aceite.
+- `produce_actions_handoff_evidence.py` só produz certificado semântico quando
+  existe dossiê revisado e completo em `.github/handoff-evidence/issue-<N>/`,
+  com controles `positive/negative/regression` realmente executados.
+  `awaiting-reviewed-evidence` deixa a coleta factual disponível, porém a
+  **certificação falha de modo fechado**. O workflow não libera PR ou issue.
+- `.github/session-review-policy.json` é instalada com `mode=disabled` e
+  allowlist vazia. Não há emissão de check de aprovação por sessão neste M1.
+  `Agent-first gate` continua sendo o único check exigido nos rulesets atuais.
+
+### M2 — condições obrigatórias antes da ativação
+
+1. Auditar a instalação sobre o SHA exato e promover de modo sequencial a
+   implementação confiável para `develop` e `main` (default); os bytes da
+   política/verificador devem coincidir em ambas as bases.
+2. Adaptar/instalar o verificador oficial `verify_session_review.py` com
+   autenticação dos checks **deste** repositório (`Agent-first gate`, certificado
+   exato), sem reutilizar os nomes de checks do repo `skill` por conveniência.
+   Instalar também o coletor neutro e validar identidades/hashes de artefatos.
+3. Produzir handoff semântico real de PR aberta e **parecer em outra conversa**;
+   registrar o comentário imutável `SOLVERIT_SESSION_REVIEW_V1` com referência
+   autêntica da sessão, matriz de requisitos e três controles JUnit por requisito.
+4. Comprovar `Verify session review (exact SHA)` verde por prova real positiva,
+   e fail-closed por edição/exclusão de comentário, SHA ou issue diferente,
+   alteração de base, CI/certificado ausente, usuário não autorizado e duas PRs
+   concorrentes no mesmo HEAD.
+5. Só após read-back de `develop` **e** `main`, mudança administrativa autorizada
+   pode exigir o novo check, **somando-o** a `Agent-first gate`, sem reduzir PR
+   obrigatória, checks técnicos ou proibições de force-push/exclusão. Registrar
+   rollback ensaiado e snapshot das regras.
+
+**Escopo retrospectivo:** a #1298 já está integrada via PR #1328; não forjar
+um check associado a PR antiga nem tratar pré-auditoria como certificação M2.
+Manter #1298 e o checkbox A1 da #1297 pendentes até um procedimento de
+fechamento retrospectivo expressamente aceito pela política vigente.
+
+Para instruções normativas completas, consulte a
+[Skill oficial](https://github.com/crgasparoto-br/skill/blob/develop/docs/WEB_INDEPENDENT_AUDIT.md)
+e a [issue #1345](https://github.com/crgasparoto-br/controle_calorias/issues/1345).
