@@ -21,6 +21,12 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
 
     aggregate = ET.Element("testsuites")
     observed: set[tuple[str, str]] = set()
+
+    def verify_counts(node: ET.Element, actual: dict[str, int], location: str) -> None:
+        for key, expected in actual.items():
+            declared = node.get(key)
+            if declared is not None and (not declared.isdecimal() or int(declared) != expected):
+                raise ValueError(f"inconsistent JUnit {key} count in {location}")
     counts = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
     for number in range(1, shards + 1):
         source = directory / f"shard-{number}.xml"
@@ -39,8 +45,12 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
         if not suites:
             raise ValueError(f"JUnit shard {number} contains no testsuites")
         shard_cases = 0
+        shard_counts = {key: 0 for key in counts}
         for suite in suites:
-            cases = list(suite.iter("testcase"))
+            if suite.find("testsuite") is not None:
+                raise ValueError(f"nested JUnit suites are unsupported in shard {number}")
+            cases = suite.findall("testcase")
+            suite_counts = {key: 0 for key in counts}
             shard_cases += len(cases)
             if not cases:
                 continue
@@ -53,11 +63,19 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
                 if identity in observed:
                     raise ValueError(f"duplicate test across JUnit shards: {classname}::{name}")
                 observed.add(identity)
-                counts["tests"] += 1
-                for event in ("failure", "error", "skipped"):
-                    if case.find(event) is not None:
-                        counts[{"failure": "failures", "error": "errors", "skipped": "skipped"}[event]] += 1
+                suite_counts["tests"] += 1
+                outcomes = [event for event in ("failure", "error", "skipped") if case.find(event) is not None]
+                if len(outcomes) > 1:
+                    raise ValueError(f"contradictory JUnit testcase outcomes in shard {number}")
+                if outcomes:
+                    suite_counts[{"failure": "failures", "error": "errors", "skipped": "skipped"}[outcomes[0]]] += 1
+            verify_counts(suite, suite_counts, f"shard {number} suite")
+            for key in counts:
+                counts[key] += suite_counts[key]
+                shard_counts[key] += suite_counts[key]
             aggregate.append(suite)
+        if root.tag == "testsuites":
+            verify_counts(root, shard_counts, f"shard {number} root")
         if shard_cases == 0:
             raise ValueError(f"JUnit shard {number} has no executed or skipped tests")
     if counts["failures"] or counts["errors"]:

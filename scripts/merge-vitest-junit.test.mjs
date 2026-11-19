@@ -59,3 +59,9 @@ test("retains skipped cases as skipped, not proof of a passed test", () => {
   assert.match(result.xml, /skipped="1"/);
   assert.match(result.xml, /skip B/);
 });
+
+test("rejects contradictory JUnit aggregate counts rather than trusting metadata", () => {
+  const result = probe([xml("a.test.ts", "pass A"), '<testsuite tests="1" failures="1"><testcase classname="b.test.ts" name="pass B" /></testsuite>']);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /inconsistent JUnit failures count/);
+});
