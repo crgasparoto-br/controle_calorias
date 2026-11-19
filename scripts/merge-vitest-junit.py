@@ -6,6 +6,7 @@ This only consolidates executed test cases. It is never a semantic certification
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -21,6 +22,7 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
 
     aggregate = ET.Element("testsuites")
     observed: set[tuple[str, str]] = set()
+    raw_shards: dict[tuple[str, str], int] = {}
 
     def verify_counts(node: ET.Element, actual: dict[str, int], location: str) -> None:
         for key, expected in actual.items():
@@ -44,6 +46,13 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
             raise ValueError(f"unsupported JUnit root in shard {number}: {root.tag}")
         if not suites:
             raise ValueError(f"JUnit shard {number} contains no testsuites")
+        # Vitest test.each can emit multiple executed cases with the same
+        # reporter name. The index requires a unique classname::name pair;
+        # suffix same-shard occurrences while retaining raw name in evidence.
+        # Never coalesce or accept duplicates crossing shard boundaries.
+        raw_counts = Counter((case.get("classname"), case.get("name"))
+                             for case in root.iter("testcase"))
+        occurrences: Counter[tuple[str, str]] = Counter()
         shard_cases = 0
         shard_counts = {key: 0 for key in counts}
         for suite in suites:
@@ -59,9 +68,21 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
                 classname = case.get("classname", "").strip()
                 if not name or not classname:
                     raise ValueError(f"JUnit test identity incomplete in shard {number}")
+                original = (classname, name)
+                previous_shard = raw_shards.get(original)
+                if previous_shard is not None and previous_shard != number:
+                    raise ValueError(f"duplicate test across JUnit shards: {classname}::{name}")
+                raw_shards[original] = number
+                occurrences[original] += 1
+                if raw_counts[original] > 1:
+                    # Source executions, not synthesized tests. Ordinals
+                    # are reproducible from the exact original JUnit bytes.
+                    case.set("audit_original_name", name)
+                    name = f"{name} [JUnit occurrence {occurrences[original]}/{raw_counts[original]}]"
+                    case.set("name", name)
                 identity = (classname, name)
                 if identity in observed:
-                    raise ValueError(f"duplicate test across JUnit shards: {classname}::{name}")
+                    raise ValueError(f"ambiguous merged JUnit test identity: {classname}::{name}")
                 observed.add(identity)
                 suite_counts["tests"] += 1
                 outcomes = [event for event in ("failure", "error", "skipped") if case.find(event) is not None]

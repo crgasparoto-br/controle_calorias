@@ -65,3 +65,16 @@ test("rejects contradictory JUnit aggregate counts rather than trusting metadata
   assert.equal(result.status, 2);
   assert.match(result.stderr, /inconsistent JUnit failures count/);
 });
+
+test("preserves actual Vitest parameterized executions with repeated names", () => {
+  const cases = '<testsuites tests="3"><testsuite tests="3">' +
+    Array.from({length: 3}, () => '<testcase classname="table.test.ts" name="table scenario" />').join("") +
+    '</testsuite></testsuites>';
+  const result = probe([cases, xml("other.test.ts", "pass B")]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.xml, /tests="4"/);
+  for (let i = 1; i <= 3; i++) {
+    assert.ok(result.xml.includes("table scenario [JUnit occurrence " + i + "/3]"));
+  }
+  assert.equal((result.xml.match(/audit_original_name="table scenario"/g) || []).length, 3);
+});
