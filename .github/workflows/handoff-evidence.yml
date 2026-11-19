@@ -1,0 +1,29 @@
+name: Collect and certify exact-SHA handoff
+
+# M1 pilot. Never emit a certificate unless the official Skill has validated
+# a reviewed requirement closure, real JUnit controls and exact-SHA evidence.
+# Label opt-in avoids failing unrelated PRs before the policy is installed.
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  collect:
+    name: Certified semantic handoff pilot (fail closed)
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'solverit-certified-handoff') }}
+    uses: crgasparoto-br/skill/.github/workflows/reusable-handoff.yml@71217ab40be73f64180f253816d7b5214cb23100
+    with:
+      base-ref: develop
+      tooling-repository: crgasparoto-br/skill
+      python-version: '3.12'
+      # The official locked tool dependencies already include pytest.
+      # These are real governance controls, not fabricated JUnit results.
+      test-command: 'python -m pytest -vv tests/test_operator_session_preflight.py --junitxml="$EVIDENCE_DIR/pytest-exact-head.xml"'
+      # A separately reviewed semantic closure is mandatory. Missing closure
+      # is a failure, never equivalent to absence of findings or success.
+      evidence-command: 'python "$HANDOFF_TOOLING/entregar-issue/scripts/produce_actions_handoff_evidence.py" --root . --out "$EVIDENCE_DIR" --event "$GITHUB_EVENT_PATH" --base-ref "$BASE_REF"'

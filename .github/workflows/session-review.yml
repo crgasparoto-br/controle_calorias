@@ -1,0 +1,73 @@
+name: Verify operator-attested session review
+
+# Trusted-base only. PR source and GitHub comments are treated as DATA.
+# The rollout variable is intentionally unset until M2 verification succeeds.
+on:
+  issue_comment:
+    types: [created, edited, deleted]
+  pull_request_target:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  issues:
+    types: [edited]
+  workflow_run:
+    workflows: ["Validate skills", "Validate GitHub Audit MCP", "Collect and certify exact-SHA handoff"]
+    types: [completed]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  actions: read
+  checks: write
+
+concurrency:
+  group: operator-session-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: >-
+      vars.SOLVERIT_SESSION_REVIEW_ENABLED == 'true' &&
+      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') &&
+      (github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted consumer workflow and policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Checkout immutable official Skill
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: crgasparoto-br/skill
+          ref: 71217ab40be73f64180f253816d7b5214cb23100
+          path: .solverit-skill
+          persist-credentials: false
+      - name: Restore only trusted policy and emitter identity
+        run: |
+          cp .github/session-review-policy.json .solverit-skill/.github/session-review-policy.json
+          cp .github/workflows/session-review.yml .solverit-skill/.github/workflows/session-review.yml
+      - name: Configure Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install official locked validator dependencies
+        run: |
+          python -m pip install --require-hashes \
+            -r .solverit-skill/requirements.lock.txt \
+            -r .solverit-skill/entregar-issue/requirements-dev.lock.txt \
+            -r .solverit-skill/auditar-issue/requirements-dev.lock.txt
+      - name: Verify or revoke exact-SHA operator session review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: python .solverit-skill/scripts/verify_session_review.py --repo "$REPOSITORY" --event "$GITHUB_EVENT_PATH"

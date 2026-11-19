@@ -1,0 +1,83 @@
+name: Prepare neutral independent audit packet
+
+# Default-branch GitHub facts reader. No candidate code, no check writes.
+on:
+  workflow_run:
+    workflows: ["Collect and certify exact-SHA handoff"]
+    types: [completed]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  checks: read
+  actions: read
+
+jobs:
+  packet:
+    name: Generate neutral audit packet (never certifies)
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository) ||
+       (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        github.event.comment.body == '/solverit-audit-packet'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Checkout immutable official Skill
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: crgasparoto-br/skill
+          ref: 71217ab40be73f64180f253816d7b5214cb23100
+          path: .solverit-skill
+          persist-credentials: false
+      - name: Restore trusted policy and emitter identity
+        run: |
+          cp .github/session-review-policy.json .solverit-skill/.github/session-review-policy.json
+          cp .github/workflows/session-review.yml .solverit-skill/.github/workflows/session-review.yml
+      - name: Configure Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Collect only authenticated certified exact-SHA sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PACKET_ROOT: ${{ runner.temp }}/audit-packet
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path('.solverit-skill/scripts').resolve()))
+          from verify_session_review import evaluate, resolve_targets
+          event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+          repo = os.environ['REPOSITORY']
+          targets = resolve_targets(repo, event)
+          if not targets:
+              raise SystemExit('BLOCK: no eligible PR for packet request')
+          root = Path(os.environ['PACKET_ROOT'])
+          results = [evaluate(repo, number, issue, root / f'pr-{number}' / 'review-packet.json')
+                     for number, issue in targets]
+          raise SystemExit(max(results))
+          PY
+      - name: Upload neutral evidence packet
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: neutral-independent-audit-packet
+          path: ${{ runner.temp }}/audit-packet/
+          if-no-files-found: error
+          retention-days: 14
