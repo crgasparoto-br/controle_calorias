@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "mode": "disabled",
+  "assurance": "operator-attested-session-review",
+  "acknowledgement": "separate-context-declared-not-cryptographically-proven",
+  "operators": [],
+  "implementation_provenance": {
+    "mode": "disabled",
+    "type": "github-implementation-provenance"
+  }
+}

@@ -1,0 +1,61 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+const script = fileURLToPath(new URL("./merge-vitest-junit.py", import.meta.url));
+
+function probe(shards) {
+  const work = mkdtempSync(join(tmpdir(), "solverit-junit-"));
+  const directory = join(work, "shards");
+  mkdirSync(directory);
+  for (const [index, xml] of shards.entries()) {
+    if (xml !== null) writeFileSync(join(directory, "shard-" + (index + 1) + ".xml"), xml);
+  }
+  const output = join(work, "combined.xml");
+  const result = spawnSync("python3", [script, "--dir", directory, "--out", output, "--shards", "2"], { encoding: "utf8" });
+  const xml = result.status === 0 ? readFileSync(output, "utf8") : "";
+  rmSync(work, { recursive: true, force: true });
+  return { ...result, xml };
+}
+
+const xml = (file, testName) => '<testsuites><testsuite name="' + file + '" tests="1"><testcase classname="' + file + '" name="' + testName + '" time="0.01" /></testsuite></testsuites>';
+
+test("consolidates two real JUnit shards preserving identities", () => {
+  const result = probe([xml("a.test.ts", "pass A"), xml("b.test.ts", "pass B")]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.xml, /tests="2"/);
+  assert.match(result.xml, /pass A/);
+  assert.match(result.xml, /pass B/);
+});
+
+test("rejects missing shard rather than inventing a pass", () => {
+  const result = probe([xml("a.test.ts", "pass A"), null]);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /missing or unsafe exact-run JUnit shard/);
+});
+
+test("rejects duplicate executed test identity", () => {
+  const result = probe([xml("a.test.ts", "same"), xml("a.test.ts", "same")]);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /duplicate test/);
+});
+
+test("rejects failing test and invalid XML", () => {
+  const failed = probe([xml("a.test.ts", "pass A"), '<testsuite><testcase classname="b" name="bad"><failure message="x" /></testcase></testsuite>']);
+  assert.equal(failed.status, 2);
+  assert.match(failed.stderr, /failing or errored/);
+  const broken = probe([xml("a.test.ts", "pass A"), '<testsuites><testsuite>']);
+  assert.equal(broken.status, 2);
+  assert.match(broken.stderr, /invalid JUnit XML/);
+});
+
+test("retains skipped cases as skipped, not proof of a passed test", () => {
+  const result = probe([xml("a.test.ts", "pass A"), '<testsuite><testcase classname="b.test.ts" name="skip B"><skipped /></testcase></testsuite>']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.xml, /skipped="1"/);
+  assert.match(result.xml, /skip B/);
+});

@@ -138,8 +138,8 @@ jobs:
       - name: GitHub-native audit contract self-test
         run: node scripts/check-github-native-audit-contract.mjs
 
-      - name: CI classifier self-test
-        run: node --test scripts/ci-classifier.test.mjs
+      - name: CI classifier and certification JUnit self-tests
+        run: node --test scripts/ci-classifier.test.mjs scripts/merge-vitest-junit.test.mjs
 
       - name: Setup pnpm
         if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true' || needs.classify.outputs.docs_required == 'true' || needs.classify.outputs.risk_profile != 'fast'

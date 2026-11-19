@@ -129,8 +129,14 @@ export async function runShards({
 }
 
 export function spawnVitestShard(number, output) {
+  const junitDir = process.env.SOLVERIT_JUNIT_DIR;
+  const junitArgs = junitDir ? [
+    "--reporter=default", "--reporter=junit",
+    `--outputFile.junit=${resolve(junitDir, `shard-${number}.xml`)}`,
+  ] : [];
   const child = spawn("pnpm", [
     "exec", "vitest", "run", `--shard=${number}/24`, "--maxWorkers=1", "--minWorkers=1",
+    ...junitArgs,
   ], { env: process.env, stdio: ["ignore", "pipe", "pipe"], detached: true });
   const feed = chunk => output(chunk.toString());
   child.stdout.on("data", feed);

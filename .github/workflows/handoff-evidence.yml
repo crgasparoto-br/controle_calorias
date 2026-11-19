@@ -1,0 +1,28 @@
+name: Collect and certify exact-SHA handoff
+
+# M1 pilot (#1345): opt-in, read-only. This does not approve a session review.
+# The official Skill workflow is pinned; PR-controlled code cannot write checks.
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  collect:
+    # M2 removes opt-in only after certification and reviewer are proven end to end.
+    if: >-
+      github.event.pull_request.draft == false &&
+      contains(github.event.pull_request.body, 'SolverIT-Certification-Pilot: true')
+    uses: crgasparoto-br/skill/.github/workflows/reusable-handoff.yml@71217ab40be73f64180f253816d7b5214cb23100
+    with:
+      base-ref: develop
+      tooling-repository: crgasparoto-br/skill
+      python-version: "3.12"
+      install-command: "npm install --global pnpm@10.4.1 && pnpm install --frozen-lockfile"
+      test-command: "NODE_OPTIONS=--max-old-space-size=4096 bash scripts/collect-solverit-certification-tests.sh"
+      evidence-command: 'python "$HANDOFF_TOOLING/entregar-issue/scripts/produce_actions_handoff_evidence.py" --root . --out "$EVIDENCE_DIR" --event "$GITHUB_EVENT_PATH" --base-ref "$BASE_REF"'
