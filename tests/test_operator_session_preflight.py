@@ -160,6 +160,7 @@ class OperatorSessionPreflightTests(unittest.TestCase):
             text = (ROOT / path).read_text()
             self.assertIn(name, text)
             self.assertIn("ref: ${{ github.event.pull_request.head.sha }}", text)
+            self.assertIn("fetch-depth: 0", text)
 
     def test_duplicate_json_key(self):
         with self.assertRaises(ValueError):

@@ -199,6 +199,7 @@ def validate(integration: dict, policy: dict, workflow: str,
                 and re.search(r"(?m)^\s*(checks|contents|issues|pull-requests|actions):\s*write\s*$", source) is None,
                 f"{path}: privileged technical checks are forbidden")
         require(all(command in source for command in commands)
+                and "fetch-depth: 0" in source
                 and "persist-credentials: false" in source
                 and "pnpm install --frozen-lockfile" in source
                 and "continue-on-error:" not in source,

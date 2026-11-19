@@ -107,3 +107,18 @@ IDs, enforcement e required check de ambos os rulesets (#18391133 e #18391304).
 Se testes reais demonstrarem falha, manter politica desativada; se falha ocorrer
 apos adocao, bloquear merges, revogar o parecer ativo e restaurar apenas a regra
 administrativa previamente comprovada. Nunca remover `Agent-first gate`.
+
+### Ensaios reais do bootstrap (19/11/2026)
+
+- **Controle negativo de certificacao:** PR #1347 com opt-in temporario
+  `solverit-certified-handoff` produziu o
+  [run #44548972444](https://github.com/crgasparoto-br/controle_calorias/actions/runs/44548972444).
+  O job tecnico executou, mas o certificador remoto **falhou fechado** com
+  `certification-inputs.json absent: semantic closures have not been supplied`.
+  O label foi retirado apos o ensaio, para nao induzir bloqueio de PRs sem dossie.
+- **Compatibilidade da arquitetura:** no primeiro run do novo `Structure and tests`,
+  `pnpm architecture:check` nao localizou o SHA do baseline historico no checkout
+  raso. Corrigido com `fetch-depth: 0` no job exato, preservando a verificacao.
+  Nao foi dispensado o gate, reduzido teste ou forjado SHA.
+- **Escopo da evidencia:** o resultado negativo **nao** e ensaio positivo de
+  handoff, pacote neutro ou parecer independente. Esses itens continuam em M2.
