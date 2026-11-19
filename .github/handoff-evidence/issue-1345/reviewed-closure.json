@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "obligations": {
+    "ffd2015c445b014e56e3bf7fc25bf855d214c9443b900b2f4730a723b9f71ebc": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-GOV-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Modelo decidido, mas ainda nao houve review em conversa separada autenticada."
+    },
+    "fe6ac83955cb63a99f185d642000573799fda40cb5ab1f69a7206cf2833c7b39": {
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-M1-BASE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "O coletor so aceita base develop; teste novo rejeita base main."
+    },
+    "bddd5a50a268c6fd63c66268ebdfbf0028772de0c6e36e2aef26dc18f66c60a3": {
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "SHA de base historica, anterior ao bootstrap; nao e novo requisito a entregar."
+    },
+    "53a951683a7ace22ded34806d9f9f442872605d9292698b30793b254e17dbcb0": {
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Registro historico de arquivos ausentes antes do bootstrap da PR 1347."
+    },
+    "851ea07c37fd388b2fca05a3c444e5ab99adf02b1f3b2498b7bb40b5ddfd3f46": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M1-RULESETS"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Exige nova leitura GitHub autenticada das protecoes de develop e main."
+    },
+    "71567b718d7c1bd4f04067e832b81e1cdea50a2faade2dd7ce8faf8a3692da91": {
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-M1-FAILCLOSED"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "O produtor exige revisao e o ensaio 44621447082 rejeitou certificado ausente; cobertura apenas de bloqueio, nao de emissao positiva."
+    },
+    "c755882a7404e9e19435b9d68d12fb629cecce41a704c634a22b91c1fbc30e4d": {
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Referencia contextual a issues relacionadas; nao constitui criterio tecnico autonomo."
+    },
+    "32969bcd9630f4631705a98e322dc9bdd905507f73943a472c3c6c0c9d0512de": {
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-M1-INTEGRITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pin e mirror de fontes oficiais verificados por teste positivo e mutacoes negativas."
+    },
+    "b99b11b4e076a8705aea454e44225d9976df05b4ddb652f84d90d3af000f2adb": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M1-HANDOFF"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Falta certificado real e validacao main/release; 26 shards agora instrumentados."
+    },
+    "089b8b41758fc71ba80c08286c0580f7aa482ddbb8dcfe7e00171d870cee3c08": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M1-PACKET"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coletor neutro instalado, mas pacote nao foi produzido a partir de certificado positivo."
+    },
+    "0a00b46e55156f48635134aef923e6d4fc3d0c6e945dd1d7a96f77910e058a9e": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M1-ADVERSARIAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Faltam cenarios reais de API e positivo end-to-end em sessao independente."
+    },
+    "5df9116b9d553c666bbc98d03a539b81ca868350bbf323b9d5a995b5c6ea6694": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M1-REVIEW-DOC"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Guia ja presente; falta sessao auditora real, referencia verificavel e comprovacao completa."
+    },
+    "d32bf027746107c92fe95f862447fd222524ebf587714439cd06241edc478fd1": {
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-M1-PROTECTIONS"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preflight bloqueia habilitacao prematura e preserva Agent-first gate; readback das protecoes requer verificacao final."
+    },
+    "b85b4cdffbea544e62320f8dde69db7d60578367b79ed5f7a4ccbc2cf18e3168": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M2-INSTALL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Versoes identicas e politica enabled em develop/main nao instaladas ou autorizadas."
+    },
+    "fc926a086d9fc4321bd536c6cd4bd88f70d0f9736c02fc8d4af8d7092fee2bb7": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M2-POSITIVE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Ausente certificado positivo, comentario de outra sessao e check de revisao success."
+    },
+    "e1638aa430c9af87403fab24030bfd0549abbafeb6f82822062894e860ab828d": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M2-NEGATIVE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Ausentes negativos reais de revogacao, mudancas de issue/base/head e permissao."
+    },
+    "55a9e29aee066a2a809c8554e48641aff2776dddc7a8d9f7067176ed618ab774": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M2-ADMIN"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Required check adicional depende de provas e autorizacao administrativa explicita."
+    },
+    "b87a291838d695eb6126ea587bf6709994fc44ee0e239fce7881d3b6751573d3": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M2-ROLLBACK"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pos-migracao e rollback ainda nao podem ser ensaiados operacionalmente."
+    },
+    "24e19403f78c1e0273cf975a723df541503d01e0ef6bf10e1a2e0e0cee7ea94b": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-M2-RETROSPECTIVE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Plano retrospectivo detalhado no documento; procedimento formal ainda nao aprovado."
+    },
+    "bb3f46c395cbafc8fc65edce22f44cce8139386132dca9e2b41a9017104d0b1b": {
+      "disposition": "pending",
+      "requirement_ids": [
+        "REQ-GOV-COMPLETION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Concluir issue exige M1/M2 comprovados, nao apenas CI verde."
+    },
+    "3b8f2d1ac7f984a9f385283e4f931db5a4d0b7dd109ee78832d9981424b91d0f": {
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Inventario historico de CI da PR 1347, nao resultado do HEAD atual."
+    },
+    "7ffb61547d99f442eb2f29cb4425de9e8abed8657cd0dc8dc875113bf282f890": {
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Controle negativo historico sem certificado; nao demonstra sucesso positivo."
+    },
+    "68c82a443ebbc6a741f29256b5381055dfe81957cc8fce31ee78acd3ca38cd80": {
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-M1-INTEGRITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Material confiavel e lock oficial conferidos no mesmo conjunto de provas de integridade."
+    },
+    "67e23fcaeb63e165bc3e5bd98b507393d10594b114ac4535e99049b40746ec4f": {
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-M1-PROTECTIONS"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Rulesets consultados com required Agent-first gate; sem ativacao implicita do verificador."
+    },
+    "af0e349ade079c06607a73a7af92f9377d266c34b2b5c6cf0ccfd8e62b827b03": {
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Resumo historico de checkboxes M1 da issue; nao exige nova alteracao."
+    },
+    "2fa1e8c1366005e8999f370c3464a740cc9e669dd8cfb63f22c2a515c2d1e032": {
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Registro historico de issue mantida aberta e ausencia de aprovacao operacional."
+    }
+  },
+  "controls": {
+    "domain_inventories": [],
+    "observable_assertions": [],
+    "structural_invariant_closures": {
+      "status": "not-applicable",
+      "applicability_reason": "No structural, canonical-path, precedence, dependency-independence, or forbidden-implementation obligation was detected.",
+      "entries": [],
+      "unresolved_invariants": []
+    },
+    "read_model_closures": {
+      "status": "pending",
+      "applicability_reason": "",
+      "entries": [],
+      "unconsumed_outputs": [],
+      "unmapped_required_fields": []
+    },
+    "canonical_source_consistency": {
+      "status": "pending",
+      "applicability_reason": "",
+      "entries": [],
+      "unverified_surfaces": [],
+      "missing_divergent_tests": []
+    },
+    "documentation_consistency": {
+      "status": "pending",
+      "applicability_reason": "",
+      "old_contract_terms": [],
+      "new_contract_terms": [],
+      "occurrences": [],
+      "unresolved_contradictions": [],
+      "searched_outside_diff": false,
+      "search_evidence": []
+    },
+    "scope_reduction_review": {
+      "status": "pending",
+      "matches": []
+    },
+    "pass_c": {
+      "status": "pending",
+      "requirement_ids": [],
+      "obligation_ids": [],
+      "evidence": [],
+      "rederived_without_pr_description": false,
+      "reviewed_user_visible_semantics": false,
+      "reviewed_producer_consumer_parity": false,
+      "reviewed_all_specification_sources": false
+    }
+  }
+}

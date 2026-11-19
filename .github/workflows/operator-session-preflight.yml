@@ -21,6 +21,8 @@ on:
       - '.github/workflows/github-audit-mcp.yml'
       - '.github/workflows/publish-certified-handoff.yml'
       - 'scripts/operator_session_preflight.py'
+      - 'scripts/wrap-node-junit.py'
+      - 'tests/test_wrap_node_junit.py'
       - 'tests/test_operator_session_preflight.py'
       - 'docs/audit/**'
   push:
@@ -63,6 +65,8 @@ jobs:
           python-version: '3.12'
       - name: Execute positive and adversarial preflight tests
         run: python -m unittest discover -s tests -p 'test_operator_session_preflight.py' -v
+      - name: Exercise node:test JUnit adapter safety controls
+        run: python -m unittest discover -s tests -p 'test_wrap_node_junit.py' -v
       - name: Validate governance and fail-closed bootstrap
         run: python scripts/operator_session_preflight.py
 

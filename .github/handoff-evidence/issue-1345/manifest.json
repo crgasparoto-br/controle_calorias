@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1345,
+  "pull_request_number": 1348,
+  "base_ref": "develop",
+  "head_ref": "fix/1346-junit-evidence-reconcile",
+  "work_item_start_sha": "0bee3ebae575641e43daa1e3bc43fad7ef56f2a1",
+  "evidence_profile": "critical",
+  "audit_history": "previous-rejection",
+  "remediation_mode": "targeted-remediation",
+  "review_state": "incomplete",
+  "risk_justification": "Governance checks and exact-SHA identity are critical for preventing unauthorized approval.",
+  "audit_history_evidence": "Prior PR 1348 independent audit found A-001, A-002 and A-003; fixes were rechecked with local adversarial replay.",
+  "artifact_sha256": {},
+  "test_bindings": {
+    "REQ-M1-BASE": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_valid_preflight_without_approval"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_base_must_remain_develop"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_requires_explicit_opt_in_label"
+      ]
+    },
+    "REQ-M1-FAILCLOSED": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_valid_preflight_without_approval"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_must_inspect_reviewed_closure"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_must_fail_closed"
+      ]
+    },
+    "REQ-M1-INTEGRITY": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_pinned_official_mirror_is_complete"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_official_mirror_rejects_hash_mismatch"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_official_mirror_rejects_missing_validator"
+      ]
+    },
+    "REQ-M1-PROTECTIONS": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_valid_preflight_without_approval"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_required_check_is_not_implicitly_enabled"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_activation_is_blocked"
+      ]
+    }
+  }
+}
