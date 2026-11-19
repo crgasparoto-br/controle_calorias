@@ -128,7 +128,7 @@ def validate(integration: dict, policy: dict, workflow: str,
             and "python -m pytest -vv tests/test_operator_session_preflight.py" in collector
             and '--junitxml="$EVIDENCE_DIR/pytest-exact-head.xml"' in collector
             and "produce_actions_handoff_evidence.py" in collector
-            and "--event \\"$GITHUB_EVENT_PATH\\"" in collector,
+            and '--event "$GITHUB_EVENT_PATH"' in collector,
             "certification requires exact-head JUnit and reviewed semantic closure")
     require("continue-on-error:" not in collector
             and "if-no-files-found: ignore" not in collector,
