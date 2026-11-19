@@ -64,7 +64,7 @@ class OperatorSessionPreflightTests(unittest.TestCase):
 
     def test_privileged_workflow(self):
         self.assert_blocked(workflow=self.workflow.replace(
-            "  contents: read", "  contents: read\\n  checks: write"))
+            "  contents: read", "  contents: read\n  checks: write"))
 
     def test_elevated_pr_event(self):
         self.assert_blocked(workflow=self.workflow.replace(
