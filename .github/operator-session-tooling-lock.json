@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "official_repository": "crgasparoto-br/skill",
+  "official_commit": "71217ab40be73f64180f253816d7b5214cb23100",
+  "required_paths": {
+    "scripts/session_review.py": "6c2092f19c462d948424b73967d57ca184c9c4b6",
+    "scripts/session_review_github.py": "25817855bda374b231f5b56c80e9b39b4f18676d",
+    "scripts/verify_session_review.py": "088f9c91c9933ec367e3e367723d6d27985d1b0c",
+    "scripts/verify_independent_pr_audit.py": "2b724418aefbbfb363c83f0a286edc0c53d2913d",
+    "entregar-issue/scripts/specification.py": "d5a7bd5c66a244bf8822df004fdc426419022957",
+    "entregar-issue/scripts/require_actions_handoff_certificate.py": "ee7b2cb85672bd198d2b2fd4aeff4153c886afd8",
+    "entregar-issue/scripts/handoff_merge_preview.py": "1fe42939c022679c54e69486fceac7f25176d32e",
+    "entregar-issue/scripts/handoff_postcondition.py": "e84f1bf73a08cdbd374045524641fd91a0c69d1f",
+    "entregar-issue/scripts/handoff_postcondition_records.py": "60f7fceb4db5e6bc5d2da7131f914efc9cd90688",
+    "entregar-issue/scripts/certificate_postcondition_replay.py": "9a585f73f58b34d156b21f9d9508f762259d26ca",
+    "entregar-issue/scripts/certificate_replay_io.py": "c688f8999320298fab1b3b0ca9c0ccd5aeaef47b",
+    "entregar-issue/scripts/certificate_replay_source.py": "fb884dc97ba31bf265b9ca54d4eeb6e8c0083497",
+    "entregar-issue/scripts/audit_artifact_io.py": "4cacb2250edbf9893115d6b29550c200ea2041cb",
+    "entregar-issue/scripts/certificate_replay_inputs.py": "4aa4389a5d1ab02ee69854eb8f757ea3907e107b",
+    "entregar-issue/scripts/build_test_candidate_index.py": "48a4b46476a5b7be119b8e961df3c50e723d8242"
+  }
+}
