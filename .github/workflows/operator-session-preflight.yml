@@ -43,6 +43,8 @@ on:
       - '.github/workflows/github-audit-mcp.yml'
       - '.github/workflows/publish-certified-handoff.yml'
       - 'scripts/operator_session_preflight.py'
+      - 'scripts/wrap-node-junit.py'
+      - 'tests/test_wrap_node_junit.py'
       - 'tests/test_operator_session_preflight.py'
       - 'docs/audit/**'
 
