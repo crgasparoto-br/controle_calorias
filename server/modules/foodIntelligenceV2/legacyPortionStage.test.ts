@@ -44,7 +44,7 @@ function installStage(portionVersion: string | null) {
     sourceId: 7, ownerUserId: null, sourceReference: url,
     payloadJson: JSON.stringify(payload), contentHash: hash(payload),
     capturedAt: new Date("2026-10-20T12:00:00Z"),
-    retentionUntil: new Date("2026-11-20T12:00:00Z"),
+    retentionUntil: new Date(Date.now() + 60 * 60 * 1000), // Non-expired proof for staging scenarios.
   };
   const portion = {
     id: 101, foodId: 4, foodVariantId: null, sourceId: 7,
