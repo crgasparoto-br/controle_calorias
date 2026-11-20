@@ -58,6 +58,9 @@ def normalize(source: Path, destination: Path) -> dict[str, int]:
     if counts["tests"] == counts["skipped"]:
         raise ValueError("node:test JUnit has no executed non-skipped cases")
     for key, value in counts.items():
+        declared = root.get(key)
+        if declared is not None and (not declared.isdecimal() or int(declared) != value):
+            raise ValueError(f"inconsistent node:test JUnit {key} count")
         suite.set(key, str(value))
     aggregate = ET.Element("testsuites", {key: str(value) for key, value in counts.items()})
     aggregate.append(suite)

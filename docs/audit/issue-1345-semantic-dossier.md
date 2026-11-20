@@ -7,7 +7,7 @@
 - [Issue canônica #1345](https://github.com/crgasparoto-br/controle_calorias/issues/1345): 26 obrigações do texto vigente; inclui fatos históricos, M1 e M2.
 - [Ensaio #44621447082](https://github.com/crgasparoto-br/controle_calorias/actions/runs/44621447082), SHA `fa08e8b`: coleta técnica `success`, certificação `failure`, corretamente bloqueada sem `certification-inputs.json`.
 - [Artefato #14577416513](https://github.com/crgasparoto-br/controle_calorias/actions/runs/44621447082/artifacts/14577416513): índice factual de 25 shards/6.899 casos, nove skipped; não demonstra conclusão semântica.
-- O código desta PR acrescenta 26º shard a partir de `node:test` (75 testes locais observados), além dos 24 Vitest e do Python. A contagem GitHub exact-HEAD só será confirmada no novo run.
+- O [ensaio #44625200072](https://github.com/crgasparoto-br/controle_calorias/actions/runs/44625200072) no SHA anterior `61f5b76` executou 26 shards (24 Vitest, um Python e um Node), totalizando 6.984 casos JUnit, nove skipped e zero falhas/erros. A correção A-004 acrescenta quatro testes adversariais/contratuais ao conversor; os números do ensaio anterior **não** certificam o novo SHA e exigem nova coleta autenticada.
 - [Contrato oficial fixado](https://github.com/crgasparoto-br/skill/tree/71217ab40be73f64180f253816d7b5214cb23100/entregar-issue): o produtor valida cada candidato, origem, bindings, relatórios e hash.
 
 ## Classificação por obrigação
@@ -67,3 +67,17 @@ O perfil é `critical`, pois a falha do contrato pode conceder aprovação incor
 - Read-back obrigatório antes/depois de mudanças em [develop ruleset #18391133](https://github.com/crgasparoto-br/controle_calorias/rules/18391133) e [main ruleset #18391304](https://github.com/crgasparoto-br/controle_calorias/rules/18391304). Preservar `Agent-first gate`, atualização estrita, PR obrigatória e proibições de deleção/force-push.
 
 **Proibição:** nenhum item M1/M2 pendente será marcado como feito por esta coleta; a PR não altera rulesets, não faz merge, não emite recibo de sessão, não fecha #1345/#1298, e o dossiê está conscientemente sem `artifact_sha256`.
+
+## Remediação técnica A-004 (sem certificação)
+
+O conversor `scripts/wrap-node-junit.py` rejeita qualquer atributo raiz
+`tests`, `failures`, `errors` ou `skipped` inválido ou divergente dos
+`testcase` realmente observados, antes de gravar o JUnit normalizado. Foram
+acrescentados controles de contagem válida, discrepâncias nos quatro atributos,
+metadados malformados e rejeição pela CLI sem artefato de saída. A ausência de
+atributos de contagem na saída real do `node:test` continua aceita, desde que
+os eventos sejam legítimos.
+
+Esta correção é **validação interna** do coletor, não fechamento semântico.
+A matriz e os relatórios ainda `pending` permanecem abertos até que um novo
+run exact-SHA, a revisão do dossiê e a certificação oficial os comprovem.

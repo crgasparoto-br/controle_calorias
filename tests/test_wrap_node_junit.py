@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -71,6 +73,45 @@ class NodeTestJunitContractTests(unittest.TestCase):
                        node(case("only-skipped", "<skipped/>"))):
             with self.assertRaises(ValueError):
                 self.check(source)
+
+    def test_positive_consistent_root_counts_are_preserved(self):
+        source = ('<testsuites tests="2" failures="0" errors="0" skipped="1">'
+                  + case("pass") + case("skip", "<skipped/>") + '</testsuites>')
+        count, root = self.check(source)
+        self.assertEqual(count, {"tests": 2, "failures": 0, "errors": 0, "skipped": 1})
+        self.assertEqual({key: root.get(key) for key in count},
+                         {"tests": "2", "failures": "0", "errors": "0", "skipped": "1"})
+
+    def test_negative_inconsistent_root_counts_fail_closed(self):
+        # A-004: never normalize claimed failing or incorrectly counted JUnit into a pass.
+        cases = case("pass") + case("skip", "<skipped/>")
+        for attribute, wrong_value in (("tests", "3"), ("failures", "1"),
+                                       ("errors", "1"), ("skipped", "0")):
+            with self.subTest(attribute=attribute):
+                source = f'<testsuites {attribute}="{wrong_value}">{cases}</testsuites>'
+                output = self.root / f"rejected-{attribute}.xml"
+                with self.assertRaisesRegex(ValueError, f"inconsistent node:test JUnit {attribute} count"):
+                    self.check(source, output)
+                self.assertFalse(output.exists(), "a rejected result must not create evidence")
+
+    def test_negative_invalid_root_count_encoding(self):
+        for declared in ("", "-1", "1.0", "unknown", " 1", "1 "):
+            with self.subTest(declared=declared):
+                source = f'<testsuites tests="{declared}">{case("pass")}</testsuites>'
+                with self.assertRaisesRegex(ValueError, "inconsistent node:test JUnit tests count"):
+                    self.check(source)
+
+    def test_cli_rejects_claimed_failure_without_output(self):
+        # Public CLI contract must return 2, matching certification fail-closed semantics.
+        raw = self.root / "claimed-failure.xml"
+        raw.write_text(f'<testsuites tests="1" failures="1">{case("pass")}</testsuites>',
+                       encoding="utf-8")
+        output = self.root / "shard-26.xml"
+        result = subprocess.run([sys.executable, str(SCRIPT), "--input", str(raw), "--out", str(output)],
+                                capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("BLOCK: inconsistent node:test JUnit failures count", result.stderr)
+        self.assertFalse(output.exists())
 
     def test_negative_dangling_output_symlink(self):
         output = self.root / "link.xml"

@@ -47,15 +47,19 @@ A adocao dos nomes da Skill nao equivale a revisao independente.
 A integracao fixa o produtor oficial
 `.github/workflows/handoff-evidence.yml` no commit da Skill indicado
 acima. Por enquanto, somente PRs rotuladas `solverit-certified-handoff`
-executam a coleta. O produtor executa primeiro o `pytest` de preflight previsto no contrato
-da #1347 e preserva seu XML como `junit-shards/shard-25.xml`. Depois roda
-`scripts/collect-solverit-certification-tests.sh` com os 24 shards Vitest
-(concorrencia 2). O agregador combina **25 shards reais** em um unico JUnit
-factual, indexado pelo produtor oficial, e usa
+executam a coleta. O produtor executa primeiro o `pytest` dos testes de governanca e do conversor
+Node, preservando seu XML como `junit-shards/shard-25.xml`. Depois executa
+`scripts/collect-solverit-certification-tests.sh` com 24 shards Vitest
+(concorrencia 2) e com o `node:test` real, convertido para o
+`junit-shards/shard-26.xml`. O agregador combina **26 shards reais**
+em um unico JUnit factual, indexado pelo produtor oficial, e usa
 `produce_actions_handoff_evidence.py` com certificador separado. A coleta
 recusa shard ausente, IDs repetidos entre shards, contagens inconsistentes,
 resultados falhos, suites vazias com contagens falsas, casos fora da hierarquia
-JUnit e qualquer shard sem teste nao-skipped efetivamente executado. Os casos
+JUnit e qualquer shard sem teste nao-skipped efetivamente executado.
+O conversor Node tambem rejeita contagens `tests`, `failures`, `errors` e
+`skipped` declaradas na raiz que sejam invalidas ou contradigam os casos;
+XML sem essas contagens continua compativel com o reporter real. Os casos
 skipped permanecem skipped em shards com execucao real. A saida recusa symlinks
 de arquivo/diretorio, inclusive destino inexistente e trocas concorrentes.
 Casos parametrizados com mesmo nome preservam cada
