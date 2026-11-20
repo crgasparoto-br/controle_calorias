@@ -96,6 +96,10 @@ class OperatorSessionPreflightTests(unittest.TestCase):
         self.assert_blocked(collector=self.collector.replace(
             "  pull_request:", "  pull_request_target:"))
 
+    def test_collector_base_must_remain_develop(self):
+        self.assert_blocked(collector=self.collector.replace(
+            "base-ref: develop", "base-ref: main"))
+
     def test_collector_requires_explicit_opt_in_label(self):
         self.assert_blocked(collector=self.collector.replace(
             "'solverit-certified-handoff'", "'no-label-gate'"))
