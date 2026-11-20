@@ -81,3 +81,41 @@ os eventos sejam legítimos.
 Esta correção é **validação interna** do coletor, não fechamento semântico.
 A matriz e os relatórios ainda `pending` permanecem abertos até que um novo
 run exact-SHA, a revisão do dossiê e a certificação oficial os comprovem.
+
+## Leitura autenticada das proteções e da instalação — 20/11/2026
+
+Esta seção é um **read-back técnico**, não um relatório de aprovação, e descreve o estado observado antes do commit documental que a inclui.
+
+- [Ruleset develop #18391133](https://github.com/crgasparoto-br/controle_calorias/rules/18391133): `enforcement=active`, proteção contra `deletion` e `non_fast_forward`, PR obrigatória, `strict_required_status_checks_policy=true` e contexto requerido `Agent-first gate`. Nenhum check de revisão por sessão consta como obrigatório.
+- [Ruleset main #18391304](https://github.com/crgasparoto-br/controle_calorias/rules/18391304): mesmas categorias de proteção e check técnico obrigatório. A API retornou `current_user_can_bypass=never` para a identidade consultada, mas `bypass_actors_visibility=UNKNOWN_NO_WRITE_ACCESS`: **não** inferir ausência global de atores de bypass a partir de resposta incompleta.
+- `develop` contém `.github/session-review-policy.json` com `mode=disabled` e blob Git `9d2c10998adf0fe35c0733967870f5dd699658ec`; a versão de `.github/workflows/session-review.yml` possui blob `a48ca4e226fe9bf380d6be79e3d23768cfa3a3f4`.
+- Consultas aos paths `.github/session-review-policy.json`, `.github/workflows/session-review.yml`, `.github/workflows/prepare-neutral-audit-packet.yml`, `.github/workflows/handoff-evidence.yml` e `.github/operator-session-integration.json` na branch `main` retornaram HTTP 404. Isso **não** demonstra equivalência de versões nem instalação operacional; demonstra a precondição de implantação ainda não satisfeita na leitura.
+- A comparação [`main...develop`](https://github.com/crgasparoto-br/controle_calorias/compare/main...develop) retornou `diverged` (1.139 commits à frente e 15 atrás, na direção `main...develop`). Não promover automaticamente uma branch sobre a outra como substituto de uma release auditada.
+
+**Disposição:** a leitura autenticada supre o diagnóstico factual de `OBL-005 / REQ-M1-RULESETS`, mas esse item mantém `pending` no *overlay* semântico até vinculá-lo a controles positivos, negativos e de regressão adequados e revalidar o HEAD. `OBL-014..018` permanecem pendentes; nenhuma política, regra ou branch foi alterada pelo read-back.
+
+## Plano específico e auditável de certificação retrospectiva — #1298
+
+Este registro versiona o [procedimento já publicado na issue #1345](https://github.com/crgasparoto-br/controle_calorias/issues/1345#issuecomment-7023737139). **Registrar o plano não é executar ou aprovar a certificação.** A via normal exige PR aberta e não admite transformar a [PR #1328](https://github.com/crgasparoto-br/controle_calorias/pull/1328), que já foi mergeada, em um evento de revisão atual.
+
+### Âncoras históricas imutáveis
+
+| Objeto | Identidade |
+| --- | --- |
+| Escopo | [Issue #1298](https://github.com/crgasparoto-br/controle_calorias/issues/1298) e [épica #1297](https://github.com/crgasparoto-br/controle_calorias/issues/1297) |
+| PR remediadora já mergeada | [#1328](https://github.com/crgasparoto-br/controle_calorias/pull/1328) |
+| Base histórica da #1328 | `68d7186aeca4e442d79fad77e5e2cebd5c6abba0` |
+| HEAD material histórico da #1328 | `02d9dbffcf51fa3ac05c1fc138abd76b5b166b8b` |
+| Merge commit histórico | `1a6ef153797c3f855fbea54ae068851b634bd152` |
+| CI de remediação no HEAD histórico | [Agent-first gate #39587848259](https://github.com/crgasparoto-br/controle_calorias/actions/runs/39587848259) |
+
+### Procedimento proposto (sem autorização de exceção)
+
+1. **Autenticar os objetos de origem.** Em leitura somente GitHub, comparar issue/épica/ADR, PR fechada, base, HEAD e merge commit por bytes/blobs completos, pais e árvores Git. Registrar digests. Uma URL ou narrativa da PR não substitui a leitura.
+2. **Reconstruir os cinco critérios de aceite A1 sem alterar escopo.** Validar separadamente versão/schema imutável, origem `text` versus `transcription`, snapshot V1 sem reinferência, pendência versionada com retry/restart e bloqueio de uso produtivo dos contratos V2. Não tratar persistência durável posterior como obrigação A1.
+3. **Reexecutar controles discriminantes sem retroagir o relógio.** Para cada critério, associar teste positivo, ataque negativo e regressão, com JUnit real, comando, ambiente, logs, exit code, SHA e digests. Identificar explicitamente `historical-ci` ou `current-replay-of-historical-SHA`; artefatos expirados são indisponíveis, nunca `passed` inferido.
+4. **Produzir pacote neutro suplementar e verificar ataques.** Incluir diff reconstituído a partir de blobs, fontes, inventário, identidades e limitações. Testar base/HEAD divergente, artefato adulterado, check sem SHA correspondente, autor não autorizado e ausência de recibo. Não fabricar evento de `pull_request`, check `Verify session review (exact SHA)` histórico ou `certification-inputs.json` retroativo.
+5. **Submeter decisão de governança explícita.** A política `operator-attested-session-review` vigente exige PR aberta; qualquer rito retrospectivo precisa de contrato confiável e autorização administrativa anterior à aceitação. Encaminhar pacote à revisão em conversa realmente separada e registrar suas limitações e o alcance do parecer, sem alegar terceiro independente.
+6. **Aplicar condição de fechamento.** Manter #1298 aberta e o item A1 da #1297 desmarcado até aprovação formal da política retrospectiva e evidência aceita. Se o contrato não permitir a retroatividade, registrar decisão explícita de não certificar, sem emitir aprovação artificial ou promover entrada V2 em produção.
+
+**Classificação:** o planejamento retrospectivo está documentado; autenticação completa do pacote, testes/replays, decisão administrativa e revisão separada continuam **não executados**. A aprovação M2, o certificado e a conclusão da #1345 continuam bloqueados. Não usar este documento como `reviewed-closure.json` aprovado.
