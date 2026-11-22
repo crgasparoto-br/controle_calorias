@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../../db";
 import { foods, foodCatalog, foodBrands, foodAliases, foodPortions, foodSources, portions } from "../../../drizzle/schema";
 import {
@@ -116,7 +116,15 @@ function installStage(portionVersion: string | null) {
   return { updated, reviews, transaction };
 }
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-22T12:00:00Z"));
+  vi.resetAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("AUD-1302-033: legacy portion revision at the actual B2 stage boundary", () => {
   it.each([null, "v0"])("quarantines an unproven/older portion revision %s", async version => {
