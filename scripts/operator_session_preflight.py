@@ -10,6 +10,7 @@ import json
 import re
 import hashlib
 from pathlib import Path
+from verify_session_m1_controls import validate_dossier_bindings
 from operator_session_workflow_guards import (
     TRUSTED_PACKET_EVENTS, TRUSTED_PACKET_JOB_GUARD,
     TRUSTED_SESSION_EVENTS, TRUSTED_SESSION_JOB_GUARD,
@@ -311,6 +312,11 @@ def main() -> None:
     validate(integration, policy, workflow)
     verify_official_mirror()
     verify_bootstrap_wrappers()
+    dossier = ROOT / ".github/handoff-evidence/issue-1345"
+    validate_dossier_bindings(
+        strict_json((dossier / "manifest.json").read_text()),
+        strict_json((dossier / "reviewed-closure.json").read_text()),
+    )
     print("PASS: operator-session M1 metadata and read-only preflight are fail-closed")
     print("NOT CERTIFIED: no session receipt or independent audit approval is issued")
 

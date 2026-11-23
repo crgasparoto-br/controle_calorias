@@ -170,3 +170,21 @@ administrativa previamente comprovada. Nunca remover `Agent-first gate`.
   Nao foi dispensado o gate, reduzido teste ou forjado SHA.
 - **Escopo da evidencia:** o resultado negativo **nao** e ensaio positivo de
   handoff, pacote neutro ou parecer independente. Esses itens continuam em M2.
+
+### Endurecimento do preflight M1 de evidências (23/11/2026)
+
+A matriz `verify_session_m1_controls.py` rejeita XML que apresente casos
+`testcase` fora da hierarquia de suíte, resultados contraditórios, suites vazias,
+contadores falsos em qualquer nível, duplicações ou falhas em testes fora dos
+12 cenários selecionados. A prova mantém o JUnit bruto e o SHA-256 do arquivo,
+sem sintetizar resultados de testes. Testes legítimos `skipped` fora dos
+cenários obrigatórios são mantidos como tal e não viram execução aprovada.
+
+O preflight verifica ainda a integridade **provisória** do mapa
+`test_bindings` de todas as obrigações `covered`: positivo, negativo e
+regressão devem ter IDs separados, presentes e não reutilizados entre classes.
+Essa checagem estrutural é adicional ao produtor oficial, que continua tendo
+que provar os casos em JUnit no SHA material. Ela **não** produz revisão
+semântica, certificados, pacote neutro ou auditoria em sessão separada.
+As obrigações M1-02/M1-03/M1-04, A-005/A-006 e a M2 permanecem abertas até
+provas reais aceitas pelo contrato.

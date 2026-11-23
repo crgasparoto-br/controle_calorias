@@ -5,6 +5,8 @@ Simulated input is deliberately not described as a real GitHub integration run.
 from __future__ import annotations
 
 import sys
+import json
+import copy
 import tempfile
 import unittest
 from pathlib import Path
@@ -91,7 +93,7 @@ class SessionM1ExecutedMatrixTests(unittest.TestCase):
         rows = sample_cases("candidate")
         rows[-1] = (rows[-1][0], rows[-1][1], "failure")
         junit(self.candidate, rows)
-        with self.assertRaisesRegex(ValueError, "two-pr-same-head"):
+        with self.assertRaisesRegex(ValueError, "failing or errored JUnit"):
             gate.validate(self.official, self.candidate, HEAD)
 
     def test_matrix_rejects_duplicated_test_case(self):
@@ -106,6 +108,96 @@ class SessionM1ExecutedMatrixTests(unittest.TestCase):
         self.official.write_bytes(b'<!DOCTYPE testsuites [<!ENTITY x "y">]><testsuites/>')
         with self.assertRaisesRegex(ValueError, "DTD/entities"):
             gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_rejects_direct_testcase_without_suite(self):
+        raw = ElementTree.Element("testsuites")
+        ElementTree.SubElement(raw, "testcase", classname="tests.fake", name="test_spoof")
+        self.official.write_bytes(ElementTree.tostring(raw))
+        with self.assertRaisesRegex(ValueError, "testsuite hierarchy"):
+            gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_rejects_nested_spoofed_case(self):
+        root = ElementTree.parse(self.official).getroot()
+        suite = root.find("testsuite")
+        injected = ElementTree.SubElement(suite, "properties")
+        ElementTree.SubElement(injected, "testcase", classname="tests.fake", name="test_spoof")
+        self.official.write_bytes(ElementTree.tostring(root))
+        with self.assertRaisesRegex(ValueError, "unexpected JUnit child"):
+            gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_rejects_failure_outside_selected_scenarios(self):
+        rows = sample_cases("official") + [("tests.unselected", "test_broken", "failure")]
+        junit(self.official, rows)
+        with self.assertRaisesRegex(ValueError, "failing or errored JUnit"):
+            gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_rejects_false_suite_failure_totals(self):
+        root = ElementTree.parse(self.official).getroot()
+        root.find("testsuite").set("failures", "1")
+        self.official.write_bytes(ElementTree.tostring(root))
+        with self.assertRaisesRegex(ValueError, "inconsistent JUnit failures"):
+            gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_rejects_false_root_totals(self):
+        root = ElementTree.parse(self.official).getroot()
+        root.set("tests", "999")
+        self.official.write_bytes(ElementTree.tostring(root))
+        with self.assertRaisesRegex(ValueError, "inconsistent JUnit tests"):
+            gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_rejects_contradictory_outcomes(self):
+        root = ElementTree.parse(self.official).getroot()
+        test = root.find("testsuite/testcase")
+        ElementTree.SubElement(test, "skipped")
+        ElementTree.SubElement(test, "failure")
+        self.official.write_bytes(ElementTree.tostring(root))
+        with self.assertRaisesRegex(ValueError, "contradictory JUnit outcome"):
+            gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_rejects_empty_sibling_suite(self):
+        root = ElementTree.parse(self.official).getroot()
+        ElementTree.SubElement(root, "testsuite", tests="0")
+        self.official.write_bytes(ElementTree.tostring(root))
+        with self.assertRaisesRegex(ValueError, "suite has no executed"):
+            gate.validate(self.official, self.candidate, HEAD)
+
+    def test_matrix_allows_unrelated_legitimate_skips(self):
+        rows = sample_cases("official") + [("tests.unselected", "test_optional", "skipped")]
+        junit(self.official, rows)
+        result = gate.validate(self.official, self.candidate, HEAD)
+        self.assertEqual(len(result["scenario_controls"]), 12)
+        self.assertEqual(result["live_github_adversarial_proof"], "NOT_ASSERTED")
+
+    def test_provisional_dossier_bindings_match_all_covered_requirements(self):
+        folder = ROOT / ".github/handoff-evidence/issue-1345"
+        manifest = json.loads((folder / "manifest.json").read_text())
+        reviewed = json.loads((folder / "reviewed-closure.json").read_text())
+        gate.validate_dossier_bindings(manifest, reviewed)
+
+    def test_provisional_dossier_rejects_reused_regression_test(self):
+        folder = ROOT / ".github/handoff-evidence/issue-1345"
+        manifest = json.loads((folder / "manifest.json").read_text())
+        reviewed = json.loads((folder / "reviewed-closure.json").read_text())
+        req = "REQ-M1-BASE"
+        manifest["test_bindings"][req]["regression"] = manifest["test_bindings"][req]["positive"][:]
+        with self.assertRaisesRegex(ValueError, "cross-reused regression"):
+            gate.validate_dossier_bindings(manifest, reviewed)
+
+    def test_provisional_dossier_rejects_unmapped_covered_requirement(self):
+        folder = ROOT / ".github/handoff-evidence/issue-1345"
+        manifest = json.loads((folder / "manifest.json").read_text())
+        reviewed = json.loads((folder / "reviewed-closure.json").read_text())
+        manifest["test_bindings"].pop("REQ-M1-INTEGRITY")
+        with self.assertRaisesRegex(ValueError, "differ from covered"):
+            gate.validate_dossier_bindings(manifest, reviewed)
+
+    def test_provisional_dossier_rejects_false_approval(self):
+        folder = ROOT / ".github/handoff-evidence/issue-1345"
+        manifest = json.loads((folder / "manifest.json").read_text())
+        reviewed = json.loads((folder / "reviewed-closure.json").read_text())
+        manifest["review_state"] = "approved"
+        with self.assertRaisesRegex(ValueError, "cannot claim"):
+            gate.validate_dossier_bindings(manifest, reviewed)
 
     def test_same_head_pr_reviews_are_separate(self):
         # Two *different* open PRs can share a material commit. Neither the
