@@ -51,7 +51,7 @@ executam a coleta. O produtor executa primeiro o `pytest` dos testes de governan
 Node, preservando seu XML como `junit-shards/shard-25.xml`. Depois executa
 `scripts/collect-solverit-certification-tests.sh` com 24 shards Vitest
 (concorrencia 2) e com o `node:test` real, convertido para o
-`junit-shards/shard-26.xml`. O agregador combina **26 shards reais**
+`junit-shards/shard-26.xml`. Um 27º shard executa, sob o checkout imutável da Skill oficial, as seis suítes de revisão de sessão e regras (positivo, negativo e regressão), produzindo `junit-shards/shard-27.xml`. O agregador combina **27 shards reais**
 em um unico JUnit factual, indexado pelo produtor oficial, e usa
 `produce_actions_handoff_evidence.py` com certificador separado. A coleta
 recusa shard ausente, IDs repetidos entre shards, contagens inconsistentes,
@@ -64,8 +64,7 @@ skipped permanecem skipped em shards com execucao real. A saida recusa symlinks
 de arquivo/diretorio, inclusive destino inexistente e trocas concorrentes.
 Casos parametrizados com mesmo nome preservam cada
 execucao com ID reprodutivel e nome original. O `Agent-first gate` exercita
-testes positivos e adversariais desse consolidador. O preflight da Skill
-(40 testes locais e 300 oficiais) continua tambem no workflow dedicado.
+testes positivos e adversariais desse consolidador. As suítes oficiais permanecem no preflight independente e agora também integram o JUnit autenticado da coleta. O status do preflight isolado não é promovido a certificado; os testes precisam executar e passar no mesmo run do HEAD material.
 **O JUnit tecnico nao substitui o dossie semantico:** o mapeamento dos
 casos a requisitos permanece `UNKNOWN` ate uma closure revisada.
 **Sem uma closure semantica revisada, o certificador deve falhar**, e o

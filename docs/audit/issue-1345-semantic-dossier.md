@@ -24,7 +24,7 @@
 | OBL-006 | `covered` | O produtor exige revisao e o ensaio 44621447082 rejeitou certificado ausente; cobertura apenas de bloqueio, nao de emissao positiva. (`REQ-M1-FAILCLOSED`) |
 | OBL-007 | `not-applicable` | Referencia contextual a issues relacionadas; nao constitui criterio tecnico autonomo. |
 | OBL-008 | `covered` | Pin e mirror de fontes oficiais verificados por teste positivo e mutacoes negativas. (`REQ-M1-INTEGRITY`) |
-| OBL-009 | `pending` | Falta certificado real e validacao main/release; 26 shards agora instrumentados. (`REQ-M1-HANDOFF`) |
+| OBL-009 | `pending` | Falta certificado real e validacao main/release; 27 shards previstos nesta continuação (27º = seis suítes de governança da Skill oficial), ainda sujeitos a nova execução no HEAD. (`REQ-M1-HANDOFF`) |
 | OBL-010 | `pending` | Coletor neutro instalado, mas pacote nao foi produzido a partir de certificado positivo. (`REQ-M1-PACKET`) |
 | OBL-011 | `pending` | Faltam cenarios reais de API e positivo end-to-end em sessao independente. (`REQ-M1-ADVERSARIAL`) |
 | OBL-012 | `pending` | Guia ja presente; falta sessao auditora real, referencia verificavel e comprovacao completa. (`REQ-M1-REVIEW-DOC`) |
@@ -119,3 +119,14 @@ Este registro versiona o [procedimento já publicado na issue #1345](https://git
 6. **Aplicar condição de fechamento.** Manter #1298 aberta e o item A1 da #1297 desmarcado até aprovação formal da política retrospectiva e evidência aceita. Se o contrato não permitir a retroatividade, registrar decisão explícita de não certificar, sem emitir aprovação artificial ou promover entrada V2 em produção.
 
 **Classificação:** o planejamento retrospectivo está documentado; autenticação completa do pacote, testes/replays, decisão administrativa e revisão separada continuam **não executados**. A aprovação M2, o certificado e a conclusão da #1345 continuam bloqueados. Não usar este documento como `reviewed-closure.json` aprovado.
+
+## Extensão técnica da coleta — suítes oficiais em JUnit
+
+A coleta passa a incluir um 27º shard JUnit produzido pela execução das seis suítes de
+política/verificador de sessão e regras da Skill no checkout oficial **pinado**.
+O primeiro shard Python local, os 24 Vitest e o Node continuam obrigatórios.
+O agregador rejeita ausência, falha, duplicação de identidade e contagem inconsistente
+de qualquer shard; um preflight externo verde não é substituto de execução no run
+de coleta. A cobertura factual dos testes oficiais pode fundamentar os vínculos M1
+após revisão semântica, **não** prova sessão separada, certificado, pacote neutro
+ou ativação M2. As evidências históricas de 26 shards não valem para este HEAD.
