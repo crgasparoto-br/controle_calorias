@@ -102,4 +102,3 @@ def verify_trusted_wrapper_boundaries(source: str, *, job: str,
     require(actual_sha256 == TRUSTED_WORKFLOW_SHA256[job],
             'trusted wrapper content changed without explicit security review: '
             'steps, commands, checkout refs, and nested YAML are pinned')
-
