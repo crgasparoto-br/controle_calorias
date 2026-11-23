@@ -90,6 +90,18 @@ continuam separados do candidato.
 implementacao, nao satisfaz auditoria independente nem permite encerrar a #1298.
 CI verde neste workflow demonstra somente preflight estrutural, nao um review.
 
+### Barreira A-007: lock integral de workflows confiáveis (M1)
+
+O preflight `operator_session_workflow_guards.py` valida eventos, permissões,
+job único e guarda exata **e** exige o SHA-256 de todos os bytes dos dois
+wrappers confiáveis (review e pacote neutro). Isso impede que YAML com uma
+segunda chave `if`, etapas extras, `run` modificado ou checkout por `head.ref`
+continue passando por conter a condição legítima como texto. Qualquer mudança
+posterior nos wrappers, até comentários, deve ser revisada e ter seu lock
+atualizado explicitamente, com regressões negativas. Os testes exercitam o
+caminho feliz e mutações em ambos os workflows; o preflight continua
+**não certificador** e não ativa a política, checks ou rulesets.
+
 ### Prerequisitos antes de M2
 
 1. Implantar e testar no consumidor scripts/schemas/workflows oficiais da Skill, a partir

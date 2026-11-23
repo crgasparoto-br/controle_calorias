@@ -291,6 +291,58 @@ class OperatorSessionPreflightTests(unittest.TestCase):
                 "github.event.comment.body == '/solverit-audit-packet'",
                 "github.event.comment.body != '/solverit-audit-packet'", 1))
 
+    def test_session_writer_rejects_duplicate_if_after_reviewed_guard(self):
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+        # YAML parsers normally accept the last duplicate mapping key.
+        with self.assertRaisesRegex(ValueError, "duplicate or alternative trusted job if"):
+            verify_bootstrap_wrappers(session=session.replace(
+                "    runs-on: ubuntu-latest", "    if: true\n    runs-on: ubuntu-latest", 1))
+
+    def test_session_writer_rejects_extra_step_even_when_guard_is_unchanged(self):
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+        step = "      - name: Unreviewed additional step\n        run: echo unreviewed\n"
+        with self.assertRaisesRegex(ValueError, "content changed without explicit security review"):
+            verify_bootstrap_wrappers(session=session.replace(
+                "    steps:\n", "    steps:\n" + step, 1))
+
+    def test_session_writer_rejects_untrusted_head_ref_checkout(self):
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+        with self.assertRaises(ValueError):
+            verify_bootstrap_wrappers(session=session.replace(
+                "ref: ${{ github.workflow_sha }}",
+                "ref: ${{ github.event.pull_request.head.ref }}", 1))
+
+    def test_session_writer_rejects_unreviewed_command_change(self):
+        session = (ROOT / ".github/workflows/session-review.yml").read_text()
+        with self.assertRaisesRegex(ValueError, "content changed without explicit security review"):
+            verify_bootstrap_wrappers(session=session.replace(
+                "python .solverit-skill/scripts/verify_session_review.py --repo",
+                "python .solverit-skill/scripts/verify_session_review.py --help && echo noop # --repo", 1))
+
+    def test_neutral_packet_rejects_duplicate_if_after_reviewed_guard(self):
+        packet = (ROOT / ".github/workflows/prepare-neutral-audit-packet.yml").read_text()
+        with self.assertRaisesRegex(ValueError, "duplicate or alternative trusted job if"):
+            verify_bootstrap_wrappers(packet=packet.replace(
+                "    runs-on: ubuntu-latest", "    if: true\n    runs-on: ubuntu-latest", 1))
+
+    def test_neutral_packet_rejects_unreviewed_additional_step(self):
+        packet = (ROOT / ".github/workflows/prepare-neutral-audit-packet.yml").read_text()
+        with self.assertRaisesRegex(ValueError, "content changed without explicit security review"):
+            verify_bootstrap_wrappers(packet=packet.replace(
+                "    steps:\n", "    steps:\n      - name: Extra\n        run: echo unreviewed\n", 1))
+
+    def test_neutral_packet_rejects_untrusted_head_ref(self):
+        packet = (ROOT / ".github/workflows/prepare-neutral-audit-packet.yml").read_text()
+        with self.assertRaises(ValueError):
+            verify_bootstrap_wrappers(packet=packet.replace(
+                "ref: ${{ github.workflow_sha }}", "ref: ${{ github.event.pull_request.head.ref }}", 1))
+
+    def test_neutral_packet_rejects_unreviewed_nested_permission(self):
+        packet = (ROOT / ".github/workflows/prepare-neutral-audit-packet.yml").read_text()
+        with self.assertRaisesRegex(ValueError, "content changed without explicit security review"):
+            verify_bootstrap_wrappers(packet=packet.replace(
+                "          persist-credentials: false", "          persist-credentials: false\n          submodules: true", 1))
+
     def test_duplicate_json_key(self):
         with self.assertRaises(ValueError):
             strict_json('{"mode":"disabled","mode":"enabled"}')
