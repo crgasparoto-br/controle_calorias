@@ -172,3 +172,28 @@ em `main`, adoção M2, retrospectiva executada nem aprovação da PR.
 `review_state=incomplete`, `artifact_sha256={}` e bloqueio fail-closed
 permanecem. OBL-001, OBL-009, OBL-010 e OBL-011 ainda carecem de
 prova operacional; a M2 continua diferida e não pode ser ativada por CI verde.
+
+
+## Matriz M1-04 de testes efetivamente executados (não certificadora)
+
+A integração de preflight passa a emitir o artefato GitHub Actions
+`operator-session-m1-controls-<HEAD>` com dois JUnit reais (as seis suítes
+imutáveis da Skill oficial e a suíte local de isolamento entre PRs) e um
+`operator-session-m1-matrix.json`. O verificador
+`scripts/verify_session_m1_controls.py` obriga **11 dimensões** com 64
+execuções/variantes discriminadas, exigindo os casos identificados no XML,
+contagem completa por parametrização, resultado `passed`, ausência de IDs
+duplicados e conteúdo JUnit sem DTD/entidades. O controle local usa os
+entrypoints verdadeiros `resolve_targets` e `review_snapshot` com duas PRs
+fictícias compartilhando o mesmo HEAD; a segunda PR não pode consumir o
+comentário da primeira. O runner é de leitura, sem `checks:write`.
+
+**Limite indispensável:** os testes usam fixtures e GitHub API simulada;
+a verificação da matriz demonstra a **execução** de controles selecionados,
+não demonstra sua equivalência a todas as variantes adversariais do aceite.
+O artefato registra `live_github_adversarial_proof=NOT_ASSERTED` e
+`semantic_certification=NOT_ASSERTED`; não substitui ensaios reais de
+comentários alterados, revogação, CI/certificado, base/HEAD ou sessão distinta.
+A classificação de OBL-011 e M1-04 permanece `pending`, e a política M2
+continua desabilitada. A matriz não altera o produtor oficial nem concede
+aprovação ao implementador.

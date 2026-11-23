@@ -24,7 +24,7 @@ jobs:
       # Preserve Python governance JUnit, all 24 Vitest shards and Node adversarial
       # test executions; none become semantic closure automatically.
       install-command: 'npm install --global pnpm@10.4.1 && pnpm install --frozen-lockfile'
-      test-command: 'python -m pytest -vv tests/test_operator_session_preflight.py tests/test_wrap_node_junit.py tests/test_collect_official_session_junit.py tests/test_issue1345_readiness_docs.py --junitxml="$EVIDENCE_DIR/pytest-exact-head.xml" && NODE_OPTIONS=--max-old-space-size=4096 bash scripts/collect-solverit-certification-tests.sh'
+      test-command: 'python -m pytest -vv tests/test_operator_session_preflight.py tests/test_wrap_node_junit.py tests/test_collect_official_session_junit.py tests/test_issue1345_readiness_docs.py tests/test_session_m1_controls.py --junitxml="$EVIDENCE_DIR/pytest-exact-head.xml" && NODE_OPTIONS=--max-old-space-size=4096 bash scripts/collect-solverit-certification-tests.sh'
       # A separately reviewed semantic closure is mandatory. Missing closure
       # is a failure, never equivalent to absence of findings or success.
       evidence-command: 'python "$HANDOFF_TOOLING/entregar-issue/scripts/produce_actions_handoff_evidence.py" --root . --out "$EVIDENCE_DIR" --event "$GITHUB_EVENT_PATH" --base-ref "$BASE_REF"'
