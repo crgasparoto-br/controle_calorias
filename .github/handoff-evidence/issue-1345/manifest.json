@@ -57,6 +57,39 @@
       "regression": [
         "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_activation_is_blocked"
       ]
+    },
+    "REQ-M1-RULESETS": {
+      "positive": [
+        "tests.test_issue1345_readiness_docs.RulesetReadbackDocumentTests::test_positive_ruleset_inventory_and_limitations"
+      ],
+      "negative": [
+        "tests.test_issue1345_readiness_docs.RulesetReadbackDocumentTests::test_negative_wrong_main_ruleset_id"
+      ],
+      "regression": [
+        "tests.test_issue1345_readiness_docs.RulesetReadbackDocumentTests::test_regression_missing_bypass_visibility_limitation"
+      ]
+    },
+    "REQ-M1-REVIEW-DOC": {
+      "positive": [
+        "tests.test_issue1345_readiness_docs.ReviewProcedureDocumentTests::test_positive_review_procedure_is_documented"
+      ],
+      "negative": [
+        "tests.test_issue1345_readiness_docs.ReviewProcedureDocumentTests::test_negative_omitting_review_marker"
+      ],
+      "regression": [
+        "tests.test_issue1345_readiness_docs.ReviewProcedureDocumentTests::test_regression_invented_conversation_url_is_not_allowed"
+      ]
+    },
+    "REQ-M2-RETROSPECTIVE": {
+      "positive": [
+        "tests.test_issue1345_readiness_docs.RetrospectivePlanDocumentTests::test_positive_retrospective_plan_registration_only"
+      ],
+      "negative": [
+        "tests.test_issue1345_readiness_docs.RetrospectivePlanDocumentTests::test_negative_missing_historical_material_identity"
+      ],
+      "regression": [
+        "tests.test_issue1345_readiness_docs.RetrospectivePlanDocumentTests::test_regression_no_retroactive_certificate_fabrication"
+      ]
     }
   }
 }

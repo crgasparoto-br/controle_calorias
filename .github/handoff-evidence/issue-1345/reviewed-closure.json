@@ -38,14 +38,14 @@
       "rationale": "Registro historico de arquivos ausentes antes do bootstrap da PR 1347."
     },
     "851ea07c37fd388b2fca05a3c444e5ab99adf02b1f3b2498b7bb40b5ddfd3f46": {
-      "disposition": "pending",
+      "disposition": "covered",
       "requirement_ids": [
         "REQ-M1-RULESETS"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Exige nova leitura GitHub autenticada das protecoes de develop e main."
+      "rationale": "Authenticated develop/main ruleset read-back on 2026-11-23 verified active protection against deletion/non-fast-forward, PR-only changes and strict Agent-first gate. Two documentation mutation tests distinguish the rule identifiers and required visibility limitation. This provisional M1 factual inventory does not claim post-M2 approval or absence of unlisted bypass actors."
     },
     "71567b718d7c1bd4f04067e832b81e1cdea50a2faade2dd7ce8faf8a3692da91": {
       "disposition": "covered",
@@ -106,14 +106,14 @@
       "rationale": "Faltam cenarios reais de API e positivo end-to-end em sessao independente."
     },
     "5df9116b9d553c666bbc98d03a539b81ca868350bbf323b9d5a995b5c6ea6694": {
-      "disposition": "pending",
+      "disposition": "covered",
       "requirement_ids": [
         "REQ-M1-REVIEW-DOC"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Guia ja presente; falta sessao auditora real, referencia verificavel e comprovacao completa."
+      "rationale": "The M1 acceptance only requires that the separate-conversation review protocol is documented. The guide records SOLVERIT_SESSION_REVIEW_V1, honest absence of a human third-party guarantee and a prohibition on invented conversation URLs. No live session review or check success is claimed."
     },
     "d32bf027746107c92fe95f862447fd222524ebf587714439cd06241edc478fd1": {
       "disposition": "covered",
@@ -206,14 +206,14 @@
       "rationale": "O teste pós-migração e rollback é posterior à implantação controlada em ambas as bases. Não reduz escopo nem autoriza marcar o checkbox."
     },
     "2b8d7d6b0c7010053294312b808d402950446c2068e495bec25d3a6b34809a65": {
-      "disposition": "pending",
+      "disposition": "covered",
       "requirement_ids": [
         "REQ-M2-RETROSPECTIVE"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Plano de certificacao retrospectiva documentado e marcado no checklist da issue; execucao, oraculos, politica autorizada e revisao separada ainda nao comprovados para closure semantica."
+      "rationale": "The checked acceptance requires registration of a retrospective certification plan, not its execution. The six-step plan names historical source commits, five A1 controls, independent review and prohibition of retroactive PR checks. Historical #1298 certification remains expressly pending and #1298 remains open."
     },
     "bb3f46c395cbafc8fc65edce22f44cce8139386132dca9e2b41a9017104d0b1b": {
       "disposition": "deferred",

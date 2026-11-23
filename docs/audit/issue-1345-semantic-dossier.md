@@ -20,21 +20,21 @@
 | OBL-002 | `covered` | O coletor so aceita base develop; teste novo rejeita base main. (`REQ-M1-BASE`) |
 | OBL-003 | `not-applicable` | SHA de base historica, anterior ao bootstrap; nao e novo requisito a entregar. |
 | OBL-004 | `not-applicable` | Registro historico de arquivos ausentes antes do bootstrap da PR 1347. |
-| OBL-005 | `pending` | Exige nova leitura GitHub autenticada das protecoes de develop e main. (`REQ-M1-RULESETS`) |
+| OBL-005 | `covered` | Inventário factual com read-back autenticado dos rulesets develop/main e controles documentais positivos, negativos e de regressão; não certifica autorização M2. (`REQ-M1-RULESETS`) |
 | OBL-006 | `covered` | O produtor exige revisao e o ensaio 44621447082 rejeitou certificado ausente; cobertura apenas de bloqueio, nao de emissao positiva. (`REQ-M1-FAILCLOSED`) |
 | OBL-007 | `not-applicable` | Referencia contextual a issues relacionadas; nao constitui criterio tecnico autonomo. |
 | OBL-008 | `covered` | Pin e mirror de fontes oficiais verificados por teste positivo e mutacoes negativas. (`REQ-M1-INTEGRITY`) |
 | OBL-009 | `pending` | Falta certificado real e validacao main/release; 27 shards previstos nesta continuação (27º = seis suítes de governança da Skill oficial), ainda sujeitos a nova execução no HEAD. (`REQ-M1-HANDOFF`) |
 | OBL-010 | `pending` | Coletor neutro instalado, mas pacote nao foi produzido a partir de certificado positivo. (`REQ-M1-PACKET`) |
 | OBL-011 | `pending` | Faltam cenarios reais de API e positivo end-to-end em sessao independente. (`REQ-M1-ADVERSARIAL`) |
-| OBL-012 | `pending` | Guia ja presente; falta sessao auditora real, referencia verificavel e comprovacao completa. (`REQ-M1-REVIEW-DOC`) |
+| OBL-012 | `covered` | Procedimento M1 documentado e testado; a sessão auditora real continua obrigatória para M2 e não é afirmada aqui. (`REQ-M1-REVIEW-DOC`) |
 | OBL-013 | `covered` | Preflight bloqueia habilitacao prematura e preserva Agent-first gate; readback das protecoes requer verificacao final. (`REQ-M1-PROTECTIONS`) |
 | OBL-014 | `pending` | Versoes identicas e politica enabled em develop/main nao instaladas ou autorizadas. (`REQ-M2-INSTALL`) |
 | OBL-015 | `pending` | Ausente certificado positivo, comentario de outra sessao e check de revisao success. (`REQ-M2-POSITIVE`) |
 | OBL-016 | `pending` | Ausentes negativos reais de revogacao, mudancas de issue/base/head e permissao. (`REQ-M2-NEGATIVE`) |
 | OBL-017 | `pending` | Required check adicional depende de provas e autorizacao administrativa explicita. (`REQ-M2-ADMIN`) |
 | OBL-018 | `pending` | Pos-migracao e rollback ainda nao podem ser ensaiados operacionalmente. (`REQ-M2-ROLLBACK`) |
-| OBL-019 | `pending` | Plano retrospectivo detalhado no documento; procedimento formal ainda nao aprovado. (`REQ-M2-RETROSPECTIVE`) |
+| OBL-019 | `covered` | Registro documental do plano retrospectivo de #1298 testado; execução, autorização e certificação continuam pendentes. (`REQ-M2-RETROSPECTIVE`) |
 | OBL-020 | `pending` | Concluir issue exige M1/M2 comprovados, nao apenas CI verde. (`REQ-GOV-COMPLETION`) |
 | OBL-021 | `not-applicable` | Inventario historico de CI da PR 1347, nao resultado do HEAD atual. |
 | OBL-022 | `not-applicable` | Controle negativo historico sem certificado; nao demonstra sucesso positivo. |
@@ -148,3 +148,27 @@ de qualquer shard; um preflight externo verde não é substituto de execução n
 de coleta. A cobertura factual dos testes oficiais pode fundamentar os vínculos M1
 após revisão semântica, **não** prova sessão separada, certificado, pacote neutro
 ou ativação M2. As evidências históricas de 26 shards não valem para este HEAD.
+
+
+## Reconciliação documentada do aceite — 23/11/2026 (sem certificação)
+
+A matriz semântica provisória foi confrontada novamente com a redação exata dos
+checkboxes da issue #1345. As obrigações OBL-005 (inventário/read-back de
+rulesets), OBL-012 (registrar o procedimento de revisão) e OBL-019 (registrar
+um plano de certificação retrospectiva) têm agora **cobertura documental
+positiva, negativa e de regressão** em
+`tests/test_issue1345_readiness_docs.py`. Os ensaios rejeitam IDs de ruleset
+divergentes, omissão da limitação de bypass, retirada do marcador
+`SOLVERIT_SESSION_REVIEW_V1`, permissão de URL de conversa inventada,
+perda da identidade Git histórica e tentativa de fabricar certificado
+retroativo. A leitura autenticada dos dois rulesets em 23/11/2026 preserva
+`Agent-first gate` estrito, PR obrigatória, proibição de `deletion` e
+`non_fast_forward`, sem exigência de check de sessão.
+
+**Limite:** `covered` no overlay preliminar significa somente que o trecho
+normativo específico foi documentado/provado como tal. Não prova emissão
+real de certificado positivo, sessão separada, pacote neutro, instalação
+em `main`, adoção M2, retrospectiva executada nem aprovação da PR.
+`review_state=incomplete`, `artifact_sha256={}` e bloqueio fail-closed
+permanecem. OBL-001, OBL-009, OBL-010 e OBL-011 ainda carecem de
+prova operacional; a M2 continua diferida e não pode ser ativada por CI verde.

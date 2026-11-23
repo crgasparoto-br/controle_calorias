@@ -24,6 +24,7 @@ on:
       - 'scripts/wrap-node-junit.py'
       - 'tests/test_wrap_node_junit.py'
       - 'tests/test_collect_official_session_junit.py'
+      - 'tests/test_issue1345_readiness_docs.py'
       - 'tests/test_operator_session_preflight.py'
       - 'docs/audit/**'
   push:
