@@ -1,4 +1,5 @@
 import type { MealItemInput } from "../meals/schemas";
+import { assertLegacyMealProjectionSafe } from "../meals/foodV2Snapshot";
 import { updateMeal, type UpdateMealServiceOptions } from "../meals/service";
 import { MEAL_UPDATE_SERVICE_OPTIONS } from "../meals/mealUpdateOptions";
 import { getMealMutationPreImage } from "../meals/mealMutationToken";
@@ -84,6 +85,11 @@ function validateChanges(changes: MealBatchMutationChange[]) {
         "A atualização em lote exige um pre-image persistido e verificável."
       );
     }
+    // Validate the entire batch before touching the first V1 meal. A later
+    // physically bound V2 sibling cannot be faithfully rolled back by the V1
+    // compensation writer, so even a no-op V2 snapshot aborts the whole batch.
+    assertLegacyMealProjectionSafe(change.before.items);
+    assertLegacyMealProjectionSafe(change.after.items);
     mealIds.add(change.after.id);
   }
 }

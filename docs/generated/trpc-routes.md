@@ -20,7 +20,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
 | `foods` | 14 | 5 | 9 | protected | Catálogo, favoritos e busca de alimentos |
-| `meals` | 16 | 3 | 13 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
+| `meals` | 18 | 3 | 15 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
@@ -173,6 +173,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `remove` | mutation | protected |
 | `removeGroup` | mutation | protected |
 | `processDraft` | mutation | protected |
+| `applyD1NutritionLabel` | mutation | protected |
+| `confirmFoodD1Draft` | mutation | protected |
 | `confirm` | mutation | protected |
 
 ### exercises

@@ -3,6 +3,9 @@ import {
   FOOD_DECISION_NEXT_ACTIONS,
   FOOD_DECISION_STATUSES,
   FOOD_STATUS_ALLOWED_ACTIONS,
+  haveEqualFoodEnvelopeRevisions,
+  isValidFoodSha256HexDigest,
+  parseFoodEnvelopeRevisions,
 } from "./contracts";
 import {
   parseFoodObservation,
@@ -21,6 +24,29 @@ function expectInvalid(result: { ok: boolean; code?: string }) {
   expect(result.ok).toBe(false);
   expect(result.code).toBe("invalid-contract");
 }
+
+describe("shared D1 integrity contracts", () => {
+  it("accepts only lowercase SHA-256 hex digests at the exact length", () => {
+    expect(isValidFoodSha256HexDigest("a".repeat(64))).toBe(true);
+    for (const value of [null, "a".repeat(63), "a".repeat(65), "A".repeat(64),
+      "g".repeat(64), "a".repeat(63) + "-"]) {
+      expect(isValidFoodSha256HexDigest(value)).toBe(false);
+    }
+  });
+
+  it("parses all non-empty pinned revisions and compares every canonical dimension", () => {
+    const parsed = parseFoodEnvelopeRevisions({
+      code: "c1", knowledge: "k1", lexicon: "l1", policy: "p1", resolver: "r1",
+      operationScopeHash: "b".repeat(64), observationIds: ["obs-1"],
+    });
+    expect(parsed).toEqual({ code: "c1", knowledge: "k1", lexicon: "l1", policy: "p1", resolver: "r1" });
+    expect(haveEqualFoodEnvelopeRevisions(parsed!, parsed!)).toBe(true);
+    expect(haveEqualFoodEnvelopeRevisions(parsed!, { ...parsed!, resolver: "r2" })).toBe(false);
+    for (const invalid of [null, [], { ...parsed!, policy: "" }, { ...parsed!, lexicon: 2 }]) {
+      expect(parseFoodEnvelopeRevisions(invalid)).toBeNull();
+    }
+  });
+});
 
 describe("FoodObservation v2", () => {
   it("aceita observação válida e preserva a entrada sem mutação", () => {

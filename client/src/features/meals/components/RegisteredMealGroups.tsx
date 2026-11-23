@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
+import { newFoodOperationSubmissionId } from "../operationSubmissionId";
 import { Button } from "@/components/ui/button";
 import { toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
@@ -389,6 +390,7 @@ export function RegisteredMealGroups({
 }: RegisteredMealGroupsProps) {
   const utils = trpc.useUtils();
   const [editingItemTarget, setEditingItemTarget] = useState<RegisteredMealItemEditTarget | null>(null);
+  const editSubmissionRef = useRef<{ fingerprint: string; id: string } | null>(null);
 
   const invalidateNutritionViews = async () => {
     await Promise.all([
@@ -407,6 +409,7 @@ export function RegisteredMealGroups({
       await invalidateNutritionViews();
       toast.success(result.moved ? "Alimento movido para outra refeição." : "Alimento atualizado com sucesso.");
       setEditingItemTarget(null);
+      editSubmissionRef.current = null;
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar o alimento."),
   });
@@ -435,6 +438,7 @@ export function RegisteredMealGroups({
       return;
     }
 
+    editSubmissionRef.current = null;
     setEditingItemTarget({ meal, itemIndex });
   };
 
@@ -454,12 +458,17 @@ export function RegisteredMealGroups({
       return;
     }
 
-    updateMealItem.mutate({
+    const payload = {
       mealId: editingItemTarget.meal.id,
       itemIndex: editingItemTarget.itemIndex,
       mealLabel: normalizedMealLabel,
       item: normalizedItem,
-    });
+    };
+    const fingerprint = JSON.stringify(payload);
+    if (editSubmissionRef.current?.fingerprint !== fingerprint) {
+      editSubmissionRef.current = { fingerprint, id: newFoodOperationSubmissionId() };
+    }
+    updateMealItem.mutate({ ...payload, d1OperationId: editSubmissionRef.current.id });
   };
 
   const handleDeleteMealItem = () => {

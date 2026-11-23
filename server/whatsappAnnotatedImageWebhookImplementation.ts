@@ -18,6 +18,10 @@ import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { getAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePreference";
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
+import { assertUnmigratedFoodD1EntrypointsOff } from "./modules/foodIntelligenceV2/publicUnmigratedEntrypoints";
+import { tryRunPublicFoodD1WhatsAppVisualRegistration,
+  tryRunPublicFoodD1WhatsAppNutritionLabel,
+  assertWhatsAppInboundNotPreviouslyD1Owned } from "./modules/whatsapp/confirmedMealRegistration";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import { requestWhatsappImageMealIdentityClarification } from "./modules/whatsapp/foodQuantityClarification";
@@ -831,6 +835,7 @@ async function tryHandleAnnotatedImageMessage(
 
     const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
     const userTimezone = timeZoneResolution.timeZone;
+    await assertWhatsAppInboundNotPreviouslyD1Owned(userId, message.id);
 
     const readResult = await markWhatsAppMessageAsRead(message.id);
     if (!readResult.ok) {
@@ -932,6 +937,60 @@ async function tryHandleAnnotatedImageMessage(
       )
         ? activeNutritionLabelRequests[0].target
         : null;
+    // Annotated-image webhook must not bypass selected V2 via its own V1
+    // inference branch. Untrusted captions cannot classify package versus label.
+    // A persisted V1 label request is owned by its original pending workflow,
+    // so flag changes cannot steal or abort that in-flight clarification.
+    if (!nutritionLabelIdentityContext) {
+      const verifiedLabel = await tryRunPublicFoodD1WhatsAppNutritionLabel({
+        userId, externalMessageId: message.id ?? null,
+        imageAnalysisUrl: prepared.imageAnalysisUrl,
+        caption: message.image?.caption ?? null, timeZone: userTimezone,
+      });
+      if (verifiedLabel) {
+        await sendAnnotatedImageFallbackText({
+          userId, sourcePhone, reply: verifiedLabel.reply,
+          mealId: typeof verifiedLabel.data?.mealId === "number"
+            ? verifiedLabel.data.mealId : null,
+          lifecycleHandle, response: res, acknowledgement,
+        });
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
+      let migrated: Awaited<ReturnType<typeof tryRunPublicFoodD1WhatsAppVisualRegistration>> = null;
+      try {
+        migrated = await tryRunPublicFoodD1WhatsAppVisualRegistration({
+          userId, externalMessageId: message.id ?? null,
+          imageAnalysisUrl: prepared.imageAnalysisUrl,
+          caption: message.image?.caption ?? null,
+          receivedAt: occurredAt, timeZone: userTimezone,
+        });
+      } catch (error) {
+        if (error instanceof Error &&
+            error.message === "food-d1-whatsapp-visual-explicit-role-required") {
+          await sendAnnotatedImageFallbackText({
+            userId, sourcePhone,
+            reply: "Para registrar a foto na versão nova, reenvie-a com a legenda \`#prato @almoco\` ou \`#embalagem @jantar\` (escolha a refeição correta). Rótulos exigem alimento existente.",
+            lifecycleHandle, response: res, acknowledgement,
+          });
+          markAnnotatedImageMessageHandled(message.id);
+          return true;
+        }
+        throw error;
+      }
+      if (migrated) {
+        await sendAnnotatedImageFallbackText({
+          userId, sourcePhone, reply: migrated.reply,
+          mealId: typeof migrated.data?.mealId === "number" ? migrated.data.mealId : null,
+          lifecycleHandle, response: res, acknowledgement,
+        });
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
+      assertUnmigratedFoodD1EntrypointsOff([
+        "plate_image", "packaging", "nutrition_label", "multimodal",
+      ]);
+    }
     const processingOutcome = await processImageMealInputWithFallback({
       userId,
       prepared,

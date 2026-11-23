@@ -46,9 +46,10 @@ vi.mock("./foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: executeWhatsAppFoodAssistantIntentMock,
 }));
 
-const { clearWhatsappConversationContext } = await import(
-  "./conversationContext"
-);
+const {
+  clearWhatsappConversationContext,
+  registerWhatsappConversationPendingContext,
+} = await import("./conversationContext");
 const { simulateWhatsappInbound } = await import("./service");
 const { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } = await import(
   "./replyMessages"
@@ -160,6 +161,75 @@ describe("simulateWhatsappInbound", () => {
       },
       media: [],
     });
+  });
+
+  it("bloqueia o simulador público V2 sem Gate A antes de deduplicação ou gravação V1", async () => {
+    const originalFlag = process.env.FOOD_V2_D1_ENABLED;
+    const originalScope = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+      await expect(simulateWhatsappInbound(42, {
+        text: "1 banana", messageId: "simulator-gate-1308",
+      })).rejects.toThrow("food-d1-public-simulator-gate-unavailable");
+      expect(processMealDraftMock).not.toHaveBeenCalled();
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+      expect(logInferenceEventMock).not.toHaveBeenCalled();
+    } finally {
+      if (originalFlag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = originalFlag;
+      if (originalScope === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = originalScope;
+    }
+  });
+
+  it("não reinterpreta uma resposta a pendência como nova refeição V2 no simulador público", async () => {
+    const originalFlag = process.env.FOOD_V2_D1_ENABLED;
+    const originalScope = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+      for (const pendingContextKind of ["quantity", "professional_decision"] as const) {
+        await expect(simulateWhatsappInbound(42, {
+          text: "50 g", messageId: "simulator-pending-1308", pendingContextKind,
+        })).rejects.toThrow("food-d1-public-simulator-pending-context-unsupported");
+      }
+      expect(processMealDraftMock).not.toHaveBeenCalled();
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+      expect(logInferenceEventMock).not.toHaveBeenCalled();
+    } finally {
+      if (originalFlag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = originalFlag;
+      if (originalScope === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = originalScope;
+    }
+  });
+
+  it("recusa pendência conhecida do servidor mesmo sem pendingContextKind no request", async () => {
+    const originalFlag = process.env.FOOD_V2_D1_ENABLED;
+    const originalScope = process.env.FOOD_V2_D1_ENTRYPOINTS;
+    const receivedAt = new Date("2026-11-03T12:00:00.000Z");
+    registerWhatsappConversationPendingContext(42, {
+      action: "record_adjustment_selection_needed", reply: "Escolha uma opção",
+      data: { options: [{ id: "meal-1", label: "Refeição", value: { mealId: 1 } }] },
+    }, { receivedAt });
+    try {
+      process.env.FOOD_V2_D1_ENABLED = "true";
+      process.env.FOOD_V2_D1_ENTRYPOINTS = "simulator";
+      await expect(simulateWhatsappInbound(42, {
+        text: "1", receivedAt, messageId: "simulator-server-pending-1308",
+      })).rejects.toThrow("food-d1-public-simulator-pending-context-unsupported");
+      expect(processMealDraftMock).not.toHaveBeenCalled();
+      expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+      expect(logInferenceEventMock).not.toHaveBeenCalled();
+    } finally {
+      if (originalFlag === undefined) delete process.env.FOOD_V2_D1_ENABLED;
+      else process.env.FOOD_V2_D1_ENABLED = originalFlag;
+      if (originalScope === undefined) delete process.env.FOOD_V2_D1_ENTRYPOINTS;
+      else process.env.FOOD_V2_D1_ENTRYPOINTS = originalScope;
+    }
   });
 
   it("trata correção 'não é água é pão de cenoura' como alimento corrigido antes da intenção de água", async () => {

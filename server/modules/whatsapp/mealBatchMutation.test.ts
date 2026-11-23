@@ -164,6 +164,34 @@ describe("meal batch mutation compensation", () => {
     });
   });
 
+  it("rejects a mixed V1/V2 batch before touching any V1 sibling", async () => {
+    const legacyBefore = snapshot(10, "Jantar", "Arroz branco", 100);
+    const legacyAfter = snapshot(10, "Jantar", "Arroz branco", 120);
+    const pinnedV2 = {
+      ...snapshot(20, "Almoço", "Feijão carioca", 80),
+      items: [{ ...item("Feijão carioca", 80),
+        historicalRef: "variant:120", v2SnapshotVerified: true as const }],
+    };
+    const changes: MealBatchMutationChange[] = [
+      { before: legacyBefore, after: legacyAfter },
+      { before: pinnedV2, after: pinnedV2 },
+    ];
+    await expect(updateMealsWithCompensation(42, changes))
+      .rejects.toThrow("food-v2-legacy-item-mutation-not-supported");
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a fabricated V2 projection in the after image of a legacy batch", async () => {
+    const before = snapshot(10, "Jantar", "Arroz branco", 100);
+    const after = {
+      ...snapshot(10, "Jantar", "Arroz branco", 120),
+      items: [{ ...item("Arroz branco", 120), v2SnapshotVerified: true as const }],
+    };
+    await expect(updateMealsWithCompensation(42, [{ before, after }]))
+      .rejects.toThrow("food-v2-legacy-item-mutation-not-supported");
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
   it("finalizes derived effects only after the last successful CAS write", async () => {
     let nextToken = 200;
     updateMealMock.mockImplementation(

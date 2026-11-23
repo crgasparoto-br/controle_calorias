@@ -43,6 +43,17 @@ export const FOOD_INPUT_TYPES = [
 ] as const;
 
 export type FoodInputType = (typeof FOOD_INPUT_TYPES)[number];
+export const FOOD_TEXT_INPUT_TYPE = FOOD_INPUT_TYPES[0];
+export const FOOD_AUDIO_TRANSCRIPT_INPUT_TYPE = FOOD_INPUT_TYPES[1];
+export const FOOD_IMAGE_INPUT_TYPE = FOOD_INPUT_TYPES[2];
+export const FOOD_MULTIMODAL_INPUT_TYPE = FOOD_INPUT_TYPES[3];
+
+/** Canonical lowercase SHA-256 digest syntax shared by D1 contracts. */
+export const FOOD_SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
+
+export function isValidFoodSha256HexDigest(value: unknown): value is string {
+  return typeof value === "string" && FOOD_SHA256_HEX_PATTERN.test(value);
+}
 
 /**
  * Origens de evidência aceitas (§4). Reutiliza o vocabulário de
@@ -221,16 +232,56 @@ export const FOOD_CONTEXT_SOURCE_NAMES = [
 ] as const;
 export type FoodContextSourceName = (typeof FOOD_CONTEXT_SOURCE_NAMES)[number];
 
-/** Revisões fixadas no envelope da operação (§4/§21.1). */
-export const FOOD_ENVELOPE_REVISION_KEYS = [
-  "code",
-  "knowledge",
-  "lexicon",
-  "policy",
-  "resolver",
-] as const;
+/** Revisions pinned in the operation envelope (§4/§21.1). */
 export type FoodEnvelopeRevisionKey =
-  (typeof FOOD_ENVELOPE_REVISION_KEYS)[number];
+  | "code"
+  | "knowledge"
+  | "lexicon"
+  | "policy"
+  | "resolver";
+
+export type FoodEnvelopeRevisions = Readonly<
+  Record<FoodEnvelopeRevisionKey, string>
+>;
+
+export function haveEqualFoodEnvelopeRevisions(
+  left: Readonly<Record<FoodEnvelopeRevisionKey, unknown>>,
+  right: Readonly<Record<FoodEnvelopeRevisionKey, unknown>>
+): boolean {
+  return (
+    left.code === right.code &&
+    left.knowledge === right.knowledge &&
+    left.lexicon === right.lexicon &&
+    left.policy === right.policy &&
+    left.resolver === right.resolver
+  );
+}
+
+export function parseFoodEnvelopeRevisions(
+  value: unknown
+): FoodEnvelopeRevisions | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const code = source.code;
+  const knowledge = source.knowledge;
+  const lexicon = source.lexicon;
+  const policy = source.policy;
+  const resolver = source.resolver;
+  if (
+    typeof code !== "string" ||
+    !code.trim() ||
+    typeof knowledge !== "string" ||
+    !knowledge.trim() ||
+    typeof lexicon !== "string" ||
+    !lexicon.trim() ||
+    typeof policy !== "string" ||
+    !policy.trim() ||
+    typeof resolver !== "string" ||
+    !resolver.trim()
+  )
+    return null;
+  return { code, knowledge, lexicon, policy, resolver };
+}
 
 /**
  * Unidades de massa reconhecidas para normalização de base física. A base física
@@ -328,6 +379,8 @@ export const FOOD_EVIDENCE_FIELDS = [
   "classification.isVegetable",
   "classification.isUltraProcessed",
 ] as const;
+
+export const FOOD_QUANTITY_UNIT_EVIDENCE_FIELD = FOOD_EVIDENCE_FIELDS[9];
 
 const EVIDENCE_FIELD_SET = new Set<string>(FOOD_EVIDENCE_FIELDS);
 
