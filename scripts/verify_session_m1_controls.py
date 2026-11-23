@@ -75,8 +75,15 @@ def validate(official: Path, candidate: Path, head_sha: str) -> dict:
         inventories[kind], sources[kind] = read_cases(path)
     proofs = []
     for scenario, (kind, module, name) in SCENARIOS.items():
+        # pytest qualifies unittest class modules differently for a nested
+        # read-only checkout (`.candidate/tests`) versus a repository root.
+        # Only these two observed, exact consumer module identities are valid.
+        allowed_modules = {module}
+        if kind == "candidate":
+            allowed_modules.update({module + ".SessionM1ExecutedMatrixTests",
+                                    ".candidate." + module + ".SessionM1ExecutedMatrixTests"})
         exact = [case for case in inventories[kind]
-                 if (case["module"] == module or (kind == "candidate" and case["module"].startswith(module + ".")))
+                 if case["module"] in allowed_modules
                  and (case["name"] == name or case["name"].startswith(name + "["))]
         if len(exact) != EXPECTED_COUNTS[scenario] or any(c["result"] != "passed" for c in exact):
             raise ValueError(f"M1-04 executed control is missing, duplicated, failed or skipped: {scenario}")

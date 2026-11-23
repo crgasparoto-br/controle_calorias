@@ -62,6 +62,19 @@ class SessionM1ExecutedMatrixTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "untrusted-workflow"):
             gate.validate(self.official, self.candidate, HEAD)
 
+    def test_matrix_recognizes_actual_nested_candidate_checkout(self):
+        rows = sample_cases("candidate")
+        qualified = [(".candidate." + module + ".SessionM1ExecutedMatrixTests", name, status)
+                     for module, name, status in rows]
+        junit(self.candidate, qualified)
+        self.assertEqual(len(gate.validate(self.official, self.candidate, HEAD)["scenario_controls"]), 11)
+
+    def test_matrix_rejects_foreign_candidate_module(self):
+        rows = sample_cases("candidate")
+        junit(self.candidate, [("untrusted.fake_session", name, result) for _, name, result in rows])
+        with self.assertRaisesRegex(ValueError, "two-pr-same-head"):
+            gate.validate(self.official, self.candidate, HEAD)
+
     def test_matrix_skipped_control_fails_closed(self):
         rows = sample_cases("official")
         rows[0] = (rows[0][0], rows[0][1], "skipped")
