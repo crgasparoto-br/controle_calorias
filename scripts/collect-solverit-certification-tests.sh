@@ -3,7 +3,26 @@
 # All inputs are executed test cases; no synthetic or previously cached results.
 set -euo pipefail
 : "${HANDOFF_TOOLING:?HANDOFF_TOOLING must be the trusted Skill checkout}"
-test -d "$HANDOFF_TOOLING/tests"
+# Reject incomplete or redirected upstream sources *before* moving the Python
+# JUnit or starting the expensive Vitest suite. The checkout itself is pinned
+# by the trusted reusable workflow; this checks what it will actually execute.
+if [[ -L "$HANDOFF_TOOLING" || -L "$HANDOFF_TOOLING/tests" || ! -d "$HANDOFF_TOOLING/tests" ]]; then
+  echo "BLOCK: unsafe or missing pinned official test directory" >&2
+  exit 2
+fi
+for suite in \
+  test_session_review.py \
+  test_session_review_dossier.py \
+  test_session_review_runner.py \
+  test_session_review_workflows.py \
+  test_session_certificate_event.py \
+  test_plan_session_ruleset_m2.py; do
+  source="$HANDOFF_TOOLING/tests/$suite"
+  if [[ -L "$source" || ! -f "$source" || ! -s "$source" ]]; then
+    echo "BLOCK: missing or unsafe pinned official suite: $suite" >&2
+    exit 2
+  fi
+done
 : "${EVIDENCE_DIR:?EVIDENCE_DIR must be provided by the trusted workflow}"
 shards="$EVIDENCE_DIR/junit-shards"
 mkdir -p "$shards"

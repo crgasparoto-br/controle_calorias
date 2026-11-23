@@ -120,6 +120,24 @@ Este registro versiona o [procedimento já publicado na issue #1345](https://git
 
 **Classificação:** o planejamento retrospectivo está documentado; autenticação completa do pacote, testes/replays, decisão administrativa e revisão separada continuam **não executados**. A aprovação M2, o certificado e a conclusão da #1345 continuam bloqueados. Não usar este documento como `reviewed-closure.json` aprovado.
 
+## M1/M2 — decisão explícita de fase com origem canônica (23/11/2026)
+
+Os registros `OBL-014..018` (implantação M2) e `OBL-020` (conclusão global)
+foram classificados como `deferred` no overlay, vinculados ao corpo canônico
+preservado da [issue #1345](https://github.com/crgasparoto-br/controle_calorias/issues/1345)
+por `decision_source_sha256`, `decision_locator`, `target_issue` e
+`parent_issue_must_remain_open=true`. São obrigações **pós-handoff** e **não
+foram implementadas**. Os checkboxes permanecem desmarcados; a classificação
+não reduz escopo, não constitui revisão independente e não autoriza ativação.
+
+A decisão foi verificada localmente com `_verify_deferred_phase` da Skill
+oficial, usando o corpo real da issue do artefato técnico exact-SHA
+`0ba6c1793` e o `requirement-closure.json` gerado pelo produtor. O estado
+`review_state=incomplete` é intencional: M1-02, M1-03 e M1-04, o protocolo
+de revisão e os relatórios críticos ainda exigem revisão factual, controles
+adequados e certificação positiva antes que seja seguro instalar M2. Os
+relatórios obrigatórios ausentes e `artifact_sha256={}` não foram mascarados.
+
 ## Extensão técnica da coleta — suítes oficiais em JUnit
 
 A coleta passa a incluir um 27º shard JUnit produzido pela execução das seis suítes de
