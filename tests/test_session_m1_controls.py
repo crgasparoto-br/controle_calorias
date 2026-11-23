@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import verify_session_m1_controls as gate
 import verify_session_review as reviewer
-from session_review import review_snapshot
+from session_review import review_snapshot, latest_review
 
 HEAD = "a" * 40
 REPO = "crgasparoto-br/controle_calorias"
@@ -51,9 +51,14 @@ class SessionM1ExecutedMatrixTests(unittest.TestCase):
         junit(self.official, sample_cases("official"))
         junit(self.candidate, sample_cases("candidate"))
 
+    def test_missing_review_is_blocked(self):
+        policy = {"operators": [{"id": 255721831, "login": "crgasparoto-br"}]}
+        with self.assertRaisesRegex(ValueError, "no operator-attested review recorded"):
+            latest_review([], policy)
+
     def test_matrix_positive_with_distinct_real_test_ids(self):
         result = gate.validate(self.official, self.candidate, HEAD)
-        self.assertEqual(len(result["scenario_controls"]), 11)
+        self.assertEqual(len(result["scenario_controls"]), 12)
         self.assertEqual(result["live_github_adversarial_proof"], "NOT_ASSERTED")
         self.assertEqual(result["semantic_certification"], "NOT_ASSERTED")
 
@@ -67,12 +72,12 @@ class SessionM1ExecutedMatrixTests(unittest.TestCase):
         qualified = [(".candidate." + module + ".SessionM1ExecutedMatrixTests", name, status)
                      for module, name, status in rows]
         junit(self.candidate, qualified)
-        self.assertEqual(len(gate.validate(self.official, self.candidate, HEAD)["scenario_controls"]), 11)
+        self.assertEqual(len(gate.validate(self.official, self.candidate, HEAD)["scenario_controls"]), 12)
 
     def test_matrix_rejects_foreign_candidate_module(self):
         rows = sample_cases("candidate")
         junit(self.candidate, [("untrusted.fake_session", name, result) for _, name, result in rows])
-        with self.assertRaisesRegex(ValueError, "two-pr-same-head"):
+        with self.assertRaisesRegex(ValueError, "review-absent"):
             gate.validate(self.official, self.candidate, HEAD)
 
     def test_matrix_skipped_control_fails_closed(self):
@@ -84,7 +89,7 @@ class SessionM1ExecutedMatrixTests(unittest.TestCase):
 
     def test_matrix_failed_control_fails_closed(self):
         rows = sample_cases("candidate")
-        rows[0] = (rows[0][0], rows[0][1], "failure")
+        rows[-1] = (rows[-1][0], rows[-1][1], "failure")
         junit(self.candidate, rows)
         with self.assertRaisesRegex(ValueError, "two-pr-same-head"):
             gate.validate(self.official, self.candidate, HEAD)

@@ -18,7 +18,8 @@ PINNED_SKILL = "71217ab40be73f64180f253816d7b5214cb23100"
 # The last dimension intentionally exercises actual consumer binding code.
 SCENARIOS = {
     "review-positive": ("official", "tests.test_session_review", "test_single_account_can_submit_only_explicitly_limited_review"),
-    "review-absent": ("official", "tests.test_session_review", "test_counterexamples_cannot_be_approved"),
+    "review-invalid": ("official", "tests.test_session_review", "test_counterexamples_cannot_be_approved"),
+    "review-absent": ("candidate", "tests.test_session_m1_controls", "test_missing_review_is_blocked"),
     "session-forgery": ("official", "tests.test_session_review", "test_recovered_provenance_adversarial_mutations_block"),
     "comment-revocation": ("official", "tests.test_session_review_runner", "test_edit_removing_marker_still_revokes"),
     "sha-and-issue-drift": ("official", "tests.test_session_review_runner", "test_evaluate_rejects_changed_initial_identity"),
@@ -32,7 +33,7 @@ SCENARIOS = {
 # Reviewed parameter counts in the immutable official six-suite JUnit. A shrink
 # must not turn a test *name* into a false claim of exhaustive attack coverage.
 EXPECTED_COUNTS = {
-    "review-positive": 1, "review-absent": 17, "session-forgery": 20,
+    "review-positive": 1, "review-invalid": 17, "review-absent": 1, "session-forgery": 20,
     "comment-revocation": 1, "sha-and-issue-drift": 6, "base-drift": 1,
     "control-absent": 3, "ci-handoff-failure": 11, "operator-unauthorized": 1,
     "two-pr-same-head": 1, "untrusted-workflow": 2,

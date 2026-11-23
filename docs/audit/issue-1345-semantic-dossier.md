@@ -180,7 +180,7 @@ A integração de preflight passa a emitir o artefato GitHub Actions
 `operator-session-m1-controls-<HEAD>` com dois JUnit reais (as seis suítes
 imutáveis da Skill oficial e a suíte local de isolamento entre PRs) e um
 `operator-session-m1-matrix.json`. O verificador
-`scripts/verify_session_m1_controls.py` obriga **11 dimensões** com 64
+`scripts/verify_session_m1_controls.py` obriga **12 dimensões** com 65
 execuções/variantes discriminadas, exigindo os casos identificados no XML,
 contagem completa por parametrização, resultado `passed`, ausência de IDs
 duplicados e conteúdo JUnit sem DTD/entidades. O controle local usa os
