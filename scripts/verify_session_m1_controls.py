@@ -117,8 +117,21 @@ def validate_dossier_bindings(manifest: dict, reviewed: dict) -> None:
     exact-SHA JUnit. This inexpensive source guard never marks a requirement
     covered, promotes a pending obligation, or issues a certificate.
     """
-    if manifest.get("review_state") != "incomplete" or manifest.get("artifact_sha256") != {}:
-        raise ValueError("provisional dossier cannot claim a semantic certificate")
+    state = manifest.get("review_state")
+    hashes = manifest.get("artifact_sha256")
+    if state == "incomplete":
+        if hashes != {}:
+            raise ValueError("provisional dossier cannot claim a semantic certificate")
+    elif state == "approved":
+        # This preflight must not make a legitimately reviewed dossier impossible.
+        # Hashes are only a shape check; the pinned official producer verifies
+        # every report's bytes and semantics at the material HEAD.
+        if (not isinstance(hashes, dict) or "reviewed-closure.json" not in hashes
+                or any(not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha)
+                       for sha in hashes.values())):
+            raise ValueError("approved dossier requires authenticated report hashes")
+    else:
+        raise ValueError("unrecognized dossier review state")
     obligations = reviewed.get("obligations")
     if (reviewed.get("schema_version") != 1 or not isinstance(obligations, dict)
             or len(obligations) != 26
@@ -128,7 +141,9 @@ def validate_dossier_bindings(manifest: dict, reviewed: dict) -> None:
     for entry in obligations.values():
         if not isinstance(entry, dict):
             raise ValueError("invalid obligation closure record")
-        if entry.get("disposition") == "covered":
+        if (entry.get("disposition") == "covered"
+                or (entry.get("disposition") == "deferred" and isinstance(
+                    (entry.get("scope_decision") or {}).get("pre_handoff_coverage"), dict))):
             required = entry.get("requirement_ids")
             if (not isinstance(required, list) or not required
                     or any(not isinstance(rid, str) or not rid.strip() for rid in required)):

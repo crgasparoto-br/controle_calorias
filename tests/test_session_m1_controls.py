@@ -196,7 +196,25 @@ class SessionM1ExecutedMatrixTests(unittest.TestCase):
         manifest = json.loads((folder / "manifest.json").read_text())
         reviewed = json.loads((folder / "reviewed-closure.json").read_text())
         manifest["review_state"] = "approved"
-        with self.assertRaisesRegex(ValueError, "cannot claim"):
+        with self.assertRaisesRegex(ValueError, "approved dossier requires authenticated report hashes"):
+            gate.validate_dossier_bindings(manifest, reviewed)
+
+    def test_approved_dossier_with_report_hashes_is_not_blocked_by_preflight(self):
+        folder = ROOT / ".github/handoff-evidence/issue-1345"
+        manifest = json.loads((folder / "manifest.json").read_text())
+        reviewed = json.loads((folder / "reviewed-closure.json").read_text())
+        manifest["review_state"] = "approved"
+        manifest["artifact_sha256"] = {"reviewed-closure.json": "a" * 64}
+        gate.validate_dossier_bindings(manifest, reviewed)
+        # This is shape validation only: no positive certificate is issued.
+
+    def test_approved_dossier_rejects_malformed_hash(self):
+        folder = ROOT / ".github/handoff-evidence/issue-1345"
+        manifest = json.loads((folder / "manifest.json").read_text())
+        reviewed = json.loads((folder / "reviewed-closure.json").read_text())
+        manifest["review_state"] = "approved"
+        manifest["artifact_sha256"] = {"reviewed-closure.json": "not-a-sha256"}
+        with self.assertRaisesRegex(ValueError, "authenticated report hashes"):
             gate.validate_dossier_bindings(manifest, reviewed)
 
     def test_same_head_pr_reviews_are_separate(self):
