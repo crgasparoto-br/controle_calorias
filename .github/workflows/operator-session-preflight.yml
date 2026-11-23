@@ -48,6 +48,7 @@ on:
       - 'scripts/wrap-node-junit.py'
       - 'tests/test_wrap_node_junit.py'
       - 'tests/test_collect_official_session_junit.py'
+      - 'tests/test_issue1345_readiness_docs.py'
       - 'tests/test_operator_session_preflight.py'
       - 'docs/audit/**'
 
@@ -74,6 +75,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_wrap_node_junit.py' -v
       - name: Enforce upstream exact-JUnit collection contract
         run: python -m unittest discover -s tests -p 'test_collect_official_session_junit.py' -v
+      - name: Validate documented M1 acceptance controls (non-certifying)
+        run: python -m unittest discover -s tests -p 'test_issue1345_readiness_docs.py' -v
       - name: Validate governance and fail-closed bootstrap
         run: python scripts/operator_session_preflight.py
 
