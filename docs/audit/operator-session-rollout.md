@@ -197,11 +197,20 @@ administrativa de M2 não são pré-condições para montar o dossiê M1.
 
 O wrapper `release-handoff-probe.yml` isola um ensaio exact-SHA de PR não draft,
 com origem neste próprio repositório, base `main` e opt-in pela label
-`solverit-certified-handoff-main`. O mesmo coletor oficial pinado valida o
-evento, a base e os testes/dossiê executados; as permissões são de leitura.
+`solverit-certified-handoff-main`. O workflow oficial pinado roda tanto o job
+de coleta quanto o job obrigatório que valida a certificação semântica do SHA.
+As permissões são somente de leitura, mas isso não torna o ensaio apenas coleta:
+com dossiê incompleto, a coleta técnica pode passar e a certificação deve
+bloquear. Não desabilitar nem aceitar essa falha como aprovação de release.
+
+O ensaio exige uma PR de teste realmente baseada em `main`, autorizada para
+execução, com issue canônica e dossiê próprios, vinculados a repositório,
+issue, número da PR, refs, SHA da base e HEAD material daquela entrega.
+O dossiê incompleto da #1348 aponta para `develop` e não prova o ensaio
+`main`. Registrar o run autenticado e o resultado separado de cada job.
+
 O nome e o caminho são distintos do produtor reconhecido pelo publicador
 confiável e pelo verificador de sessão. Este workflow não publica commits,
-parecer ou required check e não habilita M2. Uma validação real requer PR
-`main` de ensaio aprovada para execução, issue canônica e dossiê vinculado
-àquele alvo, além de read-back autenticado dos resultados; a configuração
-isolada, por si só, não atende essa prova operacional.
+parecer ou required check e não habilita M2. Alterações somente no caminho
+do wrapper acionam a checagem estrutural do preflight em PRs para `develop`
+ou `main` e em pushes nessas bases; não criam gatilho de promoção.

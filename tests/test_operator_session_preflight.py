@@ -7,7 +7,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from operator_session_preflight import strict_json, validate, verify_official_mirror, verify_bootstrap_wrappers, verify_release_probe  # noqa: E402
+from operator_session_preflight import (  # noqa: E402
+    strict_json, validate, verify_official_mirror, verify_bootstrap_wrappers,
+    verify_release_probe, verify_release_probe_trigger_paths,
+)
 
 
 class OperatorSessionPreflightTests(unittest.TestCase):
@@ -349,6 +352,27 @@ class OperatorSessionPreflightTests(unittest.TestCase):
 
 
 class ReleaseProbePreflightTests(unittest.TestCase):
+    def test_release_probe_path_is_watched_for_prs_and_base_branch_pushes(self):
+        workflow = (ROOT / ".github/workflows/operator-session-preflight.yml").read_text()
+        verify_release_probe_trigger_paths(workflow)
+
+    def assert_release_path_missing_fails(self, event: str):
+        workflow = (ROOT / ".github/workflows/operator-session-preflight.yml").read_text()
+        pr, push = workflow.split("\n  push:\n", 1)
+        watched = "      - '.github/workflows/release-handoff-probe.yml'\n"
+        if event == "pull_request":
+            pr = pr.replace(watched, "")
+        else:
+            push = push.replace(watched, "")
+        with self.assertRaisesRegex(ValueError, f"trigger {event} preflight"):
+            verify_release_probe_trigger_paths(pr + "\n  push:\n" + push)
+
+    def test_release_probe_path_must_be_watched_on_pr(self):
+        self.assert_release_path_missing_fails("pull_request")
+
+    def test_release_probe_path_must_be_watched_on_protected_base_push(self):
+        self.assert_release_path_missing_fails("push")
+
     def test_release_probe_is_read_only_opt_in_and_not_a_session_source(self):
         integration = json.loads((ROOT / ".github/operator-session-integration.json").read_text())
         verify_release_probe(ROOT / ".github/workflows", integration["official_source"]["ref"])

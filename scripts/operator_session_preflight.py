@@ -52,6 +52,16 @@ def strict_json(text: str) -> dict:
     return result
 
 
+def verify_release_probe_trigger_paths(workflow: str) -> None:
+    """Keep the read-only preflight reachable when only the release wrapper changes."""
+    probe_path = "      - '.github/workflows/release-handoff-probe.yml'"
+    for event in ("pull_request", "push"):
+        pattern = rf"(?m)^  {event}:\n    branches: \[develop, main\]\n    paths:\n((?:      - [^\n]+\n)+)"
+        sections = re.findall(pattern, workflow)
+        require(len(sections) == 1 and sections[0].splitlines().count(probe_path) == 1,
+                f"release probe changes must trigger {event} preflight on develop/main")
+
+
 def validate(integration: dict, policy: dict, workflow: str,
              collector_workflow: str | None = None,
              publisher_workflow: str | None = None) -> None:
@@ -113,6 +123,7 @@ def validate(integration: dict, policy: dict, workflow: str,
             and "python scripts/operator_session_preflight.py" in workflow
             and "python -m unittest discover" in workflow,
             "missing unprivileged preflight or self-test")
+    verify_release_probe_trigger_paths(workflow)
 
     require("Pinned official session contract regression (non-certifying)" in workflow
             and "repository: crgasparoto-br/skill" in workflow
