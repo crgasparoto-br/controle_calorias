@@ -33,7 +33,7 @@ export const CANONICAL_ADR_PATH =
 // Existing equivalence/case references and food oracles remain unchanged;
 // referenceSource.test.ts still verifies every declared section exists.
 export const CANONICAL_ADR_SHA256 =
-  "19292bc83c2de3a0afae47d115cfff3ec40d5b70da105e1f519e0c789345663d";
+  "4891c0159bf5f411392d26c58bff10c812120acb38d094ac8b7a306c5fcf0b6f";
 
 export interface CanonicalReference {
   readonly path: string;

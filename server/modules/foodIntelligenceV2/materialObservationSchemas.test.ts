@@ -58,7 +58,8 @@ function addEvidence(
   field: string,
   value: string | number,
   surface: string,
-  unit: string | null = null
+  unit: string | null = null,
+  from = row.surfaceSpan.span!.start
 ) {
   const id = row.observationId + "-" + row.evidence.length;
   const evidence: Evidence = {
@@ -72,7 +73,7 @@ function addEvidence(
     verified: false,
     anchor: {
       ...row.surfaceSpan,
-      span: position(row.rawInput!, surface, row.surfaceSpan.span!.start),
+      span: position(row.rawInput!, surface, from),
     },
   };
   row.evidence.push(evidence);
@@ -264,6 +265,111 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
     expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
     item.materialClaims.reverse();
     expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+  });
+
+  it("rejeita cruzar duas quantidades iguais do mesmo ingrediente no mesmo alimento", () => {
+    const first = "mais 1 g de açúcar";
+    const second = "e 1 g de açúcar";
+    const raw = "café com " + first + " " + second;
+    const item = observation(raw, "coffee", raw, "café");
+    const binding = {
+      status: "bound",
+      ownerObservationId: item.observationId,
+    } as const;
+    const measures = [first, second].map((clause, index) => {
+      const from = raw.indexOf(clause);
+      return {
+        kind: "ingredient" as const,
+        claimId: "sugar-" + index,
+        binding,
+        ingredient: {
+          name: "açúcar",
+          evidenceId: addEvidence(
+            item,
+            "material.ingredient",
+            "açúcar",
+            "açúcar",
+            null,
+            from
+          ),
+        },
+        amount: {
+          value: 1,
+          unit: "g",
+          evidenceId: addEvidence(item, "material.amount", 1, "1 g", "g", from),
+        },
+      };
+    });
+    const increase = {
+      kind: "increment" as const,
+      claimId: "sugar-plus",
+      binding,
+      ingredient: measures[0].ingredient,
+      operatorEvidenceId: addEvidence(
+        item,
+        "material.increment",
+        "mais",
+        "mais"
+      ),
+      target: {
+        kind: "ingredient_quantity" as const,
+        claimId: measures[0].claimId,
+      },
+      unresolvedAmount: null,
+    };
+    item.materialClaims.push(measures[1], increase, measures[0]);
+    expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+
+    // The later occurrence is equal in name and amount, and also succeeds the
+    // operator; it is not the occurrence named by the operator's ingredient.
+    increase.target.claimId = measures[1].claimId;
+    const snapshot = structuredClone(item);
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+    });
+    expect(item).toStrictEqual(snapshot);
+  });
+
+  it("separa duas medidas do mesmo item e rejeita reusar o span do ingrediente como medida do todo", () => {
+    const raw = "100 ml de café com 1 g de açúcar";
+    const item = observation(raw, "coffee", raw, "café");
+    item.quantityHints.value = 100;
+    item.quantityHints.unit = "ml";
+    addEvidence(item, "quantity.value", 100, "100 ml", "ml");
+    item.materialClaims.push({
+      kind: "ingredient",
+      claimId: "sugar",
+      binding: { status: "bound", ownerObservationId: item.observationId },
+      ingredient: {
+        name: "açúcar",
+        evidenceId: addEvidence(
+          item,
+          "material.ingredient",
+          "açúcar",
+          "açúcar"
+        ),
+      },
+      amount: {
+        value: 1,
+        unit: "g",
+        evidenceId: addEvidence(item, "material.amount", 1, "1 g", "g"),
+      },
+    });
+    expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+
+    item.quantityHints.value = 1;
+    item.quantityHints.unit = "g";
+    item.evidence[0] = {
+      ...item.evidence[0],
+      value: 1,
+      unit: "g",
+      anchor: { ...item.evidence[0].anchor, span: position(raw, "1 g") },
+    };
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+    });
   });
 
   it("conserva acréscimo sem medida ou dono como pendência", () => {

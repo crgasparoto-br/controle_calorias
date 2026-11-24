@@ -140,6 +140,13 @@ function localAnchor(
   return anchor.span;
 }
 
+function occurrenceKey(
+  sourceRef: string,
+  span: { start: number; end: number }
+) {
+  return JSON.stringify([sourceRef, span.start, span.end]);
+}
+
 function validateMaterialBatch(
   observations: FoodMaterialObservation[],
   ctx: z.RefinementCtx
@@ -151,6 +158,7 @@ function validateMaterialBatch(
   const byClaim = new Map<string, LocatedClaim>();
   const usedEvidence = new Map<FoodMaterialObservation, Set<string>>();
   const occurrences = new Set<string>();
+  const wholeQuantityOccurrences = new Set<string>();
   const incrementTargets = new Set<string>();
   observations.forEach((observation, index) => {
     if (byId.has(observation.observationId)) {
@@ -166,6 +174,20 @@ function validateMaterialBatch(
         );
       }
       sources.set(ref, observation.rawInput);
+    }
+    for (const evidence of observation.evidence) {
+      if (
+        evidence.field !== "quantity.value" ||
+        observation.quantityHints.value === null ||
+        evidence.value !== observation.quantityHints.value ||
+        evidence.unit !== observation.quantityHints.unit
+      )
+        continue;
+      const span = localAnchor(observation, evidence);
+      if (span)
+        wholeQuantityOccurrences.add(
+          occurrenceKey(observation.surfaceSpan.sourceRef, span)
+        );
     }
     observation.materialClaims.forEach((claim, claimIndex) => {
       const path = [index, "materialClaims", claimIndex];
@@ -267,12 +289,13 @@ function validateMaterialBatch(
       span: { start: number; end: number } | null
     ) => {
       if (!span) return;
-      const key = JSON.stringify([
-        observation.surfaceSpan.sourceRef,
-        kind,
-        span.start,
-        span.end,
-      ]);
+      const sourceSpan = occurrenceKey(observation.surfaceSpan.sourceRef, span);
+      const key = JSON.stringify([kind, sourceSpan]);
+      if (kind === "amount" && wholeQuantityOccurrences.has(sourceSpan)) {
+        fail(
+          "A mesma medida não pode ser quantidade do alimento e do ingrediente."
+        );
+      }
       if (occurrences.has(key))
         fail("A mesma ocorrência de origem foi utilizada mais de uma vez.");
       occurrences.add(key);
@@ -358,7 +381,8 @@ function validateMaterialBatch(
               observation.observationId &&
             ingredientTarget.claim.kind === "ingredient" &&
             ingredientTarget.claim.binding.status === "bound" &&
-            ingredientTarget.claim.ingredient.name === ingredient?.name &&
+            ingredientTarget.claim.ingredient.evidenceId ===
+              ingredient?.evidenceId &&
             targetEvidence?.field === "material.amount";
       if (
         !targetValid ||
@@ -371,11 +395,10 @@ function validateMaterialBatch(
         );
       }
       if (targetSpan) {
-        const key = JSON.stringify([
+        const key = occurrenceKey(
           observation.surfaceSpan.sourceRef,
-          targetSpan.start,
-          targetSpan.end,
-        ]);
+          targetSpan
+        );
         if (incrementTargets.has(key))
           fail("Operadores distintos não podem compartilhar o mesmo alvo.");
         incrementTargets.add(key);
