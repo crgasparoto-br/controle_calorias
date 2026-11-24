@@ -374,8 +374,15 @@ export type ExplicitIngredientMeasure = {
   unit: string;
 };
 
+export type ExplicitIngredientNegation = {
+  owner: Segment;
+  ingredient: Segment;
+  operator: Segment;
+};
+
 export type MaterialSegmentSyntax = {
   measure: ExplicitIngredientMeasure | null;
+  negation: ExplicitIngredientNegation | null;
   materialOperator: boolean;
   continuation: boolean;
 };
@@ -418,6 +425,7 @@ export function splitFoodSurface(
   }
   let materialScope = false;
   const segments: Segment[] = [];
+  const hardStops: number[] = [];
   let start = 0;
   const cut = (end: number, next: number) => {
     const segment = trimSpan(text, start, end);
@@ -428,6 +436,7 @@ export function splitFoodSurface(
     if (groupingDepthDelta[i] > 0) continue;
     const char = text[i];
     const hard = char === ";" || char === "\n";
+    if (hard && material) hardStops.push(i);
     const betweenDigits = (char === "," || char === "/") &&
       /\d/u.test(text[i - 1] ?? "") && /\d/u.test(text[i + 1] ?? "");
     if (material && (char === "," || char === "/" || char === "+") && !betweenDigits) {
@@ -588,12 +597,48 @@ export function splitFoodSurface(
   const simpleName = new RegExp("^" + nameWord + "$", "u");
   const lexicalName = new RegExp("^" + nameWord + "(?:[ \\t]+" + nameWord + ")*$", "u");
   const startsWithNumber = new RegExp("^(?:[0-9¼½¾]|(?:" + writtenPattern + ")(?=\\s|$))", "iu");
+  let stopIndex = 0;
+  let block = trimSpan(text, 0, hardStops[0] ?? text.length);
+  const negationOperator = /^sem$/iu;
+  const hasNegationOperator = (scope: Segment | null) =>
+    scope !== null && operatorsIn(scope).some(match => negationOperator.test(match[0]));
+  let blockHasNegation = hasNegationOperator(block);
   for (const part of joined) {
+    while (part.start > (hardStops[stopIndex] ?? text.length)) {
+      const start = hardStops[stopIndex++] + 1;
+      block = trimSpan(text, start, hardStops[stopIndex] ?? text.length);
+      blockHasNegation = hasNegationOperator(block);
+    }
     const operators = operatorsIn(part);
     const previous = parts.at(-1);
     const gap = previous ? text.slice(previous.end, part.start) : "";
     const continuation = /^[ \t]+e[ \t]+$/iu.test(gap) ||
       /^[ \t,\/+]*(?:e[ \t]+)?$/iu.test(gap) && /[,\/+]/u.test(gap);
+    // A soft split is not independent proof of the scope of a negation.
+    // Require a single complete hard-bounded clause on both sides of "sem".
+    let negation: ExplicitIngredientNegation | null = null;
+    const op = operators.length === 1 ? operators[0] : null;
+    if (op && block?.start === part.start && block.end === part.end &&
+        negationOperator.test(op[0]) && !groupingDepthDelta[op.index] &&
+        /[ \t]/u.test(text[op.index - 1] ?? "") &&
+        /[ \t]/u.test(text[op.index + op[0].length] ?? "")) {
+      const operator = { text: op[0], start: op.index, end: op.index + op[0].length };
+      const owner = trimSpan(text, part.start, operator.start);
+      const ingredient = trimSpan(text, operator.end, part.end);
+      if (owner && ingredient && ingredient.text.length <= FOOD_CONTRACT_LIMITS.nameText &&
+          // The quantity reader already owns the exact measured prefix. What
+          // remains must be one local nominal slot, not a command or a list.
+          simpleName.test(readQuantity(owner.text, governedUnits).name) &&
+          !/[()[\]{}]/u.test(owner.text) &&
+          !/(?<![\p{L}\p{M}\p{N}])ou(?![\p{L}\p{M}\p{N}])/iu.test(owner.text) &&
+          simpleName.test(ingredient.text) && !startsWithNumber.test(ingredient.text.split(/\p{Pd}/u)[0]) &&
+          !/^(?:e|ou|zero|nada|nenhum[ao]?|qualquer)$/iu.test(ingredient.text) &&
+          recognizedUnit(ingredient.text) === null &&
+          !readQuantity(ingredient.text, governedUnits).uncertain &&
+          !governedUnits.some(entry => foldFoodSurface(entry.term) === foldFoodSurface(ingredient.text))) {
+        negation = { owner, ingredient, operator };
+      }
+    }
     let found: { measure: ExplicitIngredientMeasure; remainder: Segment | null } | null = null;
     bindMeasure: {
       const connectors = operators.filter(match => /^com$/iu.test(match[0]) &&
@@ -645,10 +690,13 @@ export function splitFoodSurface(
       ? trimSpan(text, part.start, found.measure.ingredient.end) : part;
     if (!initial) continue;
     parts.push(initial);
-    material.push({ measure: found?.measure ?? null, materialOperator: operators.length > 0, continuation });
+    // Until the soft-scope case has typed candidates, don't present another
+    // unproved fragment in the same negation block as an independent food.
+    material.push({ measure: found?.measure ?? null, negation,
+      materialOperator: operators.length > 0 || blockHasNegation, continuation });
     if (remainder) {
       parts.push(remainder);
-      material.push({ measure: null, materialOperator: true, continuation: true });
+      material.push({ measure: null, negation: null, materialOperator: true, continuation: true });
     }
   }
   return parts;
