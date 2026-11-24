@@ -126,6 +126,21 @@ class NodeTestJunitContractTests(unittest.TestCase):
             self.check(node(case("valid")), self.root / "link" / "output.xml")
         self.assertFalse((target / "output.xml").exists())
 
+    def test_negative_dtd_and_entity_expansion(self):
+        payload = ('<?xml version="1.0"?><!DOCTYPE testsuites [<!ENTITY forged "PASS">]>'
+                   '<testsuites><testcase classname="test" name="&forged;" /></testsuites>')
+        output = self.root / "should-not-exist.xml"
+        with self.assertRaisesRegex(ValueError, "DTD/entities prohibited"):
+            self.check(payload, output)
+        self.assertFalse(output.exists())
+
+    def test_negative_oversized_junit(self):
+        source = self.root / "oversized.xml"
+        source.write_bytes(b" " * (normalizer.MAX_JUNIT_BYTES + 1))
+        with self.assertRaisesRegex(ValueError, "oversized"):
+            normalizer.normalize(source, self.root / "oversized-result.xml")
+        self.assertFalse((self.root / "oversized-result.xml").exists())
+
     def test_negative_input_symlink(self):
         raw = self.root / "source.xml"
         raw.write_text(node(case("valid")), encoding="utf-8")

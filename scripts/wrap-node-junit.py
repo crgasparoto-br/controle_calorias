@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from contextlib import ExitStack
 import os
+import stat
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
@@ -18,13 +19,32 @@ import xml.etree.ElementTree as ET
 _ALLOWED_CASE_CHILDREN = {"failure", "error", "skipped", "system-out", "system-err"}
 
 
+MAX_JUNIT_BYTES = 8 * 1024 * 1024
+
+
+def read_bounded_node_junit(source: Path) -> bytes:
+    """Reject redirecting, oversized or entity-bearing untrusted node:test XML."""
+    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as handle:
+        source_info = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(source_info.st_mode)
+                or not 0 < source_info.st_size <= MAX_JUNIT_BYTES):
+            raise ValueError("node:test JUnit source is empty, non-regular or oversized")
+        raw = handle.read(MAX_JUNIT_BYTES + 1)
+    if not 0 < len(raw) <= MAX_JUNIT_BYTES:
+        raise ValueError("node:test JUnit exceeds bounded input size")
+    if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+        raise ValueError("DTD/entities prohibited in node:test JUnit")
+    return raw
+
+
 def normalize(source: Path, destination: Path) -> dict[str, int]:
     if not source.is_file() or source.is_symlink() or destination.is_symlink():
         raise ValueError("missing or unsafe node:test JUnit input/output")
     if ".." in destination.parts or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
         raise ValueError("unsafe destination: no-follow directories are required")
     try:
-        root = ET.parse(source).getroot()
+        root = ET.fromstring(read_bounded_node_junit(source))
     except ET.ParseError as exc:
         raise ValueError("invalid node:test JUnit XML") from exc
     if root.tag != "testsuites":

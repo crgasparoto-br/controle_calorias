@@ -9,9 +9,29 @@ import argparse
 from collections import Counter
 from contextlib import ExitStack
 import os
+import stat
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+
+MAX_JUNIT_BYTES = 8 * 1024 * 1024
+
+
+def read_bounded_junit(source: Path) -> bytes:
+    """Read untrusted JUnit without following the final symlink or expanding XML entities."""
+    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as handle:
+        source_info = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(source_info.st_mode)
+                or not 0 < source_info.st_size <= MAX_JUNIT_BYTES):
+            raise ValueError("JUnit shard is empty, non-regular or oversized")
+        raw = handle.read(MAX_JUNIT_BYTES + 1)
+    if not 0 < len(raw) <= MAX_JUNIT_BYTES:
+        raise ValueError("JUnit shard exceeds bounded input size")
+    if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+        raise ValueError("DTD/entities prohibited in JUnit shards")
+    return raw
 
 
 def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int]:
@@ -47,7 +67,7 @@ def merge(directory: Path, destination: Path, shards: int = 24) -> dict[str, int
         if not source.is_file() or source.is_symlink():
             raise ValueError(f"missing or unsafe exact-run JUnit shard: {number}/{shards}")
         try:
-            root = ET.parse(source).getroot()
+            root = ET.fromstring(read_bounded_junit(source))
         except ET.ParseError as exc:
             raise ValueError(f"invalid JUnit XML in shard {number}") from exc
         if root.tag == "testsuite":

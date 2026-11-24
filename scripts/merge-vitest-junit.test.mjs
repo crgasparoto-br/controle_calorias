@@ -122,6 +122,25 @@ test("rejects a fully skipped shard even when another shard passes", () => {
   assert.match(result.stderr, /shard 1 has no executed non-skipped testcases/);
 });
 
+test("rejects DTD and internal entity expansion without writing a merged result", () => {
+  const injected = '<?xml version="1.0"?><!DOCTYPE testsuites [<!ENTITY forged "PASS">]>' +
+    '<testsuites><testsuite tests="1"><testcase classname="b.test.ts" name="&forged;" /></testsuite></testsuites>';
+  const result = probe([xml("a.test.ts", "pass A"), injected],
+    ({ output }) => ({ output, inspect: () => existsSync(output) }));
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /DTD\/entities prohibited/);
+  assert.equal(result.effects, false);
+});
+
+test("rejects oversized JUnit shards before parsing", () => {
+  const big = ' '.repeat(8 * 1024 * 1024 + 1);
+  const result = probe([xml("a.test.ts", "pass A"), big],
+    ({ output }) => ({ output, inspect: () => existsSync(output) }));
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /oversized/);
+  assert.equal(result.effects, false);
+});
+
 test("rejects dangling output symlink without creating its target", () => {
   const result = probe([xml("a.test.ts", "pass A"), xml("b.test.ts", "pass B")],
     ({ work, output }) => {
