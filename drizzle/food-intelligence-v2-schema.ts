@@ -137,7 +137,7 @@ export const userFoodAliases = mysqlTable("user_food_aliases", {
   u0: uniqueIndex("user_food_aliases_u0").on(table.userId, table.normalizedAlias, table.currentSlot),
   i0: index("user_food_aliases_i0").on(table.userId, table.normalizedAlias, table.status),
   ck0: check("user_food_aliases_ck0", sql`(status='active' AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)`),
-  currentSlotState: check("user_food_aliases_current_ck", sql`(status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)`),
+  currentSlotState: check("user_food_aliases_current_ck", sql`((status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL))`),
 }));
 
 export const foodBarcodes = mysqlTable("food_barcodes", {
@@ -320,7 +320,7 @@ export const userFoodLexiconEntries = mysqlTable("user_food_lexicon_entries", {
   u0: uniqueIndex("user_food_lexicon_en_u0").on(table.userId, table.locale, table.normalizedTerm, table.kind, table.currentSlot),
   i0: index("user_food_lexicon_en_i0").on(table.userId, table.locale, table.normalizedTerm, table.kind, table.status),
   ck0: check("user_food_lexicon_entri_ck0", sql`(status='active' AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)`),
-  currentSlotState: check("user_food_lexicon_current_ck", sql`(status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)`),
+  currentSlotState: check("user_food_lexicon_current_ck", sql`((status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL))`),
 }));
 
 export const foodAttributes = mysqlTable("food_attributes", {
@@ -394,7 +394,7 @@ export const foodAttributeMaterialityOverrides = mysqlTable("food_attribute_mate
 }, table => ({
   u0: uniqueIndex("food_attr_override_u0").on(table.foodId, table.attributeId, table.currentSlot),
   ck0: check("food_attr_override_ck0", sql`(status='active' AND current_slot=1) OR (status='revoked' AND current_slot IS NULL)`),
-  currentSlotState: check("food_attr_override_current_ck", sql`(status='active' AND current_slot IS NOT NULL AND current_slot=1) OR (status='revoked' AND current_slot IS NULL)`),
+  currentSlotState: check("food_attr_override_current_ck", sql`((status='active' AND current_slot IS NOT NULL AND current_slot=1) OR (status='revoked' AND current_slot IS NULL))`),
   attributeIdFk: foreignKey({ name: "famo_attribute_fk", columns: [table.attributeId], foreignColumns: [foodAttributes.id] }).onDelete("restrict"),
   evidenceIdFk: foreignKey({ name: "famo_evidence_fk", columns: [table.evidenceId], foreignColumns: [foodEvidence.id] }).onDelete("restrict"),
 }));

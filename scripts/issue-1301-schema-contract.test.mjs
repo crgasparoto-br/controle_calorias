@@ -74,8 +74,8 @@ test("0057 exactly adds null-total state checks without changing historical slot
   const expectedRollback = [];
   for (const [table, name, hasRevokedAt] of activeSlots) {
     const active = "status='active' AND current_slot IS NOT NULL AND current_slot=1";
-    const value = "(" + active + (hasRevokedAt ? " AND revoked_at IS NULL" : "") +
-      ") OR (status='revoked' AND current_slot IS NULL)";
+    const value = "((" + active + (hasRevokedAt ? " AND revoked_at IS NULL" : "") +
+      ") OR (status='revoked' AND current_slot IS NULL))";
     const metadata = expectedSnapshot.tables[table];
     assert.equal(metadata.columns.status.notNull, true);
     assert.equal(metadata.columns.current_slot.notNull, false);

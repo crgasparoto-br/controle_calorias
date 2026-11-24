@@ -6656,7 +6656,7 @@
         },
         "food_attr_override_current_ck": {
           "name": "food_attr_override_current_ck",
-          "value": "(status='active' AND current_slot IS NOT NULL AND current_slot=1) OR (status='revoked' AND current_slot IS NULL)"
+          "value": "((status='active' AND current_slot IS NOT NULL AND current_slot=1) OR (status='revoked' AND current_slot IS NULL))"
         }
       }
     },
@@ -9604,7 +9604,7 @@
         },
         "user_food_aliases_current_ck": {
           "name": "user_food_aliases_current_ck",
-          "value": "(status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)"
+          "value": "((status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL))"
         }
       }
     },
@@ -9785,7 +9785,7 @@
         },
         "user_food_lexicon_current_ck": {
           "name": "user_food_lexicon_current_ck",
-          "value": "(status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)"
+          "value": "((status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL))"
         }
       }
     },

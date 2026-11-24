@@ -1,6 +1,9 @@
 // Fixture-only lifecycle checks for the disposable Food V2 migration gate.
 // This module does not open a database connection.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const migrationSql = readFileSync(new URL("../drizzle/0057_food_v2_current_slot_checks.sql", import.meta.url), "utf8");
 
 export async function prepareCurrentSlotFixtures(connection, fixture) {
   const [variant] = await connection.query(
@@ -41,6 +44,17 @@ export async function prepareCurrentSlotFixtures(connection, fixture) {
   const readRows = async ({ table, read, args }) =>
     (await connection.query(`SELECT * FROM \`${table}\` WHERE ${read} ORDER BY id`, args))[0];
   const before = await Promise.all(cases.map(readRows));
+  for (const [index, { table, added }] of cases.entries()) {
+    assert.deepEqual(before[index].map(({ status, current_slot }) => [status, current_slot]),
+      [["revoked", null], ["active", 1]]);
+    const check = migrationSql.split("--> statement-breakpoint")
+      .find(statement => statement.includes("ADD CONSTRAINT `" + added + "`"));
+    const predicate = check?.match(/ CHECK \((.+)\);/)?.[1];
+    assert.ok(predicate, "expected the exact 0057 predicate for " + table);
+    // TiDB 8.5.1 validates preexisting records by prefixing the stored expression with NOT.
+    const [violations] = await connection.query("SELECT 1 FROM `" + table + "` WHERE NOT " + predicate + " LIMIT 1");
+    assert.deepEqual(violations, [], "the complete check must accept both legitimate states: " + table);
+  }
 
   return {
     async verifySchemaAndRows(installed) {
