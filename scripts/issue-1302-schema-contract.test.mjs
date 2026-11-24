@@ -46,7 +46,7 @@ test("B2 rollback is additive-safe and recorded in drizzle journal", () => {
   assert.match(rollback, /DROP TABLE `food_source_read_grants`/);
   assert.match(rollback, /DROP INDEX `food_evidence_cache_u0`/);
   assert.doesNotMatch(rollback, /DROP TABLE `(?:foods|foodCatalog|mealItems|food_evidence)`/);
-  assert.equal(journal.entries.at(-1).tag, "0056_food_v2_source_governance");
+  assert.equal(journal.entries.find(entry => entry.idx === 56)?.tag, "0056_food_v2_source_governance");
   assert.equal(snapshot.prevId, "12510000-0000-4000-8000-000000000055");
 });
 
