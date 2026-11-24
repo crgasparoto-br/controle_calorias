@@ -8,6 +8,7 @@ import { z } from "zod";
 import {
   FOOD_CONTEXT_STATUSES,
   FOOD_CONTRACT_LIMITS,
+  FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION,
   FOOD_OBSERVATION_SCHEMA_VERSION,
   FOOD_OPERATION_ENVELOPE_SCHEMA_VERSION,
   FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
@@ -24,6 +25,7 @@ import {
   positiveInt,
 } from "./schemaShared";
 import { foodObservationSchema, type FoodObservation } from "./observationSchemas";
+import { foodMaterialObservationBatchSchema, type FoodMaterialObservation } from "./materialObservationSchemas";
 import { foodResolutionDecisionSchema, type FoodResolutionDecision } from "./decisionSchemas";
 
 export const foodMealOperationSchema = z.strictObject({
@@ -151,6 +153,33 @@ export function parseFoodObservation(
   );
 }
 
+/** Valida só a revisão material 3 em lote; não converte observações históricas. */
+export function parseFoodMaterialObservationBatch(
+  input: unknown
+): FoodContractParseResult<FoodMaterialObservation[]> {
+  if (Array.isArray(input) && input.length <= FOOD_CONTRACT_LIMITS.observations) {
+    const incompatible = input.findIndex(row => {
+      const version = readSchemaVersion(row);
+      return version !== null && version !== FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION;
+    });
+    if (incompatible >= 0) {
+      return {
+        ok: false,
+        code: "unsupported-schema-version",
+        issues: [{
+          path: incompatible + ".schemaVersion",
+          code: "unsupported_schema_version",
+          message: "Lote de vínculos materiais exige observações da mesma revisão 3.",
+        }],
+      };
+    }
+  }
+  const parsed = foodMaterialObservationBatchSchema.safeParse(input);
+  return parsed.success
+    ? { ok: true, value: parsed.data }
+    : { ok: false, code: "invalid-contract", issues: toIssues(parsed.error) };
+}
+
 /** Valida `FoodResolutionDecision` sem mutar a entrada. */
 export function parseFoodResolutionDecision(
   input: unknown
@@ -180,3 +209,5 @@ export { foodAnchorSchema, foodEvidenceSchema, foodQualifierSchema } from "./sch
 export type { FoodAnchor, FoodEvidence, FoodQualifier } from "./schemaShared";
 export * from "./observationSchemas";
 export * from "./decisionSchemas";
+
+export type { FoodMaterialObservation } from "./materialObservationSchemas";

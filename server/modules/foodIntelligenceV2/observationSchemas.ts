@@ -109,11 +109,13 @@ export const foodLocaleSchema = z
     "pt-BR é suportado no recorte atual e não pode ser marcado como unsupported."
   );
 
-export const foodObservationSchema = z
-  .strictObject({
+const foodObservationModalitySchema = z.enum(FOOD_INPUT_TYPES);
+const foodObservationReasonSchema = z.enum(FOOD_REASON_CODES);
+
+const baseObservationSchema = z.strictObject({
     schemaVersion: z.literal(FOOD_OBSERVATION_SCHEMA_VERSION),
     observationId: opaqueId(),
-    modality: z.enum(FOOD_INPUT_TYPES),
+    modality: foodObservationModalitySchema,
     rawInput: z.string().max(FOOD_CONTRACT_LIMITS.rawText).nullable(),
     normalizedInput: z.string().max(FOOD_CONTRACT_LIMITS.rawText).nullable(),
     locale: foodLocaleSchema,
@@ -127,11 +129,13 @@ export const foodObservationSchema = z
     alternatives: z
       .array(foodObservationAlternativeSchema)
       .max(FOOD_CONTRACT_LIMITS.alternatives),
-    unresolvedReason: z.enum(FOOD_REASON_CODES).nullable(),
+    unresolvedReason: foodObservationReasonSchema.nullable(),
     lexiconRevision: nonEmptyText.max(FOOD_CONTRACT_LIMITS.shortText),
     interpreterVersion: nullableText(FOOD_CONTRACT_LIMITS.shortText),
-  })
-  .superRefine((observation, ctx) => {
+});
+type FoodObservationFields = Omit<z.infer<typeof baseObservationSchema>, "schemaVersion">;
+
+export function validateFoodObservationFields(observation: FoodObservationFields, ctx: z.RefinementCtx) {
     rejectDuplicates(
       observation.evidence.map(evidence => evidence.evidenceId),
       ctx,
@@ -192,7 +196,7 @@ export const foodObservationSchema = z
 
     if (
       observation.locale.status === "unsupported" &&
-      observation.unresolvedReason !== "unsupported_locale"
+      observation.unresolvedReason !== foodObservationReasonSchema.enum.unsupported_locale
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -203,8 +207,8 @@ export const foodObservationSchema = z
     }
 
     if (
-      (observation.modality === "text" ||
-        observation.modality === "audio_transcript") &&
+      (observation.modality === foodObservationModalitySchema.enum.text ||
+        observation.modality === foodObservationModalitySchema.enum.audio_transcript) &&
       observation.surfaceSpan.region !== null
     ) {
       ctx.addIssue({
@@ -243,8 +247,9 @@ export const foodObservationSchema = z
         }
       }
     }
-  });
+}
 
+export const foodObservationSchema = baseObservationSchema.superRefine(validateFoodObservationFields);
 
 export type FoodIdentityHints = z.infer<typeof foodIdentityHintsSchema>;
 export type FoodQuantityHints = z.infer<typeof foodQuantityHintsSchema>;

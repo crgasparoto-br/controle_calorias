@@ -2,7 +2,7 @@
 
 - **Status:** PROPOSED / EM EVOLUÇÃO
 - **Data inicial:** 2026-10-02
-- **Versão da especificação (`specification_version`):** `2026-11-05-revisao-1307-1`; formaliza a separação entre prontidão técnica, avaliação pós-deploy e aprovação operacional de #1307/#1308/#1335, preservando a consolidação do núcleo sobre `82c117c95c9f05559d8ade634cabe731d8bb7208`. Substitui `2026-10-05-revisao-1296-3` somente nos requisitos alterados; snapshots anteriores desses requisitos exigem nova avaliação.
+- **Versão da especificação (`specification_version`):** `2026-11-24-revisao-1341-1`; acrescenta a revisão de observação material de §4. Preserva a separação entre prontidão técnica e aprovação operacional de #1307/#1308/#1335, registrada em `2026-11-05-revisao-1307-1`. As revisões anteriores permanecem válidas nos requisitos não alterados; snapshots afetados exigem nova avaliação.
 - **Branch de discussão:** `docs/food-intelligence-v2-adr`
 - **Base:** `develop`
 - **Escopo:** reconhecimento, resolução e governança de alimentos em entradas textuais, áudio/transcrição, imagem/OCR, rótulo nutricional e fluxos multimodais
@@ -209,6 +209,18 @@ Os campos são obrigatórios; ausência usa `null` ou coleção vazia conforme o
 
 A observação representa **o que foi observado**, não uma decisão de identidade ou nutrição. `rawInput` é preservado durante o processamento autorizado, mas o contrato não concede retenção ilimitada nem autoriza copiá-lo para logs. A LCL não pode declarar `verified` por confiança autodeclarada da IA; evidência observada precisa passar pela validação de fonte/campo do domínio.
 
+### Revisão de observação material (#1341)
+
+**Decisão de produto, 24/11/2026:** manter a coleção `FoodObservation[]` como única saída pré-resolução. Acrescentar vínculos materiais tipados na observação (opção A), sem introduzir grafo no envelope, outro parser ou reanálise de texto a jusante. O diagnóstico sintético da PR #1342 (material `b8a14815edd547f6b5d05f45c97d86be0d4b25f0`) justifica a mudança: identificar um trecho inteiro não demonstra conservação da quantidade, unidade e dono de cada ingrediente. O diagnóstico não mede acurácia produtiva.
+
+A revisão de wire **3** da observação requer `materialClaims`, coleção limitada de ocorrências de ingrediente, negação ou incremento, cada qual com ID opaco, vínculo e evidência do trecho original. `quantityHints` continua sendo a quantidade do alimento inteiro. Um ingrediente observado não vira item independente, sua quantidade não substitui a do dono, e uma negação não é valor zero. A falta de quantidade permanece explícita. O incremento resolvido aponta a ocorrência exata da medida posterior: a evidência da quantidade do próprio item ou uma afirmação de quantidade de ingrediente do mesmo dono. Medidas iguais podem ser ocorrências diferentes; nomes, valores e posição na lista não identificam a ocorrência.
+
+Um vínculo inequívoco fica na observação do alimento dono. Um vínculo sem dono ou alvo comprovado permanece em observação de pendência, não materializável, com motivo, evidências, candidatos por ID quando conhecidos e medida observada quando disponível. Não copiar a mesma ocorrência para cada candidato nem substituir ausência por gramas, zero ou conversão. A política de §7.2 não muda: um item potencialmente afetado não pode ser materializado incompletamente; um item comprovadamente independente e resolvido permanece elegível.
+
+A validação interna exige lote homogêneo por revisão, unicidade de IDs, evidência tipada, valores coerentes com suas referências, escopo e spans UTF-16 na mesma fonte e ausência de reaproveitamento de ocorrências incompatíveis. O primeiro recorte é de texto/transcrição em um turno; OCR/visão e atribuição entre turnos requerem procedência própria e não são inferidos por esse contrato. Validação estrutural não identifica alimento, não decide nutrição nem comprova que a LCL cobriu todo o texto. Não adicionar conteúdo cru a logs ou relaxar direitos de acesso à fonte.
+
+A revisão **2** acima permanece estrita para readers, histórico e pendências fixadas: não sintetizar `materialClaims: []` para fazê-la parecer 3. A nova revisão tem validação de lote interna, sem consumidor ativo nesta entrega. A evolução não muda as revisões de `FoodResolutionDecision`, envelope, V1 ou persistência. #1304 deve produzir os vínculos antes de #1308 consumir a nova revisão, sob seus gates específicos. Nada aqui altera flags ou autoriza S3, shadow real, gravação pública ou cutover.
+
 Cada execução recebe um envelope interno versionado com `traceId`, chave idempotente da operação, proprietário autenticado, referências de conversa/turno quando aplicáveis, timezone efetivo, `MealOperation` separado e revisões de código, conhecimento, léxico e política. Os adapters reutilizam autenticação, contexto e lifecycle existentes: identidade enviada por cliente/provider não é autoridade. Para `previousMessage`, `preferences` e `recentHistory`, o envelope exige `status = available | absent | expired | unavailable | not_applicable`, motivo e referência de origem por fonte, conforme §1.2. Falha de consulta não pode virar ausência ou não aplicabilidade.
 
 ### 4.1. Camada de Compreensão Linguística
@@ -304,6 +316,7 @@ Os campos de rastreabilidade já incluídos no schema de §4 têm as seguintes r
 - `surfaceSpan` — trecho da entrada original que originou a observação;
 - `normalizationPath` — decisões aplicadas, com estágio (`S1`/`S2`/`S3`), origem (`deterministic` | `lexicon` | `interpreter`), `lexiconEntryId` opcional, span e confiança;
 - `alternatives` — hipóteses concorrentes com confiança, quando houver ambiguidade;
+- `materialClaims` — na revisão 3, vínculos de ingrediente, negação e incremento ou pendência explícita conforme §4;
 - `unresolvedReason` — motivo estruturado quando a observação não fecha;
 - `lexiconRevision` — revisão do léxico usada;
 - `interpreterVersion` — versão de prompt/modelo efetivamente usada em S3, quando aplicável.
@@ -318,7 +331,7 @@ O gate compara a projeção semântica das observações e decisões com o resul
 
 Variações que alterem marca, variante, preparação material, negação, quantidade, unidade ou contexto relevante são casos não equivalentes e devem ter controles negativos. Modalidades com evidências de forças diferentes não são obrigadas a resolver para o mesmo resultado; quando faltar informação material, o resultado esperado pode ser a ambiguidade ou a clarificação apropriada, nunca uma identidade inventada.
 
-Os testes metamórficos (§17) e o Golden Food Corpus (§16) devem provar **convergência correta contra a referência**, não apenas convergência entre saídas. Duas entradas que produzam o mesmo alimento errado devem reprovar. A operação da refeição e seus efeitos são verificados adicionalmente no entrypoint público, conforme §7.
+Os testes metamórficos (§17) e o Golden Food Corpus (§16) devem provar **convergência correta contra a referência**, não apenas convergência entre saídas. Duas entradas que produzam o mesmo alimento errado devem reprovar. Para a revisão material, a projeção também conserva multiplicidade, vínculo, negação e alvo de incremento, usando o mesmo oráculo independente e splits do corpus #1299/#1341. A operação da refeição e seus efeitos são verificados adicionalmente no entrypoint público, conforme §7.
 
 ### 4.2. Locale inicial e superfície desconhecida
 
@@ -2769,6 +2782,8 @@ Até a migração:
 `modality=audio` do exemplo conceitual anterior se torna `audio_transcript`, alinhado ao baseline; áudio bruto permanece mídia/evidência. `variant` V2 corresponde a `productVariant` no DTO V1; `foodEntityId` não pode ser confundido com `foodCatalogId`. Base `ml` não pode ser projetada para `estimatedGrams` sem conversão comprovada. Mensagem explicativa continua apresentação, não fonte de estado. Pendência antiga sem tag de versão continua no handler legado identificado pelo seu contrato persistido; não inferir V2 por data ou texto. Fixar versão não reautoriza comportamento inseguro: revogação, perda de acesso ou contenção invalidam a execução e exigem falha explícita/retomada autorizada, não migração silenciosa.
 
 Primeira entrega autorizável após este pacote: schemas/validação de §4/§5, contratos dos adapters, fixtures sintéticas, testes de precedência/monotonicidade/serialização e harness de corpus/calibração sem servir decisões produtivas. Reutilizar `pnpm check`, testes relacionados, `pnpm architecture:check`, `pnpm docs:check` e o gate aplicável de `CONTRIBUTING.md`; nomes de novos comandos só se tornam obrigatórios quando implementados.
+
+A revisão de observação material de §4 não muda o contrato fixado em operações antigas: versões de observação, resolvedor, política, léxico e conhecimento são verificadas em retry/restart, sem replay de efeito. O validador novo não abre ou migra pendências; versão desconhecida, mista ou não autorizada ao consumidor permanece bloqueada.
 
 Ficam fora dessa primeira entrega: cutover, retirada do legado, promoção global automática, nova retenção de dados reais, console administrativa e ativação de thresholds ainda não calibrados. Dependências dos itens abertos não são ignoradas por haver schemas prontos. Testes discriminantes: versão desconhecida sem mutação; transcrição/texto equivalentes com origem preservada; ml sem densidade; quantidade presente não reaberta; snapshot V1 sem reinferência; pendência retomada após restart com a mesma chave e sem duplicação; variação de flag durante operação; alimento desconhecido preservado e não alimento comprovado rejeitado.
 

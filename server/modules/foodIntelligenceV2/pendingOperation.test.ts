@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import {
   applyPendingOperationEffect,
   classifyPendingOperationOwner,
@@ -299,13 +300,25 @@ describe("retomada da pendência", () => {
     expect(result.reason).toBe("legacy-handler-required");
   });
 
-  it("rejeita versão persistida desconhecida sem despachar para V1", () => {
-    const result = resumePendingOperation(
-      buildOperation({
-        versionTag: { ...VERSIONS, contractVersion: 3 },
-      }),
-      buildRequest()
-    );
+  it("não cria, restaura ou retoma pendência no contrato experimental de observações", () => {
+    const experimental = buildOperation({
+      versionTag: { ...VERSIONS, contractVersion: FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION },
+    });
+    if (experimental.versionTag === null) throw new Error("esperado versão explícita");
+    const created = createPendingOperationV2({
+      ...experimental, versionTag: experimental.versionTag,
+    });
+    expect(created).toMatchObject({ ok: false, reason: "unsupported-schema-version" });
+    const store = createInMemoryPendingOperationStore();
+    expect(() => store.save(experimental)).toThrow("Versão de pendência desconhecida");
+    expect(store.exportState().operations).toStrictEqual([]);
+    expect(() => createInMemoryPendingOperationStore({
+      schemaVersion: 1, operations: [experimental],
+    })).toThrow("restauração recusada");
+
+    const result = resumePendingOperation(experimental, buildRequest({
+      contractVersion: FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION,
+    }));
 
     expect(result.resumed).toBe(false);
     if (result.resumed) throw new Error("esperado falha");
@@ -603,25 +616,39 @@ describe("efeito idempotente e sobrevivência a restart", () => {
     );
   });
 
-  it("sobrevive a restart com versão fixada e sem efeito duplicado", () => {
+  it("preserva pendência V2 após restart e recusa upgrade no retry sem criar outro efeito", () => {
     const store = createInMemoryPendingOperationStore();
     store.save(buildOperation());
-    applyEffect(store);
+    const initialEffect = applyEffect(store);
+    expect(initialEffect).toMatchObject({ applied: true, duplicate: false });
 
-    // Reinício do processo: estado serializado, nova instância do store.
-    const restarted = createInMemoryPendingOperationStore(store.exportState());
+    const persisted = JSON.stringify(store.exportState());
+    const restarted = createInMemoryPendingOperationStore(JSON.parse(persisted));
     const pending = restarted.get("op-1");
 
     expect(pending).not.toBeNull();
     if (!pending) throw new Error("esperado pendência persistida");
     expect(classifyPendingOperationOwner(pending)).toBe("v2");
+    expect(pending.versionTag).toStrictEqual(VERSIONS);
     const resume = resumePendingOperation(pending, buildRequest());
     expect(resume.resumed).toBe(true);
 
+    const postUpgradeRetry = applyEffect(restarted, { effectId: "eff-new" }, {
+      contractVersion: FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION,
+    });
+    expect(postUpgradeRetry).toMatchObject({
+      applied: false, duplicate: false, reason: "resolver-version-changed",
+    });
     const replayed = applyEffect(restarted, {
+      effectId: "eff-retry",
       appliedAt: "2026-10-05T12:40:00.000Z",
     });
-    expect(replayed).toMatchObject({ applied: false, duplicate: true });
+    expect(replayed).toStrictEqual({
+      applied: false,
+      duplicate: true,
+      effect: { effectId: "eff-1", appliedAt: "2026-10-05T12:06:00.000Z", mealItemId: "item-1" },
+    });
+    expect(JSON.stringify(restarted.exportState())).toBe(persisted);
   });
 
   it("trata operações distintas como efeitos distintos", () => {
