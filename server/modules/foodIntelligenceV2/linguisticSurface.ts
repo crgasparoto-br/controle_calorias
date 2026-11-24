@@ -321,42 +321,11 @@ export type ExplicitIngredientMeasure = {
   unit: string;
 };
 
-export function hasUnprotectedMaterialOperator(segment: Segment, protectedTerms: readonly string[]): boolean {
-  return [...segment.text.matchAll(/(?<!\S)(?:com|sem|mais)(?=\s|$)/giu)].some(match =>
-    !protectedConjunctions(segment, protectedTerms, foldFoodSurface(match[0])).has(match.index));
-}
-
-/** Narrow S1 constituent: owner + explicit "com" + measured ingredient.
- * Uses the same quantity grammar/S2 unit set as the enclosing observation.
- * Unproven scope or implicit count is not an ingredient measurement. */
-export function readExplicitIngredientMeasure(
-  raw: string, segment: Segment, units: readonly GovernedUnitAlias[],
-  protectedTerms: readonly string[],
-): ExplicitIngredientMeasure | null {
-  const protectedOffsets = protectedConjunctions(segment, protectedTerms, "com");
-  const connectors = [...segment.text.matchAll(/(?<!\S)com(?=\s)/giu)]
-    .filter(match => !protectedOffsets.has(match.index));
-  if (connectors.length !== 1) return null;
-  const connector = segment.start + connectors[0].index;
-  const owner = trimSpan(raw, segment.start, connector);
-  const suffix = trimSpan(raw, connector + 3, segment.end);
-  if (!owner || !suffix || /(?<!\S)(?:sem|mais|ou)(?=\s|$)/iu.test(owner.text)) return null;
-  const parsed = readQuantity(suffix.text, units, true);
-  if (parsed.value === null || parsed.unit === null || parsed.uncertain ||
-      !parsed.servingText || !parsed.name || !suffix.text.endsWith(parsed.name) ||
-      !suffix.text.startsWith(parsed.servingText) ||
-      /(?<!\S)(?:e|ou|com|sem|mais)(?=\s|$)/iu.test(parsed.name)) return null;
-  const ingredientStart = suffix.end - parsed.name.length;
-  // The resulting measure anchor excludes the optional connective "de".
-  const measureText = parsed.servingText.replace(/\s+de$/iu, "");
-  const measureEnd = suffix.start + measureText.length;
-  if (measureEnd >= ingredientStart ||
-      !/^\s+(?:de\s+)?$/iu.test(raw.slice(measureEnd, ingredientStart))) return null;
-  return {
-    owner, ingredient: { text: parsed.name, start: ingredientStart, end: suffix.end },
-    measureSpan: { start: suffix.start, end: measureEnd }, value: parsed.value, unit: parsed.unit,
-  };
-}
+export type MaterialSegmentSyntax = {
+  measure: ExplicitIngredientMeasure | null;
+  materialOperator: boolean;
+  coordinatedWithPrevious: boolean;
+};
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
  * Protected phrases come exclusively from the already authorized S2 snapshot.
@@ -364,6 +333,7 @@ export function readExplicitIngredientMeasure(
 export function splitFoodSurface(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [],
   protectedTerms: readonly string[] = [],
+  material?: MaterialSegmentSyntax[],
 ): Segment[] {
   // A comma before a recognized material attribute belongs to the prior food.
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
@@ -517,5 +487,39 @@ export function splitFoodSurface(
     const tail = trimSpan(text, segment.start + offset, segment.end);
     if (tail) joined.push(tail);
   }
+  // In the opt-in branch, report structural constituents of the same
+  // original segments. The shared S1 splitter is the sole grammar owner.
+  if (material) joined.forEach((part, index) => {
+    const materialOperator = [...part.text.matchAll(/(?<!\S)(?:com|sem|mais)(?=\s|$)/giu)].some(match =>
+      !protectedConjunctions(part, protectedTerms, foldFoodSurface(match[0])).has(match.index));
+    const coordinatedWithPrevious = index > 0 && /^\s+e\s+$/iu.test(
+      text.slice(joined[index - 1].end, part.start));
+    const syntax: MaterialSegmentSyntax = { measure: null, materialOperator, coordinatedWithPrevious };
+    material.push(syntax);
+
+    const protectedOffsets = protectedConjunctions(part, protectedTerms, "com");
+    const connectors = [...part.text.matchAll(/(?<!\S)com(?=\s)/giu)]
+      .filter(match => !protectedOffsets.has(match.index));
+    if (connectors.length !== 1) return;
+    const connector = part.start + connectors[0].index;
+    const owner = trimSpan(text, part.start, connector);
+    const suffix = trimSpan(text, connector + 3, part.end);
+    if (!owner || !suffix || /(?<!\S)(?:sem|mais|ou)(?=\s|$)/iu.test(owner.text)) return;
+
+    const parsed = readQuantity(suffix.text, governedUnits, true);
+    if (parsed.value === null || parsed.unit === null || parsed.uncertain ||
+        !parsed.servingText || !parsed.name || !suffix.text.endsWith(parsed.name) ||
+        !suffix.text.startsWith(parsed.servingText) ||
+        /(?<!\S)(?:e|ou|com|sem|mais)(?=\s|$)/iu.test(parsed.name)) return;
+    const ingredientStart = suffix.end - parsed.name.length;
+    // The resulting measure anchor excludes the optional connective "de".
+    const measureEnd = suffix.start + parsed.servingText.replace(/\s+de$/iu, "").length;
+    if (measureEnd >= ingredientStart ||
+        !/^\s+(?:de\s+)?$/iu.test(text.slice(measureEnd, ingredientStart))) return;
+    syntax.measure = {
+      owner, ingredient: { text: parsed.name, start: ingredientStart, end: suffix.end },
+      measureSpan: { start: suffix.start, end: measureEnd }, value: parsed.value, unit: parsed.unit,
+    };
+  });
   return joined;
 }
