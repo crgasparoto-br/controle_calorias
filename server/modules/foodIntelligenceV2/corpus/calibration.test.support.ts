@@ -15,6 +15,11 @@ import {
   type GoldenCorpusCase,
 } from "./contracts";
 import { segmentKeysOf, type CorpusReport } from "./harness";
+import {
+  assertCalibrationMembership, calibrationPartitionMember,
+  createCalibrationPartitionManifest, verifyCalibrationPartitions,
+  type CalibrationPartitionManifest, type CalibrationPartitionMember, type CalibrationSplit,
+} from "./calibrationPartition.test.support";
 
 export const CALIBRATION_PARAMETERS = {
   "confidence:source-field": { item: 2, unit: "probability", objective: "Minimize incorrect acceptance for each independently verified source and field." },
@@ -52,6 +57,8 @@ export interface CalibrationPlan {
   owner: string;
   reference: string;
   corpusVersion: string;
+  /** Versioned case/group membership from the input corpus, never from results. */
+  partitionManifest: CalibrationPartitionManifest;
   resolverId: string;
   revisions: CorpusRevisions;
   baseline: CalibrationCandidate;
@@ -195,8 +202,7 @@ export interface CalibrationSegment {
   failedCases: number;
 }
 /** Independent expectation labels and observed failures, never resolver answers. */
-export interface CalibrationCaseFact {
-  caseId: string;
+export interface CalibrationCaseFact extends CalibrationPartitionMember {
   decisionClass: GoldenCorpusCase["decisionClass"];
   nonRecurrenceClasses: string[];
   modality: string;
@@ -218,8 +224,9 @@ export interface SplitEvidence {
   candidateId: string;
   runId: string;
   recordedAt: string;
-  split: "calibration" | "holdout";
+  split: CalibrationSplit;
   corpusVersion: string;
+  partitionDigest: string;
   resolverId: string;
   revisions: CorpusRevisions;
   cases: number;
@@ -292,6 +299,7 @@ export function verifyCalibrationPlan(plan: CalibrationPlan): void {
     throw new Error("calibration: incomplete prior protocol, scope or unsupported external budget");
   }
   validDate(plan.preRegisteredAt);
+  verifyCalibrationPartitions(plan.partitionManifest, plan.corpusVersion);
   if (plan.parameter === "confidence:source-field" &&
       !/source=[^;]+;field=[^;]+/.test(plan.scope)) {
     throw new Error("calibration: confidence requires explicit source and field");
@@ -396,9 +404,11 @@ export function projectSplitEvidence(
   candidateId: string,
   runId: string,
   recordedAt: string,
-  split: "calibration" | "holdout",
+  split: CalibrationSplit,
 ): SplitEvidence {
   validDate(recordedAt);
+  const manifest = createCalibrationPartitionManifest(corpus.corpusVersion, corpus.cases);
+  const partitionDigest = verifyCalibrationPartitions(manifest, corpus.corpusVersion);
   const entries = corpus.cases.filter(c => c.split === split);
   if (!entries.length || report.corpusVersion !== corpus.corpusVersion ||
       report.caseCount !== corpus.cases.length || report.resolveCalls !== report.caseCount) {
@@ -427,7 +437,7 @@ export function projectSplitEvidence(
   const caseFacts: CalibrationCaseFact[] = entries.map(entry => {
     const labels = segmentKeysOf(entry);
     return {
-      caseId: entry.caseId, decisionClass: entry.decisionClass,
+      ...calibrationPartitionMember(entry), decisionClass: entry.decisionClass,
       nonRecurrenceClasses: [...entry.nonRecurrenceClasses], modality: labels.modality,
       brand: labels.brand, measure: labels.measure, failed: failed.has(entry.caseId),
     };
@@ -452,7 +462,7 @@ export function projectSplitEvidence(
   if (CORPUS_REVISION_KEYS.some(key => isUnpinnedRevision(report.revisions[key])) ||
       report.resolver.revision !== report.revisions.resolver) structuralViolations.push("revision_mismatch");
   return {
-    planId, candidateId, runId, recordedAt, split,
+    planId, candidateId, runId, recordedAt, split, partitionDigest,
     corpusVersion: report.corpusVersion, resolverId: report.resolver.id,
     revisions: { ...report.revisions }, cases: entries.length,
     resolvableLabeled: splitMetric.resolvableLabeled, matchedResolvable,
@@ -468,9 +478,11 @@ export function projectSplitEvidence(
 function assertEvidence(
   plan: CalibrationPlan, candidate: CalibrationCandidate,
   evidence: SplitEvidence, expectedSplit: SplitEvidence["split"],
+  partitionDigest: string,
 ): void {
   if (evidence.planId !== plan.id || evidence.candidateId !== candidate.id ||
       evidence.split !== expectedSplit || evidence.corpusVersion !== plan.corpusVersion ||
+      evidence.partitionDigest !== partitionDigest ||
       evidence.resolverId !== plan.resolverId || !evidence.runId?.trim() ||
       validDate(evidence.recordedAt) <= validDate(plan.preRegisteredAt) ||
       evidence.structuralViolations.length ||
@@ -500,6 +512,8 @@ function assertEvidence(
   if (!Array.isArray(evidence.caseFacts) || evidence.caseFacts.length !== evidence.cases ||
       evidence.caseFacts.some(fact =>
         !fact || typeof fact.caseId !== "string" || !fact.caseId.trim() ||
+        !Array.isArray(fact.semanticGroups) ||
+        fact.semanticGroups.some(group => typeof group !== "string" || !group.trim()) ||
         !CORPUS_DECISION_CLASSES.includes(fact.decisionClass) ||
         !Array.isArray(fact.nonRecurrenceClasses) ||
         fact.nonRecurrenceClasses.some(value => typeof value !== "string" || !value.trim()) ||
@@ -510,6 +524,7 @@ function assertEvidence(
     throw new Error("calibration: invalid or duplicate per-case evidence");
   }
   const facts = evidence.caseFacts;
+  assertCalibrationMembership(plan.partitionManifest, expectedSplit, facts);
   const failedIds = facts.filter(f => f.failed).map(f => f.caseId).sort();
   const matchedResolvable = facts.filter(f => f.decisionClass === "resolvable" && !f.failed).length;
   if (facts.filter(f => f.decisionClass === "resolvable").length !== evidence.resolvableLabeled ||
@@ -566,6 +581,7 @@ export type CalibrationLock = {
   planId: string;
   selectedCandidateId: string;
   lockedAt: string;
+  partitionDigest: string;
   calibrationDigest: string;
   calibrationComparison: readonly { candidateId: string; reasons: readonly string[]; matchedResolvable: number }[];
 };
@@ -584,7 +600,8 @@ export function selectCalibrationCandidate(
   lockedAt: string,
 ): CalibrationSelection {
   verifyCalibrationPlan(plan);
-  assertEvidence(plan, plan.baseline, baseline, "calibration");
+  const partitionDigest = verifyCalibrationPartitions(plan.partitionManifest, plan.corpusVersion);
+  assertEvidence(plan, plan.baseline, baseline, "calibration", partitionDigest);
   if (candidates.length !== plan.candidates.length) throw new Error("calibration: candidate trial missing");
   const lockTime = validDate(lockedAt);
   const all = [baseline, ...candidates];
@@ -595,7 +612,7 @@ export function selectCalibrationCandidate(
   const comparisons = plan.candidates.map(candidate => {
     const evidence = candidates.find(c => c.candidateId === candidate.id);
     if (!evidence) throw new Error("calibration: candidate not measured");
-    assertEvidence(plan, candidate, evidence, "calibration");
+    assertEvidence(plan, candidate, evidence, "calibration", partitionDigest);
     const reasons = comparable(baseline, evidence);
     if (plan.parameter === "linguistic:s3-escalation" &&
         (baseline.costSamples !== baseline.cases || evidence.costSamples !== evidence.cases ||
@@ -620,10 +637,10 @@ export function selectCalibrationCandidate(
     plan.candidates.findIndex(v => v.id === b.candidateId));
   return {
     status: "locked_for_holdout", planId: plan.id,
-    selectedCandidateId: feasible[0].candidateId, lockedAt,
+    selectedCandidateId: feasible[0].candidateId, lockedAt, partitionDigest,
     // The global gate may reflect holdout outcomes and is intentionally not
     // used to rank candidates or to bind the pre-holdout selection.
-    calibrationDigest: digest({ plan,
+    calibrationDigest: digest({ plan: { ...plan, partitionManifest: partitionDigest },
       baseline: { ...baseline, corpusGate: null },
       candidates: candidates.map(item => ({ ...item, corpusGate: null })), lockedAt }),
     calibrationComparison: comparisons.map(c => ({
@@ -657,6 +674,7 @@ export function evaluateLockedHoldout(
   const rederived = selectCalibrationCandidate(plan, proof.baseline, proof.candidates, lock.lockedAt);
   if (rederived.status !== "locked_for_holdout" ||
       rederived.calibrationDigest !== lock.calibrationDigest ||
+      rederived.partitionDigest !== lock.partitionDigest ||
       rederived.selectedCandidateId !== lock.selectedCandidateId) {
     throw new Error("calibration: selection lock has no matching calibration proof");
   }
@@ -667,9 +685,11 @@ export function evaluateLockedHoldout(
         item.candidateId === lock.selectedCandidateId && item.reasons.length === 0)) {
     throw new Error("calibration: invalid frozen selection");
   }
-  assertEvidence(plan, plan.baseline, baseline, "holdout");
-  assertEvidence(plan, candidate, selected, "holdout");
+  assertEvidence(plan, plan.baseline, baseline, "holdout", rederived.partitionDigest);
+  assertEvidence(plan, candidate, selected, "holdout", rederived.partitionDigest);
+  const calibrationRuns = new Set([proof.baseline, ...proof.candidates].map(item => item.runId));
   if (baseline.runId === selected.runId ||
+      [baseline, selected].some(e => calibrationRuns.has(e.runId)) ||
       [baseline, selected].some(e => validDate(e.recordedAt) <= validDate(lock.lockedAt))) {
     throw new Error("calibration: holdout exposed before selection lock");
   }
