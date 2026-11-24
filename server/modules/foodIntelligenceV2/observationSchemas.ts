@@ -109,8 +109,7 @@ export const foodLocaleSchema = z
     "pt-BR é suportado no recorte atual e não pode ser marcado como unsupported."
   );
 
-export const foodObservationSchema = z
-  .strictObject({
+export const foodObservationShape = {
     schemaVersion: z.literal(FOOD_OBSERVATION_SCHEMA_VERSION),
     observationId: opaqueId(),
     modality: z.enum(FOOD_INPUT_TYPES),
@@ -130,8 +129,12 @@ export const foodObservationSchema = z
     unresolvedReason: z.enum(FOOD_REASON_CODES).nullable(),
     lexiconRevision: nonEmptyText.max(FOOD_CONTRACT_LIMITS.shortText),
     interpreterVersion: nullableText(FOOD_CONTRACT_LIMITS.shortText),
-  })
-  .superRefine((observation, ctx) => {
+};
+
+const baseObservationSchema = z.strictObject(foodObservationShape);
+type FoodObservationFields = Omit<z.infer<typeof baseObservationSchema>, "schemaVersion">;
+
+export function validateFoodObservationFields(observation: FoodObservationFields, ctx: z.RefinementCtx) {
     rejectDuplicates(
       observation.evidence.map(evidence => evidence.evidenceId),
       ctx,
@@ -243,8 +246,9 @@ export const foodObservationSchema = z
         }
       }
     }
-  });
+}
 
+export const foodObservationSchema = baseObservationSchema.superRefine(validateFoodObservationFields);
 
 export type FoodIdentityHints = z.infer<typeof foodIdentityHintsSchema>;
 export type FoodQuantityHints = z.infer<typeof foodQuantityHintsSchema>;

@@ -17,6 +17,9 @@ export const MEAL_SEMANTIC_CONTRACT_VERSION = 1;
 /** `schemaVersion` aceito por `FoodObservation` (§4). */
 export const FOOD_OBSERVATION_SCHEMA_VERSION = 2;
 
+/** Revisão de observação com vínculos materiais, ainda sem consumidor produtivo. */
+export const FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION = 3;
+
 /** `schemaVersion` aceito por `FoodResolutionDecision` (§5). */
 export const FOOD_RESOLUTION_DECISION_SCHEMA_VERSION = 2;
 

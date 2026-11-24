@@ -125,13 +125,13 @@ export const foodQualifierSchema = z.strictObject({
   confidence,
 });
 
-export const foodEvidenceSchema = z
+export const foodEvidenceSchemaForFields = (acceptField: (field: string) => boolean) => z
   .strictObject({
     evidenceId: opaqueId(),
     field: nonEmptyText
       .max(120)
       .refine(
-        isGovernedEvidenceField,
+        acceptField,
         "FoodEvidence.field deve ser um caminho governado do contrato (ex.: identity.brand, quantity.value, nutrition.protein)."
       ),
     origin: z.enum(FOOD_EVIDENCE_ORIGINS),
@@ -156,6 +156,7 @@ export const foodEvidenceSchema = z
     "Evidência com origin=unavailable não pode declarar confiança."
   );
 
+export const foodEvidenceSchema = foodEvidenceSchemaForFields(isGovernedEvidenceField);
 
 export function rejectDuplicates(
   values: readonly string[],
