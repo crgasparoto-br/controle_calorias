@@ -7,7 +7,7 @@ import { z } from "zod";
 import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_INPUT_TYPES, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
 import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { ExplicitIngredientMeasure, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
+import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
 import { parseFoodMaterialObservationBatch, parseFoodObservation, type FoodMaterialObservation, type FoodObservation } from "./schemas";
 import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
@@ -501,7 +501,7 @@ function addResidual(
 export async function comprehendFoodLanguage(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
   interpreter?: ResidualInterpreter,
-  material?: Map<string, ExplicitIngredientMeasure | null>,
+  material?: Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>,
 ): Promise<FoodObservation[]> {
   if (!request.rawText.trim() || request.rawText.length > FOOD_CONTRACT_LIMITS.rawText ||
       !request.sourceRef.trim() || request.sourceRef.length > 145 ||
@@ -586,16 +586,22 @@ export async function comprehendFoodLanguage(
     if (material && segmentSyntax) {
       const previous = results.at(-1);
       const previousIsMaterial = previous !== undefined && material.has(previous.observationId);
-      const measure = exactChoice.selected || exactChoice.competing.length
-        ? null : segmentSyntax.measure;
+      const constituent = exactChoice.selected || exactChoice.competing.length
+        ? null : segmentSyntax.measure ?? segmentSyntax.negation;
       // Meal/command framing is excluded by the existing observation scope.
       // A constituent crossing that scope is not an ingredient occurrence.
       const span = observation.surfaceSpan.span;
-      if (measure && span && measure.measureSpan.start >= span.start && measure.ingredient.end <= span.end) {
-        const owner = buildObservation(request, measure.owner, i, units, true);
-        if (owner.identityHints.foodName !== null) {
-          observation = { ...owner, surfaceSpan: observation.surfaceSpan };
-          material.set(observation.observationId, measure);
+      if (constituent && span) {
+        const from = "operator" in constituent ? constituent.operator.start : constituent.measureSpan.start;
+        if (from >= span.start && constituent.ingredient.end <= span.end) {
+          const owner = buildObservation(request, constituent.owner, i, units, true);
+          const ownerSpan = owner.surfaceSpan.span;
+          if (owner.identityHints.foodName !== null &&
+              (!("operator" in constituent) || ownerSpan &&
+                ownerSpan.start >= span.start && ownerSpan.end <= from)) {
+            observation = { ...owner, surfaceSpan: observation.surfaceSpan };
+            material.set(observation.observationId, constituent);
+          }
         }
       }
       // An unresolved clause does not end scope: otherwise a second conjoined
@@ -670,7 +676,7 @@ export async function comprehendFoodMaterialLanguage(
       request.locale != null && request.locale !== DEFAULT_FOOD_LOCALE) {
     return { ok: false, reason: "unsupported-input" };
   }
-  const material = new Map<string, ExplicitIngredientMeasure | null>();
+  const material = new Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>();
   const base = await comprehendFoodLanguage({
     ...request, shouldInterpretResidual: undefined, interpreterVersion: undefined,
   }, lexicon, undefined, material);
@@ -691,22 +697,38 @@ export async function comprehendFoodMaterialLanguage(
     if (!fact) return [candidate];
     const claimId = observation.observationId + ":material";
     const ingredientId = claimId + ":ingredient";
-    const amountId = claimId + ":amount";
     const origin = modality === transcriptModality ? "transcription" : "text";
     const evidence = {
       origin, confidence: request.transcriptionConfidence ?? null, verified: false, sourceId: null,
     } as const;
+    const binding = { status: "bound", ownerObservationId: observation.observationId } as const;
+    const sourceEvidence = <Field extends "material.ingredient" | "material.negation">(
+      field: Field, evidenceId: string, source: Segment,
+    ) => ({
+      ...evidence, evidenceId, field, value: source.text, unit: null,
+      anchor: anchor(request.sourceRef, { start: source.start, end: source.end }),
+    });
+    if ("operator" in fact) {
+      const operatorEvidenceId = claimId + ":operator";
+      return [{
+        ...candidate,
+        materialClaims: [{
+          kind: "negation", claimId, binding,
+          ingredient: { name: fact.ingredient.text, evidenceId: ingredientId },
+          operatorEvidenceId,
+        }],
+        evidence: [...observation.evidence,
+          sourceEvidence("material.ingredient", ingredientId, fact.ingredient),
+          sourceEvidence("material.negation", operatorEvidenceId, fact.operator)],
+      }];
+    }
+    const amountId = claimId + ":amount";
     return [{
       ...candidate, materialClaims: [{
         kind: "ingredient", claimId,
-        binding: { status: "bound", ownerObservationId: observation.observationId },
-        ingredient: { name: fact.ingredient.text, evidenceId: ingredientId },
+        binding, ingredient: { name: fact.ingredient.text, evidenceId: ingredientId },
         amount: { value: fact.value, unit: fact.unit, evidenceId: amountId },
-      }], evidence: [...observation.evidence, {
-        ...evidence, evidenceId: ingredientId, field: "material.ingredient",
-        value: fact.ingredient.text, unit: null,
-        anchor: anchor(request.sourceRef, { start: fact.ingredient.start, end: fact.ingredient.end }),
-      }, {
+      }], evidence: [...observation.evidence, sourceEvidence("material.ingredient", ingredientId, fact.ingredient), {
         ...evidence, evidenceId: amountId, field: "material.amount", ingredientEvidenceId: ingredientId,
         value: fact.value, unit: fact.unit, anchor: anchor(request.sourceRef, fact.measureSpan),
       }],
