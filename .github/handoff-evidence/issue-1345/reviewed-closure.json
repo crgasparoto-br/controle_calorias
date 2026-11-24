@@ -83,7 +83,7 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Falta certificado real e validacao main/release; 26 shards agora instrumentados."
+      "rationale": "Coleta técnica de 27 shards observada; falta certificado positivo no SHA material e validação main/release. O coletor canônico continua restrito a develop; o ensaio isolado para main ainda exige execução autenticada. A prova de emissão vem após a validação confiável do dossiê."
     },
     "089b8b41758fc71ba80c08286c0580f7aa482ddbb8dcfe7e00171d870cee3c08": {
       "disposition": "pending",
@@ -93,7 +93,7 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coletor neutro instalado, mas pacote nao foi produzido a partir de certificado positivo."
+      "rationale": "Coletor presente em develop; falta emissão confiável do pacote na branch padrão após certificado positivo. O pacote não é insumo do certificado que ele próprio consome."
     },
     "0a00b46e55156f48635134aef923e6d4fc3d0c6e945dd1d7a96f77910e058a9e": {
       "disposition": "pending",
@@ -103,7 +103,7 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Faltam cenarios reais de API e positivo end-to-end em sessao independente."
+      "rationale": "Há evidência autenticada de execução de controles contratuais de preflight; falta revisar cobertura de cada condição do aceite e vinculá-la à coleta certificadora exact-SHA. Prova real e sessão independente permanecem em M2, não são pré-condições de M1-04."
     },
     "5df9116b9d553c666bbc98d03a539b81ca868350bbf323b9d5a995b5c6ea6694": {
       "disposition": "covered",

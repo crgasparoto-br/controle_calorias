@@ -1,6 +1,6 @@
 # Issue #1345 — dossiê semântico de preparação (M1, sem certificação)
 
-**Alvo:** [PR #1348](https://github.com/crgasparoto-br/controle_calorias/pull/1348), base `develop@0bee3eba`, branch `fix/1346-junit-evidence-reconcile`. **Estado intencional:** `review_state=incomplete`. Este dossiê NÃO certifica a issue nem substitui revisão em outra sessão.
+**Alvo:** [PR #1348](https://github.com/crgasparoto-br/controle_calorias/pull/1348), base `develop` (SHA autenticado por execução, não congelado neste texto), branch `fix/1346-junit-evidence-reconcile`. **Estado intencional:** `review_state=incomplete`. Este dossiê NÃO certifica a issue nem substitui revisão em outra sessão.
 
 ## Fontes autenticadas e limites
 
@@ -12,7 +12,7 @@
 
 ## Classificação por obrigação
 
-`covered` é provisório e restrito aos controles técnicos M1, não uma declaração de conclusão da issue. `pending` é bloqueante. `not-applicable` é usado apenas em relatos contextuais ou históricos, nunca em critérios de aceite.
+`covered` é provisório e restrito aos controles técnicos M1, não uma declaração de conclusão da issue. `pending` é bloqueante em M1. `deferred` preserva as obrigações M2 vinculadas à decisão canônica e mantém a issue #1345 aberta. `not-applicable` é usado apenas em relatos contextuais ou históricos, nunca em critérios de aceite.
 
 | Obrigação | Estado | Evidência ou próximo passo |
 |---|---|---|
@@ -24,18 +24,18 @@
 | OBL-006 | `covered` | O produtor exige revisao e o ensaio 44621447082 rejeitou certificado ausente; cobertura apenas de bloqueio, nao de emissao positiva. (`REQ-M1-FAILCLOSED`) |
 | OBL-007 | `not-applicable` | Referencia contextual a issues relacionadas; nao constitui criterio tecnico autonomo. |
 | OBL-008 | `covered` | Pin e mirror de fontes oficiais verificados por teste positivo e mutacoes negativas. (`REQ-M1-INTEGRITY`) |
-| OBL-009 | `pending` | Falta certificado real e validacao main/release; 27 shards previstos nesta continuação (27º = seis suítes de governança da Skill oficial), ainda sujeitos a nova execução no HEAD. (`REQ-M1-HANDOFF`) |
-| OBL-010 | `pending` | Coletor neutro instalado, mas pacote nao foi produzido a partir de certificado positivo. (`REQ-M1-PACKET`) |
-| OBL-011 | `pending` | Faltam cenarios reais de API e positivo end-to-end em sessao independente. (`REQ-M1-ADVERSARIAL`) |
+| OBL-009 | `pending` | A coleta técnica exact-SHA executou 27 shards; falta certificação positiva. O coletor canônico continua restrito a `develop`; existe um ensaio `main`/release isolado, ainda sem execução autenticada. (`REQ-M1-HANDOFF`) |
+| OBL-010 | `pending` | A implementação do coletor está disponível em `develop`, mas falta execução confiável na branch padrão e pacote emitido a partir de um certificado positivo. (`REQ-M1-PACKET`) |
+| OBL-011 | `pending` | Há evidência de execução de controles contratuais; falta validar cobertura e vincular os casos ao JUnit da coleta certificadora. O ensaio real e o parecer em sessão separada são M2. (`REQ-M1-ADVERSARIAL`) |
 | OBL-012 | `covered` | Procedimento M1 documentado e testado; a sessão auditora real continua obrigatória para M2 e não é afirmada aqui. (`REQ-M1-REVIEW-DOC`) |
 | OBL-013 | `covered` | Preflight bloqueia habilitacao prematura e preserva Agent-first gate; readback das protecoes requer verificacao final. (`REQ-M1-PROTECTIONS`) |
-| OBL-014 | `pending` | Versoes identicas e politica enabled em develop/main nao instaladas ou autorizadas. (`REQ-M2-INSTALL`) |
-| OBL-015 | `pending` | Ausente certificado positivo, comentario de outra sessao e check de revisao success. (`REQ-M2-POSITIVE`) |
-| OBL-016 | `pending` | Ausentes negativos reais de revogacao, mudancas de issue/base/head e permissao. (`REQ-M2-NEGATIVE`) |
-| OBL-017 | `pending` | Required check adicional depende de provas e autorizacao administrativa explicita. (`REQ-M2-ADMIN`) |
-| OBL-018 | `pending` | Pos-migracao e rollback ainda nao podem ser ensaiados operacionalmente. (`REQ-M2-ROLLBACK`) |
+| OBL-014 | `deferred` | Versoes identicas e politica enabled em develop/main nao instaladas ou autorizadas. (`REQ-M2-INSTALL`) |
+| OBL-015 | `deferred` | Ausente certificado positivo, comentario de outra sessao e check de revisao success. (`REQ-M2-POSITIVE`) |
+| OBL-016 | `deferred` | Ausentes negativos reais de revogacao, mudancas de issue/base/head e permissao. (`REQ-M2-NEGATIVE`) |
+| OBL-017 | `deferred` | Required check adicional depende de provas e autorizacao administrativa explicita. (`REQ-M2-ADMIN`) |
+| OBL-018 | `deferred` | Pos-migracao e rollback ainda nao podem ser ensaiados operacionalmente. (`REQ-M2-ROLLBACK`) |
 | OBL-019 | `covered` | Registro documental do plano retrospectivo de #1298 testado; execução, autorização e certificação continuam pendentes. (`REQ-M2-RETROSPECTIVE`) |
-| OBL-020 | `pending` | Concluir issue exige M1/M2 comprovados, nao apenas CI verde. (`REQ-GOV-COMPLETION`) |
+| OBL-020 | `deferred` | Concluir issue exige M1/M2 comprovados, nao apenas CI verde. (`REQ-GOV-COMPLETION`) |
 | OBL-021 | `not-applicable` | Inventario historico de CI da PR 1347, nao resultado do HEAD atual. |
 | OBL-022 | `not-applicable` | Controle negativo historico sem certificado; nao demonstra sucesso positivo. |
 | OBL-023 | `covered` | Material confiavel e lock oficial conferidos no mesmo conjunto de provas de integridade. (`REQ-M1-INTEGRITY`) |
@@ -93,7 +93,7 @@ Esta seção é um **read-back técnico**, não um relatório de aprovação, e 
 - Consultas aos paths `.github/session-review-policy.json`, `.github/workflows/session-review.yml`, `.github/workflows/prepare-neutral-audit-packet.yml`, `.github/workflows/handoff-evidence.yml` e `.github/operator-session-integration.json` na branch `main` retornaram HTTP 404. Isso **não** demonstra equivalência de versões nem instalação operacional; demonstra a precondição de implantação ainda não satisfeita na leitura.
 - A comparação [`main...develop`](https://github.com/crgasparoto-br/controle_calorias/compare/main...develop) retornou `diverged` (1.139 commits à frente e 15 atrás, na direção `main...develop`). Não promover automaticamente uma branch sobre a outra como substituto de uma release auditada.
 
-**Disposição:** a leitura autenticada supre o diagnóstico factual de `OBL-005 / REQ-M1-RULESETS`, mas esse item mantém `pending` no *overlay* semântico até vinculá-lo a controles positivos, negativos e de regressão adequados e revalidar o HEAD. `OBL-014..018` permanecem pendentes; nenhuma política, regra ou branch foi alterada pelo read-back.
+**Disposição:** a leitura autenticada supre o diagnóstico factual de `OBL-005 / REQ-M1-RULESETS`; o *overlay* agora registra cobertura documental provisória e a prova final ainda precisa ser vinculada e revalidada. `OBL-014..018` permanecem diferidos para M2; nenhuma política, regra ou branch foi alterada pelo read-back.
 
 ## Plano específico e auditável de certificação retrospectiva — #1298
 
@@ -171,8 +171,9 @@ normativo específico foi documentado/provado como tal. Não prova emissão
 real de certificado positivo, sessão separada, pacote neutro, instalação
 em `main`, adoção M2, retrospectiva executada nem aprovação da PR.
 `review_state=incomplete`, `artifact_sha256={}` e bloqueio fail-closed
-permanecem. OBL-001, OBL-009, OBL-010 e OBL-011 ainda carecem de
-prova operacional; a M2 continua diferida e não pode ser ativada por CI verde.
+permanecem. OBL-001 cobre somente a decisão de governança registrada.
+OBL-009, OBL-010 e OBL-011 permanecem pendentes em M1; as provas
+operacionais e a ativação pertencem a M2 e não decorrem de CI verde.
 
 
 ## Matriz M1-04 de testes efetivamente executados (não certificadora)
@@ -195,8 +196,10 @@ não demonstra sua equivalência a todas as variantes adversariais do aceite.
 O artefato registra `live_github_adversarial_proof=NOT_ASSERTED` e
 `semantic_certification=NOT_ASSERTED`; não substitui ensaios reais de
 comentários alterados, revogação, CI/certificado, base/HEAD ou sessão distinta.
-A classificação de OBL-011 e M1-04 permanece `pending`, e a política M2
-continua desabilitada. A matriz não altera o produtor oficial nem concede
+A classificação de OBL-011 e M1-04 permanece `pending` até revisar o
+mapeamento de cobertura e vinculá-lo à coleta autenticada do SHA material.
+Os ensaios operacionais reais e o parecer separado continuam em M2, com
+a política desabilitada. A matriz não altera o produtor oficial nem concede
 aprovação ao implementador.
 
 ## Dependência adicional de GROUND-TEST-001 para Node/Vitest (24/11/2026)
@@ -218,3 +221,10 @@ adicional **reproduzida no código do Skill**, não a causa desse run. O dossiê
 permanece `incomplete`; o registro de decisão de governança em `REQ-GOV-001`
 comprova somente a **decisão já registrada na issue**, nunca um parecer
 em conversa separada ou aprovação operacional M2.
+
+## Sequência de evidências sem dependência circular
+
+1. **M1-02 — coletar e certificar.** No [run #45310022456](https://github.com/crgasparoto-br/controle_calorias/actions/runs/45310022456), o job técnico passou, mas o job confiável bloqueou a certificação porque o produtor não gerou `certification-inputs.json`. O produtor oficial deve gerar esse arquivo a partir de dossiê, relatórios e execução validados; não adicioná-lo manualmente. Resolver também o vínculo Node/Vitest da Skill #209 e validar o escopo `main`/release com um run autenticado do ensaio isolado, sem publicador nem atestação de sessão.
+2. **M1-03 — demonstrar o pacote neutro.** Emissão sobre certificado positivo verificado, com fonte canônica, identidade do alvo, diff, checks e digests. A presença do YAML em `develop` não comprova execução na branch padrão nem emissão. A prova de emissão não é pré-condição do próprio certificado que o coletor consome.
+3. **M1-04 — validar o contrato.** Revisar o mapeamento dos casos do preflight para cada condição da issue, com testes discriminantes efetivamente executados e vinculados ao mesmo SHA da coleta. O preflight isolado não é certificado ou aprovação operacional.
+4. **M2 — adoção operacional.** Em sessão auditora realmente separada, revisar o pacote autenticado; instalação em bases protegidas, provas reais, verificação das proteções e alteração administrativa seguem a ordem e autorizações da issue canônica. Nenhuma etapa acima altera policy, required checks, branches protegidas ou o status da #1298.

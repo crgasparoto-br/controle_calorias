@@ -1,0 +1,24 @@
+name: Release handoff probe (read-only)
+
+# Opt-in main-target release compatibility. Not a trusted publisher or session check.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  release-probe:
+    name: Validate main-target release evidence (no publication)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'solverit-certified-handoff-main') }}
+    uses: crgasparoto-br/skill/.github/workflows/reusable-handoff.yml@71217ab40be73f64180f253816d7b5214cb23100
+    with:
+      base-ref: main
+      tooling-repository: crgasparoto-br/skill
+      python-version: '3.12'
+      install-command: 'npm install --global pnpm@10.4.1 && pnpm install --frozen-lockfile'
+      test-command: 'python -m pytest -vv tests/test_operator_session_preflight.py tests/test_wrap_node_junit.py tests/test_collect_official_session_junit.py tests/test_issue1345_readiness_docs.py tests/test_session_m1_controls.py --junitxml="$EVIDENCE_DIR/pytest-exact-head.xml" && NODE_OPTIONS=--max-old-space-size=4096 bash scripts/collect-solverit-certification-tests.sh'
+      evidence-command: 'python "$HANDOFF_TOOLING/entregar-issue/scripts/produce_actions_handoff_evidence.py" --root . --out "$EVIDENCE_DIR" --event "$GITHUB_EVENT_PATH" --base-ref "$BASE_REF"'

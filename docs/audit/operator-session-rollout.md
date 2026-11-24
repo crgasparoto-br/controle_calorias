@@ -169,7 +169,8 @@ administrativa previamente comprovada. Nunca remover `Agent-first gate`.
   raso. Corrigido com `fetch-depth: 0` no job exato, preservando a verificacao.
   Nao foi dispensado o gate, reduzido teste ou forjado SHA.
 - **Escopo da evidencia:** o resultado negativo **nao** e ensaio positivo de
-  handoff, pacote neutro ou parecer independente. Esses itens continuam em M2.
+  handoff ou pacote neutro, provas pendentes de M1-02/M1-03. O parecer
+  em sessão separada e os ensaios operacionais pertencem a M2.
 
 ### Endurecimento do preflight M1 de evidências (23/11/2026)
 
@@ -186,5 +187,21 @@ regressão devem ter IDs separados, presentes e não reutilizados entre classes.
 Essa checagem estrutural é adicional ao produtor oficial, que continua tendo
 que provar os casos em JUnit no SHA material. Ela **não** produz revisão
 semântica, certificados, pacote neutro ou auditoria em sessão separada.
-As obrigações M1-02/M1-03/M1-04, A-005/A-006 e a M2 permanecem abertas até
-provas reais aceitas pelo contrato.
+M1-02 exige certificação confiável e validação do escopo `main`/release;
+M1-03 exige pacote efetivamente emitido após o certificado; M1-04 exige
+cobertura contratual mapeada e JUnit autenticado. A-005/A-006 permanecem
+abertos. A revisão em sessão separada, os ensaios reais e a adoção
+administrativa de M2 não são pré-condições para montar o dossiê M1.
+
+### Ensaio de compatibilidade com release para `main` (não publica)
+
+O wrapper `release-handoff-probe.yml` isola um ensaio exact-SHA de PR não draft,
+com origem neste próprio repositório, base `main` e opt-in pela label
+`solverit-certified-handoff-main`. O mesmo coletor oficial pinado valida o
+evento, a base e os testes/dossiê executados; as permissões são de leitura.
+O nome e o caminho são distintos do produtor reconhecido pelo publicador
+confiável e pelo verificador de sessão. Este workflow não publica commits,
+parecer ou required check e não habilita M2. Uma validação real requer PR
+`main` de ensaio aprovada para execução, issue canônica e dossiê vinculado
+àquele alvo, além de read-back autenticado dos resultados; a configuração
+isolada, por si só, não atende essa prova operacional.

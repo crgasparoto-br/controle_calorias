@@ -305,6 +305,54 @@ def verify_bootstrap_wrappers(session: str | None = None, packet: str | None = N
         guard=TRUSTED_PACKET_JOB_GUARD)
 
 
+RELEASE_PROBE_NAME = "Release handoff probe (read-only)"
+RELEASE_PROBE_GUARD = (
+    "${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' "
+    "&& github.event.pull_request.head.repo.full_name == github.repository "
+    "&& github.event.pull_request.draft == false && "
+    "contains(github.event.pull_request.labels.*.name, 'solverit-certified-handoff-main') }}"
+)
+
+
+def verify_release_probe(workflows: Path, pin: str) -> None:
+    """Static preflight for the intentionally untrusted, read-only release pilot."""
+    require(PIN_PATTERN.fullmatch(pin) is not None, "release probe needs immutable official pin")
+    canonical = (workflows / "handoff-evidence.yml").read_text(encoding="utf-8")
+    probe = (workflows / "release-handoff-probe.yml").read_text(encoding="utf-8")
+    command_lines = []
+    for key in ("tooling-repository", "python-version", "install-command", "test-command", "evidence-command"):
+        lines = re.findall(rf"(?m)^      {key}: [^\n]+$", canonical)
+        require(len(lines) == 1, f"release evidence must match one canonical {key}")
+        command_lines.extend(lines)
+    expected = [
+        f"name: {RELEASE_PROBE_NAME}",
+        "on:",
+        "  pull_request:",
+        "    branches: [main]",
+        "    types: [opened, synchronize, reopened, ready_for_review, labeled]",
+        "permissions:",
+        "  contents: read",
+        "  issues: read",
+        "  pull-requests: read",
+        "jobs:",
+        "  release-probe:",
+        "    name: Validate main-target release evidence (no publication)",
+        f"    if: {RELEASE_PROBE_GUARD}",
+        f"    uses: {SOURCE_REPOSITORY}/.github/workflows/reusable-handoff.yml@{pin}",
+        "    with:",
+        "      base-ref: main",
+        *command_lines,
+    ]
+    actual = [line for line in probe.splitlines() if line and not line.startswith("#")]
+    require(actual == expected, "release probe must remain single-job, read-only, exact-base and opt-in")
+
+    # Existing publication and operator session automation must not consume it.
+    # The trust store separately authorizes the original handoff producer path.
+    for path in ("publish-certified-handoff.yml", "prepare-neutral-audit-packet.yml", "session-review.yml"):
+        consumer = (workflows / path).read_text(encoding="utf-8")
+        require(RELEASE_PROBE_NAME not in consumer, "trusted consumer must not subscribe to release probe")
+
+
 def main() -> None:
     integration = strict_json((ROOT / ".github/operator-session-integration.json").read_text())
     policy = strict_json((ROOT / ".github/session-review-policy.json").read_text())
@@ -312,6 +360,7 @@ def main() -> None:
     validate(integration, policy, workflow)
     verify_official_mirror()
     verify_bootstrap_wrappers()
+    verify_release_probe(ROOT / ".github/workflows", integration["official_source"]["ref"])
     dossier = ROOT / ".github/handoff-evidence/issue-1345"
     validate_dossier_bindings(
         strict_json((dossier / "manifest.json").read_text()),

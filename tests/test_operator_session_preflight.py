@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from operator_session_preflight import strict_json, validate, verify_official_mirror, verify_bootstrap_wrappers  # noqa: E402
+from operator_session_preflight import strict_json, validate, verify_official_mirror, verify_bootstrap_wrappers, verify_release_probe  # noqa: E402
 
 
 class OperatorSessionPreflightTests(unittest.TestCase):
@@ -346,6 +346,16 @@ class OperatorSessionPreflightTests(unittest.TestCase):
     def test_duplicate_json_key(self):
         with self.assertRaises(ValueError):
             strict_json('{"mode":"disabled","mode":"enabled"}')
+
+
+class ReleaseProbePreflightTests(unittest.TestCase):
+    def test_release_probe_is_read_only_opt_in_and_not_a_session_source(self):
+        integration = json.loads((ROOT / ".github/operator-session-integration.json").read_text())
+        verify_release_probe(ROOT / ".github/workflows", integration["official_source"]["ref"])
+
+    def test_release_probe_requires_an_immutable_skill_revision(self):
+        with self.assertRaisesRegex(ValueError, "needs immutable official pin"):
+            verify_release_probe(ROOT / ".github/workflows", "develop")
 
 
 if __name__ == "__main__":
