@@ -577,7 +577,10 @@ export async function comprehendFoodLanguage(
     );
     const segmentSyntax = syntax?.[i];
     if (material && segmentSyntax) {
-      const measure = exactChoice.selected || exactChoice.competing.length ? null : segmentSyntax.measure;
+      const previous = results.at(-1);
+      const previousIsMaterial = previous !== undefined && material.has(previous.observationId);
+      const measure = exactChoice.selected || exactChoice.competing.length
+        ? null : segmentSyntax.measure;
       // Meal/command framing is excluded by the existing observation scope.
       // A constituent crossing that scope is not an ingredient occurrence.
       const span = observation.surfaceSpan.span;
@@ -588,11 +591,11 @@ export async function comprehendFoodLanguage(
           material.set(observation.observationId, measure);
         }
       }
-      const previous = results.at(-1);
-      const previousMaterial = previous && material.get(previous.observationId);
-      const ambiguousSibling = previousMaterial && segmentSyntax.coordinatedWithPrevious;
+      // An unresolved clause does not end scope: otherwise a second conjoined
+      // unknown would leak as an independent food merely because the first abstained.
+      const ambiguousSibling = previousIsMaterial && segmentSyntax.continuation;
       if (!material.has(observation.observationId) &&
-          (ambiguousSibling || !exactChoice.selected && segmentSyntax.materialOperator)) {
+          (ambiguousSibling || segmentSyntax.materialOperator)) {
         material.set(observation.observationId, null);
       }
     }

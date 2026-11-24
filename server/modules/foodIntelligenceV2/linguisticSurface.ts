@@ -2,6 +2,8 @@
  * Syntax, units, numerals and source spans only: no catalog, identity or macros.
  * Maintained separately from orchestration to keep one auditable owner per layer.
  */
+import { FOOD_CONTRACT_LIMITS } from "./contracts";
+
 export type Span = { start: number; end: number };
 export type Segment = Span & { text: string };
 /** Pre-authorized S2 aliases only; a null unit denotes conflicting meanings. */
@@ -324,7 +326,7 @@ export type ExplicitIngredientMeasure = {
 export type MaterialSegmentSyntax = {
   measure: ExplicitIngredientMeasure | null;
   materialOperator: boolean;
-  coordinatedWithPrevious: boolean;
+  continuation: boolean;
 };
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
@@ -339,6 +341,15 @@ export function splitFoodSurface(
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
   // tokens are not silently consumed as food identity or a modifier.
   const materialQualifier = /^(?:(?:sem|com|zero)\s+(?:a[cç][uú]car|lactose|gl[uú]ten|sal|gordura|cafe[ií]na)\b|(?:frit[ao]s?|cozid[ao]s?|desnatad[ao]s?|integral|diet|light|uht)\b)/iu;
+  // In the opt-in material grammar punctuation does not hide an operator.
+  // Consult the same applicable S2 protected phrases with raw UTF-16 offsets.
+  const rawOperators = material ? [...text.matchAll(
+    /(?<![\p{L}\p{M}\p{N}])(?:com|sem|mais)(?![\p{L}\p{M}\p{N}])/giu,
+  )] : [];
+  const operatorsIn = (part: Segment) => rawOperators.filter(match =>
+    match.index >= part.start && match.index + match[0].length <= part.end &&
+    !protectedConjunctions(part, protectedTerms, foldFoodSurface(match[0])).has(match.index - part.start));
+  let materialScope = false;
   const segments: Segment[] = [];
   let start = 0;
   const cut = (end: number, next: number) => {
@@ -348,8 +359,18 @@ export function splitFoodSurface(
   };
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
-    if (char === ";" || char === "\n" || (char === "," && !(/\d/u.test(text[i - 1] ?? "") && /\d/u.test(text[i + 1] ?? "")))) {
+    const hard = char === ";" || char === "\n";
+    const betweenDigits = (char === "," || char === "/") &&
+      /\d/u.test(text[i - 1] ?? "") && /\d/u.test(text[i + 1] ?? "");
+    if (material && (char === "," || char === "/" || char === "+") && !betweenDigits) {
+      const left = trimSpan(text, start, i);
+      materialScope ||= left !== null && operatorsIn(left).length > 0;
+    }
+    // A slash or plus can continue a material clause, but never cuts a slash
+    // fraction or restructures V2. Semicolon/newline end that scope.
+    if (hard || !betweenDigits && (char === "," || (char === "/" || char === "+") && materialScope)) {
       cut(i, i + 1);
+      if (hard) materialScope = false;
     }
   }
   cut(text.length, text.length);
@@ -361,7 +382,8 @@ export function splitFoodSurface(
     const comma = /^\s*,\s*$/u.test(delimiter);
     // Coordinators may follow comma, semicolon, CRLF or newline. Never infer
     // a delimiter from normalized text: all spans remain in the raw source.
-    const listBoundary = /^[\s,;\r\n]+$/u.test(delimiter) && /[,;\r\n]/u.test(delimiter);
+    const listBoundary = /^[\s,;\r\n]+$/u.test(delimiter) && /[,;\r\n]/u.test(delimiter) ||
+      Boolean(material && /^[ \t,\/+]+$/u.test(delimiter) && /[\/+]/u.test(delimiter));
     // A comma can delimit a meal destination, not necessarily a new food.
     // Preserve it in the original span; foodOnlySpan owns removing framing.
     const meal = "(?:caf[eé] da manh[aã]|almo[cç]o|jantar|lanche)";
@@ -379,7 +401,8 @@ export function splitFoodSurface(
     // know that the comma belongs to framing rather than to another food.
     const followingMealAction = /^(?:comi|consumi)\s+\S/iu.test(segment.text);
     const precedingFood = previous ? readQuantity(previous.text, governedUnits) : null;
-    if (previous && comma && (
+    const continuesMaterial = material && previous && operatorsIn(previous).length > 0;
+    if (previous && comma && !continuesMaterial && (
       // A-019: ", sem açúcar" / ", cozidos" extend the preceding food.
       // This never crosses a semicolon/newline, another actual food, or a bare
       // meal destination; the original comma stays inside the source span.
@@ -406,7 +429,7 @@ export function splitFoodSurface(
         !trailingMeal.test(previous.text) && Boolean(precedingFood?.name.trim());
       if (previousIsFood && following) {
         if (materialQualifier.test(following.text)) {
-          if (comma) {
+          if (comma && !continuesMaterial) {
             // "iogurte, e sem lactose" is a qualifier continuation only
             // across comma, not a semicolon or line boundary.
             const merged = trimSpan(text, previous.start, segment.end);
@@ -428,6 +451,7 @@ export function splitFoodSurface(
     // A subsequent conjunction outside that phrase remains a list separator.
     const protectedOffsets = protectedConjunctions(segment, protectedTerms);
     // Do not split "fatia e meia", "um e meio" or phrases without a clear list boundary.
+    const localMaterialScope = material && operatorsIn(segment).length > 0;
     const separator = /\s+e\s+(?=\S)/giu;
     // Both endpoints of an interval can be compound written numerals, so
     // connectors inside its quantitative prefix are not food separators.
@@ -445,7 +469,7 @@ export function splitFoodSurface(
       const right = segment.text.slice(separator.lastIndex);
       // Do not turn a second material qualifier into a new food.
       // The conjoined expression still belongs to the same observation.
-      if (materialQualifier.test(right)) continue;
+      if (!localMaterialScope && materialQualifier.test(right)) continue;
       // "uma fatia e meia", "dois ovos e meio" and "um e meio copo"
       // are quantities; "2 ovos e meio copo de leite" has two food items.
       // In a chained list the first conjunction may be a terminal fraction:
@@ -487,39 +511,69 @@ export function splitFoodSurface(
     const tail = trimSpan(text, segment.start + offset, segment.end);
     if (tail) joined.push(tail);
   }
-  // In the opt-in branch, report structural constituents of the same
-  // original segments. The shared S1 splitter is the sole grammar owner.
-  if (material) joined.forEach((part, index) => {
-    const materialOperator = [...part.text.matchAll(/(?<!\S)(?:com|sem|mais)(?=\s|$)/giu)].some(match =>
-      !protectedConjunctions(part, protectedTerms, foldFoodSurface(match[0])).has(match.index));
-    const coordinatedWithPrevious = index > 0 && /^\s+e\s+$/iu.test(
-      text.slice(joined[index - 1].end, part.start));
-    const syntax: MaterialSegmentSyntax = { measure: null, materialOperator, coordinatedWithPrevious };
-    material.push(syntax);
+  // The same splitter owns raw boundaries, constituents and any withheld tail.
+  if (!material) return joined;
+  const parts: Segment[] = [];
+  const startsWithNumber = new RegExp("^(?:" + quantityPattern + ")(?=\\s|$|\\p{L})", "iu");
+  for (const part of joined) {
+    const operators = operatorsIn(part);
+    const previous = parts.at(-1);
+    const gap = previous ? text.slice(previous.end, part.start) : "";
+    const continuation = /^[ \t]+e[ \t]+$/iu.test(gap) ||
+      /^[ \t,\/+]*(?:e[ \t]+)?$/iu.test(gap) && /[,\/+]/u.test(gap);
+    let found: { measure: ExplicitIngredientMeasure; remainder: Segment | null } | null = null;
+    bindMeasure: {
+      const connectors = operators.filter(match => /^com$/iu.test(match[0]) &&
+        /\s/u.test(text[match.index - 1] ?? "") &&
+        /\s/u.test(text[match.index + match[0].length] ?? ""));
+      if (operators.length !== 1 || connectors.length !== 1) break bindMeasure;
+      const connector = connectors[0].index;
+      const owner = trimSpan(text, part.start, connector);
+      const suffix = trimSpan(text, connector + 3, part.end);
+      if (!owner || !suffix || /(?<![\p{L}\p{M}\p{N}])ou(?![\p{L}\p{M}\p{N}])/iu.test(owner.text)) break bindMeasure;
 
-    const protectedOffsets = protectedConjunctions(part, protectedTerms, "com");
-    const connectors = [...part.text.matchAll(/(?<!\S)com(?=\s)/giu)]
-      .filter(match => !protectedOffsets.has(match.index));
-    if (connectors.length !== 1) return;
-    const connector = part.start + connectors[0].index;
-    const owner = trimSpan(text, part.start, connector);
-    const suffix = trimSpan(text, connector + 3, part.end);
-    if (!owner || !suffix || /(?<!\S)(?:sem|mais|ou)(?=\s|$)/iu.test(owner.text)) return;
-
-    const parsed = readQuantity(suffix.text, governedUnits, true);
-    if (parsed.value === null || parsed.unit === null || parsed.uncertain ||
-        !parsed.servingText || !parsed.name || !suffix.text.endsWith(parsed.name) ||
-        !suffix.text.startsWith(parsed.servingText) ||
-        /(?<!\S)(?:e|ou|com|sem|mais)(?=\s|$)/iu.test(parsed.name)) return;
-    const ingredientStart = suffix.end - parsed.name.length;
-    // The resulting measure anchor excludes the optional connective "de".
-    const measureEnd = suffix.start + parsed.servingText.replace(/\s+de$/iu, "").length;
-    if (measureEnd >= ingredientStart ||
-        !/^\s+(?:de\s+)?$/iu.test(text.slice(measureEnd, ingredientStart))) return;
-    syntax.measure = {
-      owner, ingredient: { text: parsed.name, start: ingredientStart, end: suffix.end },
-      measureSpan: { start: suffix.start, end: measureEnd }, value: parsed.value, unit: parsed.unit,
-    };
-  });
-  return joined;
+      const parsed = readQuantity(suffix.text, governedUnits, true);
+      if (parsed.value === null || parsed.unit === null || parsed.uncertain ||
+          !parsed.servingText || !parsed.name || !suffix.text.endsWith(parsed.name) ||
+          !suffix.text.startsWith(parsed.servingText)) break bindMeasure;
+      const ingredientStart = suffix.end - parsed.name.length;
+      // A later explicit measure cannot be swallowed as part of an ingredient.
+      // The trailing amount is withheld; without a nonempty proven name the
+      // initial ingredient cannot be emitted either.
+      // Searching for a tail cannot redeem an ingredient beyond the contract's
+      // name limit, so never re-run quantity parsing at every word of a long input.
+      const nameSearch = parsed.name.slice(0, FOOD_CONTRACT_LIMITS.nameText + 2);
+      const second = [...nameSearch.matchAll(/(?:^|\s)(?=\S)/gu)].find(match => {
+        const candidate = parsed.name.slice(match.index + match[0].length);
+        if (!startsWithNumber.test(candidate)) return false;
+        const nested = readQuantity(candidate, governedUnits, true);
+        return nested.value !== null && nested.unit !== null;
+      });
+      const ingredient = trimSpan(text, ingredientStart, second
+        ? ingredientStart + second.index : suffix.end);
+      if (!ingredient || ingredient.text.length > FOOD_CONTRACT_LIMITS.nameText ||
+          /(?<![\p{L}\p{M}\p{N}])(?:e|ou|com|sem|mais)(?![\p{L}\p{M}\p{N}])/iu.test(ingredient.text)) break bindMeasure;
+      const remainder = second
+        ? trimSpan(text, ingredientStart + second.index + second[0].length, suffix.end) : null;
+      const measureEnd = suffix.start + parsed.servingText.replace(/\s+de$/iu, "").length;
+      if (measureEnd >= ingredient.start ||
+          !/^\s+(?:de\s+)?$/iu.test(text.slice(measureEnd, ingredient.start))) break bindMeasure;
+      found = {
+        measure: { owner, ingredient, measureSpan: { start: suffix.start, end: measureEnd },
+          value: parsed.value, unit: parsed.unit },
+        remainder,
+      };
+    }
+    const remainder = found?.remainder;
+    const initial = remainder && found
+      ? trimSpan(text, part.start, found.measure.ingredient.end) : part;
+    if (!initial) continue;
+    parts.push(initial);
+    material.push({ measure: found?.measure ?? null, materialOperator: operators.length > 0, continuation });
+    if (remainder) {
+      parts.push(remainder);
+      material.push({ measure: null, materialOperator: true, continuation: true });
+    }
+  }
+  return parts;
 }

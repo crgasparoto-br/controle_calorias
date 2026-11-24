@@ -237,3 +237,66 @@ describe("produtor interno C1/S1 de vínculos materiais", () => {
     }
   );
 });
+
+describe("limites de escopo material sem inferir outro alimento", () => {
+  it.each([
+    ["/", ["2 g de leite"]],
+    [" +", ["2 g de leite"]],
+    [",", ["2 g de leite"]],
+    [", e", ["2 g de leite"]],
+    [", ,", ["2 g de leite"]],
+    ["", ["2 g de leite"]],
+    [" e", ["2 g de leite"]],
+  ] as const)("preserva a primeira quantidade e retém uma segunda não vinculada após %j", async (join, affected) => {
+    const raw = "chá com 1 g de canela" + join + " 2 g de leite; banana";
+    const result = await comprehendFoodMaterialLanguage(request(raw), lexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("Expected an unresolved continuation");
+    expect(result.observations.map(row => row.identityHints.foodName)).toEqual(["cha", "banana"]);
+    expect(result.observations[0].materialClaims).toMatchObject([
+      { ingredient: { name: "canela" }, amount: { value: 1, unit: "g" } },
+    ]);
+    expect(result.affected.map(({ surfaceSpan: { span } }) => raw.slice(span!.start, span!.end))).toEqual(affected);
+  });
+
+  it("não esconde uma medida sem referente no nome do ingrediente", async () => {
+    const raw = "chá com 1 g de canela 2 g; banana";
+    const result = await comprehendFoodMaterialLanguage(request(raw), lexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("Expected ownerless measure");
+    expect(result.observations[0].materialClaims).toMatchObject([
+      { ingredient: { name: "canela" }, amount: { value: 1, unit: "g" } },
+    ]);
+    expect(result.affected.map(({ surfaceSpan: { span } }) => raw.slice(span!.start, span!.end))).toEqual(["2 g"]);
+  });
+
+  it("não usa o primeiro trecho pendente para encerrar uma cadeia e respeita o limite explícito", async () => {
+    const raw = "chá com 1 g de canela, e leite e pimenta; tangerina";
+    const result = await comprehendFoodMaterialLanguage(request(raw), lexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("Expected an unresolved chain");
+    expect(result.observations.map(row => row.identityHints.foodName)).toEqual(["cha", "tangerina"]);
+    expect(result.observations[0].materialClaims).toMatchObject([
+      { ingredient: { name: "canela" }, amount: { value: 1, unit: "g" } },
+    ]);
+    expect(result.affected.map(({ surfaceSpan: { span } }) => raw.slice(span!.start, span!.end)))
+      .toEqual(["leite", "pimenta"]);
+  });
+
+  it.each([
+    "chá sem: canela", "chá (sem canela)", "chá (sem canela) com 2 g de leite",
+    "chá com 1 g de canela ou 2 g de leite",
+  ])("não perde silenciosamente a negação ou disjunção %s", async clause => {
+    const raw = clause + "; banana";
+    const result = await comprehendFoodMaterialLanguage(request(raw), lexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("Expected unsupported negation to abstain");
+    expect(result.observations.map(row => row.identityHints.foodName)).toEqual(["banana"]);
+    expect(result.affected.map(({ surfaceSpan: { span } }) => raw.slice(span!.start, span!.end))).toEqual([clause]);
+  });
+
+  it("não corta frações e aceita nova medida com dono textual explícito", async () => {
+    const result = await observe(request("chá com 1/2 g de canela, e iogurte com 2 g de leite"));
+    expect(result.map(row => row.identityHints.foodName)).toEqual(["cha", "iogurte"]);
+    expect(result.map(row => row.materialClaims)).toMatchObject([
+      [{ ingredient: { name: "canela" }, amount: { value: 0.5, unit: "g" } }],
+      [{ ingredient: { name: "leite" }, amount: { value: 2, unit: "g" } }],
+    ]);
+  });
+});

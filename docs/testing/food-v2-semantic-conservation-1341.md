@@ -19,7 +19,14 @@ O resultado `unproven-material` delimita por ID e span apenas os trechos
 afetados e retém os irmãos como diagnóstico, sem autorizar persistência.
 Uma medida implícita ou desconhecida, um incremento, uma negação ou uma
 coordenação cuja ligação ainda não se prove não recebe uma ligação
-arbitrária. A ausência de vínculo nessa amostra não é aceitação.
+arbitrária. Depois de uma relação material, vírgula, conjunção, barra
+fora de fração e sinal de adição não bastam para inferir outro item ou
+encerrar uma cadeia que já ficou pendente. Uma segunda medida sem dono
+demonstrado não entra no nome do primeiro ingrediente. Ponto e vírgula
+ou quebra de linha preservam os alimentos irmãos em novo escopo; uma
+nova relação textual completa pode provar seu próprio dono. Negação
+não suportada, mesmo entre parênteses ou antes de dois pontos, não
+vira aceitação. A ausência de vínculo nessa amostra não é aceitação.
 
 `linguisticMaterial.test.ts` lê as referências C1b congeladas, incluindo o
 holdout de quantidades de ingredientes e as continuações sem dono.
