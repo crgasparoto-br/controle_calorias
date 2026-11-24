@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { getDb } from "../../db";
 import { createFoodV2KnowledgeRepository } from "./repository";
 import { hasCurrentBarcodeProof } from "./knowledgeEligibility";
@@ -66,7 +67,7 @@ const nutritionProof = {
 function installResults(...pages: unknown[][]) {
   const select = vi.fn(() => ({
     from() { return this; }, innerJoin() { return this; }, leftJoin() { return this; },
-    where() { return this; },
+    where: vi.fn().mockReturnThis(),
     limit: vi.fn(async () => {
       if (!pages.length) throw new Error("Unexpected governed query");
       return pages.shift();
@@ -345,6 +346,15 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
       ...request, normalizedName: "meu pao",
     })).toMatchObject({ kind: "match", variantId: 22 });
     expect(select).toHaveBeenCalledTimes(11);
+    const query = new MySqlDialect().sqlToQuery(select.mock.results[5].value.where.mock.calls[0][0]);
+    expect(query.sql).toContain("`user_food_aliases`.`user_id` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`normalized_alias` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`source` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`status` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`current_slot` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`revoked_at` is null");
+    expect(query.sql).toContain("`user_food_aliases`.`food_variant_id` = ?");
+    expect(query.params).toEqual([41, "meu pao", "user_confirmed", "active", 1, 22]);
   });
 
   it("does not read a local variant when barcode evidence points to another code", async () => {

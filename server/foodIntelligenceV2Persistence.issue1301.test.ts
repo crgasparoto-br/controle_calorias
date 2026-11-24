@@ -65,8 +65,17 @@ describe("#1301 V2 migration invariants", () => {
     expect(migration).toContain("status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL");
     expect(snapshot.tables.food_evidence.columns).toHaveProperty("retention_until");
     expect(snapshot.tables.food_evidence.columns).toHaveProperty("owner_user_id");
-    expect(snapshot.tables.food_evidence.columns.retention_guard).toMatchObject({ notNull: true, generated: { mode: "virtual" } });
-    expect(snapshot.tables.food_review_cases.columns.supersession_guard).toMatchObject({ notNull: true, generated: { mode: "virtual" } });
+    const generatedGuards = [
+      ["food_evidence", "retention_guard", "CASE WHEN owner_user_id IS NOT NULL AND retention_until IS NULL THEN NULL ELSE 1 END"],
+      ["food_review_cases", "supersession_guard", "CASE WHEN outcome='superseded' AND superseded_by_case_id IS NULL THEN NULL ELSE 1 END"],
+    ] as const;
+    for (const [table, column, expression] of generatedGuards) {
+      expect(snapshot.tables[table].columns[column]).toMatchObject({
+        notNull: true,
+        generated: { type: "virtual", as: expression },
+      });
+      expect(migration).toContain(`\`${column}\` int GENERATED ALWAYS AS (${expression}) VIRTUAL NOT NULL`);
+    }
   });
   it("AUD-1301-006 covers required read paths in migration and generated snapshot", () => {
     const indexes: Array<[string, string, string[]]> = [
