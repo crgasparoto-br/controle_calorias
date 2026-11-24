@@ -386,6 +386,13 @@
       "when": 1792601700000,
       "tag": "0056_food_v2_source_governance",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "5",
+      "when": 1795530817342,
+      "tag": "0057_food_v2_current_slot_checks",
+      "breakpoints": true
     }
   ]
 }

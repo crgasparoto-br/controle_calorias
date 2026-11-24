@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { getDb } from "../../db";
 import { createFoodV2KnowledgeRepository } from "./repository";
 import { readThroughGovernedKnowledge } from "./knowledgeRead";
@@ -26,7 +27,7 @@ function installResults(...pages: unknown[][]) {
     from() { return this; },
     innerJoin() { return this; },
     leftJoin() { return this; },
-    where() { return this; },
+    where: vi.fn().mockReturnThis(),
     limit: vi.fn(async () => {
       if (!pages.length) throw new Error("Unexpected governed query");
       return pages.shift();
@@ -71,7 +72,7 @@ describe("B2 actual repository governed read", () => {
       sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1",
     };
     const evidence = commercialLabelEvidence(mapping, nutrition);
-    installResults(
+    const select = installResults(
       [{ id: 22 }],                 // confirmed alias points to SKU 22
       [{ id: 99 }],                 // homonymous exact name points elsewhere
       [],                           // unrelated global alias
@@ -93,6 +94,14 @@ describe("B2 actual repository governed read", () => {
       variantId: 22, governanceStatus: "verified",
       sourceReference: mapping.sourceUrl,
     });
+    const query = new MySqlDialect().sqlToQuery(select.mock.results[0].value.where.mock.calls[0][0]);
+    expect(query.sql).toContain("`user_food_aliases`.`user_id` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`normalized_alias` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`source` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`status` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`current_slot` = ?");
+    expect(query.sql).toContain("`user_food_aliases`.`revoked_at` is null");
+    expect(query.params).toEqual([41, "meu pao", "user_confirmed", "active", 1]);
   });
 
 

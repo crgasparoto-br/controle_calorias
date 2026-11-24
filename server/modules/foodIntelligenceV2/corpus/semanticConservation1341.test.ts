@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { comprehendFoodLanguage } from "../linguisticComprehension";
 import type { LinguisticLexiconStore } from "../linguisticComprehension";
 import { parseFoodObservation } from "../schemas";
+import { registerC1bR3DiagnosticSuite } from "./semanticConservation1341.r3.suite.fixture";
 import { extractExplicitSugarQuantity, normalizeSweetenedCoffeeDraftItems } from "../../../coffeeSugarNutrition";
 import { parseFoodText, splitFoodTextSegments } from "../../../mealTextParsing";
 import { goldenFoodCorpusCases } from "./data";
@@ -1179,3 +1180,5 @@ describe("#1341: conservação semântica V1 × V2 — diagnóstico sem cutover"
     // Deliberately diagnostic-only. The public persistence gate remains #1308.
   });
 });
+
+registerC1bR3DiagnosticSuite(cases, generatorVersion);

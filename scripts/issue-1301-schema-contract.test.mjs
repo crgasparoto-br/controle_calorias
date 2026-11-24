@@ -53,3 +53,44 @@ test("AUD-1301-006: all ADR read indexes match SQL, Drizzle and generated snapsh
     assert.ok(schema.includes(`index("${name}").on(${drizzleColumns.map(column => `table.${column}`).join(", ")})`), `Drizzle: ${name}`);
   }
 });
+
+const slotPatch = readFileSync(new URL("../drizzle/0057_food_v2_current_slot_checks.sql", import.meta.url), "utf8");
+const slotRollback = readFileSync(new URL("../drizzle/rollback/0057_food_v2_current_slot_checks.sql", import.meta.url), "utf8");
+const b2Snapshot = JSON.parse(readFileSync(new URL("../drizzle/meta/0056_snapshot.json", import.meta.url), "utf8"));
+const slotSnapshot = JSON.parse(readFileSync(new URL("../drizzle/meta/0057_snapshot.json", import.meta.url), "utf8"));
+const slotJournal = JSON.parse(readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8"));
+const activeSlots = [
+  ["user_food_aliases", "user_food_aliases_current_ck", true],
+  ["user_food_lexicon_entries", "user_food_lexicon_current_ck", true],
+  ["food_attribute_materiality_overrides", "food_attr_override_current_ck", false],
+];
+
+test("0057 exactly adds null-total state checks without changing historical slots", () => {
+  const expectedSnapshot = structuredClone(b2Snapshot);
+  expectedSnapshot.id = slotSnapshot.id;
+  expectedSnapshot.prevId = b2Snapshot.id;
+  assert.notEqual(slotSnapshot.id, b2Snapshot.id);
+  const expectedSql = [];
+  const expectedRollback = [];
+  for (const [table, name, hasRevokedAt] of activeSlots) {
+    const active = "status='active' AND current_slot IS NOT NULL AND current_slot=1";
+    const value = "((" + active + (hasRevokedAt ? " AND revoked_at IS NULL" : "") +
+      ") OR (status='revoked' AND current_slot IS NULL))";
+    const metadata = expectedSnapshot.tables[table];
+    assert.equal(metadata.columns.status.notNull, true);
+    assert.equal(metadata.columns.current_slot.notNull, false);
+    metadata.checkConstraint[name] = { name, value };
+    assert.ok(schema.includes('check("' + name + '", sql`' + value + '`)'));
+    expectedSql.push("ALTER TABLE `" + table + "` ADD CONSTRAINT `" + name + "` CHECK (" + value + ");");
+    expectedRollback.unshift("ALTER TABLE `" + table + "` DROP CONSTRAINT `" + name + "`;");
+  }
+  const sqlStatements = input => input.replace(/^--(?!>).*$/gm, "").split("--> statement-breakpoint").map(s => s.trim());
+  assert.deepEqual(sqlStatements(slotPatch), expectedSql, "forward contains exactly three additive checks");
+  assert.deepEqual(sqlStatements(slotRollback), expectedRollback, "reverse only the three new checks");
+  assert.deepEqual(slotSnapshot, expectedSnapshot, "no unrelated schema drift");
+  const baseline = slotJournal.entries.find(entry => entry.idx === 56);
+  const forward = slotJournal.entries.find(entry => entry.idx === 57);
+  assert.equal(baseline?.tag, "0056_food_v2_source_governance");
+  assert.equal(forward?.tag, "0057_food_v2_current_slot_checks");
+  assert.ok(forward.when > baseline.when);
+});

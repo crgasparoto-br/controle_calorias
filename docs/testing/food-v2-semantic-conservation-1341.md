@@ -5,6 +5,97 @@ rollout, gate nutricional ou aprovação independente. Fonte normativa:
 `docs/design-docs/adr-food-intelligence-resolver-v2.md` §§4.1.2–4.1.8, 16–18;
 evidência atual do corpus em `server/modules/foodIntelligenceV2/corpus/`.
 
+## Primeiro recorte do produtor material inativo
+
+`comprehendFoodMaterialLanguage` opta pela revisão 3 na **mesma LCL**
+S1/S2. Reutiliza a segmentação, a gramática de quantidades e o léxico
+governado; não chama S3. Neste recorte, a gramática
+`alimento com medida explícita de ingrediente` em texto/transcrição
+produz dono, ingrediente e medida com evidência separada por ocorrência.
+Ele não converte medidas em gramas e não acrescenta macros ou decisão.
+`comprehendFoodLanguage` e as pendências persistidas continuam na revisão 2.
+
+O resultado `unproven-material` delimita por ID e span apenas os trechos
+afetados e retém os irmãos como diagnóstico, sem autorizar persistência.
+Uma medida implícita ou desconhecida, um incremento, uma negação ou uma
+coordenação cuja ligação ainda não se prove não recebe uma ligação
+arbitrária. Depois de uma relação material, vírgula, conjunção, barra
+fora de fração e sinal de adição não bastam para inferir outro item ou
+encerrar uma cadeia que já ficou pendente. Uma segunda medida sem dono
+demonstrado não entra no nome do primeiro ingrediente. O produtor só
+emite um nome lexical íntegro: se a pontuação estrutural ou a primeira
+medida subsequente (por exemplo, faixa ou unidade implícita) impede
+provar esse limite, o trecho inteiro fica pendente. Qualificadores
+aparentemente benignos entre parênteses também ficam pendentes neste
+recorte; separadores dentro de um grupo balanceado não criam itens
+irmãos. Ponto e vírgula
+ou quebra de linha preservam os alimentos irmãos em novo escopo; uma
+nova relação textual completa pode provar seu próprio dono. Negação
+não suportada, mesmo entre parênteses ou antes de dois pontos, não
+vira aceitação. A ausência de vínculo nessa amostra não é aceitação.
+
+`linguisticMaterial.test.ts` lê as referências C1b congeladas, incluindo o
+holdout de quantidades de ingredientes e as continuações sem dono.
+Valida dono, unidade, valor, fonte e spans, sem mudar partições/rótulos.
+Este resultado é limitado à gramática inicial: outros vínculos, admissão
+pública, acurácia, custo e latência continuam fora da demonstração.
+
+## Comparação diagnóstica R3 sobre a regressão congelada
+
+`c1b-r3-compare-v2` confronta o retorno do produtor material inativo com
+as mesmas referências independentes C1b, sem derivar rótulos do parser.
+Confere dono por ocorrência, ingrediente, valor, unidade, evidência
+relacionada e âncoras UTF-16 da fonte. Distingue prova tipada de ingrediente,
+prova por campo já existente (mesmo oráculo R2), abstenção explícita
+ancorada, divergência semântica e fato ausente. Um retorno pendente pode
+reter irmãos provados como diagnóstico, mas nunca completa o lote.
+A matriz histórica R2 e seu caminho no CI continuam separados e intactos.
+O relatório R3 também preserva avisos da projeção auxiliar R2: essa
+projeção não contém a evidência material tipada, nem usa o percurso S1
+limitado ao dono como prova R2 para a medida do ingrediente. A checagem
+reversa reusa o oráculo de campos existentes no trecho do dono e nos fatos
+alimentares locais já rotulados. Uma quantidade de ingrediente não
+autoriza uma quantidade do alimento inteiro. Afirmações adicionais não
+rotuladas ou contraditórias aparecem separadamente em
+`sharedMaterialIssues`, por observação, e deixam o lote incompleto mesmo
+quando as provas dos ingredientes estão corretas.
+
+Reprodução somente local, com léxico sintético fixo, sem serviços externos:
+
+```sh
+VERIFICATION_HEAD_SHA="$(git rev-parse HEAD)" C1B_R3_DIAGNOSTIC_OUTPUT_DIR=/tmp/c1b-r3 \
+  pnpm exec vitest run server/modules/foodIntelligenceV2/corpus/semanticConservation1341.test.ts -t 'R3: comparação'
+```
+
+O arquivo `c1b-1341-r3-diagnostic.json` tem esquema de relatório 2, revisão
+de observação 3 e contadores por conjunto e partição. Linhagem congelada:
+`c1b-cartesian-v2`, corpus `golden-2026-10-06.2`, SHA-256 da lista
+ordenada de casos, partições e referências
+`6dc8284dc939d072c54152eae5c2c540b4c1d4b6f863f3eb28e6670b0a1c1675`.
+
+Leitura factual do produtor inativo na base `5edf51bc548dd49bbddfc674c6b4b9b1b01fee9b`,
+usando este comparador:
+
+| Conjunto / partição | Casos | Fatos | Ingrediente tipado | Outros campos provados | Abstenções | Casos com afirmação adicional não comprovada |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Autoral / calibração | 12 | 33 | 5 | 13 | 15 | 3 |
+| Autoral / holdout | 12 | 25 | 18 | 3 | 4 | 7 |
+| Gerado / holdout | 12 | 24 | 24 | 0 | 0 | 12 |
+| **Total** | **36** | **82** | **47** | **16** | **19** | **22** |
+
+Não houve divergência ou ausência entre os fatos rotulados. O produtor se
+absteve em 9 dos 36 casos e somente 8 completaram o diagnóstico. As
+22 ocorrências adicionais são medidas inteiras de `um pudim` sem rótulo
+separado de quantidade do alimento no corpus. Falta prova independente:
+isso não equivale a chamar a leitura do artigo de fabricada. Esses casos
+podem também conter abstenções. Não há conjunto gerado de calibração. O
+holdout desta regressão já é conhecido: não representa avaliação cega
+nova. Abstenções não contam como êxito, e os números observados não são
+limiar de teste. Os controles sintéticos verificam remoção, troca, âncora
+truncada, dono sem âncora, afirmação extra sobre café, medidas do alimento e
+do ingrediente com rótulos próprios, e recusa de lote parcial. Sem aprovação
+semântica, autorização de escrita, ativação de flag, S3 ou cutover.
+
 ## Hipótese a refutar
 
 A preservação de `rawInput` e de um span que inclui a frase inteira **não prova**

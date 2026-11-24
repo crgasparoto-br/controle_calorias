@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { goldenFoodCorpus } from "./data";
-import type { CorpusReport } from "./harness";
+import { segmentKeysOf, type CorpusReport } from "./harness";
+import {
+  calibrationPartitionMember, createCalibrationPartitionManifest, GOLDEN_CALIBRATION_PARTITIONS,
+  verifyCalibrationPartitions,
+} from "./calibrationPartition.test.support";
 import {
   CALIBRATION_PARAMETERS, C3_PRE_REGISTERED_PARAMETER_DEFINITIONS, evaluateLockedHoldout, projectSplitEvidence,
   selectCalibrationCandidate, verifyCalibrationPlan,
@@ -24,6 +28,7 @@ const parameterPlan = (): CalibrationPlan => ({
   owner: "test-only-owner",
   reference: "test:independent-fixture-no-human-approval",
   corpusVersion: goldenFoodCorpus.corpusVersion,
+  partitionManifest: GOLDEN_CALIBRATION_PARTITIONS,
   resolverId: "food-intelligence-v2-domain-resolver",
   preRegisteredAt: registeredAt,
   revisions,
@@ -36,51 +41,72 @@ const parameterPlan = (): CalibrationPlan => ({
   maxExternalCalls: 0,
 });
 
-function segments(matched = 12): CalibrationSegment[] {
-  const failed = 15 - matched;
-  return [
-    { dimension: "modality", label: "text", cases: 20, resolvableLabeled: 15, matchedResolvable: matched, failedCases: failed },
-    { dimension: "brand", label: "none", cases: 20, resolvableLabeled: 15, matchedResolvable: matched, failedCases: failed },
-    { dimension: "measure", label: "g", cases: 20, resolvableLabeled: 15, matchedResolvable: matched, failedCases: failed },
-    { dimension: "decisionClass", label: "resolvable", cases: 15, resolvableLabeled: 15, matchedResolvable: matched, failedCases: failed },
-    { dimension: "decisionClass", label: "clarification", cases: 5, resolvableLabeled: 0, matchedResolvable: 0, failedCases: 0 },
-    { dimension: "nonRecurrenceClass", label: "A", cases: 20, resolvableLabeled: 15, matchedResolvable: matched, failedCases: failed },
-  ].sort((a, b) => a.dimension.localeCompare(b.dimension) || a.label.localeCompare(b.label));
+function fixtureSegments(facts: readonly CalibrationCaseFact[]): CalibrationSegment[] {
+  const keys: Record<CalibrationSegment["dimension"], (fact: CalibrationCaseFact) => string[]> = {
+    modality: fact => [fact.modality], brand: fact => [fact.brand], measure: fact => [fact.measure],
+    decisionClass: fact => [fact.decisionClass], nonRecurrenceClass: fact => fact.nonRecurrenceClasses,
+  };
+  return (Object.keys(keys) as CalibrationSegment["dimension"][]).flatMap(dimension => {
+    const labelsOf = keys[dimension];
+    return [...new Set(facts.flatMap(labelsOf))].map(label => {
+      const rows = facts.filter(fact => labelsOf(fact).includes(label));
+      return {
+        dimension, label, cases: rows.length,
+        resolvableLabeled: rows.filter(fact => fact.decisionClass === "resolvable").length,
+        matchedResolvable: rows.filter(fact => fact.decisionClass === "resolvable" && !fact.failed).length,
+        failedCases: rows.filter(fact => fact.failed).length,
+      };
+    });
+  }).sort((a, b) => a.dimension.localeCompare(b.dimension) || a.label.localeCompare(b.label));
 }
 
-/** Synthetic measurements solely to test the selector, never calibration evidence. */
+const partitionDigest = verifyCalibrationPartitions(
+  GOLDEN_CALIBRATION_PARTITIONS, goldenFoodCorpus.corpusVersion,
+);
+
+/** Simulated outcomes over authentic split membership; never calibration evidence.
+ * `score=15` means zero synthetic failures; each step below it adds one. */
 function evidence(
-  candidateId: string, matched = 12,
+  candidateId: string, score = 12,
   split: SplitEvidence["split"] = "calibration", failureOffset = 0,
 ): SplitEvidence {
   const policies: Record<string, string> = {
     baseline: "test-policy-baseline", "candidate-a": "test-policy-a",
     "candidate-b": "test-policy-b",
   };
-  const failures = new Set(Array.from({ length: 15 - matched }, (_, i) =>
-    "synthetic-case-" + (failureOffset + i)));
-  const caseFacts: CalibrationCaseFact[] = Array.from({ length: 20 }, (_, i) => ({
-    caseId: "synthetic-case-" + i,
-    decisionClass: i < 15 ? "resolvable" as const : "clarification" as const,
-    nonRecurrenceClasses: ["A"], modality: "text", brand: "none", measure: "g",
-    failed: failures.has("synthetic-case-" + i),
-  }));
+  const entries = goldenFoodCorpus.cases.filter(entry => entry.split === split)
+    .sort((a, b) => a.caseId.localeCompare(b.caseId));
+  const resolvable = entries.filter(entry => entry.decisionClass === "resolvable");
+  const failures = new Set(resolvable.slice(failureOffset, failureOffset + 15 - score).map(entry => entry.caseId));
+  const caseFacts: CalibrationCaseFact[] = entries.map(entry => {
+    const { modality, brand, measure } = segmentKeysOf(entry);
+    return {
+      ...calibrationPartitionMember(entry),
+      decisionClass: entry.decisionClass, nonRecurrenceClasses: [...entry.nonRecurrenceClasses],
+      modality, brand, measure, failed: failures.has(entry.caseId),
+    };
+  });
+  const failuresByClass: Record<string, number> = {};
+  for (const fact of caseFacts.filter(row => row.failed)) {
+    for (const label of ["decision:" + fact.decisionClass, ...fact.nonRecurrenceClasses.map(n => "nonrecurrence:" + n)]) {
+      failuresByClass[label] = (failuresByClass[label] ?? 0) + 1;
+    }
+  }
   return {
     planId: "pre-registered-c3-1", candidateId,
     runId: split + ":" + candidateId,
     recordedAt: split === "holdout" ? "2026-10-26T10:05:00.000Z" : "2026-10-26T10:02:00.000Z",
-    split, corpusVersion: goldenFoodCorpus.corpusVersion,
+    split, corpusVersion: goldenFoodCorpus.corpusVersion, partitionDigest,
     resolverId: "food-intelligence-v2-domain-resolver",
     revisions: { ...revisions, policy: policies[candidateId] },
-    cases: 20, resolvableLabeled: 15, matchedResolvable: matched,
-    matchedCases: 5 + matched, failedCases: 15 - matched,
+    cases: entries.length, resolvableLabeled: resolvable.length,
+    matchedResolvable: resolvable.length - failures.size,
+    matchedCases: entries.length - failures.size, failedCases: failures.size,
     nonResolvableFailures: 0, abstentions: 0,
-    totalCostUsd: 0.05, costSamples: 20,
-    totalLatencyMs: 300, latencySamples: 20,
-    failuresByClass: matched < 15
-      ? { "decision:resolvable": 15 - matched, "nonrecurrence:A": 15 - matched } : {},
-    failedCaseIds: [...failures].sort(), caseFacts,
-    segments: segments(matched), corpusGate: { status: "passed", blockReasons: [] },
+    totalCostUsd: 0.05, costSamples: entries.length,
+    totalLatencyMs: 300, latencySamples: entries.length,
+    failuresByClass, failedCaseIds: [...failures].sort(), caseFacts,
+    segments: fixtureSegments(caseFacts), corpusGate: { status: "passed", blockReasons: [] },
     structuralViolations: [],
   };
 }
@@ -321,15 +347,90 @@ describe("#1306 C3: pre-registration and offline calibration", () => {
     expect(() => accept({ ...good, failedCaseIds: ["unknown-case"] })).toThrow();
     const badFacts = good.caseFacts.map((fact, i) => i === 0
       ? { ...fact, caseId: "invented-case" } : fact);
-    const universe = accept({ ...good, caseFacts: badFacts });
-    expect(universe.status).toBe("locked_for_holdout");
-    if (universe.status === "locked_for_holdout") {
-      expect(universe.calibrationComparison[0].reasons).toContain("case_universe_mismatch");
-      expect(universe.selectedCandidateId).toBe("candidate-b");
-    }
+    expect(() => accept({ ...good, caseFacts: badFacts })).toThrow(/split membership mismatch/);
     expect(() => accept({ ...good, caseFacts: [...good.caseFacts, good.caseFacts[0]] })).toThrow();
   });
 
+});
+
+describe("#1306: identidade canônica de calibração e holdout", () => {
+  function lockFixture() {
+    const plan = parameterPlan();
+    const proof = { baseline: evidence("baseline", 15),
+      candidates: [evidence("candidate-a", 15), evidence("candidate-b", 14)] };
+    const lock = selectCalibrationCandidate(plan, proof.baseline, proof.candidates, lockedAt);
+    if (lock.status !== "locked_for_holdout") throw new Error("fixture did not lock");
+    return { plan, proof, lock, baseline: evidence("baseline", 15, "holdout"),
+      trial: evidence("candidate-a", 15, "holdout") };
+  }
+
+  it("freezes canonical IDs and groups, rejects a different valid-looking manifest", () => {
+    const plan = parameterPlan();
+    const manifest = plan.partitionManifest;
+    expect(Object.isFrozen(manifest)).toBe(true);
+    expect(Object.isFrozen(manifest.holdout)).toBe(true);
+    expect(Object.isFrozen(manifest.holdout[0].semanticGroups)).toBe(true);
+    expect(manifest.calibration.every(row => !manifest.holdout.some(other =>
+      row.caseId === other.caseId || row.semanticGroups.some(group => other.semanticGroups.includes(group))))).toBe(true);
+    const alternative = { ...manifest, holdout: manifest.holdout.map((row, i) =>
+      i ? row : { ...row, caseId: "new-reserved-id" }) };
+    expect(() => verifyCalibrationPlan({ ...plan, partitionManifest: alternative })).toThrow(/canonical Golden/);
+    expect(() => verifyCalibrationPlan({ ...plan, corpusVersion: "another-corpus",
+      partitionManifest: { ...alternative, corpusVersion: "another-corpus" } })).toThrow(/canonical Golden/);
+  });
+
+  it.each(["metamorphicGroup", "learningScenarioId"] as const)(
+    "rejects overlap by %s even with different case IDs",
+    field => {
+      const first = { caseId: "first", split: "calibration" as const, metamorphicGroup: null, learningScenarioId: null };
+      const second = { caseId: "second", split: "holdout" as const, metamorphicGroup: null, learningScenarioId: null };
+      expect(() => createCalibrationPartitionManifest("synthetic-controls", [
+        { ...first, [field]: "shared-family" }, { ...second, [field]: "shared-family" },
+      ])).toThrow(/semantic group crosses/);
+      expect(() => createCalibrationPartitionManifest("synthetic-controls", [
+        first, { ...second, caseId: first.caseId },
+      ])).toThrow(/case reused/);
+    },
+  );
+
+  it("rejects relabelled calibration runs after lock despite fresh holdout timestamps", () => {
+    const { plan, proof, lock, baseline, trial } = lockFixture();
+    expect(evaluateLockedHoldout(plan, lock, baseline, trial, proof))
+      .toMatchObject({ status: "awaiting_independent_approval", approved: false });
+    const relabel = (from: SplitEvidence): SplitEvidence => ({
+      ...from, split: "holdout", runId: "fresh-" + from.runId, recordedAt: trial.recordedAt,
+    });
+    expect(() => evaluateLockedHoldout(plan, lock, relabel(proof.baseline),
+      relabel(proof.candidates[0]), proof)).toThrow(/split membership mismatch/);
+    expect(() => evaluateLockedHoldout(plan, lock, baseline, relabel(proof.candidates[0]), proof))
+      .toThrow(/split membership mismatch/);
+    expect(() => evaluateLockedHoldout(plan, lock, baseline,
+      { ...trial, runId: proof.candidates[0].runId }, proof)).toThrow(/holdout exposed/);
+  });
+
+  it("fails closed on changed group, manifest digest or exact code revision", () => {
+    const { plan, proof, lock, baseline, trial } = lockFixture();
+    const wrongGroup = { ...trial, caseFacts: trial.caseFacts.map((row, i) => i ? row
+      : { ...row, semanticGroups: [...row.semanticGroups, "learning:foreign"] }) };
+    expect(() => evaluateLockedHoldout(plan, lock, baseline, wrongGroup, proof)).toThrow(/split membership mismatch/);
+    expect(() => evaluateLockedHoldout(plan, { ...lock, partitionDigest: "0".repeat(64) }, baseline, trial, proof))
+      .toThrow(/matching calibration proof/);
+    expect(() => evaluateLockedHoldout(plan, lock, baseline, { ...trial, partitionDigest: "0".repeat(64) }, proof))
+      .toThrow(/provenance/);
+    expect(() => evaluateLockedHoldout(plan, lock, baseline,
+      { ...trial, revisions: { ...trial.revisions, code: "a".repeat(40) } }, proof)).toThrow(/provenance/);
+  });
+
+  it("keeps incomplete or failed calibration non-promotable on valid membership", () => {
+    const { plan, proof, lock, baseline, trial } = lockFixture();
+    expect(() => selectCalibrationCandidate(plan, proof.baseline, [proof.candidates[0]], lockedAt)).toThrow(/trial missing/);
+    expect(selectCalibrationCandidate(plan, proof.baseline,
+      [evidence("candidate-a", 13), evidence("candidate-b", 14)], lockedAt)).toMatchObject({ status: "blocked" });
+    const incomplete = { ...trial, corpusGate: { status: "sample_missing" as const, blockReasons: ["not_measured"] } };
+    expect(evaluateLockedHoldout(plan, lock, baseline, incomplete, proof)).toMatchObject({
+      status: "rejected", approved: false, reasons: expect.arrayContaining(["holdout_candidate:corpus_gate_sample_missing"]),
+    });
+  });
 });
 
 describe("#1306: only split-scoped independent Golden labels reach tuning", () => {
@@ -363,6 +464,15 @@ describe("#1306: only split-scoped independent Golden labels reach tuning", () =
       gate: { status: holdoutCaseId ? "failed" : "passed", blockReasons: [] },
     } as unknown as CorpusReport;
   }
+
+  it("cannot project a differently partitioned corpus under canonical version and counters", () => {
+    const altered = { ...goldenFoodCorpus, cases: goldenFoodCorpus.cases.map(entry => ({
+      ...entry,
+      caseId: entry.split === "holdout" ? "substituted-" + entry.caseId : entry.caseId,
+    })) };
+    expect(() => projectSplitEvidence(altered, reportWithHoldoutFailure(null),
+      "plan", "candidate", "run", registeredAt, "calibration")).toThrow(/canonical Golden/);
+  });
 
   it("holds calibration metrics and brand/measure segments constant when holdout answers change", () => {
     const caseId = goldenFoodCorpus.cases.find(c =>

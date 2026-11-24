@@ -5,6 +5,9 @@ on:
     paths:
       - "drizzle/**"
       - "scripts/test-food-v2-migration-tidb.mjs"
+      - "scripts/test-food-v2-current-slots.mjs"
+      - "scripts/issue-1301-schema-contract.test.mjs"
+      - "scripts/issue-1302-schema-contract.test.mjs"
       - ".github/workflows/food-v2-migration-tidb.yml"
   workflow_dispatch:
 
@@ -28,6 +31,9 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
+      - name: Verify V2 SQL and Drizzle migration contracts
+        run: node --test scripts/issue-1301-schema-contract.test.mjs scripts/issue-1302-schema-contract.test.mjs
 
       - name: Start isolated TiDB
         run: |
