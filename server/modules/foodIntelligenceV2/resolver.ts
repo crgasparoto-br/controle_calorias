@@ -469,9 +469,6 @@ export async function resolveFoodObservation(
     // assertions for the same changed field, not independent source proof.
     discardSupersededUserIdentityEvidence(observation, previous, evidence);
   }
-  // Do not choose, discard or look up material claims to squeeze an otherwise
-  // unrepresentable continuation into the current decision.
-  if (previous && evidence.length > FOOD_CONTRACT_LIMITS.collection) return deferred();
   const identity = emptyResolutionIdentity();
   const decision: FoodResolutionDecision = {
     schemaVersion: 2,
@@ -518,6 +515,9 @@ export async function resolveFoodObservation(
         isCurrentKnowledgeValidity(previous.knowledgeValidity, now, context.userId, context.resolverVersion) &&
         (!previous.quantity.portionSnapshot || isCurrentPortion(previous.quantity.portionSnapshot, now)) &&
         compatiblePreviousIdentity) {
+      // All still-current proofs belong to this continuation. Do not prune a
+      // valid snapshot to fit more evidence, nor re-read to force a revision.
+      if (evidence.length > FOOD_CONTRACT_LIMITS.collection) return deferred();
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = (q.value !== null && q.unit !== null &&
@@ -543,7 +543,12 @@ export async function resolveFoodObservation(
       const checked = parseFoodResolutionDecision(preserved);
       if (checked.ok) return completed(checked.value);
     }
-    if (previous) discardSupersededDerivedEvidence(observation, previous, evidence);
+    if (previous) {
+      // This branch must revalidate authority. Its old derived conclusions are
+      // already superseded, unlike incoming and independently accepted facts.
+      discardSupersededDerivedEvidence(observation, previous, evidence);
+      if (evidence.length > FOOD_CONTRACT_LIMITS.collection) return deferred();
+    }
     // Repeat the actual governed query (including personal aliases) when the
     // reply contains only a missing field, without guessing a canonical name.
     const acceptedLookup = previous?.evidence.find(item => previous.identity.evidenceIds.includes(item.evidenceId) &&

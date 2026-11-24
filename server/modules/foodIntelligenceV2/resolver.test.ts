@@ -646,6 +646,47 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
         .rejects.toThrow("food-resolution-attempt-requires-authoritative-prior");
     });
 
+    it.each([1, 8])("revalida fonte revogada sem adiar quando %s fatos novos cabem após substituir derivações", async added => {
+      const { store, previous, turn } = await fillWithConcordantTurns();
+      const immutable = structuredClone(previous);
+      vi.mocked(store.readLocal).mockResolvedValue({ kind: "miss", reason: "no_governed_profile" });
+      const input = classifications(turn, added);
+      const result = await resolveFoodObservation(input, {
+        ...context, previousDecision: previous, knowledgeRevision: "revoked-source",
+      }, store, { attemptVersion: 1, requestKey: "refresh-fit" });
+      expect(foodResolutionAttemptSchema.safeParse(result).success).toBe(true);
+      if (result.outcome !== "evaluated") throw new Error("deterministically representable refresh deferred");
+      const { decision } = result;
+      expect(decision.decisionId).toBe(previous.decisionId);
+      expect(decision.revision).toBe(previous.revision + 1);
+      expect(decision.nextAction).not.toBe("propose");
+      expect(decision.nutrition.consumed).toBeNull();
+      expect(decision.knowledgeValidity).toBeUndefined();
+      expect(decision.quantity).toMatchObject({ value: 1.5, unit: "fatia", grams: null });
+      expect(decision.evidence).toHaveLength(FOOD_CONTRACT_LIMITS.collection + added - 8);
+      expect(decision.evidence).toEqual(expect.arrayContaining(input.evidence));
+      expect(decision.evidence.some(item => previous.nutrition.evidenceIds.includes(item.evidenceId))).toBe(false);
+      expect(previous).toEqual(immutable);
+      expect(store.readLocal).toHaveBeenCalledTimes(2);
+      expect(store.readPendingEvidence).not.toHaveBeenCalled();
+      expect(store.stagePendingEvidence).not.toHaveBeenCalled();
+    });
+
+    it("adia sem consultar fontes se a supersessão ainda deixa prova acima do limite", async () => {
+      const { store, previous, turn } = await fillWithConcordantTurns();
+      vi.mocked(store.readLocal).mockResolvedValue({ kind: "miss", reason: "no_governed_profile" });
+      const input = classifications(turn, 9); // 200 + 9 − 8 = 201 required facts.
+      const result = deferred(await resolveFoodObservation(input, {
+        ...context, previousDecision: previous, knowledgeRevision: "revoked-source",
+      }, store, { attemptVersion: 1, requestKey: "refresh-overflow" }));
+      expect(result.acceptedDecision.revision).toBe(previous.revision);
+      expect(result.failure.evidence).toEqual([]);
+      expect(result.failure.nutrition.consumed).toBeNull();
+      expect(store.readLocal).toHaveBeenCalledTimes(1);
+      expect(store.readPendingEvidence).not.toHaveBeenCalled();
+      expect(store.stagePendingEvidence).not.toHaveBeenCalled();
+    });
+
     it("adiciona prova local somente se o resultado inteiro for representável", async () => {
       const originalStore = fakeStore({ kind: "miss", reason: "not_found" });
       const originalInput = classifications(1, FOOD_CONTRACT_LIMITS.collection - 1);
