@@ -94,11 +94,12 @@ function seal(options: {
   label?: unknown;
   input?: unknown;
   outputs?: unknown;
+  snapshot?: unknown;
   parser?: string;
   comparator?: string;
   run?: string;
 } = {}) {
-  const lexiconSnapshot = bytes(lexicon);
+  const lexiconSnapshot = bytes(options.snapshot ?? lexicon);
   const inputs = bytes(options.input ?? entries);
   const outputs = bytes(options.outputs ?? [{ id, result: options.result ?? { ok: true, observations: capture() } }]);
   const labels = bytes(options.label ?? answer());
@@ -121,7 +122,14 @@ function seal(options: {
 
 describe("sealed R3 negation diagnostic (public synthetic fixtures)", () => {
   it("matches occurrences in UTF-16, not by order or repeated food names", () => {
-    const sealed = seal();
+    const observations = capture();
+    const row = observations[0];
+    row.alternatives.push({
+      hypothesisId: "identity-without-quantity", identityHints: { ...row.identityHints },
+      quantityHints: { ...row.quantityHints, value: null, unit: null, servingText: null },
+      evidenceIds: [], confidence: null,
+    });
+    const sealed = seal({ result: { ok: true, observations } });
     expect(verifiedR3NegationStudyInputs(sealed)).toEqual({
       lexiconRevision, inputs: [{ id, rawText: raw, modality: "text", sourceRef }],
     });
@@ -152,6 +160,126 @@ describe("sealed R3 negation diagnostic (public synthetic fixtures)", () => {
     const compared = compareSealedR3NegationStudy(seal({ result, input }));
     expect(compared.totals).toMatchObject({ verified: 3, mismatch: 0, missing: 0, extras: 0, statusMismatches: 0 });
     expect(compared.byModality[mode].verified).toBe(3);
+  });
+
+  it.each(["text", "audio_transcript"] as const)("preserves canonical serving wording and S2 unit evidence in %s", async modality => {
+    const text = "2 medidores de beijus sem anis; 3 copos de caldo; figos; 2 a 3 jabuticabas";
+    const input = [{ ...entries[0], text, modality }];
+    const snapshot = [...lexicon, { ...lexicon[0], id: 3, term: "medidores", normalizedTerm: "medidores",
+      kind: "unit_term" as const, targetType: "canonical_term" as const, targetRef: "copo" }];
+    const label = { nonce: "e".repeat(64), rows: [{
+      id, expectedStatus: "linked", forbiddenFoodNames: ["anis"],
+      negations: [{
+        owner: { name: range(15, 21), scope: range(0, 30), nameHint: "beijus",
+          wholeAmount: { value: 2, unit: "copo", measure: range(0, 11),
+            unitAlias: { term: "medidores", entryId: 3, anchor: range(0, 21) } } },
+        operator: range(22, 25), ingredient: range(26, 30),
+      }],
+      unaffected: [
+        { name: range(43, 48), scope: range(32, 48), nameHint: "caldo", serving: range(32, 42),
+          wholeAmount: { value: 3, unit: "copo", measure: range(32, 39) } },
+        { name: range(50, 55), scope: range(50, 55), nameHint: "figos", wholeAmount: null },
+        { name: range(57, 74), scope: range(57, 74), nameHint: "2 a 3 jabuticabas",
+          serving: range(57, 74), wholeAmount: null },
+      ],
+      affected: [],
+    }] };
+    const [{ rawText, sourceRef }] = verifiedR3NegationStudyInputs(seal({ input, label, snapshot })).inputs;
+    const result = await comprehendFoodMaterialLanguage({
+      rawText, sourceRef, modality, locale: "pt-BR", ownerUserId: null, lexiconRevision,
+      now: new Date("2026-11-24T12:00:00Z"),
+    }, { load: async () => snapshot });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("synthetic positive must produce observations");
+    expect(result.observations.map(row => row.quantityHints.servingText))
+      .toEqual(["2 medidores", "3 copos de", null, "2 a 3 jabuticabas"]);
+    const [negated] = result.observations;
+    expect(negated.alternatives.length).toBeGreaterThan(0); // S2 identity hypothesis retains owner wording.
+    expect(negated.evidence.filter(e => e.field.startsWith("quantity."))
+      .map(({ field, origin, anchor: { span } }) => ({ field, origin, span }))).toEqual([
+      { field: "quantity.value", origin: modality === "text" ? "text" : "transcription", span: range(0, 11) },
+      { field: "quantity.unit", origin: "catalog", span: range(0, 21) },
+    ]);
+    expect(compareSealedR3NegationStudy(seal({ result, input, label, snapshot })).totals)
+      .toMatchObject({ expected: 4, verified: 4, mismatch: 0, missing: 0, extras: 0, statusMismatches: 0 });
+
+    const wrongAlias = structuredClone(result);
+    wrongAlias.observations[0].evidence.find(e => e.field === "quantity.unit")!.anchor = anchor(range(26, 30));
+    const mismatch = seal({ result: wrongAlias, input, label, snapshot });
+    expect(compareSealedR3NegationStudy(mismatch).totals)
+      .toMatchObject({ verifiedNegations: 0, verifiedSiblings: 3, mismatch: 1 });
+    expect(mismatch.readLabels).toHaveBeenCalledTimes(1);
+
+    const wrongRef = structuredClone(label);
+    wrongRef.rows[0].negations[0].owner.wholeAmount.unitAlias.anchor = range(0, 30);
+    expect(() => compareSealedR3NegationStudy(seal({ result, input, label: wrongRef, snapshot })))
+      .toThrow("invalid-label-reference");
+  });
+
+  it.each([
+    ["quantity.grams", 1, "g"], ["quantity.milliliters", 1, "ml"], ["quantity.unit", "colher", "colher"],
+    ["quantity.density", 1, null], ["quantity.portionId", "other-portion", null],
+    ["quantity.measureKind", "mass", null], ["nutrition.calories", 1, null],
+  ] as const)("never credits repinned extra %s at a negated target or sibling name", (field, value, unit) => {
+    const observations = capture();
+    for (const [i, row] of observations.slice(0, 2).entries()) {
+      row.evidence.push({
+        ...row.evidence[1], evidenceId: "extra-" + i, field, value, unit,
+        anchor: row.evidence.find(e => e.field === (i ? "identity.foodName" : "material.ingredient"))!.anchor,
+      });
+    }
+    const fixture = seal({ result: { ok: true, observations } });
+    expect(compareSealedR3NegationStudy(fixture).totals)
+      .toMatchObject({ verifiedNegations: 1, verifiedSiblings: 0, mismatch: 2 });
+    expect(fixture.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["serving text", "package", "alternative"] as const)("does not authorize invented %s hints from a repinned capture", kind => {
+    const observations = capture();
+    const row = observations[0];
+    if (kind === "serving text") row.quantityHints.servingText = "3 colheres de anis";
+    if (kind === "package") {
+      row.quantityHints.visiblePackageQuantity = 3;
+      row.quantityHints.visiblePackageUnit = "g";
+    }
+    if (kind === "alternative") row.alternatives.push({
+      hypothesisId: "identity-with-invented-serving", identityHints: { ...row.identityHints },
+      quantityHints: { ...row.quantityHints, value: 1, unit: "g", servingText: "1 g de anis" },
+      evidenceIds: [], confidence: null,
+    });
+    const fixture = seal({ result: { ok: true, observations } });
+    expect(compareSealedR3NegationStudy(fixture).totals)
+      .toMatchObject({ verifiedNegations: 1, verifiedSiblings: 1, mismatch: 1 });
+    expect(fixture.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["COM", "sempre", "áSEM", "SEM\u0301"] as const)("rejects a sealed reference that claims negation through %s", word => {
+    // Preserve a syntactically valid capture of the final same-name owner,
+    // but make the reference and capture agree on the wrong operator.
+    const observations = capture();
+    const [last] = observations;
+    const original = last.evidence.find(e => e.field === "material.negation")!;
+    const at = original.anchor.span!;
+    const inputText = raw.slice(0, at.start) + word + raw.slice(at.end);
+    const delta = word.length - (at.end - at.start);
+    for (const row of observations) row.rawInput = inputText;
+    last.surfaceSpan.span!.end += delta;
+    const ingredient = last.evidence.find(e => e.field === "material.ingredient")!.anchor.span!;
+    ingredient.start += delta;
+    ingredient.end += delta;
+    if (word === "áSEM") {
+      at.start++;
+      at.end++;
+    }
+    original.value = inputText.slice(at.start, at.end);
+    const label = answer();
+    const reference = label.rows[0].negations[1];
+    reference.owner.scope.end += delta;
+    reference.operator = { ...at };
+    reference.ingredient = { ...ingredient };
+    const fixture = seal({ label, input: [{ ...entries[0], text: inputText }], result: { ok: true, observations } });
+    expect(() => compareSealedR3NegationStudy(fixture)).toThrow("invalid-label-reference");
+    expect(fixture.readLabels).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -200,7 +328,7 @@ describe("sealed R3 negation diagnostic (public synthetic fixtures)", () => {
     expect(incorrectlyWithheld.totals).toMatchObject({ missing: 1, abstained: 0, statusMismatches: 1 });
   });
 
-  it.each(["parser", "comparator", "receipt", "missing-id", "duplicate-id", "source", "owner", "origin", "swapped", "hash", "lexicon", "lexicon-revision", "utf16"] as const)(
+  it.each(["parser", "comparator", "receipt", "missing-id", "duplicate-id", "source", "owner", "origin", "swapped", "hash", "lexicon", "lexicon-revision", "utf16", "unlinked-material-amount"] as const)(
     "does not request labels for invalid preflight %s", fault => {
       const result = { ok: true as const, observations: capture() };
       const rows = [{ id, result }];
@@ -209,6 +337,11 @@ describe("sealed R3 negation diagnostic (public synthetic fixtures)", () => {
       if (fault === "source") result.observations[0].surfaceSpan.sourceRef = "other-source";
       if (fault === "owner") result.observations[0].materialClaims[0].binding = { status: "bound", ownerObservationId: "sibling" };
       if (fault === "origin") result.observations[0].evidence[2].origin = "transcription";
+      if (fault === "unlinked-material-amount") {
+        const row = result.observations[0];
+        row.evidence.push({ ...row.evidence[1], evidenceId: "unused-measure", field: "material.amount",
+          anchor: row.evidence[3].anchor, ingredientEvidenceId: row.evidence[3].evidenceId });
+      }
       if (fault === "swapped") {
         const [op, target] = result.observations[0].evidence.slice(2);
         [op.anchor, target.anchor] = [target.anchor, op.anchor];

@@ -11,8 +11,14 @@ const spanSchema = z.strictObject({
 }).refine(span => span.start < span.end);
 const ownerSchema = z.strictObject({
   name: spanSchema, nameHint: z.string().min(1).max(300), scope: spanSchema,
+  // The source wording can include a connector ("de") omitted by the
+  // quantity evidence. Amountless, uncertain servings may also have wording.
+  serving: spanSchema.optional(),
   wholeAmount: z.strictObject({
     value: z.number().finite().positive(), unit: z.string().min(1).max(40), measure: spanSchema,
+    unitAlias: z.strictObject({
+      term: z.string().min(1).max(160), entryId: z.number().int().positive(), anchor: spanSchema,
+    }).optional(),
   }).nullable(),
 });
 const labelsSchema = z.strictObject({
@@ -43,18 +49,35 @@ function validSpan(text: string, span: Span) {
     hasSourceUtf16Boundary(text, span.end) && !!sourceText(text, span).trim();
 }
 
+const servingSpan = (owner: Owner) => owner.serving ?? owner.wholeAmount?.measure ?? null;
+function literalNegation(text: string, operator: Span) {
+  const trailingToken = /[\p{L}\p{M}\p{N}\p{Pc}\u200C\u200D]$/u;
+  const leadingToken = /^[\p{L}\p{M}\p{N}\p{Pc}\u200C\u200D]/u;
+  return sourceText(text, operator).toLowerCase() === "sem" &&
+    !trailingToken.test(text.slice(0, operator.start)) &&
+    !leadingToken.test(text.slice(operator.end));
+}
+
 function validateReference(text: string, label: Label) {
   const owners = [...label.negations.map(item => item.owner), ...label.unaffected];
   const scopes = [...owners.map(item => item.scope), ...label.affected].sort((a, b) => a.start - b.start);
   const inScope = (scope: Span, span: Span) => validSpan(text, span) && contains(scope, span);
   const valid = scopes.every((span, i) => validSpan(text, span) && (!i || before(scopes[i - 1], span))) &&
-    owners.every(item => inScope(item.scope, item.name) &&
-      (!item.wholeAmount || inScope(item.scope, item.wholeAmount.measure) &&
-        !overlap(item.wholeAmount.measure, item.name))) &&
-    label.negations.every(({ owner, operator, ingredient }) =>
-      inScope(owner.scope, operator) && inScope(owner.scope, ingredient) &&
-      before(owner.name, operator) && before(operator, ingredient) &&
-      (!owner.wholeAmount || before(owner.wholeAmount.measure, operator))) &&
+    owners.every(item => {
+      const serving = servingSpan(item), amount = item.wholeAmount, alias = amount?.unitAlias;
+      return inScope(item.scope, item.name) &&
+        (!serving || inScope(item.scope, serving) && sourceText(text, serving).trim() === sourceText(text, serving)) &&
+        (!amount || serving !== null && inScope(item.scope, amount.measure) &&
+          contains(serving, amount.measure) && !overlap(serving, item.name)) &&
+        (!alias || inScope(item.scope, alias.anchor) && contains(alias.anchor, item.name) &&
+          serving !== null && contains(alias.anchor, serving));
+    }) &&
+    label.negations.every(({ owner, operator, ingredient }) => {
+      const serving = servingSpan(owner), alias = owner.wholeAmount?.unitAlias;
+      return inScope(owner.scope, operator) && literalNegation(text, operator) &&
+        inScope(owner.scope, ingredient) && before(owner.name, operator) && before(operator, ingredient) &&
+        (!serving || before(serving, operator)) && (!alias || before(alias.anchor, operator));
+    }) &&
     (label.expectedStatus === "abstain" ? label.affected.length > 0 : label.affected.length === 0) &&
     (label.expectedStatus === "linked" ? label.negations.length > 0 :
       label.expectedStatus === "abstain" || (label.negations.length === 0 && label.unaffected.length > 0));
@@ -79,13 +102,36 @@ function provesOwner(input: Input, observation: FoodMaterialObservation, expecte
       observation.evidence.some(item => item.field === "material.amount" || item.field.startsWith("nutrition."))) {
     return false;
   }
-  const quantities = observation.evidence.filter(item => item.field === "quantity.value");
-  const q = observation.quantityHints;
-  if (q.visiblePackageQuantity !== null || q.visiblePackageUnit !== null) return false;
   const wanted = expected.wholeAmount;
-  if (!wanted) return q.value === null && q.unit === null && quantities.length === 0;
-  return q.value === wanted.value && q.unit === wanted.unit && quantities.length === 1 &&
-    proves(input, quantities[0], "quantity.value", wanted.measure, wanted.value, wanted.unit);
+  const serving = servingSpan(expected);
+  const servingText = serving === null ? null : sourceText(input.text, serving);
+  const emptyPackage = (q: FoodMaterialObservation["quantityHints"]) =>
+    q.visiblePackageQuantity === null && q.visiblePackageUnit === null;
+  const matchesHints = (q: FoodMaterialObservation["quantityHints"]) => emptyPackage(q) &&
+    q.value === (wanted?.value ?? null) && q.unit === (wanted?.unit ?? null) && q.servingText === servingText;
+  // Identity hypotheses can omit quantity or carry the proved owner hints;
+  // they do not establish a second quantity or a measure of the ingredient.
+  if (!matchesHints(observation.quantityHints) || !observation.alternatives.every(({ quantityHints: q }) =>
+    matchesHints(q) || emptyPackage(q) && q.value === null && q.unit === null && q.servingText === null)) return false;
+
+  const quantities = observation.evidence.filter(item => item.field.startsWith("quantity."));
+  if (!wanted) return quantities.length === 0;
+
+  const alias = wanted.unitAlias;
+  const direct = quantities.find(item => item.field === "quantity.value");
+  if (quantities.length !== (alias ? 2 : 1) ||
+      !proves(input, direct, "quantity.value", wanted.measure, wanted.value, wanted.unit)) return false;
+  if (!alias) return true;
+
+  // S2 may supply the unit term, never an extra measured fact. Its catalog
+  // record and normalization step refer to the same local owner span.
+  const catalog = quantities.find(item => item.field === "quantity.unit");
+  return !!catalog && catalog.origin === "catalog" && catalog.value === alias.term &&
+    catalog.unit === wanted.unit && !catalog.verified && catalog.sourceId === null &&
+    same(catalog.anchor.span, alias.anchor) &&
+    observation.normalizationPath.some(step => step.stage === "S2" && step.origin === "lexicon" &&
+      step.lexiconEntryId === alias.entryId && step.confidence === catalog.confidence &&
+      same(step.anchor.span, alias.anchor));
 }
 
 const blank = () => ({
@@ -98,7 +144,6 @@ function add(into: Counts, from: Counts) {
 }
 
 function compareRow(input: Input, label: Label, result: FoodMaterialLanguageResult): Counts {
-  validateReference(input.text, label);
   const n = blank();
   n.cases = 1;
   const observations = "observations" in result ? result.observations : [];
@@ -177,6 +222,9 @@ function compareRow(input: Input, label: Label, result: FoodMaterialLanguageResu
 /** Only aggregated outcome counts leave this evaluator; no case text or labels. */
 export function compareSealedR3NegationStudy(config: SealedR3NegationStudy) {
   const { manifest, receipt, inputs, validated, labels } = evaluatePinnedR3NegationCapture(config, labelsSchema);
+  // Reject invalid reference semantics for the entire sealed bundle before
+  // accumulating diagnostics for even one case.
+  for (const input of inputs) validateReference(input.text, labels.get(input.id)!);
   const totals = blank();
   const bySplit = { calibration: blank(), holdout: blank() };
   const byModality = { text: blank(), audio_transcript: blank() };
