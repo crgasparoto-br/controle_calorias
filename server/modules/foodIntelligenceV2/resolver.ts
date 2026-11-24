@@ -10,6 +10,9 @@ import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_
 import { FOOD_CONTRACT_LIMITS, FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
 import { canPreserveAcceptedIdentity, discardSupersededDerivedEvidence,
   discardSupersededUserIdentityEvidence, hasConflictingIdentityEvidence } from "./resolutionContinuity";
+import { deferredFoodResolutionAttempt, detachedFoodResolutionFailure, emptyResolutionIdentity, emptyResolutionNutrition,
+  emptyResolutionQuantity, identifyFoodResolutionAttempt, isDetachedResolutionFailure,
+  reuseDeferredResolutionAttempt, type FoodResolutionAttempt } from "./resolutionAttempt";
 import { isCurrentKnowledgeValidity } from "./knowledgeValidity";
 import { foodPortionSnapshotSchema, isCurrentPortion, portionEvidenceReference, portionConversionEvidenceIds } from "./portionProvenance";
 import {
@@ -36,14 +39,6 @@ export interface FoodResolverContext {
   now?: Date;
 }
 
-/** The prior immutable decision remains authoritative; no successor was emitted. */
-export class FoodResolutionContinuationError extends TypeError {
-  constructor() {
-    super("Continuação V2 não cabe no contrato sem perda de fatos ou evidências.");
-    this.name = "FoodResolutionContinuationError";
-  }
-}
-
 /** #1306 will supply a calibrated policy before residual search can decide.
  * This interface is deliberately not invoked by the C2 core. */
 export interface ResidualFoodCandidateSearch {
@@ -52,14 +47,8 @@ export interface ResidualFoodCandidateSearch {
 
 type Quantity = FoodResolutionDecision["quantity"];
 type Nutrition = FoodResolutionDecision["nutrition"];
-const blankNutrition = (): Nutrition => ({
-  profileId: null, sourceId: null, verified: false, provisional: false,
-  basis: null, consumed: null, snapshotHash: null, evidenceIds: [],
-});
-const blankQuantity = (): Quantity => ({
-  value: null, unit: null, grams: null, milliliters: null,
-  portionId: null, portionSnapshot: null, source: null, measureKind: null, confidence: null, evidenceIds: [],
-});
+const blankNutrition = emptyResolutionNutrition;
+const blankQuantity = emptyResolutionQuantity;
 
 function amount(value: number, unit: string): { basis: "g" | "ml" | "serving"; value: number } | null {
   const physical = declaredPhysicalAmount(value, unit);
@@ -355,7 +344,7 @@ function nutritionFromMatch(
 }
 
 function sameObservation(previous: FoodResolutionDecision | undefined, context: FoodResolverContext, observation: FoodObservation) {
-  if (!previous || !parseFoodResolutionDecision(previous).ok || context.userId === null) return false;
+  if (!previous || isDetachedResolutionFailure(previous) || context.userId === null) return false;
   // Older V2 snapshots may only carry an owner inside knowledgeValidity. If
   // neither binding exists, re-resolve without importing any prior evidence.
   const owner = previous.ownerUserId === undefined
@@ -395,27 +384,80 @@ function namespaceCollidingTurnEvidence(
   })) };
 }
 
-/**
- * Unknown, conflicting and offline knowledge produce fail-closed decisions.
- * If a continuation cannot produce a valid bounded successor, it rejects
- * without replacing the prior decision. Malformed inputs also reject.
- */
-export async function resolveFoodObservation(
-  observationInput: FoodObservation,
-  context: FoodResolverContext,
-  store: FoodKnowledgeStore,
-  externalLookup?: FoodExternalLookup,
-): Promise<FoodResolutionDecision> {
+function prepareResolutionInput(observationInput: FoodObservation, context: FoodResolverContext) {
   const parsed = parseFoodObservation(observationInput);
   if (!parsed.ok) throw new TypeError("FoodObservation V2 inválida: " + parsed.code);
-  let observation = parsed.value;
   if (!context.traceId?.trim() || !context.knowledgeRevision?.trim() ||
       !context.policyVersion?.trim() || !context.resolverVersion?.trim() ||
       context.userId !== null && (!Number.isSafeInteger(context.userId) || context.userId <= 0)) {
     throw new TypeError("FoodResolverContext inválido");
   }
-  const previous = sameObservation(context.previousDecision, context, observation)
-    ? context.previousDecision ?? null : null;
+  const checked = parseFoodResolutionDecision(context.previousDecision);
+  const previous = checked.ok && sameObservation(checked.value, context, parsed.value)
+    ? checked.value : null;
+  const detached = checked.ok && isDetachedResolutionFailure(checked.value) &&
+    checked.value.traceId === context.traceId && checked.value.ownerUserId === context.userId &&
+    checked.value.observationIds.length === 1 &&
+    checked.value.observationIds[0] === parsed.value.observationId ? checked.value : null;
+  return { observation: parsed.value, previous, detached };
+}
+
+export type FoodResolutionAttemptOptions = {
+  attemptVersion: 1;
+  requestKey: string;
+  savedDeferred?: unknown;
+};
+export type FoodResolutionBatchAttemptOptions = {
+  attemptVersion: 1;
+  requestKey: string;
+  previousDecisions?: ReadonlyMap<string, FoodResolutionDecision>;
+  savedDeferred?: ReadonlyMap<string, unknown>;
+};
+
+/**
+ * The same C2 owner produces decisions and, when the caller opts in,
+ * non-authoritative attempt receipts. Durable continuations use the opt-in.
+ */
+export function resolveFoodObservation(
+  observation: FoodObservation, context: FoodResolverContext,
+  store: FoodKnowledgeStore, options: FoodResolutionAttemptOptions,
+): Promise<FoodResolutionAttempt>;
+export function resolveFoodObservation(
+  observation: FoodObservation, context: FoodResolverContext,
+  store: FoodKnowledgeStore, externalLookup?: FoodExternalLookup,
+): Promise<FoodResolutionDecision>;
+export async function resolveFoodObservation(
+  observationInput: FoodObservation, context: FoodResolverContext,
+  store: FoodKnowledgeStore, options?: FoodResolutionAttemptOptions | FoodExternalLookup,
+): Promise<FoodResolutionDecision | FoodResolutionAttempt> {
+  const prepared = prepareResolutionInput(observationInput, context);
+  const { previous, detached } = prepared;
+  let observation = prepared.observation;
+  const attempt = typeof options === "object" ? options : undefined;
+  if (attempt && (attempt.attemptVersion !== 1 || typeof attempt.requestKey !== "string")) {
+    throw new TypeError("food-resolution-attempt-contract-invalid");
+  }
+  const identified = attempt && identifyFoodResolutionAttempt(observation, context, previous, attempt.requestKey);
+  if (detached) {
+    if (attempt) throw new TypeError("food-resolution-attempt-requires-authoritative-prior");
+    // Do not turn a previous detached receipt into a reset-to-revision-1 decision.
+    const { scope } = identifyFoodResolutionAttempt(observation, context, detached);
+    return detachedFoodResolutionFailure(scope, context);
+  }
+  if (attempt && identified && attempt.savedDeferred !== undefined) {
+    return reuseDeferredResolutionAttempt(attempt.savedDeferred, identified.scope, identified.accepted, context);
+  }
+  const completed = (decision: FoodResolutionDecision): FoodResolutionAttempt | FoodResolutionDecision =>
+    identified ? { ...identified.scope, outcome: "evaluated", decision } : decision;
+  const deferred = (): FoodResolutionAttempt | FoodResolutionDecision => {
+    if (!identified) {
+      const { scope } = identifyFoodResolutionAttempt(prepared.observation, context, previous);
+      return detachedFoodResolutionFailure(scope, context);
+    }
+    if (identified.accepted === null) throw new TypeError("food-resolution-attempt-missing-prior");
+    return deferredFoodResolutionAttempt(identified.scope, identified.accepted, context);
+  };
+  const externalLookup = typeof options === "function" ? options : undefined;
   if (previous) observation = namespaceCollidingTurnEvidence(observation, previous);
   const now = context.now ?? new Date();
   const evidence: FoodEvidence[] = [...observation.evidence];
@@ -427,15 +469,10 @@ export async function resolveFoodObservation(
     // assertions for the same changed field, not independent source proof.
     discardSupersededUserIdentityEvidence(observation, previous, evidence);
   }
-  const identity = {
-    candidateKey: null as string | null,
-    foodEntityId: null as number | null, variantId: null as number | null,
-    canonicalName: null as string | null, brand: null as string | null,
-    variant: null as string | null, preparation: [] as string[],
-    qualifiers: [] as FoodObservation["identityHints"]["qualifiers"],
-    barcode: null as string | null, confidence: null as number | null,
-    evidenceIds: [] as string[],
-  };
+  // Do not choose, discard or look up material claims to squeeze an otherwise
+  // unrepresentable continuation into the current decision.
+  if (previous && evidence.length > FOOD_CONTRACT_LIMITS.collection) return deferred();
+  const identity = emptyResolutionIdentity();
   const decision: FoodResolutionDecision = {
     schemaVersion: 2,
     decisionId: previous?.decisionId ?? "resolution:" + createHash("sha256")
@@ -481,11 +518,6 @@ export async function resolveFoodObservation(
         isCurrentKnowledgeValidity(previous.knowledgeValidity, now, context.userId, context.resolverVersion) &&
         (!previous.quantity.portionSnapshot || isCurrentPortion(previous.quantity.portionSnapshot, now)) &&
         compatiblePreviousIdentity) {
-      // No accepted fact needs a fresh lookup here. Do not discard independent
-      // evidence (or redo the lookup) just to squeeze out a revision.
-      if (evidence.length > FOOD_CONTRACT_LIMITS.collection) {
-        throw new FoodResolutionContinuationError();
-      }
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = (q.value !== null && q.unit !== null &&
@@ -509,14 +541,9 @@ export async function resolveFoodObservation(
           : previous.reasonCodes,
       };
       const checked = parseFoodResolutionDecision(preserved);
-      if (checked.ok) return checked.value;
+      if (checked.ok) return completed(checked.value);
     }
-    if (previous) {
-      discardSupersededDerivedEvidence(observation, previous, evidence);
-      if (evidence.length > FOOD_CONTRACT_LIMITS.collection) {
-        throw new FoodResolutionContinuationError();
-      }
-    }
+    if (previous) discardSupersededDerivedEvidence(observation, previous, evidence);
     // Repeat the actual governed query (including personal aliases) when the
     // reply contains only a missing field, without guessing a canonical name.
     const acceptedLookup = previous?.evidence.find(item => previous.identity.evidenceIds.includes(item.evidenceId) &&
@@ -547,7 +574,9 @@ export async function resolveFoodObservation(
       policyVersion: context.policyVersion,
       now,
     };
-    const knowledge = await readThroughGovernedKnowledge(request, store, externalLookup);
+    // Revalidate locally. A later output-budget failure must not have called
+    // an external provider or staged knowledge from an unaccepted turn.
+    const knowledge = await readThroughGovernedKnowledge(request, store, previous ? undefined : externalLookup);
     const eligibleMatch = knowledge.kind === "match" &&
       sourceCompatibleWithExplicitAttributes(effectiveObservation, knowledge) ? knowledge : null;
     const conflictingHypotheses = observation.alternatives.length > 0 &&
@@ -753,7 +782,7 @@ export async function resolveFoodObservation(
   if (!valid.ok) {
     // A first observation may retry without committed facts. A continuation
     // must not publish a higher revision that resets already accepted facts.
-    if (previous) throw new FoodResolutionContinuationError();
+    if (previous) return deferred();
     // A valid observation may exhaust the bounded decision evidence envelope.
     // Discard only generated, uncommitted decision evidence and fail closed;
     // never return a payload that failed the public Zod contract.
@@ -770,21 +799,46 @@ export async function resolveFoodObservation(
     };
     const checked = parseFoodResolutionDecision(fallback);
     if (!checked.ok) throw new TypeError("Invariante de contrato da decisão V2 violada");
-    return checked.value;
+    return completed(checked.value);
   }
-  return valid.value;
+  return completed(valid.value);
 }
 
-/** Resolves each valid observation independently; one ambiguous item cannot
- * erase decisions for other items in the same turn. No meal write occurs here. */
-export async function resolveFoodObservations(
-  observations: readonly FoodObservation[], context: Omit<FoodResolverContext, "previousDecision">,
-  store: FoodKnowledgeStore, externalLookup?: FoodExternalLookup,
-): Promise<FoodResolutionDecision[]> {
+function assertDistinctObservations(observations: readonly FoodObservation[]): void {
   const ids = new Set<string>();
   for (const item of observations) {
     if (ids.has(item.observationId)) throw new TypeError("observationId duplicado");
     ids.add(item.observationId);
   }
-  return Promise.all(observations.map(item => resolveFoodObservation(item, context, store, externalLookup)));
+}
+
+/** Maps each valid observation independently, without writing a meal. */
+export function resolveFoodObservations(
+  observations: readonly FoodObservation[], context: Omit<FoodResolverContext, "previousDecision">,
+  store: FoodKnowledgeStore, options: FoodResolutionBatchAttemptOptions,
+): Promise<FoodResolutionAttempt[]>;
+export function resolveFoodObservations(
+  observations: readonly FoodObservation[], context: Omit<FoodResolverContext, "previousDecision">,
+  store: FoodKnowledgeStore, externalLookup?: FoodExternalLookup,
+): Promise<FoodResolutionDecision[]>;
+export async function resolveFoodObservations(
+  observations: readonly FoodObservation[], context: Omit<FoodResolverContext, "previousDecision">,
+  store: FoodKnowledgeStore, options?: FoodResolutionBatchAttemptOptions | FoodExternalLookup,
+): Promise<FoodResolutionDecision[] | FoodResolutionAttempt[]> {
+  assertDistinctObservations(observations);
+  if (typeof options === "object") {
+    // The batch routes validated observations with their own structured scope;
+    // it never converts a decision or any of its fields back into input text.
+    const items = observations.map(observation => ({
+      observation,
+      scope: { ...context, previousDecision: options.previousDecisions?.get(observation.observationId) },
+      attempt: {
+        attemptVersion: options.attemptVersion, requestKey: options.requestKey,
+        savedDeferred: options.savedDeferred?.get(observation.observationId),
+      },
+    }));
+    return Promise.all(items.map(({ observation, scope, attempt }) =>
+      resolveFoodObservation(observation, scope, store, attempt)));
+  }
+  return Promise.all(observations.map(item => resolveFoodObservation(item, context, store, options)));
 }

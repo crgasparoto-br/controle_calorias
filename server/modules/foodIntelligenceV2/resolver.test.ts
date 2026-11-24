@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { FOOD_CONTRACT_LIMITS } from "./contracts";
 import { buildFoodObservationFixture } from "./fixtures";
 import {
-  parseFoodResolutionDecision, type FoodObservation,
+  parseFoodResolutionDecision, type FoodObservation, type FoodResolutionDecision,
 } from "./schemas";
 import {
-  FoodResolutionContinuationError, resolveFoodObservation, resolveFoodObservations,
+  resolveFoodObservation, resolveFoodObservations,
   type FoodResolverContext,
 } from "./resolver";
+import { foodResolutionAttemptSchema, type FoodResolutionAttempt } from "./resolutionAttempt";
 import type {
   FoodKnowledgeStore, GovernedFoodMatch, FoodKnowledgeLocalResult,
 } from "./knowledgeRead";
@@ -471,10 +472,10 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
   describe("continuação no limite de evidências", () => {
     function classifications(turn: number, count: number, isFood = true) {
       const seed = buildFoodObservationFixture();
-      return buildFoodObservationFixture({
+      return { ...buildFoodObservationFixture({
         identityHints: { foodName: null },
         quantityHints: { value: null, unit: null, servingText: null },
-        evidence: Array.from({ length: count }, (_, index) => {
+      }), evidence: Array.from({ length: count }, (_, index) => {
           const id = `classification-${turn}-${index}`;
           return {
             ...seed.evidence[0], evidenceId: id,
@@ -483,16 +484,16 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
             anchor: { sourceRef: `catalog:${id}`, span: null, region: null },
           };
         }),
-      });
+      };
     }
 
-    async function fillWithConcordantTurns() {
+    async function fillWithConcordantTurns(budget = FOOD_CONTRACT_LIMITS.collection) {
       const store = fakeStore(match);
       const original = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
       let previous = original;
       let turn = 1;
-      while (previous.evidence.length < FOOD_CONTRACT_LIMITS.collection) {
-        const count = Math.min(10, FOOD_CONTRACT_LIMITS.collection - previous.evidence.length);
+      while (previous.evidence.length < budget) {
+        const count = Math.min(10, budget - previous.evidence.length);
         const input = classifications(turn++, count);
         const next = await resolveFoodObservation(input, { ...context, previousDecision: previous }, store);
         expect(next.evidence).toHaveLength(previous.evidence.length + count);
@@ -502,41 +503,166 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
       return { store, original, previous, turn };
     }
 
-    it("aceita turnos pequenos até o limite e recusa a revisão seguinte sem apagar fatos", async () => {
-      const { store, original, previous, turn } = await fillWithConcordantTurns();
-      expect(previous.status).toBe("resolved");
-      expect(previous.decisionId).toBe(original.decisionId);
-      expect(previous.revision).toBe(turn);
-      expect(previous.evidence).toHaveLength(FOOD_CONTRACT_LIMITS.collection);
-      expect(previous.identity).toEqual(original.identity);
+    const deferred = (result: FoodResolutionAttempt) => {
+      expect(foodResolutionAttemptSchema.safeParse(result).success).toBe(true);
+      if (result.outcome !== "deferred") throw new Error("expected bounded deferred attempt");
+      return result;
+    };
+
+    it("aceita turnos pequenos e uma entrada de encaixe exato antes de adiar", async () => {
+      const { store, original, previous, turn } = await fillWithConcordantTurns(
+        FOOD_CONTRACT_LIMITS.collection - 1,
+      );
       expect(previous.quantity).toEqual(original.quantity);
       expect(previous.quantity).toMatchObject({ value: 1.5, unit: "fatia", grams: 30 });
-      expect(previous.nutrition).toEqual(original.nutrition);
-      const immutable = structuredClone(previous);
-      const input = classifications(turn, 10);
-      await expect(resolveFoodObservation(input, { ...context, previousDecision: previous }, store))
-        .rejects.toBeInstanceOf(FoodResolutionContinuationError);
-      expect(previous).toEqual(immutable);
+      const accepted = await resolveFoodObservation(classifications(turn, 1), {
+        ...context, previousDecision: previous,
+      }, store, { attemptVersion: 1, requestKey: "fit" });
+      expect(foodResolutionAttemptSchema.safeParse(accepted).success).toBe(true);
+      if (accepted.outcome !== "evaluated") throw new Error("exact fit incorrectly deferred");
+      expect(accepted.decision).toMatchObject({
+        decisionId: original.decisionId, revision: previous.revision + 1,
+        status: "resolved", nextAction: "propose", identity: original.identity,
+        nutrition: original.nutrition, quantity: original.quantity,
+      });
+      expect(accepted.decision.evidence).toHaveLength(FOOD_CONTRACT_LIMITS.collection);
+
+      const prior = structuredClone(accepted.decision);
+      const input = classifications(turn + 1, 10);
+      const result = deferred(await resolveFoodObservation(input, {
+        ...context, previousDecision: accepted.decision,
+      }, store, { attemptVersion: 1, requestKey: "overflow" }));
+      expect(result.acceptedDecision).toEqual({
+        decisionId: prior.decisionId, revision: prior.revision, digest: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      });
+      expect(result.failure).toMatchObject({
+        decisionId: result.attemptId, revision: 1, status: "unknown", nextAction: "retry",
+        observationIds: [input.observationId], reasonCodes: ["decision_validation_failed"],
+        nutrition: { basis: null, consumed: null }, evidence: [],
+      });
+      expect(result.failure.decisionId).not.toBe(prior.decisionId);
+      expect(result.failure).not.toHaveProperty("knowledgeValidity");
+      expect(parseFoodResolutionDecision(result.failure).ok).toBe(true);
+      expect(accepted.decision).toEqual(prior);
       expect(store.readLocal).toHaveBeenCalledTimes(1);
     });
 
-    it("não descarta prova conflitante para produzir uma decisão materializável", async () => {
+    it("não aceita fatos conflitantes e preserva resultados de irmãos no contrato D1 opt-in", async () => {
       const { store, previous, turn } = await fillWithConcordantTurns();
       const input = classifications(turn, 1, false);
-      await expect(resolveFoodObservation(input, { ...context, previousDecision: previous }, store))
-        .rejects.toBeInstanceOf(FoodResolutionContinuationError);
-      expect(store.readLocal).toHaveBeenCalledTimes(1);
+      const sibling = buildFoodObservationFixture({ observationId: "sibling" });
+      const result = await resolveFoodObservations([input, sibling], context, store, {
+        attemptVersion: 1, requestKey: "batch-1", previousDecisions: new Map([[input.observationId, previous]]),
+      });
+      expect(result).toHaveLength(2);
+      const failure = deferred(result[0]);
+      expect(failure.failure.nextAction).toBe("retry");
+      expect(failure.failure.evidence).toEqual([]);
+      expect(failure.acceptedDecision.revision).toBe(previous.revision);
+      expect(result[1]).toMatchObject({
+        outcome: "evaluated", observationId: "sibling", decision: { status: "resolved", nextAction: "propose" },
+      });
+      expect(store.readLocal).toHaveBeenCalledTimes(2); // initial prior and ready sibling
+      expect(store.stagePendingEvidence).not.toHaveBeenCalled();
+
+      const partial = structuredClone(failure);
+      partial.failure.evidence = input.evidence;
+      expect(foodResolutionAttemptSchema.safeParse(partial).success).toBe(false);
+      const malformed = { ...input, evidence: [...input.evidence, ...input.evidence] };
+      await expect(resolveFoodObservation(malformed, {
+        ...context, previousDecision: previous,
+      }, store, { attemptVersion: 1, requestKey: "invalid-evidence" })).rejects.toThrow("FoodObservation V2 inválida");
+      expect(store.readLocal).toHaveBeenCalledTimes(2);
+      expect(store.stagePendingEvidence).not.toHaveBeenCalled();
     });
 
-    it("não fabrica uma revisão sem quantidade se a fonte precisou ser consultada outra vez", async () => {
+    it("revalida na mesma chave sem consultar fontes após reinício, e recusa troca de escopo", async () => {
       const { store, previous, turn } = await fillWithConcordantTurns();
-      // Refreshing derived evidence leaves room before the lookup, but its
-      // replacement proofs are also required in the completed successor.
+      const priorContext = { ...context, previousDecision: previous };
       const input = classifications(turn, 1);
+      const first = deferred(await resolveFoodObservation(input, priorContext, store, {
+        attemptVersion: 1, requestKey: "operation-item",
+      }));
+      const restarted = fakeStore({ kind: "miss", reason: "not_found" });
+      const replay = { attemptVersion: 1 as const, requestKey: "operation-item", savedDeferred: JSON.parse(JSON.stringify(first)) };
+      await expect(resolveFoodObservation(input, { ...priorContext, now: new Date(0) }, restarted, replay))
+        .resolves.toEqual(first);
+      for (const wrong of [
+        [classifications(turn, 1, false), priorContext],
+        [input, { ...priorContext, userId: 8 }],
+        [input, { ...priorContext, traceId: "other-trace" }],
+        [input, { ...priorContext, knowledgeRevision: "revoked-knowledge" }],
+        [input, { ...priorContext, previousDecision: { ...previous, revision: previous.revision + 1 } }],
+      ] as const) {
+        await expect(resolveFoodObservation(wrong[0], wrong[1], restarted, replay))
+          .rejects.toThrow("food-resolution-attempt-replay-conflict");
+      }
+      const forged = structuredClone(first);
+      forged.failure.knowledgeValidity = previous.knowledgeValidity;
+      await expect(resolveFoodObservation(input, priorContext, restarted, {
+        ...replay, savedDeferred: forged,
+      })).rejects.toThrow("food-resolution-attempt-replay-conflict");
+      expect(restarted.readLocal).not.toHaveBeenCalled();
+      expect(restarted.readPendingEvidence).not.toHaveBeenCalled();
+      expect(restarted.stagePendingEvidence).not.toHaveBeenCalled();
+    });
+
+    it("não reativa snapshot expirado em tentativa adiada; fallback V2 não vira antecedente", async () => {
+      const { store, previous, turn } = await fillWithConcordantTurns();
+      const expired: FoodResolutionDecision = { ...previous, knowledgeValidity: {
+        ...previous.knowledgeValidity!, validUntil: "2026-02-01T00:00:00Z",
+      } };
+      const updated = { ...context, previousDecision: expired, knowledgeRevision: "revoked-source",
+        now: new Date("2026-03-01T00:00:00Z") };
+      const input = classifications(turn, 10);
+      const noProvider = vi.fn().mockResolvedValue(null);
+      const attempted = deferred(await resolveFoodObservation(input, updated, store, { attemptVersion: 1, requestKey: "expired" }));
+      expect(attempted.failure.knowledgeRevision).toBe(updated.knowledgeRevision);
+      expect(attempted.failure.knowledgeValidity).toBeUndefined();
+      expect(attempted.failure.nutrition.consumed).toBeNull();
+      expect(attempted.acceptedDecision.decisionId).toBe(expired.decisionId);
+
+      const legacy = await resolveFoodObservation(input, updated, store, noProvider);
+      expect(parseFoodResolutionDecision(legacy).ok).toBe(true);
+      expect(legacy).toMatchObject({ status: "unknown", nextAction: "retry", revision: 1 });
+      expect(legacy.decisionId).not.toBe(expired.decisionId);
+      expect(noProvider).not.toHaveBeenCalled();
+      expect(store.readLocal).toHaveBeenCalledTimes(1);
+      expect(store.stagePendingEvidence).not.toHaveBeenCalled();
+
+      const accidentalStore = fakeStore(match);
+      const after = await resolveFoodObservation(buildFoodObservationFixture(), {
+        ...updated, previousDecision: legacy,
+      }, accidentalStore);
+      expect(after.decisionId).not.toBe(expired.decisionId);
+      expect(after.decisionId).toMatch(/^resolution-attempt:/u);
+      expect(after.revision).toBe(1);
+      expect(after.nextAction).toBe("retry");
+      expect(accidentalStore.readLocal).not.toHaveBeenCalled();
+
       await expect(resolveFoodObservation(input, {
-        ...context, previousDecision: previous, knowledgeRevision: "food-knowledge-v2-refreshed",
-      }, store)).rejects.toBeInstanceOf(FoodResolutionContinuationError);
-      expect(store.readLocal).toHaveBeenCalledTimes(2);
+        ...updated, previousDecision: legacy,
+      }, accidentalStore, { attemptVersion: 1, requestKey: "wrong-prior" }))
+        .rejects.toThrow("food-resolution-attempt-requires-authoritative-prior");
+    });
+
+    it("adiciona prova local somente se o resultado inteiro for representável", async () => {
+      const originalStore = fakeStore({ kind: "miss", reason: "not_found" });
+      const originalInput = classifications(1, FOOD_CONTRACT_LIMITS.collection - 1);
+      const previous = await resolveFoodObservation({
+        ...originalInput, identityHints: buildFoodObservationFixture().identityHints,
+      }, context, originalStore);
+      expect(previous.evidence).toHaveLength(FOOD_CONTRACT_LIMITS.collection - 1);
+
+      const store = fakeStore(match);
+      const input = { ...buildFoodObservationFixture(), evidence: classifications(2, 1).evidence };
+      const result = deferred(await resolveFoodObservation(input, {
+        ...context, previousDecision: previous, knowledgeRevision: "new-local-revision",
+      }, store, { attemptVersion: 1, requestKey: "refresh-full" }));
+      expect(result.acceptedDecision.decisionId).toBe(previous.decisionId);
+      expect(result.failure.nextAction).toBe("retry");
+      expect(store.readLocal).toHaveBeenCalledTimes(1);
+      expect(store.stagePendingEvidence).not.toHaveBeenCalled();
     });
   });
 
