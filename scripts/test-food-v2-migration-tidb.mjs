@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import mysql from "mysql2/promise";
+import { prepareCurrentSlotFixtures } from "./test-food-v2-current-slots.mjs";
 
 const databaseUrl = process.env.DATABASE_URL;
 const mode = process.env.FOOD_V2_TEST_MODE;
@@ -306,6 +307,10 @@ try {
   await assertRequiredReadIndexes();
   const b2ForwardStatements = await applyFile("../drizzle/0056_food_v2_source_governance.sql");
   assert.equal(b2ForwardStatements, 6);
+  const slotFixtures = await prepareCurrentSlotFixtures(connection, fixture);
+  const slotChecks = await applyFile("../drizzle/0057_food_v2_current_slot_checks.sql");
+  assert.equal(slotChecks, 3);
+  await slotFixtures.verifySchemaAndRows(true);
   // AUD-1302-026: database leaves unknown B1/legacy provenance unassigned.
   for (const table of ["food_nutrition_profiles", "food_portions", "food_aliases"]) {
     const [column] = await queryRows(
@@ -362,8 +367,13 @@ try {
   assert.equal(Number(deleted.c), 0, "private quarantine must cascade on user deletion");
   await assertB2SourceGovernance(fixture);
   await assertLegacyWritesAfterMigration(fixture);
-  if (mode === "upgrade") await testUpgrade(fixture);
-  else {
+  if (mode === "upgrade") {
+    await slotFixtures.verifyCurrentRotation();
+    await testUpgrade(fixture);
+  } else {
+    const slotReversed = await applyFile("../drizzle/rollback/0057_food_v2_current_slot_checks.sql");
+    assert.equal(slotReversed, 3);
+    await slotFixtures.verifySchemaAndRows(false);
     const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
     assert.equal(b2Reversed, 6);
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");

@@ -15050,8 +15050,7 @@
           "autoincrement": false,
           "generated": {
             "as": "CASE WHEN owner_user_id IS NOT NULL AND retention_until IS NULL THEN NULL ELSE 1 END",
-            "type": "always",
-            "mode": "virtual"
+            "type": "virtual"
           }
         },
         "created_at": {
@@ -15239,8 +15238,7 @@
           "autoincrement": false,
           "generated": {
             "as": "CASE WHEN outcome='superseded' AND superseded_by_case_id IS NULL THEN NULL ELSE 1 END",
-            "type": "always",
-            "mode": "virtual"
+            "type": "virtual"
           }
         },
         "priority_score": {
