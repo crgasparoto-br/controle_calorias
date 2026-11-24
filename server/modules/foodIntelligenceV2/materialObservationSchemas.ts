@@ -25,7 +25,16 @@ const materialEvidenceSchema = foodEvidenceSchemaForFields(
   field =>
     isGovernedEvidenceField(field) ||
     materialFields.some(value => value === field)
-);
+)
+  // The backlink belongs to the measured evidence, not the mutable claim
+  // reference. Distinct anchors can carry equal values and labels.
+  .safeExtend({ ingredientEvidenceId: opaqueId().optional() })
+  .refine(
+    evidence =>
+      evidence.ingredientEvidenceId === undefined ||
+      evidence.field === "material.amount",
+    "A referência de ingrediente pertence apenas à evidência de medida material."
+  );
 
 const bindingSchema = z.discriminatedUnion("status", [
   z.strictObject({
@@ -147,6 +156,12 @@ function occurrenceKey(
   return JSON.stringify([sourceRef, span.start, span.end]);
 }
 
+type QuantityOccurrence = {
+  span: { start: number; end: number };
+  role: "whole" | "material";
+  path: (string | number)[];
+};
+
 function validateMaterialBatch(
   observations: FoodMaterialObservation[],
   ctx: z.RefinementCtx
@@ -158,7 +173,12 @@ function validateMaterialBatch(
   const byClaim = new Map<string, LocatedClaim>();
   const usedEvidence = new Map<FoodMaterialObservation, Set<string>>();
   const occurrences = new Set<string>();
-  const wholeQuantityOccurrences = new Set<string>();
+  const quantitativeSpans = new Map<string, QuantityOccurrence[]>();
+  const registerQuantity = (ref: string, occurrence: QuantityOccurrence) => {
+    const spans = quantitativeSpans.get(ref);
+    if (spans) spans.push(occurrence);
+    else quantitativeSpans.set(ref, [occurrence]);
+  };
   const incrementTargets = new Set<string>();
   observations.forEach((observation, index) => {
     if (byId.has(observation.observationId)) {
@@ -175,7 +195,7 @@ function validateMaterialBatch(
       }
       sources.set(ref, observation.rawInput);
     }
-    for (const evidence of observation.evidence) {
+    for (const [evidenceIndex, evidence] of observation.evidence.entries()) {
       if (
         evidence.field !== "quantity.value" ||
         observation.quantityHints.value === null ||
@@ -185,9 +205,11 @@ function validateMaterialBatch(
         continue;
       const span = localAnchor(observation, evidence);
       if (span)
-        wholeQuantityOccurrences.add(
-          occurrenceKey(observation.surfaceSpan.sourceRef, span)
-        );
+        registerQuantity(observation.surfaceSpan.sourceRef, {
+          role: "whole",
+          span,
+          path: [index, "evidence", evidenceIndex],
+        });
     }
     observation.materialClaims.forEach((claim, claimIndex) => {
       const path = [index, "materialClaims", claimIndex];
@@ -291,10 +313,13 @@ function validateMaterialBatch(
       if (!span) return;
       const sourceSpan = occurrenceKey(observation.surfaceSpan.sourceRef, span);
       const key = JSON.stringify([kind, sourceSpan]);
-      if (kind === "amount" && wholeQuantityOccurrences.has(sourceSpan)) {
-        fail(
-          "A mesma medida não pode ser quantidade do alimento e do ingrediente."
-        );
+      if (kind === "amount") {
+        registerQuantity(observation.surfaceSpan.sourceRef, {
+          role: "material",
+          span,
+          path,
+        });
+        return;
       }
       if (occurrences.has(key))
         fail("A mesma ocorrência de origem foi utilizada mais de uma vez.");
@@ -307,7 +332,17 @@ function validateMaterialBatch(
       : null;
     if (claim.kind === "ingredient") {
       registerOccurrence("ingredient", ingredientSpan);
-      if (claim.amount)
+      if (claim.amount) {
+        const amountId = claim.amount.evidenceId;
+        const evidence = observation.evidence.find(
+          item => item.evidenceId === amountId
+        );
+        if (evidence?.ingredientEvidenceId !== claim.ingredient.evidenceId) {
+          addIssue(
+            [...path, "amount", "evidenceId"],
+            "Evidência de medida deve preservar a referência à sua ocorrência de ingrediente."
+          );
+        }
         registerOccurrence(
           "amount",
           fact(
@@ -317,6 +352,7 @@ function validateMaterialBatch(
             claim.amount.unit
           )
         );
+      }
     } else {
       const operator = fact(claim.operatorEvidenceId, `material.${claim.kind}`);
       registerOccurrence(claim.kind, operator);
@@ -334,7 +370,17 @@ function validateMaterialBatch(
         registerOccurrence("ingredient", ingredientSpan);
         if (claim.target !== null)
           fail("Incremento pendente não pode indicar alvo resolvido.");
-        if (claim.unresolvedAmount)
+        if (claim.unresolvedAmount) {
+          const amountId = claim.unresolvedAmount.evidenceId;
+          const evidence = observation.evidence.find(
+            item => item.evidenceId === amountId
+          );
+          if (
+            evidence?.ingredientEvidenceId !== undefined &&
+            evidence.ingredientEvidenceId !== ingredient?.evidenceId
+          ) {
+            fail("Medida pendente não pode apontar para outro ingrediente.");
+          }
           registerOccurrence(
             "amount",
             fact(
@@ -344,6 +390,7 @@ function validateMaterialBatch(
               claim.unresolvedAmount.unit
             )
           );
+        }
         continue;
       }
       const target = claim.target;
@@ -402,6 +449,37 @@ function validateMaterialBatch(
         if (incrementTargets.has(key))
           fail("Operadores distintos não podem compartilhar o mesmo alvo.");
         incrementTargets.add(key);
+      }
+    }
+  }
+  // Compare already-grounded quantitative spans, not numeric text. Half-open
+  // intervals that only touch are distinct; the sweep also catches nesting.
+  for (const spans of quantitativeSpans.values()) {
+    let lastWholeEnd = -1;
+    let material: QuantityOccurrence | undefined;
+    for (const item of spans.sort((a, b) => a.span.start - b.span.start)) {
+      if (item.role === "whole") {
+        if (material && item.span.start < material.span.end) {
+          addIssue(
+            material.path,
+            "Medida material não pode sobrepor a quantidade do alimento."
+          );
+        }
+        lastWholeEnd = Math.max(lastWholeEnd, item.span.end);
+      } else {
+        if (item.span.start < lastWholeEnd) {
+          addIssue(
+            item.path,
+            "Medida material não pode sobrepor a quantidade do alimento."
+          );
+        }
+        if (material && item.span.start < material.span.end) {
+          addIssue(
+            item.path,
+            "Ocorrências de medida material não podem se sobrepor."
+          );
+        }
+        if (!material || item.span.end > material.span.end) material = item;
       }
     }
   }

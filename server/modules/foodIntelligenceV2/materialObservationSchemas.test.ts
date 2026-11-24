@@ -59,7 +59,8 @@ function addEvidence(
   value: string | number,
   surface: string,
   unit: string | null = null,
-  from = row.surfaceSpan.span!.start
+  from = row.surfaceSpan.span!.start,
+  ingredientEvidenceId?: string
 ) {
   const id = row.observationId + "-" + row.evidence.length;
   const evidence: Evidence = {
@@ -71,6 +72,7 @@ function addEvidence(
     sourceId: null,
     origin: row.modality === "audio_transcript" ? "transcription" : "text",
     verified: false,
+    ...(ingredientEvidenceId === undefined ? {} : { ingredientEvidenceId }),
     anchor: {
       ...row.surfaceSpan,
       span: position(row.rawInput!, surface, from),
@@ -82,18 +84,32 @@ function addEvidence(
 
 function ingredient(row: Observation, units: number, literal: string) {
   const unit = "colher de chá";
+  const ingredientEvidenceId = addEvidence(
+    row,
+    "material.ingredient",
+    "açúcar",
+    "açúcar"
+  );
   row.materialClaims.push({
     kind: "ingredient",
     claimId: row.observationId + "-ingredient",
     binding: { status: "bound", ownerObservationId: row.observationId },
     ingredient: {
       name: "açúcar",
-      evidenceId: addEvidence(row, "material.ingredient", "açúcar", "açúcar"),
+      evidenceId: ingredientEvidenceId,
     },
     amount: {
       value: units,
       unit,
-      evidenceId: addEvidence(row, "material.amount", units, literal, unit),
+      evidenceId: addEvidence(
+        row,
+        "material.amount",
+        units,
+        literal,
+        unit,
+        undefined,
+        ingredientEvidenceId
+      ),
     },
   });
 }
@@ -244,7 +260,15 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
         amount: {
           value: 1,
           unit: "g",
-          evidenceId: addEvidence(item, "material.amount", 1, "1 g", "g"),
+          evidenceId: addEvidence(
+            item,
+            "material.amount",
+            1,
+            "1 g",
+            "g",
+            undefined,
+            ingredient.evidenceId
+          ),
         },
       },
       {
@@ -278,25 +302,34 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
     } as const;
     const measures = [first, second].map((clause, index) => {
       const from = raw.indexOf(clause);
+      const ingredientEvidenceId = addEvidence(
+        item,
+        "material.ingredient",
+        "açúcar",
+        "açúcar",
+        null,
+        from
+      );
       return {
         kind: "ingredient" as const,
         claimId: "sugar-" + index,
         binding,
         ingredient: {
           name: "açúcar",
-          evidenceId: addEvidence(
-            item,
-            "material.ingredient",
-            "açúcar",
-            "açúcar",
-            null,
-            from
-          ),
+          evidenceId: ingredientEvidenceId,
         },
         amount: {
           value: 1,
           unit: "g",
-          evidenceId: addEvidence(item, "material.amount", 1, "1 g", "g", from),
+          evidenceId: addEvidence(
+            item,
+            "material.amount",
+            1,
+            "1 g",
+            "g",
+            from,
+            ingredientEvidenceId
+          ),
         },
       };
     });
@@ -320,6 +353,45 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
     item.materialClaims.push(measures[1], increase, measures[0]);
     expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
 
+    const originalAmounts = [measures[0].amount, measures[1].amount] as const;
+    [measures[0].amount, measures[1].amount] = [
+      originalAmounts[1],
+      originalAmounts[0],
+    ];
+    const swapped = structuredClone(item);
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+    });
+    expect(item).toStrictEqual(swapped);
+    [measures[0].amount, measures[1].amount] = originalAmounts;
+    expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+
+    const originalAmountIds = [
+      measures[0].amount.evidenceId,
+      measures[1].amount.evidenceId,
+    ] as const;
+    [measures[0].amount.evidenceId, measures[1].amount.evidenceId] = [
+      originalAmountIds[1],
+      originalAmountIds[0],
+    ];
+    const crossed = parseFoodMaterialObservationBatch([item]);
+    expect(crossed).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+      issues: [
+        expect.objectContaining({
+          path: "0.materialClaims.0.amount.evidenceId",
+        }),
+        expect.objectContaining({
+          path: "0.materialClaims.2.amount.evidenceId",
+        }),
+      ],
+    });
+    [measures[0].amount.evidenceId, measures[1].amount.evidenceId] =
+      originalAmountIds;
+    expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+
     // The later occurrence is equal in name and amount, and also succeeds the
     // operator; it is not the occurrence named by the operator's ingredient.
     increase.target.claimId = measures[1].claimId;
@@ -329,6 +401,27 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
       code: "invalid-contract",
     });
     expect(item).toStrictEqual(snapshot);
+    increase.target.claimId = measures[0].claimId;
+    const firstAmount = item.evidence.find(
+      e => e.evidenceId === measures[0].amount.evidenceId
+    )!;
+    const secondAmount = item.evidence.find(
+      e => e.evidenceId === measures[1].amount.evidenceId
+    )!;
+    const firstSpan = firstAmount.anchor.span!;
+    secondAmount.anchor.span = {
+      start: firstSpan.start,
+      end: firstSpan.start + 1,
+    };
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+      issues: [
+        expect.objectContaining({
+          message: "Ocorrências de medida material não podem se sobrepor.",
+        }),
+      ],
+    });
   });
 
   it("separa duas medidas do mesmo item e rejeita reusar o span do ingrediente como medida do todo", () => {
@@ -337,23 +430,32 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
     item.quantityHints.value = 100;
     item.quantityHints.unit = "ml";
     addEvidence(item, "quantity.value", 100, "100 ml", "ml");
+    const ingredientEvidenceId = addEvidence(
+      item,
+      "material.ingredient",
+      "açúcar",
+      "açúcar"
+    );
     item.materialClaims.push({
       kind: "ingredient",
       claimId: "sugar",
       binding: { status: "bound", ownerObservationId: item.observationId },
       ingredient: {
         name: "açúcar",
-        evidenceId: addEvidence(
-          item,
-          "material.ingredient",
-          "açúcar",
-          "açúcar"
-        ),
+        evidenceId: ingredientEvidenceId,
       },
       amount: {
         value: 1,
         unit: "g",
-        evidenceId: addEvidence(item, "material.amount", 1, "1 g", "g"),
+        evidenceId: addEvidence(
+          item,
+          "material.amount",
+          1,
+          "1 g",
+          "g",
+          undefined,
+          ingredientEvidenceId
+        ),
       },
     });
     expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
@@ -370,6 +472,43 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
       ok: false,
       code: "invalid-contract",
     });
+    const materialStart = position(raw, "1 g").start;
+    item.evidence[0].anchor.span = {
+      start: materialStart,
+      end: materialStart + 1,
+    };
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+      issues: [
+        expect.objectContaining({
+          message:
+            "Medida material não pode sobrepor a quantidade do alimento.",
+        }),
+      ],
+    });
+
+    // A source span ending exactly where the material quantity starts is distinct.
+    item.evidence[0] = {
+      ...item.evidence[0],
+      value: 100,
+      unit: "ml",
+      anchor: {
+        ...item.evidence[0].anchor,
+        span: { start: 0, end: materialStart },
+      },
+    };
+    item.quantityHints.value = 100;
+    item.quantityHints.unit = "ml";
+    expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+
+    // Offsets are local to each source, never global to a batch.
+    const other = observation(raw, "coffee-other-source", raw, "café");
+    other.surfaceSpan.sourceRef = "synthetic:another-turn";
+    other.quantityHints.value = 1;
+    other.quantityHints.unit = "g";
+    addEvidence(other, "quantity.value", 1, "1 g", "g");
+    expect(parseFoodMaterialObservationBatch([other, item]).ok).toBe(true);
   });
 
   it("conserva acréscimo sem medida ou dono como pendência", () => {
