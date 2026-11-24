@@ -4,12 +4,12 @@
  * Fonte: ADR Food Intelligence Resolver V2 §4.1–4.2 e §7.1.1.
  */
 import { z } from "zod";
-import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS } from "./contracts";
+import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
-import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { GovernedUnitAlias, Segment, Span } from "./linguisticSurface";
+import { foldFoodSurface, hasUnprotectedMaterialOperator, readExplicitIngredientMeasure, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
+import type { ExplicitIngredientMeasure, GovernedUnitAlias, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
-import { parseFoodObservation, type FoodObservation } from "./schemas";
+import { parseFoodMaterialObservationBatch, parseFoodObservation, type FoodMaterialObservation, type FoodObservation } from "./schemas";
 import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
 
 export type LinguisticModality = "text" | "audio_transcript" | "image";
@@ -491,9 +491,10 @@ function addResidual(
  * Falha do repositório governado é explícita, nunca reclassificada como "sem léxico".
  * O caller passa owner autorizado e revisão fixada pelo envelope V2.
  */
-export async function comprehendFoodLanguage(
+async function comprehendFoodLanguageInternal(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
   interpreter?: ResidualInterpreter,
+  material?: Map<string, ExplicitIngredientMeasure | "unproven">,
 ): Promise<FoodObservation[]> {
   if (!request.rawText.trim() || request.rawText.length > FOOD_CONTRACT_LIMITS.rawText ||
       !request.sourceRef.trim() || request.sourceRef.length > 145 ||
@@ -566,12 +567,34 @@ export async function comprehendFoodLanguage(
   if (parsedParts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   const results: FoodObservation[] = [];
   for (let i = 0; i < parsedParts.length; i++) {
-    let observation = buildObservation(request, parsedParts[i], i, units);
+    const part = parsedParts[i];
+    let observation = buildObservation(request, part, i, units);
     // Governed exact aliases (including personal confirmed aliases) take
     // precedence over a lossy morphological interpretation of their surface.
     const exactChoice = selectLexicon(
       entries, observation.identityHints.foodName ?? "", request.ownerUserId, now,
     );
+    if (material) {
+      const surface = foodOnlySpan(request.rawText, part);
+      const measure = exactChoice.selected || exactChoice.competing.length ? null :
+        readExplicitIngredientMeasure(request.rawText, surface, units, protectedTerms);
+      if (measure) {
+        const owner = buildObservation(request, measure.owner, i, units);
+        if (owner.identityHints.foodName !== null) {
+          observation = { ...owner, surfaceSpan: observation.surfaceSpan };
+          material.set(observation.observationId, measure);
+        }
+      }
+      const previous = results.at(-1);
+      const previousMaterial = previous && material.get(previous.observationId);
+      const ambiguousSibling = i > 0 && previousMaterial && previousMaterial !== "unproven" && /^\s+e\s+$/iu.test(
+        request.rawText.slice(parsedParts[i - 1].end, part.start));
+      if (!material.has(observation.observationId) &&
+          (ambiguousSibling || !exactChoice.selected &&
+            hasUnprotectedMaterialOperator(surface, protectedTerms))) {
+        material.set(observation.observationId, "unproven");
+      }
+    }
     const lexiconChoice = exactChoice.selected || exactChoice.competing.length
       ? exactChoice
       : selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
@@ -616,6 +639,78 @@ export async function comprehendFoodLanguage(
     results.push(observation);
   }
   return results;
+}
+
+export function comprehendFoodLanguage(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore, interpreter?: ResidualInterpreter,
+): Promise<FoodObservation[]> {
+  return comprehendFoodLanguageInternal(request, lexicon, interpreter);
+}
+
+export type FoodMaterialLanguageResult =
+  | { ok: true; observations: FoodMaterialObservation[] }
+  | { ok: false; reason: "unsupported-input" | "invalid-material-observations" }
+  | { ok: false; reason: "unproven-material";
+      affected: Pick<FoodObservation, "observationId" | "surfaceSpan">[];
+      observations: FoodMaterialObservation[] };
+
+/** Internal fixture/diagnostic producer. No provider, resolver or persistent
+ * consumer accepts this shape. Unsupported clauses cannot yield a batch pass. */
+export async function comprehendFoodMaterialLanguage(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore,
+): Promise<FoodMaterialLanguageResult> {
+  const modality = request.modality;
+  if (modality !== "text" && modality !== "audio_transcript" ||
+      request.locale != null && request.locale !== DEFAULT_FOOD_LOCALE) {
+    return { ok: false, reason: "unsupported-input" };
+  }
+  const material = new Map<string, ExplicitIngredientMeasure | "unproven">();
+  const base = await comprehendFoodLanguageInternal({
+    ...request, shouldInterpretResidual: undefined, interpreterVersion: undefined,
+  }, lexicon, undefined, material);
+  if (base.some(item => item.modality !== modality)) {
+    return { ok: false, reason: "invalid-material-observations" };
+  }
+  const affected: Pick<FoodObservation, "observationId" | "surfaceSpan">[] = [];
+  const candidates = base.flatMap<FoodMaterialObservation>(observation => {
+    const fact = material.get(observation.observationId);
+    if (fact === "unproven") {
+      affected.push({ observationId: observation.observationId, surfaceSpan: observation.surfaceSpan });
+      return []; // Never expose a guessed food for the clause that needs clarification.
+    }
+    const candidate: FoodMaterialObservation = {
+      ...observation, modality,
+      schemaVersion: FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION, materialClaims: [],
+    };
+    if (!fact) return [candidate];
+    const claimId = observation.observationId + ":material";
+    const ingredientId = claimId + ":ingredient";
+    const amountId = claimId + ":amount";
+    const origin = observation.modality === "audio_transcript" ? "transcription" : "text";
+    const evidence = {
+      origin, confidence: request.transcriptionConfidence ?? null, verified: false, sourceId: null,
+    } as const;
+    return [{
+      ...candidate, materialClaims: [{
+        kind: "ingredient", claimId,
+        binding: { status: "bound", ownerObservationId: observation.observationId },
+        ingredient: { name: fact.ingredient.text, evidenceId: ingredientId },
+        amount: { value: fact.value, unit: fact.unit, evidenceId: amountId },
+      }], evidence: [...observation.evidence, {
+        ...evidence, evidenceId: ingredientId, field: "material.ingredient",
+        value: fact.ingredient.text, unit: null,
+        anchor: anchor(request.sourceRef, { start: fact.ingredient.start, end: fact.ingredient.end }),
+      }, {
+        ...evidence, evidenceId: amountId, field: "material.amount", ingredientEvidenceId: ingredientId,
+        value: fact.value, unit: fact.unit, anchor: anchor(request.sourceRef, fact.measureSpan),
+      }],
+    }];
+  });
+  const checked = parseFoodMaterialObservationBatch(candidates);
+  if (!checked.ok) return { ok: false, reason: "invalid-material-observations" };
+  return affected.length
+    ? { ok: false, reason: "unproven-material", affected, observations: checked.value }
+    : { ok: true, observations: checked.value };
 }
 
 function validate(input: FoodObservation): FoodObservation {

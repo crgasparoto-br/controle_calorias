@@ -112,7 +112,9 @@ export function recognizedUnit(value: string): string | null {
   return unitMap[foldFoodSurface(value)] ?? null;
 }
 
-export function readQuantity(text: string, governedUnits: readonly GovernedUnitAlias[] = []): {
+export function readQuantity(
+  text: string, governedUnits: readonly GovernedUnitAlias[] = [], requireExplicitUnit = false,
+): {
   value: number | null; unit: string | null; name: string;
   servingText: string | null; uncertain: boolean; governedAlias?: GovernedUnitAlias;
 } {
@@ -122,7 +124,7 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   // an emoji, or discard an emoji when the following quantity is ambiguous.
   const pictographicPrefix = /^(?:\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*\s+)+/u.exec(source);
   if (pictographicPrefix) {
-    const following = readQuantity(source.slice(pictographicPrefix[0].length), governedUnits);
+    const following = readQuantity(source.slice(pictographicPrefix[0].length), governedUnits, requireExplicitUnit);
     if (following.value !== null && following.unit !== null && following.name) return following;
   }
   const unresolved = () => ({
@@ -203,7 +205,7 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
     };
   }
   const oneAndHalf = new RegExp("^(" + quantityPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu").exec(source);
-  if (oneAndHalf) {
+  if (oneAndHalf && !requireExplicitUnit) {
     const value = parseNumber(oneAndHalf[1]);
     if (value !== null && Number.isInteger(value)) return { value: value + 0.5, unit: "un", name: source.slice(oneAndHalf[0].length).trim(), servingText: oneAndHalf[0].trim(), uncertain: false };
   }
@@ -211,7 +213,7 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   // "mortadela, uma fatia e meia". Do not manufacture another food item.
   const trailing = /^(.+?),\s*(.+)$/u.exec(source);
   if (trailing) {
-    const suffix = readQuantity(trailing[2], governedUnits);
+    const suffix = readQuantity(trailing[2], governedUnits, requireExplicitUnit);
     if (suffix.value !== null && suffix.unit !== null && !suffix.name) {
       return { ...suffix, name: trailing[1].trim() };
     }
@@ -264,7 +266,7 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   const halfAfterFood = new RegExp(
     "^(" + quantityPattern + ")\\s+(.+?)\\s+e\\s+mei[ao]\\s*$", "iu",
   ).exec(source);
-  if (halfAfterFood) {
+  if (halfAfterFood && !requireExplicitUnit) {
     const value = parseNumber(halfAfterFood[1]);
     if (value !== null) return {
       value: value + 0.5, unit: "un", name: halfAfterFood[2].trim(),
@@ -272,7 +274,7 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
     };
   }
   const simple = counted.exec(source);
-  if (simple) {
+  if (simple && !requireExplicitUnit) {
     const value = parseNumber(simple[1]);
     if (value !== null) return { value, unit: "un", name: source.slice(simple[0].length).trim(), servingText: simple[0].trim(), uncertain: false };
     return { value: null, unit: null, name: source, servingText: simple[0].trim(), uncertain: true };
@@ -290,7 +292,9 @@ export function trimSpan(text: string, start: number, end: number): Segment | nu
  * Unicode words, not folded-string offsets: folding can change UTF-16 lengths.
  * The returned offsets always refer to the original, untouched segment.
  */
-function protectedConjunctions(segment: Segment, protectedTerms: readonly string[]): Set<number> {
+function protectedConjunctions(
+  segment: Segment, protectedTerms: readonly string[], connector = "e",
+): Set<number> {
   const tokenPattern = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu;
   const words = [...segment.text.matchAll(tokenPattern)].map(match => ({
     start: match.index, folded: foldFoodSurface(match[0]),
@@ -298,15 +302,60 @@ function protectedConjunctions(segment: Segment, protectedTerms: readonly string
   const protectedOffsets = new Set<number>();
   for (const term of protectedTerms) {
     const phrase = [...term.matchAll(tokenPattern)].map(match => foldFoodSurface(match[0]));
-    if (phrase.length < 3 || !phrase.includes("e") || phrase.length > words.length) continue;
+    if (phrase.length < 3 || !phrase.includes(connector) || phrase.length > words.length) continue;
     for (let start = 0; start <= words.length - phrase.length; start++) {
       if (!phrase.every((word, offset) => words[start + offset].folded === word)) continue;
       for (let offset = 1; offset < phrase.length - 1; offset++) {
-        if (phrase[offset] === "e") protectedOffsets.add(words[start + offset].start);
+        if (phrase[offset] === connector) protectedOffsets.add(words[start + offset].start);
       }
     }
   }
   return protectedOffsets;
+}
+
+export type ExplicitIngredientMeasure = {
+  owner: Segment;
+  ingredient: Segment;
+  measureSpan: Span;
+  value: number;
+  unit: string;
+};
+
+export function hasUnprotectedMaterialOperator(segment: Segment, protectedTerms: readonly string[]): boolean {
+  return [...segment.text.matchAll(/(?<!\S)(?:com|sem|mais)(?=\s|$)/giu)].some(match =>
+    !protectedConjunctions(segment, protectedTerms, foldFoodSurface(match[0])).has(match.index));
+}
+
+/** Narrow S1 constituent: owner + explicit "com" + measured ingredient.
+ * Uses the same quantity grammar/S2 unit set as the enclosing observation.
+ * Unproven scope or implicit count is not an ingredient measurement. */
+export function readExplicitIngredientMeasure(
+  raw: string, segment: Segment, units: readonly GovernedUnitAlias[],
+  protectedTerms: readonly string[],
+): ExplicitIngredientMeasure | null {
+  const protectedOffsets = protectedConjunctions(segment, protectedTerms, "com");
+  const connectors = [...segment.text.matchAll(/(?<!\S)com(?=\s)/giu)]
+    .filter(match => !protectedOffsets.has(match.index));
+  if (connectors.length !== 1) return null;
+  const connector = segment.start + connectors[0].index;
+  const owner = trimSpan(raw, segment.start, connector);
+  const suffix = trimSpan(raw, connector + 3, segment.end);
+  if (!owner || !suffix || /(?<!\S)(?:sem|mais|ou)(?=\s|$)/iu.test(owner.text)) return null;
+  const parsed = readQuantity(suffix.text, units, true);
+  if (parsed.value === null || parsed.unit === null || parsed.uncertain ||
+      !parsed.servingText || !parsed.name || !suffix.text.endsWith(parsed.name) ||
+      !suffix.text.startsWith(parsed.servingText) ||
+      /(?<!\S)(?:e|ou|com|sem|mais)(?=\s|$)/iu.test(parsed.name)) return null;
+  const ingredientStart = suffix.end - parsed.name.length;
+  // The resulting measure anchor excludes the optional connective "de".
+  const measureText = parsed.servingText.replace(/\s+de$/iu, "");
+  const measureEnd = suffix.start + measureText.length;
+  if (measureEnd >= ingredientStart ||
+      !/^\s+(?:de\s+)?$/iu.test(raw.slice(measureEnd, ingredientStart))) return null;
+  return {
+    owner, ingredient: { text: parsed.name, start: ingredientStart, end: suffix.end },
+    measureSpan: { start: suffix.start, end: measureEnd }, value: parsed.value, unit: parsed.unit,
+  };
 }
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.

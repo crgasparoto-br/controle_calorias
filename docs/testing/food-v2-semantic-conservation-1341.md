@@ -5,6 +5,28 @@ rollout, gate nutricional ou aprovação independente. Fonte normativa:
 `docs/design-docs/adr-food-intelligence-resolver-v2.md` §§4.1.2–4.1.8, 16–18;
 evidência atual do corpus em `server/modules/foodIntelligenceV2/corpus/`.
 
+## Primeiro recorte do produtor material inativo
+
+`comprehendFoodMaterialLanguage` opta pela revisão 3 na **mesma LCL**
+S1/S2. Reutiliza a segmentação, a gramática de quantidades e o léxico
+governado; não chama S3. Neste recorte, a gramática
+`alimento com medida explícita de ingrediente` em texto/transcrição
+produz dono, ingrediente e medida com evidência separada por ocorrência.
+Ele não converte medidas em gramas e não acrescenta macros ou decisão.
+`comprehendFoodLanguage` e as pendências persistidas continuam na revisão 2.
+
+O resultado `unproven-material` delimita por ID e span apenas os trechos
+afetados e retém os irmãos como diagnóstico, sem autorizar persistência.
+Uma medida implícita ou desconhecida, um incremento, uma negação ou uma
+coordenação cuja ligação ainda não se prove não recebe uma ligação
+arbitrária. A ausência de vínculo nessa amostra não é aceitação.
+
+`linguisticMaterial.test.ts` lê as referências C1b congeladas, incluindo o
+holdout de quantidades de ingredientes e as continuações sem dono.
+Valida dono, unidade, valor, fonte e spans, sem mudar partições/rótulos.
+Este resultado é limitado à gramática inicial: outros vínculos, admissão
+pública, acurácia, custo e latência continuam fora da demonstração.
+
 ## Hipótese a refutar
 
 A preservação de `rawInput` e de um span que inclui a frase inteira **não prova**
