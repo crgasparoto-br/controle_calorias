@@ -156,6 +156,18 @@ function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string
     competing: eligible.length > 1 ? eligible : [],
   };
 }
+/** Shape alone cannot establish a food role (e.g. an infinitive after a
+ * negator). Reuse the pinned lexicon only as exact lexical evidence, without
+ * rewriting the source surface or resolving the identity. */
+function hasGovernedNominalRole(
+  entries: readonly GovernedLexiconEntry[], surface: string, owner: number | null, now: Date,
+): boolean {
+  const { selected } = selectLexicon(entries, surface, owner, now);
+  return selected !== null && selected.kind === "alias_surface" &&
+    selected.targetType === "food_variant" && Boolean(selected.targetRef?.trim()) &&
+    !selected.requiresClarification;
+}
+
 /** S2 may govern the *unit slot* as well as the food-name slot.
  * The lexical snapshot is already owner-scoped, grant-filtered and revision-pinned
  * by the repository; colliding meanings remain alternatives, not defaults.
@@ -595,10 +607,20 @@ export async function comprehendFoodLanguage(
         const from = "operator" in constituent ? constituent.operator.start : constituent.measureSpan.start;
         if (from >= span.start && constituent.ingredient.end <= span.end) {
           const owner = buildObservation(request, constituent.owner, i, units, true);
-          const ownerSpan = owner.surfaceSpan.span;
-          if (owner.identityHints.foodName !== null &&
-              (!("operator" in constituent) || ownerSpan &&
-                ownerSpan.start >= span.start && ownerSpan.end <= from)) {
+          let rolesProven = true;
+          if ("operator" in constituent) {
+            const name = owner.evidence.find(item => item.field === "identity.foodName");
+            const nameSpan = name?.anchor.span;
+            // Use the exact name evidence, not a normalized guess from the
+            // entire clause. Both slots must independently prove a food role.
+            rolesProven = !!nameSpan && name?.anchor.sourceRef === request.sourceRef &&
+              nameSpan.start >= span.start && nameSpan.end <= from &&
+              typeof name.value === "string" &&
+              request.rawText.slice(nameSpan.start, nameSpan.end) === name.value &&
+              hasGovernedNominalRole(entries, name.value, request.ownerUserId, now) &&
+              hasGovernedNominalRole(entries, constituent.ingredient.text, request.ownerUserId, now);
+          }
+          if (owner.identityHints.foodName !== null && rolesProven) {
             observation = { ...owner, surfaceSpan: observation.surfaceSpan };
             material.set(observation.observationId, constituent);
           }

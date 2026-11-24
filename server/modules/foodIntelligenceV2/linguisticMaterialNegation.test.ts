@@ -12,6 +12,19 @@ import {
 } from "./schemas";
 
 const empty = { load: async () => [] };
+function nominal(term: string, id: number, extra: Partial<GovernedLexiconEntry> = {}): GovernedLexiconEntry {
+  return {
+    id, term, normalizedTerm: term, kind: "alias_surface", targetType: "food_variant",
+    targetRef: "synthetic-food-" + id, locale: "pt-BR", scope: "global", userId: null,
+    source: null, status: "verified", confidence: null, requiresClarification: false,
+    current: true, validFrom: null, validTo: null, ...extra,
+  };
+}
+const roles = { load: async () =>
+  ["focaccia", "alecrim", "crepe", "gergelim-tostado", "gergelim", "tortilha", "mingau",
+    "granola", "bolo", "caldo", "creme", "limão", "mostarda", "castanha", "biscoito"]
+    .map((term, index) => nominal(term, index + 1)),
+};
 function input(rawText: string, options: Partial<LinguisticRequest> = {}): LinguisticRequest {
   return {
     rawText, sourceRef: "authored:negation", modality: "text", ownerUserId: null,
@@ -64,7 +77,7 @@ function assertNegation(
 describe("R3: negação explícita de ocorrência local sem inferência nutricional", () => {
   it("preserva a quantidade explícita do dono e ancora operador e ingrediente separadamente", async () => {
     const request = input("2 fatias de focaccia SEM alecrim");
-    const result = await comprehendFoodMaterialLanguage(request, empty);
+    const result = await comprehendFoodMaterialLanguage(request, roles);
     if (!result.ok) throw new Error(result.reason);
     expect(parseFoodMaterialObservationBatch(result.observations).ok).toBe(true);
     const [row] = result.observations;
@@ -86,7 +99,7 @@ describe("R3: negação explícita de ocorrência local sem inferência nutricio
     });
     const called = vi.fn(() => true);
     request.shouldInterpretResidual = called;
-    const result = await comprehendFoodMaterialLanguage(request, empty);
+    const result = await comprehendFoodMaterialLanguage(request, roles);
     if (!result.ok) throw new Error(result.reason);
     expect(result.observations).toHaveLength(3);
     expect(result.observations[0].materialClaims).toEqual([]);
@@ -121,7 +134,7 @@ describe("R3: negação explícita de ocorrência local sem inferência nutricio
     ["crepe sem qualquer", ["crepe sem qualquer"]],
   ] as const)("não adivinha o escopo de %s e conserva o irmão independente", async (clause, affected) => {
     const request = input(clause + "; 3 tâmaras");
-    const result = await comprehendFoodMaterialLanguage(request, empty);
+    const result = await comprehendFoodMaterialLanguage(request, roles);
     if (result.ok || result.reason !== "unproven-material") throw new Error("expected explicit abstention");
     expect(result.affected.map(item =>
       request.rawText.slice(item.surfaceSpan.span?.start, item.surfaceSpan.span?.end)
@@ -136,7 +149,7 @@ describe("R3: negação explícita de ocorrência local sem inferência nutricio
     const measured = "2 crepes com 3 g de erva-doce";
     const negated = "1 tortilha sem gergelim";
     const request = input(measured + "; " + negated);
-    const result = await comprehendFoodMaterialLanguage(request, empty);
+    const result = await comprehendFoodMaterialLanguage(request, roles);
     if (!result.ok) throw new Error(result.reason);
     expect(result.observations).toHaveLength(2);
     expect(parseFoodMaterialObservationBatch(result.observations).ok).toBe(true);
@@ -170,6 +183,52 @@ describe("R3: negação explícita de ocorrência local sem inferência nutricio
     if (!result.ok) throw new Error(result.reason);
     expect(result.observations[0].materialClaims).toEqual([]);
     expect(result.observations[0].identityHints.foodName).toBe(name);
+  });
+
+  const unsupportedRole = [
+    "granola sem misturar", "bolo sem esquentar", "caldo sem ferver", "biscoito sem fracionar",
+    "Não comi crepe sem mostarda", "não adicionar creme sem limão",
+    "mingau & crepe sem gergelim", "mingau: crepe sem gergelim",
+    "mingau | crepe sem gergelim", "creme sem mexer", "crepe sem lactose",
+  ] as const;
+  it.each(unsupportedRole.flatMap(clause =>
+    (["text", "audio_transcript"] as const).map(modality => [clause, modality] as const)
+  ))("mantém %s pendente em %s", async (clause, modality) => {
+    const request = input(clause + "; 2 uvas", {
+      modality, ...(modality === "audio_transcript" ? { transcriptionConfidence: 0.74 } : {}),
+    });
+    const result = await comprehendFoodMaterialLanguage(request, roles);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("unsupported claim was not withheld");
+    expect(result.affected.some(item => item.surfaceSpan.span?.start === 0)).toBe(true);
+    expect(result.observations.map(item => item.identityHints.foodName)).toEqual(["uvas"]);
+    expect(result.observations.flatMap(item => item.materialClaims)).toEqual([]);
+  });
+
+  it("não aceita frase instrucional ou coordenada como um nome nominal, ainda que oferecida como alias", async () => {
+    const malformedOwners = ["não adicionar creme", "mingau & crepe"];
+    const store = { load: async () => [
+      nominal("limão", 90), ...malformedOwners.map((term, i) => nominal(term, 91 + i)),
+    ] };
+    for (const owner of malformedOwners) {
+      const result = await comprehendFoodMaterialLanguage(input(owner + " sem limão; 2 uvas"), store);
+      if (result.ok || result.reason !== "unproven-material") throw new Error("expected lexical boundary refusal");
+      expect(result.observations.map(item => item.identityHints.foodName)).toEqual(["uvas"]);
+    }
+  });
+
+  it.each([
+    [],
+    [nominal("crepe", 1)],
+    [nominal("gergelim", 2)],
+    [nominal("crepe", 1), nominal("gergelim", 2, { status: "revoked" })],
+    [nominal("crepe", 1), nominal("gergelim", 2), nominal("gergelim", 3)],
+    [nominal("crepe", 1), nominal("gergelim", 2, { targetType: "canonical_term" })],
+    [nominal("crepe", 1), nominal("gergelim", 2, { scope: "user", userId: 42, status: "active", source: "user_confirmed" })],
+    [nominal("crepe", 1), nominal("gergelim", 2, { requiresClarification: true })],
+  ])("não infere papéis de autoridade lexical ausente, desatualizada ou ambígua", async (...entries) => {
+    const result = await comprehendFoodMaterialLanguage(input("crepe sem gergelim; 2 uvas"), { load: async () => entries });
+    if (result.ok || result.reason !== "unproven-material") throw new Error("unexpected authority");
+    expect(result.observations.map(item => item.identityHints.foodName)).toEqual(["uvas"]);
   });
 
   it("não cria afirmação textual para modalidade ou locale fora do recorte", async () => {

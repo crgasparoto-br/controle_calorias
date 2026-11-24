@@ -626,6 +626,9 @@ export function splitFoodSurface(
       const owner = trimSpan(text, part.start, operator.start);
       const ingredient = trimSpan(text, operator.end, part.end);
       if (owner && ingredient && ingredient.text.length <= FOOD_CONTRACT_LIMITS.nameText &&
+          // The quantity reader already owns the exact measured prefix. What
+          // remains must be one local nominal slot, not a command or a list.
+          simpleName.test(readQuantity(owner.text, governedUnits).name) &&
           !/[()[\]{}]/u.test(owner.text) &&
           !/(?<![\p{L}\p{M}\p{N}])ou(?![\p{L}\p{M}\p{N}])/iu.test(owner.text) &&
           simpleName.test(ingredient.text) && !startsWithNumber.test(ingredient.text.split(/\p{Pd}/u)[0]) &&
