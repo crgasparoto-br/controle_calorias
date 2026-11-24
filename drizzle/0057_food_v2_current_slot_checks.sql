@@ -1,0 +1,3 @@
+ALTER TABLE `user_food_aliases` ADD CONSTRAINT `user_food_aliases_current_ck` CHECK ((status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL));--> statement-breakpoint
+ALTER TABLE `user_food_lexicon_entries` ADD CONSTRAINT `user_food_lexicon_current_ck` CHECK ((status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL));--> statement-breakpoint
+ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attr_override_current_ck` CHECK ((status='active' AND current_slot IS NOT NULL AND current_slot=1) OR (status='revoked' AND current_slot IS NULL));

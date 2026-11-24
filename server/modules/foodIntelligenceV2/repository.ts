@@ -4,7 +4,7 @@
  * the V1 entrypoints until the ADR's shadow/cutover gates.
  */
 import { createHash } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { foodAliases, foodBrands, foodPortions, foodSources, foods } from "../../../drizzle/schema";
 import {
   foodBarcodes, foodEvidence, foodNutritionProfiles, foodSourceReadGrants, foodVariantSources,
@@ -102,6 +102,17 @@ async function eligibleVariant(
 /** An explicit food name accompanying a barcode is another identity claim,
  * not decorative text. Permit only the same governed variant/family or a
  * still-authorized alias; never silently ignore a contradictory name. */
+function confirmedCurrentPersonalAlias(userId: number, normalizedName: string) {
+  return and(
+    eq(userFoodAliases.userId, userId),
+    eq(userFoodAliases.normalizedAlias, normalizedName),
+    eq(userFoodAliases.source, "user_confirmed"),
+    eq(userFoodAliases.status, "active"),
+    eq(userFoodAliases.currentSlot, 1),
+    isNull(userFoodAliases.revokedAt),
+  );
+}
+
 async function barcodeNameIsCompatible(
   db: V2Database,
   request: FoodKnowledgeRequest,
@@ -117,11 +128,8 @@ async function barcodeNameIsCompatible(
   if (request.userId !== null) {
     const personal = await db.select({ id: userFoodAliases.foodVariantId })
       .from(userFoodAliases).where(and(
-        eq(userFoodAliases.userId, request.userId),
+        confirmedCurrentPersonalAlias(request.userId, name),
         eq(userFoodAliases.foodVariantId, row.variant.id),
-        eq(userFoodAliases.normalizedAlias, name),
-        eq(userFoodAliases.source, "user_confirmed"),
-        eq(userFoodAliases.status, "active"),
       )).limit(1);
     if (personal.length === 1) return true;
   }
@@ -341,12 +349,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         if (request.userId !== null && !request.brand?.trim()) {
           const personal = await db.select({ id: userFoodAliases.foodVariantId })
             .from(userFoodAliases)
-            .where(and(
-              eq(userFoodAliases.userId, request.userId),
-              eq(userFoodAliases.normalizedAlias, name),
-              eq(userFoodAliases.status, "active"),
-              eq(userFoodAliases.source, "user_confirmed"),
-            )).limit(MAX_CANDIDATES + 1);
+            .where(confirmedCurrentPersonalAlias(request.userId, name)).limit(MAX_CANDIDATES + 1);
           groups.push({ match: "personal_alias", ids: personal.map(row => row.id) });
         }
         const exact = await db.select({ id: foodVariants.id }).from(foodVariants)
