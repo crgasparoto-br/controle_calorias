@@ -16,7 +16,7 @@
 
 | Obrigação | Estado | Evidência ou próximo passo |
 |---|---|---|
-| OBL-001 | `pending` | Modelo decidido, mas ainda nao houve review em conversa separada autenticada. (`REQ-GOV-001`) |
+| OBL-001 | `covered` (somente decisão) | A issue define o modelo `operator-attested-session-review`, sem garantia de terceiro; testes do contrato oficial rejeitam falsificação de independência. A **revisão real** pertence à M2-02 e permanece diferida, não coberta. (`REQ-GOV-001`) |
 | OBL-002 | `covered` | O coletor so aceita base develop; teste novo rejeita base main. (`REQ-M1-BASE`) |
 | OBL-003 | `not-applicable` | SHA de base historica, anterior ao bootstrap; nao e novo requisito a entregar. |
 | OBL-004 | `not-applicable` | Registro historico de arquivos ausentes antes do bootstrap da PR 1347. |
@@ -49,6 +49,7 @@ Cada ID abaixo corresponde a um teste concreto, positivo, negativo ou regressão
 
 | Requisito | Positivo | Negativo | Regressão |
 |---|---|---|
+| `REQ-GOV-001` (decisão, não aprovação) | `test_single_account_can_submit_only_explicitly_limited_review` | `test_policy_cannot_silently_downgrade_existing_guarantee[assurance-third-party]` | `test_fake_independence_label` |
 | `REQ-M1-BASE` | `test_valid_preflight_without_approval` | `test_collector_base_must_remain_develop` | `test_collector_requires_explicit_opt_in_label` |
 | `REQ-M1-FAILCLOSED` | `test_valid_preflight_without_approval` | `test_collector_must_inspect_reviewed_closure` | `test_collector_must_fail_closed` |
 | `REQ-M1-INTEGRITY` | `test_pinned_official_mirror_is_complete` | `test_official_mirror_rejects_hash_mismatch` | `test_official_mirror_rejects_missing_validator` |
@@ -197,3 +198,23 @@ comentários alterados, revogação, CI/certificado, base/HEAD ou sessão distin
 A classificação de OBL-011 e M1-04 permanece `pending`, e a política M2
 continua desabilitada. A matriz não altera o produtor oficial nem concede
 aprovação ao implementador.
+
+## Dependência adicional de GROUND-TEST-001 para Node/Vitest (24/11/2026)
+
+A análise reproduziu no contrato oficial fixado em `71217ab` que
+`bind_grounding_execution.junit_identity` rejeita caminhos de teste `.mjs` e
+`.ts` por aceitar exclusivamente `.py`, enquanto esta PR altera testes
+Node/Vitest. A limitação está documentada em
+[crgasparoto-br/skill#209](https://github.com/crgasparoto-br/skill/issues/209),
+com reprodução e critérios de correção fail-closed. Mesmo depois da revisão
+semântica dos itens M1 pendentes, a certificação precisa vincular a execução
+desses testes ao mesmo SHA e aos artefatos JUnit/log autenticados — **não**
+remover `GROUND-TEST-001`, mudar o perfil de risco ou inventar evidência.
+
+No [run #45272552853](https://github.com/crgasparoto-br/controle_calorias/actions/runs/45272552853)
+o bloqueio observado ocorreu antes desse vinculador, pois faltava
+`certification-inputs.json`. A limitação Node/Vitest é uma dependência
+adicional **reproduzida no código do Skill**, não a causa desse run. O dossiê
+permanece `incomplete`; o registro de decisão de governança em `REQ-GOV-001`
+comprova somente a **decisão já registrada na issue**, nunca um parecer
+em conversa separada ou aprovação operacional M2.

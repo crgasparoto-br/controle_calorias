@@ -2,14 +2,14 @@
   "schema_version": 1,
   "obligations": {
     "ffd2015c445b014e56e3bf7fc25bf855d214c9443b900b2f4730a723b9f71ebc": {
-      "disposition": "pending",
+      "disposition": "covered",
       "requirement_ids": [
         "REQ-GOV-001"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Modelo decidido, mas ainda nao houve review em conversa separada autenticada."
+      "rationale": "The source issue makes the governance model decision itself: operator-attested-session-review, with separately declared conversations and no third-party assurance. The pinned official policy/validator tests prove the assurance distinction and reject fabricated third-party identity. This covers adoption of the design decision only, not a real second-context session, operational certificate or approval; those remain deferred under REQ-M2-POSITIVE and blocked under REQ-M1-HANDOFF/REQ-M1-PACKET/REQ-M1-ADVERSARIAL."
     },
     "fe6ac83955cb63a99f185d642000573799fda40cb5ab1f69a7206cf2833c7b39": {
       "disposition": "covered",
