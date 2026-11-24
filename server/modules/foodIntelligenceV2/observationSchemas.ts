@@ -109,10 +109,13 @@ export const foodLocaleSchema = z
     "pt-BR é suportado no recorte atual e não pode ser marcado como unsupported."
   );
 
-export const foodObservationShape = {
+const foodObservationModalitySchema = z.enum(FOOD_INPUT_TYPES);
+const foodObservationReasonSchema = z.enum(FOOD_REASON_CODES);
+
+const baseObservationSchema = z.strictObject({
     schemaVersion: z.literal(FOOD_OBSERVATION_SCHEMA_VERSION),
     observationId: opaqueId(),
-    modality: z.enum(FOOD_INPUT_TYPES),
+    modality: foodObservationModalitySchema,
     rawInput: z.string().max(FOOD_CONTRACT_LIMITS.rawText).nullable(),
     normalizedInput: z.string().max(FOOD_CONTRACT_LIMITS.rawText).nullable(),
     locale: foodLocaleSchema,
@@ -126,12 +129,10 @@ export const foodObservationShape = {
     alternatives: z
       .array(foodObservationAlternativeSchema)
       .max(FOOD_CONTRACT_LIMITS.alternatives),
-    unresolvedReason: z.enum(FOOD_REASON_CODES).nullable(),
+    unresolvedReason: foodObservationReasonSchema.nullable(),
     lexiconRevision: nonEmptyText.max(FOOD_CONTRACT_LIMITS.shortText),
     interpreterVersion: nullableText(FOOD_CONTRACT_LIMITS.shortText),
-};
-
-const baseObservationSchema = z.strictObject(foodObservationShape);
+});
 type FoodObservationFields = Omit<z.infer<typeof baseObservationSchema>, "schemaVersion">;
 
 export function validateFoodObservationFields(observation: FoodObservationFields, ctx: z.RefinementCtx) {
@@ -195,7 +196,7 @@ export function validateFoodObservationFields(observation: FoodObservationFields
 
     if (
       observation.locale.status === "unsupported" &&
-      observation.unresolvedReason !== "unsupported_locale"
+      observation.unresolvedReason !== foodObservationReasonSchema.enum.unsupported_locale
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -206,8 +207,8 @@ export function validateFoodObservationFields(observation: FoodObservationFields
     }
 
     if (
-      (observation.modality === "text" ||
-        observation.modality === "audio_transcript") &&
+      (observation.modality === foodObservationModalitySchema.enum.text ||
+        observation.modality === foodObservationModalitySchema.enum.audio_transcript) &&
       observation.surfaceSpan.region !== null
     ) {
       ctx.addIssue({
