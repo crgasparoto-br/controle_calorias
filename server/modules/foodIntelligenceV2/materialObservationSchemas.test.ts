@@ -531,6 +531,98 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
     expect(parseFoodMaterialObservationBatch([other, item]).ok).toBe(true);
   });
 
+  it("não distribui a mesma medida de ovos para banana no mesmo texto", () => {
+    const raw = "2 ovos e banana";
+    const items = ["ovos", "banana"].map(name => {
+      const item = observation(raw, name, raw, name);
+      item.quantityHints.value = 2;
+      item.quantityHints.unit = "un";
+      addEvidence(item, "quantity.value", 2, "2", "un");
+      return item;
+    });
+    const original = structuredClone(items);
+    expect(parseFoodMaterialObservationBatch(items)).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+      issues: [expect.objectContaining({ path: "1.evidence.0" })],
+    });
+    expect(items).toStrictEqual(original);
+  });
+
+  it.each([
+    ["mesmo trecho", [0, 1], [0, 1], false, false, false],
+    ["trechos parcialmente sobrepostos", [0, 4], [2, 7], false, false, false],
+    ["trecho contido", [0, 7], [2, 4], false, false, false],
+    ["trecho contido com ordem invertida", [2, 4], [0, 7], false, false, false],
+    ["mesmo trecho com itens invertidos", [0, 1], [0, 1], true, false, false],
+    ["extremos adjacentes", [0, 7], [7, 8], false, false, true],
+    [
+      "valores iguais em posições distintas",
+      [0, 1],
+      [7, 8],
+      false,
+      false,
+      true,
+    ],
+    [
+      "posições distintas com itens invertidos",
+      [0, 1],
+      [7, 8],
+      true,
+      false,
+      true,
+    ],
+    [
+      "mesmos offsets de fontes independentes",
+      [0, 1],
+      [0, 1],
+      false,
+      true,
+      true,
+    ],
+  ] as const)(
+    "valida titularidade da medida: %s",
+    (_label, first, second, reverse, independent, valid) => {
+      const raw = "2 ovos;2 bananas";
+      const items = [first, second].map(([start, end], index) => {
+        const name = index ? "bananas" : "ovos";
+        const item = observation(raw, name, raw, name);
+        if (independent && index)
+          item.surfaceSpan.sourceRef = "synthetic:independent";
+        item.quantityHints.value = 2;
+        item.quantityHints.unit = "un";
+        addEvidence(item, "quantity.value", 2, "2", "un");
+        item.evidence[0].anchor.span = { start, end };
+        return item;
+      });
+      if (reverse) items.reverse();
+      const snapshot = structuredClone(items);
+      const result = parseFoodMaterialObservationBatch(items);
+      if (valid) expect(result).toStrictEqual({ ok: true, value: snapshot });
+      else
+        expect(result).toMatchObject({ ok: false, code: "invalid-contract" });
+      expect(items).toStrictEqual(snapshot);
+    }
+  );
+
+  it("permite reafirmar a medida do mesmo dono e compartilhar contexto não quantitativo", () => {
+    const raw = "2 batatas e 2 cenouras cozidas";
+    const items = ["batatas", "cenouras"].map(name => {
+      const item = observation(raw, name, raw, name);
+      item.quantityHints.value = 2;
+      item.quantityHints.unit = "un";
+      const from = raw.indexOf("2 " + name);
+      addEvidence(item, "quantity.value", 2, "2", "un", from);
+      addEvidence(item, "quantity.value", 2, "2", "un", from);
+      addEvidence(item, "identity.preparation", "cozidas", "cozidas");
+      return item;
+    });
+    expect(parseFoodMaterialObservationBatch(items)).toStrictEqual({
+      ok: true,
+      value: items,
+    });
+  });
+
   it("exige âncora local da quantidade do item, mesmo sem vínculos materiais", () => {
     const simple = observation("1 g de café", "coffee", "1 g de café", "café");
     simple.quantityHints.value = 1;

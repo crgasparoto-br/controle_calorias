@@ -178,6 +178,9 @@ function occurrenceKey(
 
 type Span = { start: number; end: number };
 type QuantityOccurrence = { span: Span; path: (string | number)[] };
+type WholeQuantityOccurrence = QuantityOccurrence & {
+  ownerObservationId: string;
+};
 
 function appendToSource<T>(
   index: Map<string, T[]>,
@@ -187,6 +190,28 @@ function appendToSource<T>(
   const values = index.get(sourceRef);
   if (values) values.push(value);
   else index.set(sourceRef, [value]);
+}
+
+/**
+ * Before the first conflict, all intervals still active at the current
+ * start have one owner: two active owners would already have collided.
+ * Keeping the interval that ends last catches nested ranges without
+ * comparing every pair or mistaking adjacent half-open ranges for reuse.
+ */
+function firstSharedWholeMeasure(measures: WholeQuantityOccurrence[]) {
+  let longest: WholeQuantityOccurrence | undefined;
+  for (const item of measures.sort(
+    (left, right) => left.span.start - right.span.start
+  )) {
+    if (
+      longest &&
+      item.span.start < longest.span.end &&
+      item.ownerObservationId !== longest.ownerObservationId
+    )
+      return item;
+    if (!longest || item.span.end > longest.span.end) longest = item;
+  }
+  return undefined;
 }
 
 /** Union the typed whole-quantity ranges for the half-open overlap test. */
@@ -214,7 +239,7 @@ function validateMaterialBatch(
   const byClaim = new Map<string, LocatedClaim>();
   const usedEvidence = new Map<FoodMaterialObservation, Set<string>>();
   const occurrences = new Set<string>();
-  const wholeQuantitySpans = new Map<string, Span[]>();
+  const wholeQuantityOccurrences = new Map<string, WholeQuantityOccurrence[]>();
   const measuredOccurrences = new Map<string, QuantityOccurrence[]>();
   const incrementTargets = new Set<string>();
   observations.forEach((observation, index) => {
@@ -233,7 +258,7 @@ function validateMaterialBatch(
       sources.set(ref, observation.rawInput);
     }
     let hasLocalWholeQuantity = false;
-    for (const evidence of observation.evidence) {
+    for (const [evidenceIndex, evidence] of observation.evidence.entries()) {
       if (
         evidence.field !== wholeQuantityEvidenceField.value ||
         observation.quantityHints.value === null ||
@@ -245,9 +270,13 @@ function validateMaterialBatch(
       if (span) {
         hasLocalWholeQuantity = true;
         appendToSource(
-          wholeQuantitySpans,
+          wholeQuantityOccurrences,
           observation.surfaceSpan.sourceRef,
-          span
+          {
+            span,
+            path: [index, "evidence", evidenceIndex],
+            ownerObservationId: observation.observationId,
+          }
         );
       }
     }
@@ -502,11 +531,22 @@ function validateMaterialBatch(
       }
     }
   }
+  for (const wholeMeasures of wholeQuantityOccurrences.values()) {
+    const shared = firstSharedWholeMeasure(wholeMeasures);
+    if (shared)
+      addIssue(
+        shared.path,
+        "Uma ocorrência de medida não pode ter dois alimentos donos."
+      );
+  }
+
   // Compare typed source spans, not numeric text. Touching half-open ranges
   // are distinct. Whole quantities and measured occurrences own different
   // indexes; a reference to a quantity (e.g. an increment) adds no measure.
   for (const [sourceRef, measures] of measuredOccurrences) {
-    const occupied = unionSpans(wholeQuantitySpans.get(sourceRef) ?? []);
+    const occupied = unionSpans(
+      (wholeQuantityOccurrences.get(sourceRef) ?? []).map(item => item.span)
+    );
     let nextOccupied = 0;
     let previousMeasureEnd = -1;
     for (const { span, path } of measures.sort(
