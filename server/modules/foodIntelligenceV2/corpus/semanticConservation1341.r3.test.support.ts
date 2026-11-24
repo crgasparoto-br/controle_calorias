@@ -111,6 +111,99 @@ function sharedFields(observation: FoodMaterialObservation): FoodObservation {
 }
 
 /**
+ * The frozen food-quantity label names a compound occurrence. Its R3 proof
+ * can be a pair of exact spans, not a new claim spanning unrelated context.
+ * Use only the authored occurrence, never parse a value from producer text.
+ */
+function exactSharedQuantityProof(test: C1bCase, food: FoodMaterialObservation, fact: C1bFact) {
+  if (fact.kind !== "food-quantity" || !fact.owner || fact.quantity === null || !fact.unit ||
+      fact.packageClaim || food.alternatives.length > 0) return null;
+  const surface = sourceRange(test, food.surfaceSpan);
+  const claim = factSourceRange(test, fact);
+  const scopeStart = fact.scopeStart ?? test.text.indexOf(fact.scope);
+  const scope: Range = [scopeStart, scopeStart + fact.scope.length];
+  if (!surface || !contains(scope, surface) || !contains(surface, claim)) return null;
+  const occurrences = labelledOwnerRanges(test.text, claim[0], claim[1], fact.owner);
+  if (occurrences.length !== 1) return null;
+  const owner = occurrences[0];
+  if (owner[1] !== claim[1] || owner[0] <= claim[0]) return null;
+  const measures = food.evidence.filter(item => item.field.startsWith("quantity."));
+  const names = food.evidence.filter(item => item.field === "identity.foodName");
+  if (measures.length !== 1 || names.length !== 1) return null;
+  const [measure] = measures;
+  const [name] = names;
+  const m = sourceRange(test, measure.anchor);
+  const n = sourceRange(test, name.anchor);
+  const origin = test.modality === "audio_transcript" ? "transcription" : "text";
+  const hints = food.quantityHints;
+  const measureEnd = labelledMeasureEnd(test.text, claim[0], owner[0]);
+  if (measure.field !== "quantity.value" || measure.origin !== origin || name.origin !== origin ||
+      measure.sourceId !== null || name.sourceId !== null || name.unit !== null ||
+      !m || !n || n[0] !== owner[0] || n[1] !== owner[1] ||
+      m[0] !== claim[0] || m[1] !== measureEnd || m[1] >= n[0] ||
+      name.value !== test.text.slice(n[0], n[1]) ||
+      foldOwner(food.identityHints.foodName ?? "") !== fold(fact.owner) ||
+      measure.value !== fact.quantity || hints.value !== fact.quantity ||
+      fold(measure.unit ?? "") !== fold(fact.unit) || fold(hints.unit ?? "") !== fold(fact.unit) ||
+      hints.visiblePackageQuantity !== null || hints.visiblePackageUnit !== null ||
+      (hints.servingText !== null &&
+        hints.servingText !== test.text.slice(m[0], m[1]) &&
+        hints.servingText !== test.text.slice(m[0], n[0]).trimEnd()) ||
+      !food.normalizationPath.some(step => {
+        const span = sourceRange(test, step.anchor);
+        return step.stage === "S1" && span !== null && contains(span, claim);
+      })) return null;
+  return { name: n, measureId: measure.evidenceId };
+}
+
+function evaluateR3Shared(test: C1bCase, observations: readonly FoodMaterialObservation[]) {
+  const legacyObservations = observations.map(sharedFields);
+  const legacy = evaluateC1b(test, legacyObservations);
+  const proofs = observations.flatMap((food, observationIndex) => {
+    const exact = test.facts.flatMap((fact, factIndex) => {
+      const proof = exactSharedQuantityProof(test, food, fact);
+      return proof ? [{ ...proof, observationIndex, factIndex }] : [];
+    });
+    return exact.length === 1 ? exact : [];
+  }).filter((proof, _, candidates) => candidates.filter(other => other.factIndex === proof.factIndex).length === 1)
+    .filter(proof => legacy.results[proof.factIndex].grade === "invalid-evidence" &&
+      !test.facts.some(fact => fact.kind === "food-mention" &&
+        fact.owner === test.facts[proof.factIndex].owner &&
+        factSourceRange(test, fact).every((bound, index) => bound === proof.name[index])));
+  if (!proofs.length) return legacy;
+
+  // The numeric burden was proved above. Check *all other* fields with the
+  // unchanged historical mention oracle on the same owner and scope. Typed
+  // ingredients retain their separate R3 check; the R2 mention oracle is not
+  // asked to prove their relation. No evidence anchor is created or widened.
+  const covered = proofs.filter(proof => {
+    if (legacy.observationIssues.some(issue =>
+      issue.observationIndex === proof.observationIndex && issue.grade !== "invalid-evidence")) return false;
+    const fact = test.facts[proof.factIndex];
+    const food = legacyObservations[proof.observationIndex];
+    const projected = evaluateC1b({
+      ...test,
+      facts: [{
+        ...fact, kind: "food-mention", quantity: null, unit: null,
+        surface: test.text.slice(...proof.name), surfaceStart: proof.name[0],
+      }, ...test.facts.filter(item => item.kind === "negation" && item.owner === fact.owner)],
+    }, [{
+      ...food, quantityHints: { ...food.quantityHints, value: null, unit: null, servingText: null },
+      evidence: food.evidence.filter(item => item.evidenceId !== proof.measureId),
+    }]);
+    return projected.results[0].grade === "structured" &&
+      projected.observationIssues.length === 0;
+  });
+  const results = legacy.results.map((item, index) =>
+    covered.some(proof => proof.factIndex === index) ? { ...item, grade: "structured" as const } : item);
+  const observationIssues = legacy.observationIssues.filter(issue =>
+    issue.grade !== "invalid-evidence" ||
+    !covered.some(proof => proof.observationIndex === issue.observationIndex));
+  return { ...legacy, results, observationIssues,
+    structurallyComplete: results.every(item => item.grade === "structured") && observationIssues.length === 0 };
+}
+
+/**
  * Verify reverse ownership of the shared claims on an R3 ingredient owner.
  * The original R2 audit expects S1 to cover the ingredient phrase; R3's
  * existing-field S1 path covers the food owner instead. Reuse the unmodified
@@ -188,9 +281,7 @@ function sharedIngredientOwnerEvidence(
       },
     });
   }
-  const check = evaluateC1b({ ...test, facts: local.map(item => item.fact) }, [
-    sharedFields(observation),
-  ]);
+  const check = evaluateR3Shared({ ...test, facts: local.map(item => item.fact) }, [observation]);
   return check.observationIssues.length === 0
     ? check.results.flatMap((item, index) => {
         const original = local[index].index;
@@ -217,7 +308,7 @@ export function compareC1bR3(
     if (!valid) issues.push("invalid-observation-provenance");
     return valid;
   });
-  const legacy = evaluateC1b(test, proven.map(sharedFields));
+  const legacy = evaluateR3Shared(test, proven);
   const claims = proven.flatMap(observation =>
     observation.materialClaims.map(claim => ({ observation, claim }))
   );
