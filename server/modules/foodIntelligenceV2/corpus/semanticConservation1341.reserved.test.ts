@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { comprehendFoodMaterialLanguage, type FoodMaterialLanguageResult } from "../linguisticComprehension";
+import { parseFoodMaterialObservationBatch } from "../schemas";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
 import { compareSealedC1bReservedStudy, verifiedC1bReservedInputs } from "./semanticConservation1341.reserved.test.support";
 
@@ -178,4 +179,86 @@ it("preserva abstenção válida no escopo da fonte sem promovê-la", () => {
     authority: "diagnostic-only", diagnosticBatchComplete: false,
     findings: [{ status: "abstained" }],
   });
+});
+
+async function actualCapture({ id, text, modality }: Omit<C1bCase, "facts">) {
+  return comprehendFoodMaterialLanguage({
+    rawText: text, modality, sourceRef: "c1b:" + id, ownerUserId: null,
+    lexiconRevision: "c1b-empty-s2", now: new Date("2026-11-24T12:00:00.000Z"),
+  }, { load: async () => [] });
+}
+
+it.each(["ok", "unproven-material"] as const)(
+  "bloqueia saída de outro caso sob ID correto antes de ler gabarito (%s)",
+  async envelope => {
+    const [a, b] = await Promise.all(inputs.map(actualCapture));
+    if (!a.ok || !b.ok) throw new Error("controle exige duas capturas legítimas");
+    const wrong = envelope === "ok" ? a : {
+      ok: false, reason: "unproven-material", observations: a.observations,
+      affected: [{
+        observationId: "b-affected",
+        surfaceSpan: { sourceRef: "c1b:" + idB, span: { start: 0, end: 7 }, region: null },
+      }],
+    };
+    expect(parseFoodMaterialObservationBatch(a.observations).ok).toBe(true);
+    expect(parseFoodMaterialObservationBatch(b.observations).ok).toBe(true);
+    const config = sealed({ outputRows: [{ id: idA, result: a }, { id: idB, result: wrong }] });
+    expect(() => compareSealedC1bReservedStudy(config)).toThrow("c1b-reserved-study:outputs-invalid-provenance");
+    expect(config.readLabels).not.toHaveBeenCalled();
+  }
+);
+
+it.each(["raw", "modality", "surface", "evidence", "path"] as const)(
+  "refuta proveniência inconsistente mesmo com recibo correto (%s)",
+  async field => {
+    const actual = await actualCapture(field === "modality"
+      ? { ...inputs[0], modality: "audio_transcript" } : inputs[0]);
+    if (!actual.ok) throw new Error("controle exige captura real");
+    const bad = structuredClone(actual);
+    const observation = bad.observations[0];
+    if (field === "raw") observation.rawInput = "  2 aves  ";
+    if (field === "surface") {
+      observation.surfaceSpan.sourceRef = "c1b:" + idB;
+      for (const { anchor } of [...observation.evidence, ...observation.normalizationPath]) {
+        anchor.sourceRef = "c1b:" + idB;
+      }
+    }
+    if (field === "evidence") observation.evidence[0].anchor.sourceRef = "c1b:" + idB;
+    if (field === "path") observation.normalizationPath[0].anchor.span!.start -= 1;
+    expect(parseFoodMaterialObservationBatch(bad.observations).ok).toBe(true);
+    const config = sealed({ outputRows: [{ id: idA, result: bad }, { id: idB, result: unavailable }] });
+    expect(() => compareSealedC1bReservedStudy(config)).toThrow("c1b-reserved-study:outputs-invalid-provenance");
+    expect(config.readLabels).not.toHaveBeenCalled();
+  }
+);
+
+it("aceita âncoras legítimas de evidência, normalização e abstenção na mesma captura", async () => {
+  const tea = "chá com 1 g de açúcar";
+  const coffee = "café com 2 g de açúcar";
+  const pending = "mais açúcar";
+  const eggs = "2 ovos";
+  const input = { ...inputs[0], text: tea + " e " + coffee + " e " + pending + "; " + eggs };
+  const partial = await actualCapture(input);
+  if (partial.ok || partial.reason !== "unproven-material") throw new Error("controle exige abstenção e irmãos");
+  expect(partial.affected).toHaveLength(1);
+  expect(partial.observations.some(row => row.evidence.length >= 3 && row.normalizationPath.length > 0)).toBe(true);
+  const config = sealed({
+    inputRows: [input, inputs[1]],
+    outputRows: [{ id: idA, result: partial }, { id: idB, result: unavailable }],
+    labelRows: [
+      {
+        id: idA, facts: [
+          { kind: "ingredient-quantity", owner: "chá", quantity: 1, unit: "g", scope: tea, surface: "1 g de açúcar", ingredient: "açúcar" },
+          { kind: "ingredient-quantity", owner: "café", quantity: 2, unit: "g", scope: coffee, surface: "2 g de açúcar", ingredient: "açúcar" },
+          { kind: "unbound", owner: null, ownerAlternatives: ["chá", "café"], uncertaintyReason: "owner-ambiguous-after-coordinated-items", requiresAbstention: true, quantity: null, unit: null, scope: pending, surface: pending, ingredient: "açúcar" },
+          { kind: "food-quantity", owner: "ovos", quantity: 2, unit: "un", scope: eggs, surface: eggs, ingredient: null },
+        ],
+      },
+      labels[1],
+    ],
+  });
+  const report = compareSealedC1bReservedStudy(config);
+  expect(config.readLabels).toHaveBeenCalledOnce();
+  expect(report.rows[0].findings.map(item => item.status)).toStrictEqual(["verified", "verified", "abstained", "verified"]);
+  expect(report.rows[0].diagnosticBatchComplete).toBe(false);
 });

@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { FoodMaterialLanguageResult } from "../linguisticComprehension";
-import { foodAnchorSchema, opaqueId } from "../schemaShared";
+import { foodAnchorSchema, opaqueId, type FoodAnchor } from "../schemaShared";
 import { parseFoodMaterialObservationBatch } from "../schemas";
 import { compareC1bR3 } from "./semanticConservation1341.r3.test.support";
 import type { C1bCase } from "./semanticConservation1341.test.fixture";
@@ -137,6 +137,17 @@ function sameIds(
   }
 }
 
+/** The canonical schemas validate anchor shape; capture must also bind the
+ * source and its in-bounds text coordinates to the separately sealed input. */
+function capturedTextSpan(anchor: FoodAnchor, sourceRef: string, textLength: number) {
+  return anchor.sourceRef === sourceRef &&
+    anchor.region === null &&
+    anchor.span &&
+    anchor.span.end <= textLength
+    ? anchor.span
+    : null;
+}
+
 function validatedResult(
   captured: z.infer<typeof resultSchema>,
   entry: z.infer<typeof entrySchema>,
@@ -144,19 +155,26 @@ function validatedResult(
   if (!("observations" in captured)) return captured;
   const parsed = parseFoodMaterialObservationBatch(captured.observations);
   if (!parsed.ok) return fail("outputs-invalid-r3-batch");
+  const sourceRef = "c1b:" + entry.id;
+  for (const observation of parsed.value) {
+    const surface = capturedTextSpan(observation.surfaceSpan, sourceRef, entry.text.length);
+    if (observation.rawInput !== entry.text || observation.modality !== entry.modality || !surface) {
+      fail("outputs-invalid-provenance");
+    }
+    for (const { anchor } of [...observation.evidence, ...observation.normalizationPath]) {
+      const span = capturedTextSpan(anchor, sourceRef, entry.text.length);
+      if (!span || span.start < surface.start || span.end > surface.end) {
+        fail("outputs-invalid-provenance");
+      }
+    }
+  }
   if (captured.ok) return { ok: true, observations: parsed.value };
 
   const seen = new Set(parsed.value.map(row => row.observationId));
   for (const row of captured.affected) {
-    const anchor = row.surfaceSpan;
-    const span = anchor.span;
     if (
       seen.has(row.observationId) ||
-      anchor.sourceRef !== "c1b:" + entry.id ||
-      anchor.region !== null ||
-      !span ||
-      span.start >= span.end ||
-      span.end > entry.text.length
+      !capturedTextSpan(row.surfaceSpan, sourceRef, entry.text.length)
     ) fail("outputs-invalid-affected");
     seen.add(row.observationId);
   }
