@@ -349,6 +349,22 @@ export function splitFoodSurface(
   const operatorsIn = (part: Segment) => rawOperators.filter(match =>
     match.index >= part.start && match.index + match[0].length <= part.end &&
     !protectedConjunctions(part, protectedTerms, foldFoodSurface(match[0])).has(match.index - part.start));
+  // Balanced source groups do not introduce an independent food boundary
+  // in material mode. An inner separator cannot leak the tail as a sibling.
+  const groupingDepthDelta = new Int32Array(rawOperators.length ? text.length + 1 : 0);
+  if (groupingDepthDelta.length) {
+    const groups: { at: number; pair: number }[] = [];
+    for (const match of text.matchAll(/[()[\]{}]/gu)) {
+      const openingPair = "([{".indexOf(match[0]);
+      if (openingPair >= 0) groups.push({ at: match.index, pair: openingPair });
+      else if (groups.at(-1)?.pair === ")]}".indexOf(match[0])) {
+        const opening = groups.pop()!;
+        groupingDepthDelta[opening.at + 1]++;
+        groupingDepthDelta[match.index]--;
+      } else groups.length = 0;
+    }
+    for (let i = 1; i < groupingDepthDelta.length; i++) groupingDepthDelta[i] += groupingDepthDelta[i - 1];
+  }
   let materialScope = false;
   const segments: Segment[] = [];
   let start = 0;
@@ -358,6 +374,7 @@ export function splitFoodSurface(
     start = next;
   };
   for (let i = 0; i < text.length; i++) {
+    if (groupingDepthDelta[i] > 0) continue;
     const char = text[i];
     const hard = char === ";" || char === "\n";
     const betweenDigits = (char === "," || char === "/") &&
@@ -464,7 +481,7 @@ export function splitFoodSurface(
     while ((match = separator.exec(segment.text)) !== null) {
       if (intervalPrefix && separator.lastIndex <= intervalPrefix[0].length) continue;
       const conjunctionStart = match.index + match[0].search(/\S/u);
-      if (protectedOffsets.has(conjunctionStart)) continue;
+      if (groupingDepthDelta[segment.start + conjunctionStart] > 0 || protectedOffsets.has(conjunctionStart)) continue;
       const left = segment.text.slice(offset, match.index);
       const right = segment.text.slice(separator.lastIndex);
       // Do not turn a second material qualifier into a new food.
@@ -514,7 +531,12 @@ export function splitFoodSurface(
   // The same splitter owns raw boundaries, constituents and any withheld tail.
   if (!material) return joined;
   const parts: Segment[] = [];
-  const startsWithNumber = new RegExp("^(?:" + quantityPattern + ")(?=\\s|$|\\p{L})", "iu");
+  // A label is not a catch-all for whatever follows a measured ingredient.
+  // Accept only words joined by ordinary spacing or intra-word punctuation.
+  const nameWord = "[\\p{L}][\\p{L}\\p{M}]*(?:['’\\p{Pd}][\\p{L}][\\p{L}\\p{M}]*)*";
+  const simpleName = new RegExp("^" + nameWord + "$", "u");
+  const lexicalName = new RegExp("^" + nameWord + "(?:[ \\t]+" + nameWord + ")*$", "u");
+  const startsWithNumber = new RegExp("^(?:[0-9¼½¾]|(?:" + writtenPattern + ")(?=\\s|$))", "iu");
   for (const part of joined) {
     const operators = operatorsIn(part);
     const previous = parts.at(-1);
@@ -537,24 +559,27 @@ export function splitFoodSurface(
           !parsed.servingText || !parsed.name || !suffix.text.endsWith(parsed.name) ||
           !suffix.text.startsWith(parsed.servingText)) break bindMeasure;
       const ingredientStart = suffix.end - parsed.name.length;
-      // A later explicit measure cannot be swallowed as part of an ingredient.
-      // The trailing amount is withheld; without a nonempty proven name the
-      // initial ingredient cannot be emitted either.
-      // Searching for a tail cannot redeem an ingredient beyond the contract's
-      // name limit, so never re-run quantity parsing at every word of a long input.
+      // Inspect the earliest candidate only. If the quantity grammar cannot
+      // prove it exact, a later number must not be used to cut an interval or
+      // leave an implicit quantity inside the first ingredient label.
       const nameSearch = parsed.name.slice(0, FOOD_CONTRACT_LIMITS.nameText + 2);
-      const second = [...nameSearch.matchAll(/(?:^|\s)(?=\S)/gu)].find(match => {
-        const candidate = parsed.name.slice(match.index + match[0].length);
-        if (!startsWithNumber.test(candidate)) return false;
-        const nested = readQuantity(candidate, governedUnits, true);
-        return nested.value !== null && nested.unit !== null;
-      });
+      const second = [...nameSearch.matchAll(/(?:^|\s)(?=\S)/gu)].find(match =>
+        startsWithNumber.test(parsed.name.slice(match.index + match[0].length)));
+      const remainder = second
+        ? trimSpan(text, ingredientStart + second.index + second[0].length, suffix.end) : null;
+      if (remainder) {
+        const nested = readQuantity(remainder.text, governedUnits, true);
+        if (nested.value === null || nested.unit === null || nested.uncertain) break bindMeasure;
+      }
       const ingredient = trimSpan(text, ingredientStart, second
         ? ingredientStart + second.index : suffix.end);
       if (!ingredient || ingredient.text.length > FOOD_CONTRACT_LIMITS.nameText ||
+          !lexicalName.test(ingredient.text) ||
+          // An unpunctuated second amount only leaves an unambiguous boundary
+          // after a single intact name token. Do not guess whether preceding
+          // words belong to the term or introduce the next quantity.
+          (second && !simpleName.test(ingredient.text)) ||
           /(?<![\p{L}\p{M}\p{N}])(?:e|ou|com|sem|mais)(?![\p{L}\p{M}\p{N}])/iu.test(ingredient.text)) break bindMeasure;
-      const remainder = second
-        ? trimSpan(text, ingredientStart + second.index + second[0].length, suffix.end) : null;
       const measureEnd = suffix.start + parsed.servingText.replace(/\s+de$/iu, "").length;
       if (measureEnd >= ingredient.start ||
           !/^\s+(?:de\s+)?$/iu.test(text.slice(measureEnd, ingredient.start))) break bindMeasure;

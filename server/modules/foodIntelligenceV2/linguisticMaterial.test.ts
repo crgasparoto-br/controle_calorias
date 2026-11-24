@@ -300,3 +300,54 @@ describe("limites de escopo material sem inferir outro alimento", () => {
     ]);
   });
 });
+
+describe("um rótulo lexical não absorve medidas, faixas ou escopo desconhecido", () => {
+  it.each([
+    " (2 g de leite)", " [2 g de leite]", ":2 g de leite", " {2 g de leite}",
+    " : 2 g de leite", " 2 limões", " dois limões",
+    " 2 a 3 g de leite", " entre 2 e 3 g de leite", " de 2 a 3 g de leite",
+    " aproximadamente 2 g de leite", " 2–3 g de leite",
+    " (dois g de leite)", " ½ limão",
+    " (2 g de leite; 3 g de pimenta)", " [2 g de leite, {3 g de pimenta e água}]",
+    " (em pó)",
+  ])("mantém a cláusula inteira pendente quando não prova o rótulo com sufixo %j", async suffix => {
+    const affected = "chá com 1 g de canela" + suffix;
+    const raw = affected + "; 1 tangerina";
+    const result = await comprehendFoodMaterialLanguage(request(raw), lexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("Expected uncertain ingredient scope");
+    expect(result.observations.map(row => row.identityHints.foodName)).toEqual(["tangerina"]);
+    expect(result.observations[0].materialClaims).toEqual([]);
+    expect(result.affected.map(({ surfaceSpan: { span } }) => raw.slice(span!.start, span!.end))).toEqual([affected]);
+  });
+
+  it("preserva fração e decimal com nomes lexicais compostos sem introduzir vocabulário", async () => {
+    const observed = await observe(request("chá com 1/2 g de erva-doce; suco com 2,5 g de água de coco"));
+    expect(observed.map(row => row.materialClaims)).toMatchObject([
+      [{ ingredient: { name: "erva-doce" }, amount: { value: 0.5, unit: "g" } }],
+      [{ ingredient: { name: "água de coco" }, amount: { value: 2.5, unit: "g" } }],
+    ]);
+  });
+
+  it("retém uma segunda medida exata sem absorvê-la após o nome hifenizado", async () => {
+    const raw = "chá com 0,5 g de erva-doce 2 g de leite; tangerina";
+    const result = await comprehendFoodMaterialLanguage(request(raw), lexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("Expected ownerless second amount");
+    expect(result.observations.map(row => row.identityHints.foodName)).toEqual(["cha", "tangerina"]);
+    expect(result.observations[0].materialClaims).toMatchObject([
+      { ingredient: { name: "erva-doce" }, amount: { value: 0.5, unit: "g" } },
+    ]);
+    expect(result.affected.map(({ surfaceSpan: { span } }) => raw.slice(span!.start, span!.end))).toEqual(["2 g de leite"]);
+  });
+});
+
+it("retém só a cláusula incerta antes de um novo dono com vínculo completo", async () => {
+  const affected = "chá com 1 g de canela [2 g de leite]";
+  const raw = affected + ", e iogurte com 0,5 g de baunilha; tangerina";
+  const result = await comprehendFoodMaterialLanguage(request(raw), lexicon);
+  if (result.ok || result.reason !== "unproven-material") throw new Error("Expected one affected clause");
+  expect(result.observations.map(row => row.identityHints.foodName)).toEqual(["iogurte", "tangerina"]);
+  expect(result.observations[0].materialClaims).toMatchObject([
+    { ingredient: { name: "baunilha" }, amount: { value: 0.5, unit: "g" } },
+  ]);
+  expect(result.affected.map(({ surfaceSpan: { span } }) => raw.slice(span!.start, span!.end))).toEqual([affected]);
+});

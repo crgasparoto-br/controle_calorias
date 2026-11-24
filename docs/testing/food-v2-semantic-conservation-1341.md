@@ -22,7 +22,13 @@ coordenação cuja ligação ainda não se prove não recebe uma ligação
 arbitrária. Depois de uma relação material, vírgula, conjunção, barra
 fora de fração e sinal de adição não bastam para inferir outro item ou
 encerrar uma cadeia que já ficou pendente. Uma segunda medida sem dono
-demonstrado não entra no nome do primeiro ingrediente. Ponto e vírgula
+demonstrado não entra no nome do primeiro ingrediente. O produtor só
+emite um nome lexical íntegro: se a pontuação estrutural ou a primeira
+medida subsequente (por exemplo, faixa ou unidade implícita) impede
+provar esse limite, o trecho inteiro fica pendente. Qualificadores
+aparentemente benignos entre parênteses também ficam pendentes neste
+recorte; separadores dentro de um grupo balanceado não criam itens
+irmãos. Ponto e vírgula
 ou quebra de linha preservam os alimentos irmãos em novo escopo; uma
 nova relação textual completa pode provar seu próprio dono. Negação
 não suportada, mesmo entre parênteses ou antes de dois pontos, não
