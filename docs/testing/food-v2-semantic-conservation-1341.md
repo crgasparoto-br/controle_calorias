@@ -42,7 +42,7 @@ pública, acurácia, custo e latência continuam fora da demonstração.
 
 ## Comparação diagnóstica R3 sobre a regressão congelada
 
-`c1b-r3-compare-v1` confronta o retorno do produtor material inativo com
+`c1b-r3-compare-v2` confronta o retorno do produtor material inativo com
 as mesmas referências independentes C1b, sem derivar rótulos do parser.
 Confere dono por ocorrência, ingrediente, valor, unidade, evidência
 relacionada e âncoras UTF-16 da fonte. Distingue prova tipada de ingrediente,
@@ -52,7 +52,13 @@ reter irmãos provados como diagnóstico, mas nunca completa o lote.
 A matriz histórica R2 e seu caminho no CI continuam separados e intactos.
 O relatório R3 também preserva avisos da projeção auxiliar R2: essa
 projeção não contém a evidência material tipada, nem usa o percurso S1
-limitado ao dono como prova R2 para a medida do ingrediente.
+limitado ao dono como prova R2 para a medida do ingrediente. A checagem
+reversa reusa o oráculo de campos existentes no trecho do dono e nos fatos
+alimentares locais já rotulados. Uma quantidade de ingrediente não
+autoriza uma quantidade do alimento inteiro. Afirmações adicionais não
+rotuladas ou contraditórias aparecem separadamente em
+`sharedMaterialIssues`, por observação, e deixam o lote incompleto mesmo
+quando as provas dos ingredientes estão corretas.
 
 Reprodução somente local, com léxico sintético fixo, sem serviços externos:
 
@@ -61,28 +67,33 @@ VERIFICATION_HEAD_SHA="$(git rev-parse HEAD)" C1B_R3_DIAGNOSTIC_OUTPUT_DIR=/tmp/
   pnpm exec vitest run server/modules/foodIntelligenceV2/corpus/semanticConservation1341.test.ts -t 'R3: comparação'
 ```
 
-O arquivo `c1b-1341-r3-diagnostic.json` tem esquema de relatório 1, revisão
+O arquivo `c1b-1341-r3-diagnostic.json` tem esquema de relatório 2, revisão
 de observação 3 e contadores por conjunto e partição. Linhagem congelada:
 `c1b-cartesian-v2`, corpus `golden-2026-10-06.2`, SHA-256 da lista
 ordenada de casos, partições e referências
 `6dc8284dc939d072c54152eae5c2c540b4c1d4b6f863f3eb28e6670b0a1c1675`.
 
-Leitura factual do produtor integrado em `9540af46e3ad90608d08a7f29387e6e0f50b8060`,
+Leitura factual do produtor inativo na base `5edf51bc548dd49bbddfc674c6b4b9b1b01fee9b`,
 usando este comparador:
 
-| Conjunto / partição | Casos | Fatos | Ingrediente tipado | Outros campos provados | Abstenções | Divergentes | Ausentes |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Autoral / calibração | 12 | 33 | 5 | 13 | 15 | 0 | 0 |
-| Autoral / holdout | 12 | 25 | 18 | 3 | 4 | 0 | 0 |
-| Gerado / holdout | 12 | 24 | 24 | 0 | 0 | 0 | 0 |
-| **Total** | **36** | **82** | **47** | **16** | **19** | **0** | **0** |
+| Conjunto / partição | Casos | Fatos | Ingrediente tipado | Outros campos provados | Abstenções | Casos com afirmação adicional não comprovada |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Autoral / calibração | 12 | 33 | 5 | 13 | 15 | 3 |
+| Autoral / holdout | 12 | 25 | 18 | 3 | 4 | 7 |
+| Gerado / holdout | 12 | 24 | 24 | 0 | 0 | 12 |
+| **Total** | **36** | **82** | **47** | **16** | **19** | **22** |
 
-O produtor se absteve em 9 dos 36 casos; os 27 restantes completaram
-**somente** o diagnóstico. Não há conjunto gerado de calibração. O
+Não houve divergência ou ausência entre os fatos rotulados. O produtor se
+absteve em 9 dos 36 casos e somente 8 completaram o diagnóstico. As
+22 ocorrências adicionais são medidas inteiras de `um pudim` sem rótulo
+separado de quantidade do alimento no corpus. Falta prova independente:
+isso não equivale a chamar a leitura do artigo de fabricada. Esses casos
+podem também conter abstenções. Não há conjunto gerado de calibração. O
 holdout desta regressão já é conhecido: não representa avaliação cega
 nova. Abstenções não contam como êxito, e os números observados não são
 limiar de teste. Os controles sintéticos verificam remoção, troca, âncora
-truncada, dono sem âncora e recusa de lote parcial. Sem aprovação
+truncada, dono sem âncora, afirmação extra sobre café, medidas do alimento e
+do ingrediente com rótulos próprios, e recusa de lote parcial. Sem aprovação
 semântica, autorização de escrita, ativação de flag, S3 ou cutover.
 
 ## Hipótese a refutar

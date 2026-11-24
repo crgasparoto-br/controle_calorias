@@ -66,7 +66,16 @@ function r3ControlObservation(
       visiblePackageQuantity: null,
       visiblePackageUnit: null,
     },
-    normalizationPath: [],
+    normalizationPath: [
+      {
+        stage: "S1",
+        origin: "deterministic",
+        lexiconEntryId: null,
+        confidence: null,
+        anchor: anchor(ownerStart, ownerStart + fact.owner.length),
+      },
+    ],
+    lexiconRevision: "c1b-empty-s2",
     alternatives: [],
     unresolvedReason: null,
     interpreterVersion: null,
@@ -221,6 +230,7 @@ export function registerC1bR3DiagnosticSuite(
         start: ownerless[0].surfaceSpan.span!.start,
         end: ownerless[0].surfaceSpan.span!.start + 1,
       };
+      ownerless[0].normalizationPath[0].anchor = lostOwnerEvidence.anchor;
       expect(parseFoodMaterialObservationBatch(ownerless).ok).toBe(true);
       expect(
         compareC1bR3(testCase, { ok: true, observations: ownerless })
@@ -228,6 +238,160 @@ export function registerC1bR3DiagnosticSuite(
         diagnosticBatchComplete: false,
         findings: [{ status: "semantic-mismatch" }, { status: "verified" }],
       });
+    });
+
+    const runMaterial = (testCase: C1bCase) =>
+      comprehendFoodMaterialLanguage(
+        {
+          rawText: testCase.text,
+          sourceRef: "c1b:" + testCase.id,
+          modality: testCase.modality,
+          ownerUserId: null,
+          lexiconRevision: "c1b-empty-s2",
+          now: new Date("2026-11-12T12:00:00.000Z"),
+          ...(testCase.modality === "audio_transcript"
+            ? { transcriptionConfidence: 0.9 }
+            : {}),
+        },
+        emptyGovernedLexicon
+      );
+
+    it("não aceita quantidade de café fabricada sobre o resultado tipado real", async () => {
+      const testCase = cases.find(item => item.id === "sugar-gram-other-food")!;
+      const original = await runMaterial(testCase);
+      if (!original.ok)
+        throw new Error("controle precisa do retorno R3 tipado");
+      const coffee = original.observations.find(
+        obs => obs.identityHints.foodName === "cafe"
+      )!;
+      const pudding = original.observations.find(
+        obs => obs.identityHints.foodName === "pudim"
+      )!;
+      const baseline = compareC1bR3(testCase, original);
+      expect(
+        baseline.findings.every(fact => fact.proof === "typed-ingredient")
+      ).toBe(true);
+      // "um pudim" fornece superfície, mas o corpus não rotulou uma medida
+      // alimentar adicional; não inventar esse rótulo a partir do produtor.
+      expect(
+        baseline.sharedMaterialIssues.map(item => item.observationId)
+      ).toEqual([pudding.observationId]);
+
+      const injected = structuredClone(original);
+      const extra = injected.observations.find(
+        obs => obs.observationId === coffee.observationId
+      )!;
+      const ownerEvidence = extra.evidence.find(
+        item => item.field === "identity.foodName"
+      )!;
+      extra.quantityHints.value = 1;
+      extra.quantityHints.unit = "un";
+      extra.evidence.push({
+        ...ownerEvidence,
+        evidenceId: "control-extra-coffee-quantity",
+        field: "quantity.value",
+        value: 1,
+        unit: "un",
+      });
+      expect(parseFoodMaterialObservationBatch(injected.observations).ok).toBe(
+        true
+      );
+      const checked = compareC1bR3(testCase, injected);
+      expect(checked.findings).toEqual(baseline.findings);
+      expect(
+        checked.sharedMaterialIssues.map(item => item.observationId)
+      ).toEqual([coffee.observationId, pudding.observationId]);
+      expect(checked.issues).toContain(
+        "unexpected-or-contradictory-shared-material"
+      );
+      expect(checked.diagnosticBatchComplete).toBe(false);
+    });
+
+    it("distingue medida de alimento rotulada da medida interna e rejeita troca ou afirmação extra", async () => {
+      const scope = "2 cafés com 1 g de açúcar";
+      const testCase: C1bCase = {
+        id: "r3-synthetic-side-by-side",
+        semanticGroup: "r3-synthetic",
+        split: "calibration",
+        modality: "text",
+        text: scope,
+        facts: [
+          {
+            kind: "food-quantity",
+            owner: "cafés",
+            scope,
+            surface: "2 cafés",
+            ingredient: null,
+            quantity: 2,
+            unit: "un",
+          },
+          {
+            kind: "ingredient-quantity",
+            owner: "cafés",
+            scope,
+            surface: "1 g de açúcar",
+            ingredient: "açúcar",
+            quantity: 1,
+            unit: "g",
+          },
+        ],
+      };
+      const actual = await runMaterial(testCase);
+      if (!actual.ok) throw new Error("controle exige medidas distintas");
+      expect(compareC1bR3(testCase, actual)).toMatchObject({
+        diagnosticBatchComplete: true,
+        sharedMaterialIssues: [],
+        findings: [
+          { proof: "existing-observation-field" },
+          { proof: "typed-ingredient" },
+        ],
+      });
+
+      const narrower = structuredClone(testCase);
+      narrower.facts = narrower.facts.map(fact =>
+        fact.kind === "food-quantity" ? { ...fact, scope: fact.surface } : fact
+      );
+      expect(compareC1bR3(narrower, actual)).toMatchObject({
+        diagnosticBatchComplete: true,
+        sharedMaterialIssues: [],
+        findings: [
+          { proof: "existing-observation-field" },
+          { proof: "typed-ingredient" },
+        ],
+      });
+
+      for (const mutation of ["value", "unit", "anchor", "brand"] as const) {
+        const injected = structuredClone(actual);
+        const observation = injected.observations[0];
+        const measure = observation.evidence.find(
+          item => item.field === "quantity.value"
+        )!;
+        if (mutation === "value")
+          observation.quantityHints.value = measure.value = 3;
+        if (mutation === "unit")
+          observation.quantityHints.unit = measure.unit = "ml";
+        if (mutation === "anchor") measure.anchor.span!.start = 1;
+        if (mutation === "brand") {
+          observation.identityHints.brand = "marca não rotulada";
+          observation.evidence.push({
+            ...measure,
+            evidenceId: "control-unlabelled-brand",
+            field: "identity.brand",
+            value: "marca não rotulada",
+            unit: null,
+          });
+        }
+        expect(
+          parseFoodMaterialObservationBatch(injected.observations).ok,
+          mutation
+        ).toBe(true);
+        const checked = compareC1bR3(testCase, injected);
+        expect(checked.sharedMaterialIssues, mutation).toHaveLength(1);
+        expect(checked.diagnosticBatchComplete, mutation).toBe(false);
+        const narrowCheck = compareC1bR3(narrower, injected);
+        expect(narrowCheck.sharedMaterialIssues, mutation).toHaveLength(1);
+        expect(narrowCheck.diagnosticBatchComplete, mutation).toBe(false);
+      }
     });
 
     it("conserva irmãos provados, mas abstém somente com âncora e não admite lote parcial", () => {
@@ -284,23 +448,7 @@ export function registerC1bR3DiagnosticSuite(
       );
       const rows = await Promise.all(
         cases.map(async testCase =>
-          compareC1bR3(
-            testCase,
-            await comprehendFoodMaterialLanguage(
-              {
-                rawText: testCase.text,
-                sourceRef: "c1b:" + testCase.id,
-                modality: testCase.modality,
-                ownerUserId: null,
-                lexiconRevision: "c1b-empty-s2",
-                now: new Date("2026-11-12T12:00:00.000Z"),
-                ...(testCase.modality === "audio_transcript"
-                  ? { transcriptionConfidence: 0.9 }
-                  : {}),
-              },
-              emptyGovernedLexicon
-            )
-          )
+          compareC1bR3(testCase, await runMaterial(testCase))
         )
       );
       const aggregate = (subset: typeof rows) => {
@@ -331,6 +479,13 @@ export function registerC1bR3DiagnosticSuite(
             row => row.diagnosticBatchComplete
           ).length,
           issues: subset.reduce((total, row) => total + row.issues.length, 0),
+          casesWithUnexpectedSharedMaterial: subset.filter(
+            row => row.sharedMaterialIssues.length > 0
+          ).length,
+          unexpectedSharedMaterialObservations: subset.reduce(
+            (total, row) => total + row.sharedMaterialIssues.length,
+            0
+          ),
         };
       };
       const byPartition = (subset: typeof rows) =>
@@ -341,9 +496,9 @@ export function registerC1bR3DiagnosticSuite(
           ])
         );
       const report = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         wireRevision: 3,
-        suiteVersion: "c1b-r3-compare-v1",
+        suiteVersion: "c1b-r3-compare-v2",
         reference: "frozen-c1b-regression",
         caseSetSha256,
         generatorVersion,

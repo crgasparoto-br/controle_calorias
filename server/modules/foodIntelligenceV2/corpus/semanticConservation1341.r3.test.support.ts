@@ -6,9 +6,10 @@ import {
   type FoodObservation,
 } from "../schemas";
 import { foldLabelledFoodName as fold } from "./semanticConservation1341.evidence.fixture";
-import type { C1bCase } from "./semanticConservation1341.test.fixture";
+import type { C1bCase, C1bFact } from "./semanticConservation1341.test.fixture";
 import {
   evaluateC1b,
+  factSourceRange,
   validateC1bReference,
 } from "./semanticConservation1341.test.support.fixture";
 
@@ -55,13 +56,14 @@ function labelledMeasureEnd(text: string, start: number, ingredient: number) {
   );
 }
 
-function hasLabelledOwner(
+function labelledOwnerRanges(
   text: string,
   surfaceStart: number,
   claimStart: number,
   owner: string
 ) {
-  if (!owner) return false;
+  if (!owner) return [];
+  const ranges: Range[] = [];
   const beforeClaim = text.slice(surfaceStart, claimStart);
   const lexicalEnd = /[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}'’]$/u;
   const lexicalStart = /^[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}'’]/u;
@@ -75,9 +77,9 @@ function hasLabelledOwner(
       !lexicalEnd.test(text.slice(0, start)) &&
       !lexicalStart.test(text.slice(start + owner.length))
     )
-      return true;
+      ranges.push([start, start + owner.length]);
   }
-  return false;
+  return ranges;
 }
 
 const foldOwner = (value: string) =>
@@ -108,6 +110,97 @@ function sharedFields(observation: FoodMaterialObservation): FoodObservation {
   };
 }
 
+/**
+ * Verify reverse ownership of the shared claims on an R3 ingredient owner.
+ * The original R2 audit expects S1 to cover the ingredient phrase; R3's
+ * existing-field S1 path covers the food owner instead. Reuse the unmodified
+ * R2 material oracle on that owner and on any separately authored local food
+ * facts. The ingredient label supplies a name, never a whole-food amount.
+ */
+function sharedIngredientOwnerEvidence(
+  test: C1bCase,
+  observation: FoodMaterialObservation,
+  reference: C1bFact,
+  scope: Range,
+  ingredient: Range
+) {
+  const owner = reference.owner;
+  if (!owner) return null;
+  const names = labelledOwnerRanges(test.text, scope[0], ingredient[0], owner);
+  if (names.length !== 1) return null;
+  const [start, end] = names[0];
+  const local: { fact: C1bFact; index: number | null }[] = [];
+  for (const [index, fact] of test.facts.entries()) {
+    if (
+      fact.owner !== owner ||
+      (fact.kind !== "food-quantity" &&
+        fact.kind !== "food-mention" &&
+        fact.kind !== "negation")
+    )
+      continue;
+    const span = factSourceRange(test, fact);
+    const from = fact.scopeStart ?? test.text.indexOf(fact.scope);
+    const ownScope: Range = [from, from + fact.scope.length];
+    if (
+      !contains(scope, ownScope) ||
+      !contains(scope, span) ||
+      (fact.kind !== "negation" && !contains(span, [start, end]))
+    )
+      continue;
+    // The R3 surface can also include the typed ingredient. An independently
+    // labelled whole-food occurrence may have its own narrower scope there.
+    // The probe reuses the enclosing authored scope but not the observed one:
+    // the food claim, its position, amount and proof anchors do not change.
+    local.push({
+      index:
+        fact.kind !== "negation" &&
+        (ownScope[0] !== scope[0] || ownScope[1] !== scope[1])
+          ? index
+          : null,
+      fact: {
+        ...fact,
+        scope: reference.scope,
+        scopeStart: scope[0],
+      },
+    });
+  }
+  if (
+    !local.some(
+      ({ fact }) =>
+        fact.kind === "food-quantity" || fact.kind === "food-mention"
+    )
+  ) {
+    local.push({
+      index: null,
+      fact: {
+        kind: "food-mention",
+        owner,
+        scope: reference.scope,
+        scopeStart: scope[0],
+        surface: test.text.slice(start, end),
+        surfaceStart: start,
+        ingredient: null,
+        quantity: null,
+        unit: null,
+        ...(reference.identityClaims
+          ? { identityClaims: reference.identityClaims }
+          : {}),
+      },
+    });
+  }
+  const check = evaluateC1b({ ...test, facts: local.map(item => item.fact) }, [
+    sharedFields(observation),
+  ]);
+  return check.observationIssues.length === 0
+    ? check.results.flatMap((item, index) => {
+        const original = local[index].index;
+        return original !== null && item.grade === "structured"
+          ? [original]
+          : [];
+      })
+    : null;
+}
+
 export function compareC1bR3(
   test: C1bCase,
   result: FoodMaterialLanguageResult
@@ -129,6 +222,9 @@ export function compareC1bR3(
     observation.materialClaims.map(claim => ({ observation, claim }))
   );
   const usedClaims = new Set<string>();
+  const sharedFieldIssues = new Set<string>();
+  const sharedMatches = new Map<number, Set<string>>();
+  const typedOwnerIds = new Set<string>();
   const usedAffected = new Set<string>();
   const seenObs = new Set(input.map(row => row.observationId));
   const seenAffected = new Set<string>();
@@ -196,7 +292,12 @@ export function compareC1bR3(
             return (
               anchor !== null &&
               anchor[1] <= old.sourceRange[0] &&
-              hasLabelledOwner(test.text, anchor[0], anchor[1], expectedOwner)
+              labelledOwnerRanges(
+                test.text,
+                anchor[0],
+                anchor[1],
+                expectedOwner
+              ).length > 0
             );
           });
         return (
@@ -225,7 +326,23 @@ export function compareC1bR3(
         );
       });
       if (exact.length === 1 && !usedClaims.has(exact[0].claim.claimId)) {
-        usedClaims.add(exact[0].claim.claimId);
+        const { observation, claim } = exact[0];
+        usedClaims.add(claim.claimId);
+        typedOwnerIds.add(observation.observationId);
+        const local = sharedIngredientOwnerEvidence(
+          test,
+          observation,
+          fact,
+          old.scopeRange,
+          old.sourceRange
+        );
+        if (local === null) sharedFieldIssues.add(observation.observationId);
+        else
+          for (const index of local) {
+            const owners = sharedMatches.get(index) ?? new Set<string>();
+            owners.add(observation.observationId);
+            sharedMatches.set(index, owners);
+          }
         return row(
           "verified",
           "typed-ingredient",
@@ -276,6 +393,24 @@ export function compareC1bR3(
     }
     return row("semantic-mismatch", null, "existing-observation:" + old.grade);
   });
+  for (const [index, owners] of sharedMatches) {
+    // No partial path, alternate producer or broadened offset supplies a
+    // fact: exactly one matched observation must have passed both proofs.
+    if (owners.size !== 1 || [...owners].some(id => sharedFieldIssues.has(id)))
+      continue;
+    const item = findings[index];
+    if (
+      item.reason !== "existing-observation:invalid-evidence" ||
+      validAffected.some(affected => overlaps(affected.span, item.sourceRange))
+    )
+      continue;
+    findings[index] = {
+      ...item,
+      status: "verified",
+      proof: "existing-observation-field",
+      reason: "independent-local-existing-field-oracle",
+    };
+  }
   for (const { claim } of claims) {
     if (!usedClaims.has(claim.claimId))
       issues.push("unexpected-or-mismatched-typed-claim");
@@ -286,10 +421,21 @@ export function compareC1bR3(
   for (const item of legacy.observationIssues) {
     if (
       item.grade === "unexpected-observation" ||
-      item.grade === "duplicate-observation"
+      item.grade === "duplicate-observation" ||
+      item.grade === "invalid-provenance"
     )
       issues.push(item.grade);
+    else if (
+      item.grade === "invalid-evidence" &&
+      !typedOwnerIds.has(item.observationId)
+    )
+      sharedFieldIssues.add(item.observationId);
   }
+  const sharedMaterialIssues = [...sharedFieldIssues].map(observationId => ({
+    observationId,
+    reason: "unexpected-or-contradictory-shared-material",
+  }));
+  for (const item of sharedMaterialIssues) issues.push(item.reason);
   return {
     caseId: test.id,
     split: test.split,
@@ -297,6 +443,7 @@ export function compareC1bR3(
     producer: result.ok ? "ok" : result.reason,
     findings,
     issues,
+    sharedMaterialIssues,
     // Report legacy-field observation warnings separately; e.g. R2 has no
     // nested material representation and cannot grade it as established R3.
     legacyFieldWarnings: legacy.observationIssues.map(item => item.grade),
