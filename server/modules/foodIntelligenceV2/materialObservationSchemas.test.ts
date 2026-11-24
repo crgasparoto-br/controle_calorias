@@ -82,8 +82,12 @@ function addEvidence(
   return id;
 }
 
-function ingredient(row: Observation, units: number, literal: string) {
-  const unit = "colher de chá";
+function ingredient(
+  row: Observation,
+  units: number,
+  literal: string,
+  unit = "colher de chá"
+) {
   const ingredientEvidenceId = addEvidence(
     row,
     "material.ingredient",
@@ -123,9 +127,16 @@ function siblings() {
   const b = observation(surface, "pudding", pudding, "pudim");
   b.quantityHints.value = 1;
   b.quantityHints.unit = "un";
+  addEvidence(b, "quantity.value", 1, "um pudim", "un");
   const c = observation(surface, "extra", extra, null);
   ingredient(a, 1, "uma colher de chá");
   ingredient(b, 2, "duas colheres de chá");
+  const ingredientEvidenceId = addEvidence(
+    c,
+    "material.ingredient",
+    "açúcar",
+    "açúcar"
+  );
   c.materialClaims.push({
     kind: "increment",
     claimId: "extra-sugar",
@@ -136,14 +147,22 @@ function siblings() {
     },
     ingredient: {
       name: "açúcar",
-      evidenceId: addEvidence(c, "material.ingredient", "açúcar", "açúcar"),
+      evidenceId: ingredientEvidenceId,
     },
     operatorEvidenceId: addEvidence(c, "material.increment", "mais", "mais"),
     target: null,
     unresolvedAmount: {
       value: 1,
       unit: "g",
-      evidenceId: addEvidence(c, "material.amount", 1, "1 g", "g"),
+      evidenceId: addEvidence(
+        c,
+        "material.amount",
+        1,
+        "1 g",
+        "g",
+        undefined,
+        ingredientEvidenceId
+      ),
     },
   });
   return [a, b, c];
@@ -502,13 +521,146 @@ describe("FoodObservation: revisão material 3 opt-in", () => {
     item.quantityHints.unit = "ml";
     expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
 
-    // Offsets are local to each source, never global to a batch.
+    // Independent sources may reuse offsets; this is not attribution across
+    // sources. Candidate/claim links must still resolve in the same source.
     const other = observation(raw, "coffee-other-source", raw, "café");
-    other.surfaceSpan.sourceRef = "synthetic:another-turn";
+    other.surfaceSpan.sourceRef = "synthetic:independent-source";
     other.quantityHints.value = 1;
     other.quantityHints.unit = "g";
     addEvidence(other, "quantity.value", 1, "1 g", "g");
     expect(parseFoodMaterialObservationBatch([other, item]).ok).toBe(true);
+  });
+
+  it("exige âncora local da quantidade do item, mesmo sem vínculos materiais", () => {
+    const simple = observation("1 g de café", "coffee", "1 g de café", "café");
+    simple.quantityHints.value = 1;
+    simple.quantityHints.unit = "g";
+    const sweetCoffee = "café com 1 g de açúcar";
+    const unrelated = observation(
+      sweetCoffee,
+      "sweet-coffee",
+      sweetCoffee,
+      "café"
+    );
+    unrelated.surfaceSpan.sourceRef = "synthetic:independent";
+    ingredient(unrelated, 1, "1 g", "g");
+    unrelated.quantityHints.value = 1;
+    unrelated.quantityHints.unit = "g";
+    for (const item of [simple, unrelated]) {
+      expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+        ok: false,
+        code: "invalid-contract",
+        issues: [expect.objectContaining({ path: "0.quantityHints" })],
+      });
+    }
+    addEvidence(simple, "quantity.value", 1, "1 g", "g");
+    expect(parseFoodMaterialObservationBatch([simple]).ok).toBe(true);
+    simple.evidence[0].anchor.sourceRef = "synthetic:other";
+    expect(parseFoodMaterialObservationBatch([simple]).ok).toBe(false);
+    simple.evidence[0].anchor.sourceRef = simple.surfaceSpan.sourceRef;
+    simple.evidence[0].unit = "ml";
+    expect(parseFoodMaterialObservationBatch([simple]).ok).toBe(false);
+  });
+
+  it("impede que um incremento pendente empreste medida anterior ou de outro ingrediente", () => {
+    const raw = "1 g de açúcar e mais 1 g de cacau";
+    const item = observation(raw, "extra", raw, null);
+    const ingredientId = addEvidence(
+      item,
+      "material.ingredient",
+      "cacau",
+      "cacau"
+    );
+    const operatorEvidenceId = addEvidence(
+      item,
+      "material.increment",
+      "mais",
+      "mais"
+    );
+    const amountId = addEvidence(
+      item,
+      "material.amount",
+      1,
+      "1 g",
+      "g",
+      raw.indexOf("mais"),
+      ingredientId
+    );
+    item.materialClaims.push({
+      kind: "increment",
+      claimId: "cocoa-extra",
+      binding: {
+        status: "unresolved",
+        reason: "owner_unknown",
+        candidateObservationIds: [],
+      },
+      ingredient: { name: "cacau", evidenceId: ingredientId },
+      operatorEvidenceId,
+      target: null,
+      unresolvedAmount: { value: 1, unit: "g", evidenceId: amountId },
+    });
+    expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+
+    const evidence = item.evidence.at(-1)!;
+    const laterAmount = evidence.anchor.span;
+    evidence.anchor.span = position(raw, "1 g");
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+    });
+
+    evidence.anchor.span = laterAmount;
+    delete evidence.ingredientEvidenceId;
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+    });
+
+    evidence.ingredientEvidenceId = "different-ingredient-occurrence";
+    expect(parseFoodMaterialObservationBatch([item])).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+      issues: [
+        expect.objectContaining({
+          message: expect.stringContaining("sua ocorrência de ingrediente"),
+        }),
+      ],
+    });
+    evidence.ingredientEvidenceId = ingredientId;
+    expect(parseFoodMaterialObservationBatch([item]).ok).toBe(true);
+  });
+
+  it("limita revisão 3 de todo o lote a texto/transcrição, inclusive sem claims", () => {
+    const input = observation("café", "coffee", "café", "café");
+    expect(parseFoodMaterialObservationBatch([input]).ok).toBe(true);
+    expect(
+      parseFoodMaterialObservationBatch([
+        { ...input, modality: "audio_transcript" },
+      ]).ok
+    ).toBe(true);
+    for (const modality of ["image", "multimodal"]) {
+      expect(
+        parseFoodMaterialObservationBatch([{ ...input, modality }])
+      ).toMatchObject({ ok: false, code: "invalid-contract" });
+      const v2 = buildFoodObservationFixture({ modality });
+      expect(parseFoodObservation(v2).ok).toBe(true);
+    }
+  });
+
+  it("não atribui candidato de outra fonte mesmo quando o texto e os offsets coincidem", () => {
+    const input = siblings();
+    input[0].surfaceSpan.sourceRef = "synthetic:independent-source";
+    for (const evidence of input[0].evidence)
+      evidence.anchor.sourceRef = input[0].surfaceSpan.sourceRef;
+    expect(parseFoodMaterialObservationBatch(input)).toMatchObject({
+      ok: false,
+      code: "invalid-contract",
+      issues: [
+        expect.objectContaining({
+          message: "Candidato não identifica alimento na mesma fonte do lote.",
+        }),
+      ],
+    });
   });
 
   it("conserva acréscimo sem medida ou dono como pendência", () => {

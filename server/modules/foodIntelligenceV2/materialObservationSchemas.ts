@@ -120,6 +120,8 @@ const materialObservationSchema = z
     ...foodObservationSchema.shape,
     // The legacy public schema still has its literal v2 and is not widened.
     schemaVersion: z.literal(FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION),
+    // This entire revision is scoped to textual evidence, even without claims.
+    modality: z.enum([modalities.text, modalities.audio_transcript]),
     evidence: z
       .array(materialEvidenceSchema)
       .max(FOOD_CONTRACT_LIMITS.collection),
@@ -230,6 +232,7 @@ function validateMaterialBatch(
       }
       sources.set(ref, observation.rawInput);
     }
+    let hasLocalWholeQuantity = false;
     for (const evidence of observation.evidence) {
       if (
         evidence.field !== wholeQuantityEvidenceField.value ||
@@ -239,12 +242,20 @@ function validateMaterialBatch(
       )
         continue;
       const span = localAnchor(observation, evidence);
-      if (span)
+      if (span) {
+        hasLocalWholeQuantity = true;
         appendToSource(
           wholeQuantitySpans,
           observation.surfaceSpan.sourceRef,
           span
         );
+      }
+    }
+    if (observation.quantityHints.value !== null && !hasLocalWholeQuantity) {
+      addIssue(
+        [index, "quantityHints"],
+        "A quantidade do alimento exige evidência local com valor e unidade correspondentes."
+      );
     }
     observation.materialClaims.forEach((claim, claimIndex) => {
       const path = [index, "materialClaims", claimIndex];
@@ -259,14 +270,6 @@ function validateMaterialBatch(
     const used = usedEvidence.get(observation) ?? new Set<string>();
     usedEvidence.set(observation, used);
     const binding = claim.binding;
-    if (
-      observation.modality !== modalities.text &&
-      observation.modality !== modalities.audio_transcript
-    ) {
-      fail(
-        "Vínculo material nesta revisão exige fonte textual ou transcrição com span."
-      );
-    }
     if (binding.status === boundStatus.value) {
       if (
         binding.ownerObservationId !== observation.observationId ||
@@ -420,20 +423,23 @@ function validateMaterialBatch(
           const evidence = observation.evidence.find(
             item => item.evidenceId === amountId
           );
-          if (
-            evidence?.ingredientEvidenceId !== undefined &&
-            evidence.ingredientEvidenceId !== ingredient?.evidenceId
-          ) {
-            fail("Medida pendente não pode apontar para outro ingrediente.");
+          if (evidence?.ingredientEvidenceId !== ingredient?.evidenceId) {
+            fail(
+              "Medida pendente deve referenciar sua ocorrência de ingrediente, quando presente."
+            );
           }
-          registerMeasuredOccurrence(
-            fact(
-              claim.unresolvedAmount.evidenceId,
-              measuredEvidenceField.value,
-              claim.unresolvedAmount.value,
-              claim.unresolvedAmount.unit
-            )
+          const amountSpan = fact(
+            amountId,
+            measuredEvidenceField.value,
+            claim.unresolvedAmount.value,
+            claim.unresolvedAmount.unit
           );
+          if (amountSpan && (!operator || operator.end > amountSpan.start)) {
+            fail(
+              "Medida pendente deve estar ancorada após o operador do próprio incremento."
+            );
+          }
+          registerMeasuredOccurrence(amountSpan);
         }
         continue;
       }
