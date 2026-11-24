@@ -6,7 +6,7 @@
  * an AI provider and never promotes a threshold by itself.
  */
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getTacoCatalog } from "../../../tacoLookup";
 import { normalizeFoodName } from "../../../../scripts/import-foods/normalize_food_name";
 import { comprehendFoodLanguage } from "../linguisticComprehension";
@@ -15,6 +15,11 @@ import type { FoodKnowledgeStore, GovernedFoodMatch } from "../knowledgeRead";
 import { goldenFoodCorpus } from "./data";
 import { FOOD_INPUT_TYPE_VALUES, GOLDEN_CORPUS_VERSION } from "./contracts";
 import { CALIBRATION_PARAMETERS, C3_PRE_REGISTERED_PARAMETER_DEFINITIONS } from "./calibration.test.support";
+
+import {
+  C3_CAMPAIGN_DIAGNOSTIC, C3NoCandidateCoversMeasurement, C3SourceUnavailable,
+  runFrozenC3Campaign, type C3CampaignDiagnostic,
+} from "./calibrationDiagnostics.test.support";
 
 const TACO_PRIMARY_SOURCE =
   "https://nepa.unicamp.br/wp-content/uploads/sites/27/2023/10/taco_4_edicao_ampliada_e_revisada.pdf";
@@ -87,10 +92,10 @@ type TacoRow = ReturnType<typeof getTacoCatalog>[number];
 
 function requireTacoRow(name: string): TacoRow {
   const row = getTacoCatalog().find(item => item.name === name);
-  if (!row) throw new Error("C3 source profile missing: " + name);
+  if (!row) throw new C3SourceUnavailable("source_profile_missing", "C3 source profile missing: " + name);
   const core = [row.calories, row.protein, row.carbs, row.fat];
   if (core.some(value => !Number.isFinite(value)) || core.every(value => value === 0)) {
-    throw new Error("C3 invalid or absent core nutrition source profile: " + name);
+    throw new C3SourceUnavailable("source_profile_unusable", "C3 invalid or absent core nutrition source profile: " + name);
   }
   return row;
 }
@@ -204,7 +209,7 @@ function maxByField(samples: readonly CoreValues[]): CoreValues {
 function selectCandidate(field: CoreField, observed: number): number {
   const candidates = field === "calories" ? ENERGY_CANDIDATES : MACRO_CANDIDATES;
   const selected = candidates.find(value => value >= observed);
-  if (selected === undefined) throw new Error("C3 no preregistered rounding candidate covers " + field);
+  if (selected === undefined) throw new C3NoCandidateCoversMeasurement("C3 no preregistered rounding candidate covers " + field);
   return selected;
 }
 
@@ -253,7 +258,8 @@ function mergeFailureClasses(metrics: readonly RoundingCandidateMetric[]): Recor
 }
 
 describe("#1306 C3 empirical evidence campaign", () => {
-  it("selects rounding candidates only from calibration and validates them on reserved profiles", async () => {
+  it("selects rounding candidates only from calibration and validates them on reserved profiles", () =>
+    runFrozenC3Campaign(async enter => {
     const calibrationProfiles = ROUNDING_COHORT.calibration.map(name => requireTacoRow(name));
     const calibration: RoundingSample[] = [];
     for (const row of calibrationProfiles) {
@@ -265,6 +271,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
         });
       }
     }
+    enter("selection");
     const calibrationMax = maxByField(calibration.map(sample => sample.deltas));
     const selected = Object.fromEntries(
       CORE_FIELDS.map(field => [field, selectCandidate(field, calibrationMax[field])]),
@@ -272,6 +279,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
 
     // Resolve holdout rows and inspect their nutrition only after locking.
     Object.freeze(selected);
+    enter("holdout");
     const holdoutProfiles = ROUNDING_COHORT.holdout.map(name => requireTacoRow(name));
     const calibrationFoodSlugs = calibrationProfiles.map(row => row.slug);
     const holdoutFoodSlugs = holdoutProfiles.map(row => row.slug);
@@ -313,6 +321,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
     // RISK-001: exercise real S1/S2 + C2 with synthetic audio transcripts
     // and image captions. This happens AFTER selection and holdout verification;
     // it cannot retune, enlarge or replace the preregistered v2 holdout.
+    enter("exploratory_diagnostics");
     const exploratoryModalityDiagnostics = [];
     for (const modality of EXPLORATORY_MODALITIES) {
       const bySplit = {} as Record<"calibration" | "holdout", {
@@ -341,6 +350,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
       });
     }
 
+    enter("report");
     console.info("C3_ITEM30_ROUNDING_CAMPAIGN " + JSON.stringify({
       source: { kind: "TACO_4E", reference: TACO_PRIMARY_SOURCE },
       splitPolicy: "candidate-selected-from-calibration-before-holdout",
@@ -361,7 +371,7 @@ describe("#1306 C3 empirical evidence campaign", () => {
       failuresByClass,
       exploratoryModalityDiagnostics,
     }));
-  });
+  }, diagnostic => console.info(C3_CAMPAIGN_DIAGNOSTIC + " " + JSON.stringify(diagnostic))));
 
   it("A-006: preserves the fail-closed material variant guard for abbreviated surfaces", async () => {
     for (const [name, surface] of [
@@ -512,5 +522,71 @@ describe("#1306 C3 empirical evidence campaign", () => {
         "22": ["governed_materiality_labels_absent", "source_rows_with_missing_core_values"],
       },
     }));
+  });
+});
+
+describe("C3 structured negative evidence (never candidate/promotion evidence)", () => {
+  async function expectDiagnostic(
+    run: Parameters<typeof runFrozenC3Campaign>[0],
+    expected: Partial<C3CampaignDiagnostic>,
+  ) {
+    const emit = vi.fn<(value: C3CampaignDiagnostic) => void>();
+    let original: unknown;
+    await expect(runFrozenC3Campaign(async enter => {
+      try {
+        await run(enter);
+      } catch (error) {
+        original = error;
+        throw error;
+      }
+    }, emit)).rejects.toSatisfy(error => original !== undefined && error === original);
+    expect(emit).toHaveBeenCalledTimes(1);
+    const [value] = emit.mock.calls[0];
+    expect(value).toMatchObject({ schemaVersion: 1, campaign: "item30_rounding_v2",
+      approved: false, promoted: false, ...expected });
+    expect(Object.keys(value).sort()).toEqual([
+      "approved", "campaign", "phase", "promoted", "reasonCode", "schemaVersion", "status",
+    ]);
+  }
+
+  it("marks a genuinely unavailable fixture input inconclusive and emits no source label", async () => {
+    await expectDiagnostic(async enter => {
+      enter("holdout");
+      requireTacoRow("synthetic-absent-source");
+    }, { status: "INCONCLUSIVE", phase: "holdout", reasonCode: "source_profile_missing" });
+  });
+
+  it("marks measured holdout disagreement failed without exposing values or assertions", async () => {
+    await expectDiagnostic(async enter => {
+      enter("holdout");
+      expect(2, "synthetic-forbidden-output").toBeLessThanOrEqual(1);
+    }, { status: "FAILED", phase: "holdout", reasonCode: "measured_result_rejected" });
+  });
+
+  it("marks genuine locked-grade insufficiency failed and retains the original rejection", async () => {
+    await expectDiagnostic(async enter => {
+      enter("selection");
+      selectCandidate("calories", Number.MAX_VALUE);
+    }, { status: "FAILED", phase: "selection", reasonCode: "no_candidate_covers_measurement" });
+  });
+
+  it("marks an unexpected asynchronous runner error failed, not unavailable input", async () => {
+    await expectDiagnostic(async enter => {
+      enter("exploratory_diagnostics");
+      await Promise.reject(new TypeError("synthetic-forbidden-internal-text"));
+    }, { status: "FAILED", phase: "exploratory_diagnostics", reasonCode: "runner_exception" });
+  });
+
+  it("keeps success marker-free, does not classify cancellation and never masks a failed reporter", async () => {
+    const emit = vi.fn<(value: C3CampaignDiagnostic) => void>();
+    const result = { untouched: true };
+    await expect(runFrozenC3Campaign(async () => result, emit)).resolves.toBe(result);
+    const aborted = new DOMException("synthetic cancellation", "AbortError");
+    await expect(runFrozenC3Campaign(async () => { throw aborted; }, emit)).rejects.toBe(aborted);
+    expect(emit).not.toHaveBeenCalled();
+    const original = new Error("synthetic measurement error");
+    const brokenEmit = vi.fn(() => { throw new Error("synthetic reporter failed"); });
+    await expect(runFrozenC3Campaign(async () => { throw original; }, brokenEmit)).rejects.toBe(original);
+    expect(brokenEmit).toHaveBeenCalledTimes(1);
   });
 });
