@@ -114,20 +114,50 @@ export function recognizedUnit(value: string): string | null {
   return unitMap[foldFoodSurface(value)] ?? null;
 }
 
+export type FoodQuantitySourceSpans = { name?: Span; quantity?: Span };
+
 export function readQuantity(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [], requireExplicitUnit = false,
+  sourceSpans?: FoodQuantitySourceSpans,
 ): {
   value: number | null; unit: string | null; name: string;
   servingText: string | null; uncertain: boolean; governedAlias?: GovernedUnitAlias;
 } {
   const source = text.trim();
+  // Optional evidence only: raw UTF-16 offsets from the selected production,
+  // never a new parse or a lookup of a normalized/value-equivalent string.
+  const sourceStart = sourceSpans ? text.length - text.trimStart().length : 0;
+  const endConnector = /\s+de$/iu;
+  const leading = (consumed: number, name: string, trailingConnector = true) => {
+    if (!sourceSpans) return;
+    const nameStart = source.length - name.length;
+    if (name && nameStart >= consumed && source.endsWith(name)) {
+      sourceSpans.name = { start: sourceStart + nameStart, end: sourceStart + source.length };
+    }
+    const prefix = source.slice(0, consumed).trimEnd();
+    const end = (trailingConnector ? prefix.replace(endConnector, "").trimEnd() : prefix).length;
+    if (end > 0) sourceSpans.quantity = { start: sourceStart, end: sourceStart + end };
+  };
+  const relay = (nested: FoodQuantitySourceSpans | undefined, offset: number) => {
+    if (!sourceSpans || !nested) return;
+    for (const key of ["name", "quantity"] as const) {
+      const span = nested[key];
+      if (span) sourceSpans[key] = {
+        start: sourceStart + offset + span.start, end: sourceStart + offset + span.end,
+      };
+    }
+  };
   // A-044: a standalone pictographic marker may precede a complete quantity.
   // Keep the caller's raw source/span unchanged; never infer food identity from
   // an emoji, or discard an emoji when the following quantity is ambiguous.
   const pictographicPrefix = /^(?:\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*\s+)+/u.exec(source);
   if (pictographicPrefix) {
-    const following = readQuantity(source.slice(pictographicPrefix[0].length), governedUnits, requireExplicitUnit);
-    if (following.value !== null && following.unit !== null && following.name) return following;
+    const nested = sourceSpans ? {} : undefined;
+    const following = readQuantity(source.slice(pictographicPrefix[0].length), governedUnits, requireExplicitUnit, nested);
+    if (following.value !== null && following.unit !== null && following.name) {
+      relay(nested, pictographicPrefix[0].length);
+      return following;
+    }
   }
   const unresolved = () => ({
     value: null, unit: null, name: source, servingText: source, uncertain: true,
@@ -160,10 +190,13 @@ export function readQuantity(
     const unit = "colher de " + (qualifier === "cha" ? "chá" :
       qualifier === "cafe" ? "café" : qualifier);
     const foodName = source.slice(qualifiedSpoon[0].length).trim();
-    if (amount !== null && foodName) return {
-      value: amount + (qualifiedSpoon[2] ? 0.5 : 0), unit, name: foodName,
-      servingText: qualifiedSpoon[0].trim(), uncertain: false,
-    };
+    if (amount !== null && foodName) {
+      leading(qualifiedSpoon[0].length, foodName);
+      return {
+        value: amount + (qualifiedSpoon[2] ? 0.5 : 0), unit, name: foodName,
+        servingText: qualifiedSpoon[0].trim(), uncertain: false,
+      };
+    }
     return unresolved();
   }
   // A terminal half refers to the already counted food, not to a new item:
@@ -186,7 +219,9 @@ export function readQuantity(
     const value = parseNumber(half[1]);
     const unit = recognizedUnit(half[2]);
     if (value !== null && unit !== null) {
-      return { value: value + 0.5, unit, name: source.slice(half[0].length).trim(), servingText: half[0].trim(), uncertain: false };
+      const name = source.slice(half[0].length).trim();
+      leading(half[0].length, name);
+      return { value: value + 0.5, unit, name, servingText: half[0].trim(), uncertain: false };
     }
   }
   const withUnit = quantified.exec(source);
@@ -194,30 +229,41 @@ export function readQuantity(
     const value = parseNumber(withUnit[1]);
     const unit = recognizedUnit(withUnit[2]);
     if (value !== null && unit !== null) {
-      return { value, unit, name: source.slice(withUnit[0].length).trim(), servingText: withUnit[0].trim(), uncertain: false };
+      const name = source.slice(withUnit[0].length).trim();
+      leading(withUnit[0].length, name);
+      return { value, unit, name, servingText: withUnit[0].trim(), uncertain: false };
     }
   }
   const writtenHalfWithUnit = new RegExp("^(" + quantityPattern + ")\\s+e\\s+mei[ao]\\s+(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu").exec(source);
   if (writtenHalfWithUnit) {
     const value = parseNumber(writtenHalfWithUnit[1]);
     const unit = recognizedUnit(writtenHalfWithUnit[2]);
-    if (value !== null && Number.isInteger(value) && unit !== null) return {
-      value: value + 0.5, unit, name: source.slice(writtenHalfWithUnit[0].length).trim(),
-      servingText: writtenHalfWithUnit[0].trim(), uncertain: false,
-    };
+    if (value !== null && Number.isInteger(value) && unit !== null) {
+      const name = source.slice(writtenHalfWithUnit[0].length).trim();
+      leading(writtenHalfWithUnit[0].length, name);
+      return { value: value + 0.5, unit, name, servingText: writtenHalfWithUnit[0].trim(), uncertain: false };
+    }
   }
   const oneAndHalf = new RegExp("^(" + quantityPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu").exec(source);
   if (oneAndHalf && !requireExplicitUnit) {
     const value = parseNumber(oneAndHalf[1]);
-    if (value !== null && Number.isInteger(value)) return { value: value + 0.5, unit: "un", name: source.slice(oneAndHalf[0].length).trim(), servingText: oneAndHalf[0].trim(), uncertain: false };
+    if (value !== null && Number.isInteger(value)) {
+      const name = source.slice(oneAndHalf[0].length).trim();
+      leading(oneAndHalf[0].length, name);
+      return { value: value + 0.5, unit: "un", name, servingText: oneAndHalf[0].trim(), uncertain: false };
+    }
   }
   // A comma-delimited trailing quantity can describe the preceding food:
   // "mortadela, uma fatia e meia". Do not manufacture another food item.
   const trailing = /^(.+?),\s*(.+)$/u.exec(source);
   if (trailing) {
-    const suffix = readQuantity(trailing[2], governedUnits, requireExplicitUnit);
+    const nested = sourceSpans ? {} : undefined;
+    const suffix = readQuantity(trailing[2], governedUnits, requireExplicitUnit, nested);
     if (suffix.value !== null && suffix.unit !== null && !suffix.name) {
-      return { ...suffix, name: trailing[1].trim() };
+      relay(nested, source.length - trailing[2].length);
+      const name = trailing[1].trim();
+      if (sourceSpans && name) sourceSpans.name = { start: sourceStart, end: sourceStart + name.length };
+      return { ...suffix, name };
     }
   }
   // The governed term occupies the unit slot, not the food-identity slot.
@@ -240,10 +286,11 @@ export function readQuantity(
           uncertain: true, governedAlias: alias };
       }
       const lastWord = words[alias.term.split(/\s+/u).length - 1];
-      const rest = remaining.slice((lastWord.index ?? 0) + lastWord[0].length)
-        .trim().replace(/^de\s+/iu, "");
+      const unitEnd = (lastWord.index ?? 0) + lastWord[0].length;
+      const rest = remaining.slice(unitEnd).trim().replace(/^de\s+/iu, "");
+      leading(countedPrefix[0].length + unitEnd, rest, false);
       return { value: number, unit: alias.unit, name: rest,
-        servingText: source.slice(0, countedPrefix[0].length + (lastWord.index ?? 0) + lastWord[0].length).trim(),
+        servingText: source.slice(0, countedPrefix[0].length + unitEnd).trim(),
         uncertain: false, governedAlias: alias };
     }
   }
@@ -278,7 +325,11 @@ export function readQuantity(
   const simple = counted.exec(source);
   if (simple && !requireExplicitUnit) {
     const value = parseNumber(simple[1]);
-    if (value !== null) return { value, unit: "un", name: source.slice(simple[0].length).trim(), servingText: simple[0].trim(), uncertain: false };
+    if (value !== null) {
+      const name = source.slice(simple[0].length).trim();
+      leading(simple[0].length, name);
+      return { value, unit: "un", name, servingText: simple[0].trim(), uncertain: false };
+    }
     return { value: null, unit: null, name: source, servingText: simple[0].trim(), uncertain: true };
   }
   return { value: null, unit: null, name: source, servingText: null, uncertain: false };
