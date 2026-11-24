@@ -370,7 +370,11 @@ export function registerC1bR3DiagnosticSuite(
           observation.quantityHints.value = measure.value = 3;
         if (mutation === "unit")
           observation.quantityHints.unit = measure.unit = "ml";
-        if (mutation === "anchor") measure.anchor.span!.start = 1;
+        if (mutation === "anchor") {
+          // Deliberately wrong but nonempty on both wide and one-code-unit proofs.
+          const displacedStart = observation.surfaceSpan.span!.start + 1;
+          measure.anchor.span = { start: displacedStart, end: displacedStart + 1 };
+        }
         if (mutation === "brand") {
           observation.identityHints.brand = "marca não rotulada";
           observation.evidence.push({

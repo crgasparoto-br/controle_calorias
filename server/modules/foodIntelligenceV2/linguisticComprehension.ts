@@ -7,7 +7,7 @@ import { z } from "zod";
 import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_INPUT_TYPES, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
 import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { ExplicitIngredientMeasure, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
+import type { ExplicitIngredientMeasure, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
 import { parseFoodMaterialObservationBatch, parseFoodObservation, type FoodMaterialObservation, type FoodObservation } from "./schemas";
 import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
@@ -218,7 +218,10 @@ function detectQualifiers(name: string): FoodObservation["identityHints"]["quali
   }).sort((a, b) => a.offset - b.offset).map(({ offset: _offset, ...qualifier }) => qualifier);
 }
 
-function buildObservation(request: LinguisticRequest, segment: Segment, index: number, governedUnits: readonly GovernedUnitAlias[] = []): FoodObservation {
+function buildObservation(
+  request: LinguisticRequest, segment: Segment, index: number, governedUnits: readonly GovernedUnitAlias[] = [],
+  preciseSourceEvidence = false,
+): FoodObservation {
   const locale = request.locale === undefined || request.locale === null
     ? { requested: null, effective: DEFAULT_FOOD_LOCALE, status: "defaulted" as const }
     : request.locale === DEFAULT_FOOD_LOCALE
@@ -226,7 +229,8 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
       : { requested: request.locale, effective: null, status: "unsupported" as const };
   const supported = locale.status !== "unsupported";
   const foodSegment = foodOnlySpan(request.rawText, segment);
-  const quantity = supported ? readQuantity(foodSegment.text, governedUnits) : null;
+  const sourceSpans: FoodQuantitySourceSpans | undefined = preciseSourceEvidence ? {} : undefined;
+  const quantity = supported ? readQuantity(foodSegment.text, governedUnits, false, sourceSpans) : null;
   const name = supported ? (quantity?.name ?? foodSegment.text).trim() : "";
   const observed = emptyIdentity();
   // A-019: commas coalesced with a qualifier are surface punctuation,
@@ -253,6 +257,9 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   observed.foodName = name && !qualifierOnly ? normalizedName : null;
   const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,
     request.modality === "image" ? request.imageRegion ?? null : null);
+  const lexicalAnchor = (span: Span | undefined) => originalAnchor(span
+    ? { start: foodSegment.start + span.start, end: foodSegment.start + span.end }
+    : { start: foodSegment.start, end: foodSegment.end });
   const q = emptyQuantity();
   if (quantity) {
     q.value = quantity.value;
@@ -267,7 +274,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   if (name && !qualifierOnly) evidence.push({
     evidenceId: "ev-name-" + index, field: "identity.foodName",
     origin, value: name, unit: null, confidence: sourceConfidence, verified: false,
-    anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
+    anchor: lexicalAnchor(sourceSpans?.name), sourceId: null,
   });
   if (qualifierOnly) {
     // Anchor every asserted attribute to its own UTF-16 bytes. Do not emit a
@@ -291,7 +298,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   if (q.value !== null) evidence.push({
     evidenceId: "ev-quantity-" + index, field: "quantity.value",
     origin, value: q.value, unit: q.unit, confidence: sourceConfidence, verified: false,
-    anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
+    anchor: lexicalAnchor(sourceSpans?.quantity), sourceId: null,
   });
   // A lexical unit mapping must be distinguishable from the S1 grammar.
   const unitAlias = quantity?.governedAlias;
@@ -569,7 +576,7 @@ export async function comprehendFoodLanguage(
   const results: FoodObservation[] = [];
   for (let i = 0; i < parsedParts.length; i++) {
     const part = parsedParts[i];
-    let observation = buildObservation(request, part, i, units);
+    let observation = buildObservation(request, part, i, units, material !== undefined);
     // Governed exact aliases (including personal confirmed aliases) take
     // precedence over a lossy morphological interpretation of their surface.
     const exactChoice = selectLexicon(
@@ -585,7 +592,7 @@ export async function comprehendFoodLanguage(
       // A constituent crossing that scope is not an ingredient occurrence.
       const span = observation.surfaceSpan.span;
       if (measure && span && measure.measureSpan.start >= span.start && measure.ingredient.end <= span.end) {
-        const owner = buildObservation(request, measure.owner, i, units);
+        const owner = buildObservation(request, measure.owner, i, units, true);
         if (owner.identityHints.foodName !== null) {
           observation = { ...owner, surfaceSpan: observation.surfaceSpan };
           material.set(observation.observationId, measure);
