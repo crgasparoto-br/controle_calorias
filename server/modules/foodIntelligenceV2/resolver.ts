@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
-import { FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
+import { FOOD_CONTRACT_LIMITS, FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
 import { canPreserveAcceptedIdentity, discardSupersededDerivedEvidence,
   discardSupersededUserIdentityEvidence, hasConflictingIdentityEvidence } from "./resolutionContinuity";
 import { isCurrentKnowledgeValidity } from "./knowledgeValidity";
@@ -34,6 +34,14 @@ export interface FoodResolverContext {
   /** Must be a previously validated decision for the same observation/trace. */
   previousDecision?: FoodResolutionDecision;
   now?: Date;
+}
+
+/** The prior immutable decision remains authoritative; no successor was emitted. */
+export class FoodResolutionContinuationError extends TypeError {
+  constructor() {
+    super("Continuação V2 não cabe no contrato sem perda de fatos ou evidências.");
+    this.name = "FoodResolutionContinuationError";
+  }
 }
 
 /** #1306 will supply a calibrated policy before residual search can decide.
@@ -388,9 +396,9 @@ function namespaceCollidingTurnEvidence(
 }
 
 /**
- * Total for valid FoodObservation inputs and operational failures. Unknown,
- * conflicting and offline knowledge produce typed fail-closed decisions.
- * Malformed observations/context are contract errors (never persisted).
+ * Unknown, conflicting and offline knowledge produce fail-closed decisions.
+ * If a continuation cannot produce a valid bounded successor, it rejects
+ * without replacing the prior decision. Malformed inputs also reject.
  */
 export async function resolveFoodObservation(
   observationInput: FoodObservation,
@@ -473,6 +481,11 @@ export async function resolveFoodObservation(
         isCurrentKnowledgeValidity(previous.knowledgeValidity, now, context.userId, context.resolverVersion) &&
         (!previous.quantity.portionSnapshot || isCurrentPortion(previous.quantity.portionSnapshot, now)) &&
         compatiblePreviousIdentity) {
+      // No accepted fact needs a fresh lookup here. Do not discard independent
+      // evidence (or redo the lookup) just to squeeze out a revision.
+      if (evidence.length > FOOD_CONTRACT_LIMITS.collection) {
+        throw new FoodResolutionContinuationError();
+      }
       const q = observation.quantityHints;
       const prior = previous.quantity;
       const quantityConflict = (q.value !== null && q.unit !== null &&
@@ -498,7 +511,12 @@ export async function resolveFoodObservation(
       const checked = parseFoodResolutionDecision(preserved);
       if (checked.ok) return checked.value;
     }
-    if (previous) discardSupersededDerivedEvidence(observation, previous, evidence);
+    if (previous) {
+      discardSupersededDerivedEvidence(observation, previous, evidence);
+      if (evidence.length > FOOD_CONTRACT_LIMITS.collection) {
+        throw new FoodResolutionContinuationError();
+      }
+    }
     // Repeat the actual governed query (including personal aliases) when the
     // reply contains only a missing field, without guessing a canonical name.
     const acceptedLookup = previous?.evidence.find(item => previous.identity.evidenceIds.includes(item.evidenceId) &&
@@ -733,6 +751,9 @@ export async function resolveFoodObservation(
   }
   const valid = parseFoodResolutionDecision(decision);
   if (!valid.ok) {
+    // A first observation may retry without committed facts. A continuation
+    // must not publish a higher revision that resets already accepted facts.
+    if (previous) throw new FoodResolutionContinuationError();
     // A valid observation may exhaust the bounded decision evidence envelope.
     // Discard only generated, uncommitted decision evidence and fail closed;
     // never return a payload that failed the public Zod contract.

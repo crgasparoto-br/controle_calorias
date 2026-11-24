@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import { FOOD_CONTRACT_LIMITS } from "./contracts";
 import { buildFoodObservationFixture } from "./fixtures";
 import {
   parseFoodResolutionDecision, type FoodObservation,
 } from "./schemas";
 import {
-  resolveFoodObservation, resolveFoodObservations, type FoodResolverContext,
+  FoodResolutionContinuationError, resolveFoodObservation, resolveFoodObservations,
+  type FoodResolverContext,
 } from "./resolver";
 import type {
   FoodKnowledgeStore, GovernedFoodMatch, FoodKnowledgeLocalResult,
@@ -464,6 +466,78 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(current.revision).toBe(original.revision + 1);
     expect(parseFoodResolutionDecision(current).ok).toBe(true);
     expect(store.readLocal).toHaveBeenCalledTimes(1);
+  });
+
+  describe("continuação no limite de evidências", () => {
+    function classifications(turn: number, count: number, isFood = true) {
+      const seed = buildFoodObservationFixture();
+      return buildFoodObservationFixture({
+        identityHints: { foodName: null },
+        quantityHints: { value: null, unit: null, servingText: null },
+        evidence: Array.from({ length: count }, (_, index) => {
+          const id = `classification-${turn}-${index}`;
+          return {
+            ...seed.evidence[0], evidenceId: id,
+            field: "classification.isFood", value: isFood, origin: "catalog",
+            unit: null, verified: true, sourceId: 901,
+            anchor: { sourceRef: `catalog:${id}`, span: null, region: null },
+          };
+        }),
+      });
+    }
+
+    async function fillWithConcordantTurns() {
+      const store = fakeStore(match);
+      const original = await resolveFoodObservation(buildFoodObservationFixture(), context, store);
+      let previous = original;
+      let turn = 1;
+      while (previous.evidence.length < FOOD_CONTRACT_LIMITS.collection) {
+        const count = Math.min(10, FOOD_CONTRACT_LIMITS.collection - previous.evidence.length);
+        const input = classifications(turn++, count);
+        const next = await resolveFoodObservation(input, { ...context, previousDecision: previous }, store);
+        expect(next.evidence).toHaveLength(previous.evidence.length + count);
+        expect(next.evidence).toEqual(expect.arrayContaining([...previous.evidence, ...input.evidence]));
+        previous = next;
+      }
+      return { store, original, previous, turn };
+    }
+
+    it("aceita turnos pequenos até o limite e recusa a revisão seguinte sem apagar fatos", async () => {
+      const { store, original, previous, turn } = await fillWithConcordantTurns();
+      expect(previous.status).toBe("resolved");
+      expect(previous.decisionId).toBe(original.decisionId);
+      expect(previous.revision).toBe(turn);
+      expect(previous.evidence).toHaveLength(FOOD_CONTRACT_LIMITS.collection);
+      expect(previous.identity).toEqual(original.identity);
+      expect(previous.quantity).toEqual(original.quantity);
+      expect(previous.quantity).toMatchObject({ value: 1.5, unit: "fatia", grams: 30 });
+      expect(previous.nutrition).toEqual(original.nutrition);
+      const immutable = structuredClone(previous);
+      const input = classifications(turn, 10);
+      await expect(resolveFoodObservation(input, { ...context, previousDecision: previous }, store))
+        .rejects.toBeInstanceOf(FoodResolutionContinuationError);
+      expect(previous).toEqual(immutable);
+      expect(store.readLocal).toHaveBeenCalledTimes(1);
+    });
+
+    it("não descarta prova conflitante para produzir uma decisão materializável", async () => {
+      const { store, previous, turn } = await fillWithConcordantTurns();
+      const input = classifications(turn, 1, false);
+      await expect(resolveFoodObservation(input, { ...context, previousDecision: previous }, store))
+        .rejects.toBeInstanceOf(FoodResolutionContinuationError);
+      expect(store.readLocal).toHaveBeenCalledTimes(1);
+    });
+
+    it("não fabrica uma revisão sem quantidade se a fonte precisou ser consultada outra vez", async () => {
+      const { store, previous, turn } = await fillWithConcordantTurns();
+      // Refreshing derived evidence leaves room before the lookup, but its
+      // replacement proofs are also required in the completed successor.
+      const input = classifications(turn, 1);
+      await expect(resolveFoodObservation(input, {
+        ...context, previousDecision: previous, knowledgeRevision: "food-knowledge-v2-refreshed",
+      }, store)).rejects.toBeInstanceOf(FoodResolutionContinuationError);
+      expect(store.readLocal).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("continuação com quantidade divergente conserva fatos e exige clarificação", async () => {
