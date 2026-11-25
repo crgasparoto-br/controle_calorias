@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
-import { aliasLookupResult, personalAliasValidityCases } from "./personalAliasValidity.test.support";
+import { aliasLookupResult, personalAliasValidityCases } from "./personalAliasValidity.test.fixture";
 import { getDb } from "../../db";
 import { createFoodV2KnowledgeRepository } from "./repository";
 import { hasCurrentBarcodeProof } from "./knowledgeEligibility";
