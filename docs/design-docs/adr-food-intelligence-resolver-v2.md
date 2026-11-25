@@ -2127,6 +2127,24 @@ Memória em processo não é fonte de verdade.
 
 Entrada explícita no turno atual sempre prevalece sobre memória anterior incompatível.
 
+### 15.1. Revogação pessoal exata, sem ativação (#1309)
+
+[Decisão de Produto](https://github.com/crgasparoto-br/controle_calorias/issues/1309#issuecomment-7177537357):
+o titular autenticado pode revogar somente o alias corrente e explicitamente confirmado cujo vínculo
+é demonstrável para sua conta, a linha e sua revisão exata, e a variante. O núcleo inativo verifica
+a correção pessoal já vinculada, com hash e validade armazenados, e exige uma autoridade de
+confirmação confiável na mesma transação. Não existe adaptador produtivo, emissor de confirmação,
+reatribuição, nem inferência por IDs herdados. Legado sem vínculo fica intacto até reconfirmação
+autorizada; a reconfirmação não faz parte desta entrega.
+
+A transação retira a linha do slot corrente, grava a data de revogação e o hash mínimo de reentrega
+para o comando exato. O recibo não contém texto, evidência copiada ou referência externa. Repetí-lo
+exige o mesmo titular e a mesma versão; o recibo não vale para uma nova linha, nem reautoriza
+o uso. A evidência de origem, outras contas e snapshots permanecem inalterados. Não há autorização
+para uso real, migração de histórico, retenção, expurgo ou desvinculação de evidência; esses pontos
+continuam sujeitos à política e aos gates da #1303. O rollback de schema só é previsto antes do
+cutover: perde recibos técnicos, mas não pode reativar uma linha já revogada.
+
 ## 16. Golden Food Corpus
 
 Toda regressão alimentar relevante deve virar caso versionado em um corpus canônico.

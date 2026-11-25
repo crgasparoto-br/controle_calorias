@@ -340,3 +340,12 @@ A reconciliação `reconcileLegacyFoodKnowledge("preview" | "stage")` e seu plan
   issue #1303; sem cutover da V1 ou alteração de `mealItems` históricos.
 
 **AUD-1302-031/032/033 — integridade do vínculo B2:** a leitura V2 de porções exige que `food_portions.food_id` coincida com a família da variante selecionada, além do vínculo `food_variant_id`, estado, permissão e revisão da fonte. Na reconciliação de `foodCatalog`, a referência de evidência HTTPS precisa coincidir com o recurso exato autorizado em `food_sources.source_url`, inclusive caminho e parâmetros; credenciais, fragmentos e caminhos filhos não autorizados não conferem proveniência. No estágio de porções legadas `food_portions`, somente registros com `source_version` explícita e correspondente à revisão atestada da linha de origem podem ser vinculados; registros sem versão ou com versão divergente ficam inalterados, com caso de quarentena para revisão, sem backfill presumido ou mudança no histórico.
+
+### E1 — Recibo mínimo de revogação pessoal (#1309)
+
+A migração aditiva 0058 deixa `user_food_aliases.revocation_request_hash` nulo nas linhas existentes
+e permite valor somente numa linha revogada, com data e sem slot corrente. O dossiê de confirmação
+é validado pela fronteira de escrita, não criado pela migração. O hash vincula titular/linha/revisão,
+variante, confirmação e chave opaca do comando, sem copiar texto ou evidência para o recibo.
+O rollback de schema pré-cutover remove somente a coluna e a restrição novas; não restaura
+status/slot, não edita evidências e não reescreve snapshots. Nenhum consumidor produtivo foi habilitado.
