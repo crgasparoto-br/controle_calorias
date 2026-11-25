@@ -54,6 +54,18 @@ describe("E1 sem efeito material: fronteira inativa do comando", () => {
     expect(lockFoodReviewGrant).not.toHaveBeenCalled();
     expect(db.transaction).not.toHaveBeenCalled();
   });
+  it("nega configuração inválida e outra conta antes de consultar caso ou recibo", async () => {
+    const db = { transaction: vi.fn() };
+    const lockFoodReviewGrant = vi.fn(deniedGrant);
+    for (const singleReviewerUserId of [0, actor + 1]) {
+      expect(await applyAssignedFoodReview({
+        db, lockFoodReviewGrant, singleReviewerUserId,
+      }, actor, command)).toEqual({ kind: "denied" });
+    }
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(lockFoodReviewGrant).not.toHaveBeenCalled();
+  });
+
   it("recusa alvo fora do caso bloqueado sem consultar grant ou recibo", async () => {
     type Db = Parameters<typeof applyAssignedFoodReview>[0]["db"];
     type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -79,6 +91,47 @@ describe("E1 sem efeito material: fronteira inativa do comando", () => {
     expect(lockFoodReviewGrant).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["corrente", 1, 3, "applied"],
+    ["ciclo obsoleto", 2, 3, "denied"],
+    ["versão obsoleta", 1, 4, "denied"],
+  ])("conta inicialmente não designada não consulta recibo (%s)", async (_label, cycle, version, result) => {
+    type Db = Parameters<typeof applyAssignedFoodReview>[0]["db"];
+    type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+    const from = vi.fn((table: unknown) => {
+      if (table !== foodReviewCases) throw new Error("Initial assignment must never read event history.");
+      return { where: () => ({ limit: () => ({
+        for: async () => [{
+          status: "open", outcome: null, closedAt: null,
+          reviewCycle: cycle, stateVersion: version, assignedReviewerId: null,
+          targetArtifactType: target.artifactType, targetArtifactId: target.artifactId,
+          targetRevision: target.revision, targetContentHash: target.contentHash,
+        }],
+      }) }) };
+    });
+    const set = vi.fn(() => ({ where: async () => [{ affectedRows: 1 }] }));
+    const values = vi.fn(async () => [{ affectedRows: 1, insertId: 71 }]);
+    const tx = { select: () => ({ from }), update: () => ({ set }), insert: () => ({ values }) };
+    const db: Db = { transaction: work => work(tx as unknown as Tx) };
+    const lockFoodReviewGrant = vi.fn<FoodLock>(async (_read, scope) => ({
+      ...scope, authority: "food_review", status: "active", policyVersion: "fixture:policy",
+    }));
+    const response = await applyAssignedFoodReview({ db, lockFoodReviewGrant, singleReviewerUserId: actor },
+      actor, { ...command, action: "start_review", reason: null });
+    expect(response.kind).toBe(result);
+    expect(from.mock.calls).toEqual([[foodReviewCases]]);
+    if (result === "applied") {
+      expect(set).toHaveBeenCalledWith(expect.objectContaining({ assignedReviewerId: actor }));
+      expect(values).toHaveBeenCalledWith(expect.objectContaining({
+        action: "start_review", reason: "single_reviewer_initial_assignment", actorId: String(actor),
+      }));
+    } else {
+      expect(lockFoodReviewGrant).not.toHaveBeenCalled();
+      expect(set).not.toHaveBeenCalled();
+      expect(values).not.toHaveBeenCalled();
+    }
+  });
+
 });
 
 // Only the dedicated GitHub Actions service can opt in. Never read the
@@ -95,15 +148,19 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     actorUserId: int("actor_user_id").notNull(),
     action: varchar("action", { length: 60 }).notNull(),
     active: int("active").notNull(),
+    initialAssignment: int("initial_assignment").notNull(),
     policyVersion: varchar("policy_version", { length: 100 }).notNull(),
   });
   const lockFoodReviewGrant: FoodLock = async (read, scope) => {
     const [grant] = await read.select({
       active: fixtureGrants.active, policyVersion: fixtureGrants.policyVersion,
+      initialAssignment: fixtureGrants.initialAssignment,
     }).from(fixtureGrants).where(and(
       eq(fixtureGrants.actorUserId, scope.actorUserId), eq(fixtureGrants.action, scope.action),
     )).limit(1).for("update");
-    return grant?.active === 1 ? {
+    const mayAssignInitially = scope.assignmentMode !== "single_reviewer_initial_assignment" ||
+      grant?.initialAssignment === 1;
+    return grant?.active === 1 && mayAssignInitially ? {
       ...scope, authority: "food_review", status: "active", policyVersion: grant.policyVersion,
     } : null;
   };
@@ -112,6 +169,14 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     ({ db: storage, lockFoodReviewGrant: authorize });
   const apply = (input: unknown, id = reviewer) =>
     applyAssignedFoodReview(dependencies(), id, input);
+  const singleReviewerPolicy = (storage: Db = db, authorize: FoodLock = lockFoodReviewGrant) =>
+    ({ ...dependencies(storage, authorize), singleReviewerUserId: reviewer });
+  const applySingle = (input: unknown, id = reviewer) =>
+    applyAssignedFoodReview(singleReviewerPolicy(), id, input);
+  async function allowInitialAssignment(value: 0 | 1) {
+    await pool.execute(`UPDATE ${grantTable} SET initial_assignment=?
+      WHERE actor_user_id=? AND action='start_review'`, [value, reviewer]);
+  }
   async function expectPendingWhileLockHeld(pending: Promise<unknown>) {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -141,7 +206,8 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     // application schema, permission policy, or a production grant adapter.
     await pool.query(`CREATE TABLE ${grantTable} (
       actor_user_id INT NOT NULL, action VARCHAR(60) NOT NULL,
-      active TINYINT NOT NULL, policy_version VARCHAR(100) NOT NULL,
+      active TINYINT NOT NULL, initial_assignment TINYINT NOT NULL DEFAULT 0,
+      policy_version VARCHAR(100) NOT NULL,
       PRIMARY KEY (actor_user_id, action))`);
     async function addReviewer(name: string) {
       const [result] = await pool.execute<import("mysql2").ResultSetHeader>(
@@ -183,12 +249,100 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     );
     const [events] = await pool.execute<import("mysql2").RowDataPacket[]>(
       `SELECT id, review_cycle AS cycle, request_key AS requestKey, action, reason,
-       previous_status AS previousStatus, new_status AS newStatus, outcome,
+       previous_status AS previousStatus, new_status AS newStatus, outcome, actor_id AS actorId,
        evidence_ids_json AS evidence, target_content_hash AS targetHash, policy_version AS policyVersion
        FROM food_review_events WHERE case_id=? ORDER BY id`, [caseId]
     );
     return { current: cases[0], events };
   }
+
+  it("designa e inicia atomicamente com conta única; encerramento e reentrega são distintos", async () => {
+    const input = await seed("one-reviewer", "open", target, null);
+    const start = { ...input, action: "start_review", reason: null };
+    await allowInitialAssignment(1);
+    try {
+      const [first, duplicate, denied] = await Promise.all([
+        applySingle(start), applySingle(start), applySingle(start, otherReviewer),
+      ]);
+      expect(first).toMatchObject({ kind: "applied", receipt: { action: "start_review", stateVersion: 4 } });
+      expect(duplicate).toStrictEqual(first);
+      expect(denied).toEqual({ kind: "denied" });
+      expect(await read(input.caseId)).toMatchObject({
+        current: { status: "in_review", assigned: reviewer, version: 4, outcome: null, hasClosedAt: 0 },
+        events: [{ action: "start_review", actorId: String(reviewer), reason: "single_reviewer_initial_assignment" }],
+      });
+      const close = { ...input, expectedStateVersion: 4, requestKey: "fixture:one-reviewer-close" };
+      expect(await applySingle(close, otherReviewer)).toEqual({ kind: "denied" });
+      expect(await applySingle(close))
+        .toMatchObject({ kind: "applied", receipt: { action: "close_no_change", stateVersion: 5 } });
+      expect(await applySingle(start)).toStrictEqual(first);
+      expect(await read(input.caseId)).toMatchObject({
+        current: { status: "closed", assigned: reviewer, version: 5, outcome: "no_change" },
+        events: [{ action: "start_review", actorId: String(reviewer) },
+          { action: "close_no_change", actorId: String(reviewer), reason: "no_material_effect" }],
+      });
+      await pool.execute(`UPDATE ${grantTable} SET active=0
+        WHERE actor_user_id=? AND action='start_review'`, [reviewer]);
+      try {
+        expect(await applySingle(start)).toEqual({ kind: "denied" });
+        expect((await read(input.caseId)).events).toHaveLength(2);
+      } finally {
+        await pool.execute(`UPDATE ${grantTable} SET active=1
+          WHERE actor_user_id=? AND action='start_review'`, [reviewer]);
+      }
+    } finally {
+      await allowInitialAssignment(0);
+    }
+  });
+
+  it("conta única não concede grant, não assume caso alheio e não fecha caso sem designação", async () => {
+    const input = await seed("initial-denials", "open", target, null);
+    const alreadyReviewing = await seed("unassigned-reviewing", "in_review", target, null);
+    const another = await seed("initial-another", "open", target, otherReviewer);
+    const start = { ...input, action: "start_review", reason: null };
+    expect(await applySingle(start)).toEqual({ kind: "denied" }); // ordinary start grant only
+    await allowInitialAssignment(1);
+    try {
+      expect(await apply(start)).toEqual({ kind: "denied" }); // no singleton configuration
+      expect(await applySingle(start, otherReviewer)).toEqual({ kind: "denied" });
+      expect(await applySingle(input)).toEqual({ kind: "denied" });
+      expect(await applySingle({ ...start, caseId: alreadyReviewing.caseId })).toEqual({ kind: "denied" });
+      expect(await applySingle({ ...start, caseId: another.caseId })).toEqual({ kind: "denied" });
+      expect(await applySingle({ ...start, caseId: another.caseId }, otherReviewer)).toEqual({ kind: "denied" });
+      expect(await applySingle({ ...start, target: { ...target, revision: target.revision + 1 } }))
+        .toEqual({ kind: "denied" });
+      expect(await read(input.caseId)).toMatchObject({
+        current: { status: "open", assigned: null, version: 3 }, events: [],
+      });
+      expect(await read(another.caseId)).toMatchObject({
+        current: { status: "open", assigned: otherReviewer, version: 3 }, events: [],
+      });
+    } finally {
+      await allowInitialAssignment(0);
+    }
+  });
+
+  it("a reentrega não restaura uma designação inicial que deixou de existir", async () => {
+    const input = await seed("lost-initial-designation", "open", target, null);
+    const start = { ...input, action: "start_review", reason: null };
+    await allowInitialAssignment(1);
+    try {
+      expect((await applySingle(start)).kind).toBe("applied");
+      // External administrative change in the fixture only, not a new action.
+      await pool.execute(`UPDATE food_review_cases SET status='open',
+        assigned_reviewer_id=NULL, state_version=5 WHERE id=?`, [input.caseId]);
+      expect(await applySingle(start)).toEqual({ kind: "denied" });
+      // Even a new command using the current version may not claim the
+      // case with an occupied event key. The unique insert rolls back CAS.
+      expect(await applySingle({ ...start, expectedStateVersion: 5 })).toEqual({ kind: "unavailable" });
+      expect(await read(input.caseId)).toMatchObject({
+        current: { status: "open", assigned: null, version: 5 },
+        events: [{ action: "start_review", actorId: String(reviewer) }],
+      });
+    } finally {
+      await allowInitialAssignment(0);
+    }
+  });
 
   it("inicia revisão sem alterar designação e exige comando novo para fechar", async () => {
     const input = await seed("start");
@@ -240,6 +394,7 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
       grant => ({ ...grant, caseId: input.caseId + 1 }),
       grant => ({ ...grant, reviewCycle: grant.reviewCycle + 1 }),
       grant => ({ ...grant, stateVersion: grant.stateVersion + 1 }),
+      grant => ({ ...grant, assignmentMode: "single_reviewer_initial_assignment" }),
       grant => ({ ...grant, target: { ...grant.target, revision: grant.target.revision + 1 } }),
     ];
     for (const mismatch of mismatches) {
@@ -430,8 +585,10 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     });
   });
 
-  it("rollback no TiDB quando a etapa de evento falha após o CAS", async () => {
-    const input = await seed("rollback-event");
+  it.each([false, true])("rollback no TiDB quando a etapa de evento falha depois do CAS (designação inicial: %s)", async claim => {
+    const assignment = claim ? null : reviewer;
+    const input = await seed(`rollback-event-${claim}`, "open", target, assignment);
+    const cmd = claim ? { ...input, action: "start_review", reason: null } : input;
     let eventAttempted = false;
     const dbWithBadEventWritableConnection: Pick<typeof db, "transaction"> = {
       transaction: work => db.transaction(tx => work(new Proxy(tx, {
@@ -448,12 +605,21 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
         },
       }))),
     };
-    expect(await applyAssignedFoodReview(dependencies(dbWithBadEventWritableConnection), reviewer, input)).toEqual({ kind: "unavailable" });
-    expect(eventAttempted).toBe(true);
-    expect(await read(input.caseId)).toMatchObject({
-      current: { status: "open", outcome: null, version: 3, hasClosedAt: 0 }, events: [],
-    });
-    expect((await apply(input)).kind).toBe("applied");
-    expect((await read(input.caseId)).events).toHaveLength(1);
+    if (claim) await allowInitialAssignment(1);
+    try {
+      const broken = claim ? singleReviewerPolicy(dbWithBadEventWritableConnection)
+        : dependencies(dbWithBadEventWritableConnection);
+      expect(await applyAssignedFoodReview(broken, reviewer, cmd)).toEqual({ kind: "unavailable" });
+      expect(eventAttempted).toBe(true);
+      expect(await read(input.caseId)).toMatchObject({
+        current: { status: "open", outcome: null, version: 3, hasClosedAt: 0, assigned: assignment }, events: [],
+      });
+      expect((await (claim ? applySingle(cmd) : apply(cmd))).kind).toBe("applied");
+      expect(await read(input.caseId)).toMatchObject({
+        current: { assigned: reviewer, version: 4 }, events: [{}],
+      });
+    } finally {
+      if (claim) await allowInitialAssignment(0);
+    }
   });
 });
