@@ -82,11 +82,11 @@ function seal(entries: Input[], outputRows: unknown[], labels: unknown[] = entri
     readLabels: vi.fn(() => labelBytes) };
 }
 
-async function capture(entry: Input) {
+async function capture(entry: Input, lexiconEntries = snapshot) {
   return diagnoseFoodMaterialPendingIncrements({
     rawText: entry.text, modality: entry.modality, sourceRef: "c1b:" + entry.id,
     lexiconRevision: ref.lexiconRevision, ownerUserId: null, locale: "pt-BR", now: new Date("2026-11-25T00:00:00Z"),
-  }, { load: async () => snapshot });
+  }, { load: async () => lexiconEntries });
 }
 async function mixed(entry = input(1)) {
   const r = await capture(entry);
@@ -332,6 +332,143 @@ describe("sealed material proof, only public synthetic controls", () => {
     const repinned = seal([entry], [{ id: entry.id, result }], gold);
     expect(compareSealedMaterialProof(repinned).totals).toMatchObject({ verified: 1, mismatch: 1 });
     expect(repinned.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not allow an aligned subtoken of the nominal owner to receive credit", async () => {
+    const entry = input(1), result = await mixed(entry);
+    const facts = authoredFacts(entry.text), expected = facts[0].owner!;
+    expected.name = { ...expected.name, start: expected.name.start + 1 };
+    expected.nameHint = "ao";
+    const actual = result.observations[0];
+    actual.identityHints.foodName = actual.normalizedInput = "ao";
+    const name = actual.evidence.find(e => e.field === "identity.foodName")!;
+    name.anchor.span = expected.name;
+    name.value = "ão";
+    const packet = seal([entry], [{ id: entry.id, result }], [{ id: entry.id, facts }]);
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-nominal-boundary");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("credits the complete multiword owner, not an independently aligned suffix word", async () => {
+    const raw = "2 copos de caldo de sopa com 3 g de alho";
+    const entry = input(1, raw);
+    const result = await capture(entry);
+    if (!result.ok) throw new Error("independent control needs a measured compound name");
+    const gold = { kind: "ingredient-measured", scope: at(raw, raw),
+      owner: { name: at(raw, "caldo de sopa"), nameHint: "caldo de sopa",
+        whole: { status: "exact", measure: at(raw, "2 copos"), serving: at(raw, "2 copos de"), value: 2, unit: "copo" } },
+      ingredient: at(raw, "alho"), amount: { measure: at(raw, "3 g"), value: 3, unit: "g" },
+    };
+    const labels = [{ id: entry.id, facts: [gold] }];
+    expect(compareSealedMaterialProof(seal([entry], [{ id: entry.id, result }], labels)).totals.verified).toBe(1);
+    const row = result.observations[0], name = row.evidence.find(e => e.field === "identity.foodName")!;
+    for (const attempted of ["sopa", "caldo"]) {
+      gold.owner.name = at(raw, attempted);
+      gold.owner.nameHint = row.identityHints.foodName = row.normalizedInput = name.value = attempted;
+      name.anchor.span = gold.owner.name;
+      const packet = seal([entry], [{ id: entry.id, result }], labels);
+      expect(() => compareSealedMaterialProof(packet)).toThrow("label-");
+      expect(packet.readLabels).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("does not let a hard-bounded sibling claim skip quotes or a lexical prefix", async () => {
+    for (const raw of ["«sopa»", "caldo de sopa"]) {
+      const entry = input(1, raw), result = await capture(entry);
+      if (!result.ok) throw new Error("expected ordinary sibling control");
+      const row = result.observations[0];
+      row.surfaceSpan.span = at(raw, "sopa");
+      const name = row.evidence.find(e => e.field === "identity.foodName")!;
+      name.anchor.span = row.surfaceSpan.span;
+      name.value = row.identityHints.foodName = row.normalizedInput = "sopa";
+      row.normalizationPath = [];
+      const labels = [{ id: entry.id, facts: [{
+        kind: "independent-sibling", scope: at(raw, "sopa"),
+        owner: { name: at(raw, "sopa"), nameHint: "sopa", whole: { status: "absent" } },
+      }] }];
+      const packet = seal([entry], [{ id: entry.id, result }], labels);
+      expect(() => compareSealedMaterialProof(packet)).toThrow("label-nominal-boundary");
+      expect(packet.readLabels).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it.each(["different-kind", "same-target", "target-role"] as const)(
+    "rejects all compatible active S2 competitors independently of order: %s", async kind => {
+      const entry = input(1), captured = await mixed(entry);
+      const competitor = kind === "same-target" ? lex("bôlo", 12, { targetRef: "public-author-1" }) :
+        lex(kind === "target-role" ? "anis" : "bôlo", 12,
+          { kind: "slang", targetType: "canonical_term", targetRef: "public-independent-term" });
+      const universe = [...snapshot, competitor];
+      for (const order of [universe, [...universe].reverse()]) {
+        const real = await capture(entry, order);
+        expect("observations" in real && real.observations.some(row =>
+          row.materialClaims.some(claim => claim.kind === "negation"))).toBe(false);
+        const packet = seal([entry], [{ id: entry.id, result: captured }], undefined, {}, order);
+        expect(() => compareSealedMaterialProof(packet)).toThrow("label-lexical-role");
+        expect(packet.readLabels).toHaveBeenCalledTimes(1);
+      }
+    });
+
+  it("ignores inapplicable competing rows, but does not guess time for an otherwise compatible dated row", async () => {
+    const entry = input(1), captured = await mixed(entry);
+    const optional = lex("bolo", 12, { kind: "slang", targetType: "canonical_term", targetRef: "out-of-scope-role" });
+    const inert = [{ ...optional, status: "revoked" as const }, { ...optional, locale: "pt-PT", id: 13 }];
+    const allowed = seal([entry], [{ id: entry.id, result: captured }], undefined, {}, [...snapshot, ...inert]);
+    expect(compareSealedMaterialProof(allowed).totals.verified).toBe(3);
+    const uncertain = seal([entry], [{ id: entry.id, result: captured }], undefined, {},
+      [...snapshot, { ...optional, validTo: new Date("2026-12-01T00:00:00Z") }]);
+    expect(() => compareSealedMaterialProof(uncertain)).toThrow("label-lexical-role");
+  });
+
+  it("requires the pinned literal unit group, not a self-consistent but invented conflict", async () => {
+    const entry = input(1, conflictText), gold = [{ id: entry.id, facts: conflictFacts(entry.text) }];
+    const captured = await capture(entry);
+    const reduced = snapshot.filter(x => x.id !== 5);
+    const real = await capture(entry, reduced);
+    if (!("observations" in real)) throw new Error("expected control with resolved unit");
+    expect(real.observations[0].quantityHints).toMatchObject({ value: 2, unit: "copo" });
+    for (const supplied of [reduced, [...reduced].reverse(),
+      [...snapshot, lex("medidores", 14, { kind: "portion_term", targetType: "canonical_term", targetRef: "colher" })]]) {
+      const forged = seal([entry], [{ id: entry.id, result: captured }], gold, {}, supplied);
+      expect(() => compareSealedMaterialProof(forged)).toThrow("label-unit-conflict");
+      expect(forged.readLabels).toHaveBeenCalledTimes(1);
+    }
+    const revoked = [...snapshot, lex("medidores", 14, {
+      kind: "portion_term", targetType: "canonical_term", targetRef: "colher", status: "revoked",
+    })].reverse();
+    expect(compareSealedMaterialProof(seal([entry], [{ id: entry.id, result: captured }], gold, {}, revoked)).totals.verified).toBe(2);
+  });
+
+  it.each([
+    ["3 g de canela", "-3g de canela"], ["3 g de canela", "4 g de canela"],
+    ["3 g de canela", "3 l de canela"], ["2 fatias de pão", "9 fatias de pão"],
+    ["MAIS 4 fatias", "MAIS 9 fatias"],
+  ])("rejects a repinned exact quantity that differs from the literal witness: %j", async (from, to) => {
+    expect(from.length).toBe(to.length);
+    const original = input(1), result = await mixed(original);
+    const facts = authoredFacts(original.text);
+    const entry = { ...original, text: original.text.replace(from, to) };
+    for (const row of result.observations) row.rawInput = entry.text;
+    for (const item of result.affected) if (item.pendingObservation) item.pendingObservation.rawInput = entry.text;
+    const packet = seal([entry], [{ id: entry.id, result }], [{ id: entry.id, facts }]);
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-exact-amount");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("recognizes explicitly witnessed decimal and fractional amounts without interpreting a range", async () => {
+    const raw = "MAIS ½ copo; 1,25 g de damascos";
+    const entry = input(1, raw);
+    const gold = [{ id: entry.id, facts: [
+      { kind: "pending-increment", scope: at(raw, "MAIS ½ copo"), operator: at(raw, "MAIS"),
+        amount: { value: .5, unit: "copo", measure: at(raw, "½ copo") } },
+      { kind: "independent-sibling", scope: at(raw, "1,25 g de damascos"),
+        owner: { name: at(raw, "damascos"), nameHint: "damascos", whole: {
+          status: "exact", measure: at(raw, "1,25 g"), serving: at(raw, "1,25 g de"), value: 1.25, unit: "g",
+        } } },
+    ] }];
+    const live = await capture(entry);
+    expect(compareSealedMaterialProof(seal([entry], [{ id: entry.id, result: live }], gold)).totals)
+      .toEqual({ verified: 1, abstained: 1, mismatch: 0, missing: 0, duplicate: 0, extra: 0 });
   });
 
   it("does not double-count a typed pending child, but rejects the aggregate +1 before labels", async () => {

@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { FOOD_CONTRACT_LIMITS as limits } from "../contracts";
+import { recognizedUnit } from "../linguisticSurface";
 import { foodAnchorSchema, opaqueId, type FoodAnchor } from "../schemaShared";
 import { parseFoodMaterialObservationBatch, type FoodMaterialObservation } from "../schemas";
 import { hasSourceUtf16Boundary } from "./semanticConservation1341.reserved.test.support";
@@ -78,7 +79,7 @@ const lexicalRow = z.object({
   id: z.number().int().positive(), kind: z.string(), targetType: z.string(), targetRef: z.string().nullable(),
   normalizedTerm: z.string(), locale: z.string(), scope: z.string(), userId: z.number().nullable(),
   status: z.string(), current: z.boolean(), requiresClarification: z.boolean(),
-  validFrom: z.string().nullable(), validTo: z.string().nullable(),
+  validFrom: z.string().nullable(), validTo: z.string().nullable(), confidence: z.number().nullable(),
 });
 
 export interface MaterialProofInputs {
@@ -241,7 +242,87 @@ function wholeHardScope(input: Input, scope: Span) {
     !after.split(/[;\n]/u, 1)[0].trim();
 }
 
-function reference(input: Input, facts: Fact[], lexicon: readonly z.infer<typeof lexicalRow>[]) {
+// Boundary witnesses, not a second parser: count/decimal (at most two
+// decimal places) or a literal vulgar fraction, with at most one S1 unit
+// token. A sign, range, written number or compound unit is outside this proof.
+const numberForm = /^(?:(?:0|[1-9][0-9]*)(?:[,.][0-9]{1,2})?|[¼½¾])$/u;
+function literalNumber(value: string): number | null {
+  if (!numberForm.test(value)) return null;
+  if (value === "¼" || value === "½" || value === "¾") return value === "¼" ? .25 : value === "½" ? .5 : .75;
+  // Bound the coefficient as well as the rendered number. Otherwise very
+  // large decimals can round to the same integer and appear to match.
+  if (!Number.isSafeInteger(Number(value.replace(/[,.]/u, "")))) return null;
+  const number = Number(value.replace(",", "."));
+  return number > 0 ? number : null;
+}
+function exactWrittenAmount(input: Input, wanted: z.infer<typeof anchorAmount>, implicitUn = false) {
+  const parts = /^([0-9.,]+|[¼½¾])(?:[ \t]*([\p{L}][\p{L}\p{M}]*))?$/u.exec(literal(input, wanted.measure));
+  return !!parts && literalNumber(parts[1]) === wanted.value &&
+    (parts[2] ? recognizedUnit(parts[2]) === wanted.unit : implicitUn && wanted.unit === "un");
+}
+const spelling = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
+  .toLocaleLowerCase("pt-BR").trim().replace(/\s+/gu, " ");
+const space = /^[ \t]+$/u;
+const de = /^[ \t]+de[ \t]+$/iu;
+const decorations = /^(?:(?:\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*[ \t]+)*)$/u;
+type LexicalRow = z.infer<typeof lexicalRow>;
+const possibleGlobal = (row: LexicalRow) => row.locale === "pt-BR" && row.scope === "global" &&
+  row.userId === null && row.status === "verified" && row.current && Number.isSafeInteger(row.id) &&
+  (row.confidence === null || row.confidence >= 0 && row.confidence <= 1);
+const unconditional = (row: LexicalRow) => row.validFrom === null && row.validTo === null;
+const unitKind = (row: LexicalRow) => row.kind === "unit_term" || row.kind === "portion_term";
+
+function nominalStart(input: Input, scope: Span, gold: Owner, lexicon: readonly LexicalRow[]) {
+  const name = literal(input, gold.name);
+  if (name !== name.trim() ||
+      !/^\p{L}[\p{L}\p{M}\p{N}]*(?:[ \t'’\p{Pd}]+[\p{L}][\p{L}\p{M}\p{N}]*)*$/u.test(name)) fail("label-nominal-boundary");
+  const wanted = gold.whole;
+  const prefixStart = wanted.status === "absent" ? gold.name.start : wanted.serving.start;
+  if (!decorations.test(input.text.slice(scope.start, prefixStart))) fail("label-nominal-boundary");
+  if (wanted.status === "absent") {
+    if (wanted.serving && !inside(gold.name, wanted.serving)) fail("label-nominal-boundary");
+    return;
+  }
+  if (wanted.status === "exact") {
+    if (!exactWrittenAmount(input, wanted, true)) fail("label-exact-amount");
+    const connector = input.text.slice(wanted.measure.end, wanted.serving.end);
+    if (wanted.serving.start !== wanted.measure.start || connector !== "" && !/^[ \t]+de$/iu.test(connector) ||
+        !space.test(input.text.slice(wanted.serving.end, gold.name.start))) fail("label-nominal-boundary");
+    return;
+  }
+
+  const [first] = wanted.hypotheses;
+  const prefix = first.serving;
+  const count = literalNumber(literal(input, wanted.serving));
+  if (count === null || prefix.start !== wanted.serving.start ||
+      wanted.hypotheses.some(option => !same(option.serving, prefix) || option.value !== count) ||
+      !de.test(input.text.slice(prefix.end, gold.name.start))) fail("label-unit-conflict");
+  const suffix = input.text.slice(wanted.serving.end, prefix.end);
+  const alias = suffix.trim();
+  if (!alias || !/^[ \t]+\S/u.test(suffix) || recognizedUnit(alias.split(/[ \t]+/u, 1)[0]) !== null) fail("label-unit-conflict");
+  const candidates = lexicon.filter(row => unitKind(row) && possibleGlobal(row) && spelling(row.normalizedTerm) === spelling(alias));
+  if (candidates.some(row => !unconditional(row))) fail("label-unit-conflict");
+  const represented = candidates.flatMap(row => {
+    const unit = row.targetType === "canonical_term" && row.targetRef ? recognizedUnit(row.targetRef) : null;
+    return unit ? [{ unit, proved: !row.requiresClarification }] : [];
+  });
+  const expected = wanted.hypotheses.map(option => option.unit).sort();
+  if (new Set(represented.filter(x => x.proved).map(x => x.unit)).size < 2 ||
+      JSON.stringify(represented.map(x => x.unit).sort()) !== JSON.stringify(expected)) fail("label-unit-conflict");
+}
+
+function uniqueNominalRole(name: string, lexicon: readonly LexicalRow[]) {
+  // The exact-name selector sees all compatible meanings before it checks
+  // the chosen role, including slang and same-target duplicates. This proof
+  // is global-only; a possible dated competitor cannot be discarded.
+  const group = lexicon.filter(row => !unitKind(row) && possibleGlobal(row) &&
+    spelling(row.normalizedTerm) === name);
+  const [row] = group;
+  return group.length === 1 && row.kind === "alias_surface" && row.targetType === "food_variant" &&
+    !!row.targetRef?.trim() && !row.requiresClarification && unconditional(row) ? row : null;
+}
+
+function reference(input: Input, facts: Fact[], lexicon: readonly LexicalRow[]) {
   const scopes = facts.map(x => x.scope).sort((a, b) => a.start - b.start);
   if (scopes.some((x, i) => !realSpan(input, x) || i > 0 && scopes[i - 1].end > x.start)) fail("label-scope");
   for (const f of facts) {
@@ -264,20 +345,18 @@ function reference(input: Input, facts: Fact[], lexicon: readonly z.infer<typeof
     if ("owner" in f) {
       // The authored label may fold pt-BR nominal spelling, never substitute
       // another name. This comparison does not ask the producer for identity.
-      const name = literal(input, f.owner.name).normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
-        .toLocaleLowerCase("pt-BR").trim().replace(/\s+/gu, " ");
-      if (name !== f.owner.nameHint) fail("label-nominal-name");
+      if (spelling(literal(input, f.owner.name)) !== f.owner.nameHint) fail("label-nominal-name");
+      nominalStart(input, f.scope, f.owner, lexicon);
+      if (f.kind === "independent-sibling" &&
+          (f.owner.name.end !== f.scope.end || !wholeHardScope(input, f.scope))) fail("label-nominal-boundary");
     }
-    if ("owner" in f && f.owner.lexical) {
-      const { entryId, variant } = f.owner.lexical;
-      const rows = lexicon.filter(row => row.id === entryId);
-      const [row] = rows;
-      // Only the fixed synthetic role is in scope. Do not copy policy for
-      // personal, time-limited, revoked or otherwise conditional aliases.
-      if (rows.length !== 1 || row.kind !== "alias_surface" || row.targetType !== "food_variant" ||
-          row.targetRef !== variant || row.normalizedTerm !== f.owner.nameHint || row.locale !== "pt-BR" ||
-          row.scope !== "global" || row.userId !== null || row.status !== "verified" || !row.current ||
-          row.requiresClarification || row.validFrom !== null || row.validTo !== null) fail("label-lexical-role");
+    const role = "owner" in f && f.owner.lexical;
+    if (role && "owner" in f) {
+      const selected = uniqueNominalRole(f.owner.nameHint, lexicon);
+      if (!selected || selected.id !== role.entryId || selected.targetRef !== role.variant) fail("label-lexical-role");
+    }
+    if (f.kind === "negation-local" && (!role || !uniqueNominalRole(spelling(literal(input, f.ingredient)), lexicon))) {
+      fail("label-lexical-role");
     }
     // This positive arm is deliberately narrower than the parser. Both
     // literal connectors and the whole original clause must be proved;
@@ -286,6 +365,8 @@ function reference(input: Input, facts: Fact[], lexicon: readonly z.infer<typeof
         !/^[ \t]+com[ \t]+$/iu.test(input.text.slice(f.owner.name.end, f.amount.measure.start)) ||
         !/^[ \t]+de[ \t]+$/iu.test(input.text.slice(f.amount.measure.end, f.ingredient.start)) ||
         f.ingredient.end !== f.scope.end)) fail("label-ingredient-clause");
+    if ((f.kind === "ingredient-measured" || f.kind === "pending-increment") &&
+        !exactWrittenAmount(input, f.amount)) fail("label-exact-amount");
     if (f.kind === "negation-local" || f.kind === "pending-increment") {
       const left = f.kind === "negation-local" ? f.owner.name.end : f.scope.start;
       const right = f.kind === "negation-local" ? f.ingredient : f.amount.measure;
