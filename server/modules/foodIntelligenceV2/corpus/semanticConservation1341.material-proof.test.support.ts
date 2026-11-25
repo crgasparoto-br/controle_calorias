@@ -92,11 +92,18 @@ export interface MaterialProofInputs {
   adrSha256: string;
   lockfileSha256: string;
 }
-export interface SealedMaterialProof extends MaterialProofInputs {
+interface MaterialProofReferencePins extends MaterialProofInputs {
+  comparatorCheckoutSha: string;
+}
+
+export interface MaterialProofReference extends MaterialProofReferencePins {
+  labels: Uint8Array;
+}
+
+export interface SealedMaterialProof extends MaterialProofReferencePins {
   receipt: Uint8Array;
   outputs: Uint8Array;
   pinnedReceiptSha256: string;
-  comparatorCheckoutSha: string;
   expectedRunId: string;
   readLabels: () => Uint8Array;
 }
@@ -546,9 +553,49 @@ function tally(input: Input, facts: Fact[], result: ReturnType<typeof validated>
 }
 
 /** Reads labels only after the complete capture has passed all checks. */
+function verifyComparatorCheckout(manifest: z.infer<typeof manifestSchema>, sha: string) {
+  if (manifest.comparatorSha !== sha) fail("comparator-checkout");
+}
+
+function lexicalRolesFor(snapshot: Uint8Array) {
+  return indexCompatibleRoles(decode(snapshot, z.array(lexicalRow).max(5000), "lexicon"));
+}
+
+function labelsFor(manifest: z.infer<typeof manifestSchema>, inputs: ReadonlyMap<string, Input>,
+  lexicon: LexicalGroups, bytes: Uint8Array) {
+  pin(bytes, manifest.labelsSha256, "labels");
+  const labels = index(decode(bytes, labelsSchema, "labels").rows, "labels", inputs);
+  for (const [k, row] of inputs) reference(row, labels.get(k)!.facts, lexicon);
+  return labels;
+}
+
+/** Custodian-only pre-capture validation. No outputs, receipt or producer accepted.
+ * Counts support quota review; they do not prove equivalence or human authorship.
+ */
+export function preflightMaterialProofReference(config: MaterialProofReference) {
+  const { manifest, inputs } = inputsFor(config);
+  verifyComparatorCheckout(manifest, config.comparatorCheckoutSha);
+  const labels = labelsFor(manifest, inputs, lexicalRolesFor(config.lexiconSnapshot), config.labels);
+  const cases: Record<string, number> = {};
+  const facts: Record<string, number> = {};
+  const casesByFactCount: Record<string, number> = {};
+  const families = { calibration: new Set<string>(), holdout: new Set<string>() };
+  const increment = (by: Record<string, number>, k: string) => { by[k] = (by[k] ?? 0) + 1; };
+  for (const [k, row] of inputs) {
+    const cell = row.split + "/" + row.modality;
+    const authored = labels.get(k)!.facts;
+    increment(cases, cell);
+    increment(casesByFactCount, cell + "/" + authored.length);
+    families[row.split].add(row.semanticGroup);
+    for (const fact of authored) increment(facts, cell + "/" + fact.kind);
+  }
+  return { caseCount: inputs.size, cases, facts, casesByFactCount,
+    families: { calibration: families.calibration.size, holdout: families.holdout.size } };
+}
+
 export function compareSealedMaterialProof(config: SealedMaterialProof) {
   const { manifest, inputs } = inputsFor(config);
-  if (manifest.comparatorSha !== config.comparatorCheckoutSha) fail("comparator-checkout");
+  verifyComparatorCheckout(manifest, config.comparatorCheckoutSha);
   pin(config.receipt, config.pinnedReceiptSha256, "receipt");
   const receipt = decode(config.receipt, receiptSchema, "receipt");
   if (receipt.studyId !== manifest.studyId || receipt.runId !== config.expectedRunId ||
@@ -556,11 +603,8 @@ export function compareSealedMaterialProof(config: SealedMaterialProof) {
   pin(config.outputs, receipt.outputsSha256, "outputs");
   const outputs = index(decode(config.outputs, outputsSchema, "outputs"), "outputs", inputs);
   const capture = new Map([...inputs].map(([k, row]) => [k, validated(row, manifest.lexiconRevision, outputs.get(k)!.result)]));
-  const lexicon = indexCompatibleRoles(decode(config.lexiconSnapshot, z.array(lexicalRow).max(5000), "lexicon"));
-  const labelBytes = config.readLabels();
-  pin(labelBytes, manifest.labelsSha256, "labels");
-  const labels = index(decode(labelBytes, labelsSchema, "labels").rows, "labels", inputs);
-  for (const [k, row] of inputs) reference(row, labels.get(k)!.facts, lexicon);
+  const lexicon = lexicalRolesFor(config.lexiconSnapshot);
+  const labels = labelsFor(manifest, inputs, lexicon, config.readLabels());
   const totals = counts();
   const strata: Record<string, Counts> = {};
   const reasons: Record<string, number> = {};
