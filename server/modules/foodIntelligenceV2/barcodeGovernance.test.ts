@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
+import { aliasLookupResult, personalAliasValidityCases } from "./personalAliasValidity.test.support";
 import { getDb } from "../../db";
 import { createFoodV2KnowledgeRepository } from "./repository";
 import { hasCurrentBarcodeProof } from "./knowledgeEligibility";
@@ -64,15 +65,21 @@ const nutritionProof = {
   contentHash: createHash("sha256").update(JSON.stringify(nutritionPayload)).digest("hex"),
 };
 
-function installResults(...pages: unknown[][]) {
-  const select = vi.fn(() => ({
-    from() { return this; }, innerJoin() { return this; }, leftJoin() { return this; },
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn(async () => {
-      if (!pages.length) throw new Error("Unexpected governed query");
-      return pages.shift();
-    }),
-  }));
+type TestPage = unknown[] | ((query: ReturnType<MySqlDialect["sqlToQuery"]>) => unknown[]);
+function installResults(...pages: TestPage[]) {
+  const select = vi.fn(() => {
+    const where = vi.fn().mockReturnThis();
+    return {
+      from() { return this; }, innerJoin() { return this; }, leftJoin() { return this; },
+      where,
+      limit: vi.fn(async () => {
+        if (!pages.length) throw new Error("Unexpected governed query");
+        const page = pages.shift();
+        return typeof page === "function"
+          ? page(new MySqlDialect().sqlToQuery(where.mock.calls[0][0])) : page;
+      }),
+    };
+  });
   vi.mocked(getDb).mockResolvedValue({ select } as never);
   return select;
 }
@@ -353,9 +360,26 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
     expect(query.sql).toContain("`user_food_aliases`.`status` = ?");
     expect(query.sql).toContain("`user_food_aliases`.`current_slot` = ?");
     expect(query.sql).toContain("`user_food_aliases`.`revoked_at` is null");
+    expect(query.sql).toContain("`user_food_aliases`.`confirmed_at` is not null");
+    expect(query.sql).toContain("`user_food_aliases`.`confirmed_at` <= ?");
     expect(query.sql).toContain("`user_food_aliases`.`food_variant_id` = ?");
-    expect(query.params).toEqual([41, "meu pao", "user_confirmed", "active", 1, 22]);
+    expect(query.params).toEqual([41, "meu pao", "user_confirmed", "active", 1, "2026-10-21 12:00:00.000", 22]);
   });
+
+  it.each(personalAliasValidityCases)("allows alias proof of a barcode name only when authorized: %s",
+    async (_case, alias, allowed) => {
+      const select = installResults(
+        [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+        [{ source, grant }], [proof], [barcodeMapping], [variantRow],
+        query => aliasLookupResult(query, alias),
+        [profile], [{ source, grant }], [barcodeMapping], [nutritionProof], [],
+      );
+      const result = await createFoodV2KnowledgeRepository().readLocal({ ...request, normalizedName: "meu pao" });
+      expect(result).toMatchObject(allowed
+        ? { kind: "match", matchingEvidence: "barcode", variantId: 22 }
+        : { kind: "conflict", reason: "multiple_identities" });
+      expect(select).toHaveBeenCalledTimes(allowed ? 11 : 6);
+    });
 
   it("does not read a local variant when barcode evidence points to another code", async () => {
     const badPayload = { barcode: "07890000000002" };

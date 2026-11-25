@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
+import { aliasLookupResult, personalAliasValidityCases } from "./personalAliasValidity.test.support";
 import { getDb } from "../../db";
 import { createFoodV2KnowledgeRepository } from "./repository";
 import { readThroughGovernedKnowledge } from "./knowledgeRead";
@@ -22,17 +23,23 @@ const request = {
 
 /** Use the actual repository adapter with a deterministic Drizzle result
  * queue; an incorrect read order or extra ungoverned query breaks the fixture. */
-function installResults(...pages: unknown[][]) {
-  const selects = vi.fn(() => ({
-    from() { return this; },
-    innerJoin() { return this; },
-    leftJoin() { return this; },
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn(async () => {
-      if (!pages.length) throw new Error("Unexpected governed query");
-      return pages.shift();
-    }),
-  }));
+type TestPage = unknown[] | ((query: ReturnType<MySqlDialect["sqlToQuery"]>) => unknown[]);
+function installResults(...pages: TestPage[]) {
+  const selects = vi.fn(() => {
+    const where = vi.fn().mockReturnThis();
+    return {
+      from() { return this; },
+      innerJoin() { return this; },
+      leftJoin() { return this; },
+      where,
+      limit: vi.fn(async () => {
+        if (!pages.length) throw new Error("Unexpected governed query");
+        const page = pages.shift();
+        return typeof page === "function"
+          ? page(new MySqlDialect().sqlToQuery(where.mock.calls[0][0])) : page;
+      }),
+    };
+  });
   vi.mocked(getDb).mockResolvedValue({ select: selects } as never);
   return selects;
 }
@@ -101,9 +108,47 @@ describe("B2 actual repository governed read", () => {
     expect(query.sql).toContain("`user_food_aliases`.`status` = ?");
     expect(query.sql).toContain("`user_food_aliases`.`current_slot` = ?");
     expect(query.sql).toContain("`user_food_aliases`.`revoked_at` is null");
-    expect(query.params).toEqual([41, "meu pao", "user_confirmed", "active", 1]);
+    expect(query.sql).toContain("`user_food_aliases`.`confirmed_at` is not null");
+    expect(query.sql).toContain("`user_food_aliases`.`confirmed_at` <= ?");
+    expect(query.params).toEqual([41, "meu pao", "user_confirmed", "active", 1, "2026-10-21 12:00:00.000"]);
   });
 
+
+  it.each(personalAliasValidityCases)("uses name alias only when authorized: %s", async (_case, alias, allowed) => {
+    const nutrition = { caloriesKcal: 250, proteinG: 9, carbG: 48, fatG: 3,
+      basisQuantity: 100, basisUnit: "g" };
+    const select = installResults(
+      query => aliasLookupResult(query, alias), [], [], [],
+      [{ variant: { id: 22, status: "active", governanceStatus: "verified",
+          variantType: "generic", displayName: "pao integral" },
+        family: { id: 4, status: "active", scope: "user", ownerUserId: 41 }, brand: null }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
+        foodVariantSourceId: null, validFrom: null, validTo: null, ...nutrition }],
+      [{ source, grant }], [],
+    );
+    const result = await createFoodV2KnowledgeRepository().readLocal(request);
+    expect(result).toMatchObject(allowed
+      ? { kind: "match", matchingEvidence: "personal_alias", variantId: 22 }
+      : { kind: "miss", reason: "not_found" });
+    expect(select).toHaveBeenCalledTimes(allowed ? 8 : 4);
+  });
+
+  it("still allows independently governed exact identity when an alias is not yet confirmed", async () => {
+    const futureAlias = personalAliasValidityCases[3][1];
+    const select = installResults(
+      query => aliasLookupResult(query, futureAlias), [{ id: 23 }], [], [],
+      [{ variant: { id: 23, status: "active", governanceStatus: "verified",
+          variantType: "generic", displayName: "meu pao" },
+        family: { id: 4, status: "active", scope: "user", ownerUserId: 41 }, brand: null }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
+        foodVariantSourceId: null, validFrom: null, validTo: null,
+        caloriesKcal: 250, proteinG: 9, carbG: 48, fatG: 3, basisQuantity: 100, basisUnit: "g" }],
+      [{ source, grant }], [],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(request))
+      .toMatchObject({ kind: "match", matchingEvidence: "exact_variant", variantId: 23 });
+    expect(select).toHaveBeenCalledTimes(8);
+  });
 
   it("AUD-1302-022: a revoked personal alias never falls through to homonymous macros", async () => {
     const nutrition = {
