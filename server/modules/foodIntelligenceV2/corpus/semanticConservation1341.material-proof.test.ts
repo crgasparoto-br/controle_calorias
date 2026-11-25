@@ -264,6 +264,15 @@ describe("sealed material proof, only public synthetic controls", () => {
     expect(packet.readLabels).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects a gold name that replaces rather than folds the raw owner", async () => {
+    const entry = input(1), result = await mixed(entry);
+    const facts = authoredFacts(entry.text);
+    facts[0].owner!.nameHint = "guacamole";
+    const packet = seal([entry], [{ id: entry.id, result }], [{ id: entry.id, facts }]);
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-nominal-name");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
   it("does not credit a nominal role if the pinned row is revoked", async () => {
     const entry = input(1), result = await mixed(entry);
     const restricted = snapshot.map(row => row.id === 1 ? { ...row, status: "revoked" as const } : row);

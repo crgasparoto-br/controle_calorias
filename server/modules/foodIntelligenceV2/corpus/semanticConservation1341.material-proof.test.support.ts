@@ -261,6 +261,13 @@ function reference(input: Input, facts: Fact[], lexicon: readonly z.infer<typeof
     if ("operator" in f) anchors.push(f.operator);
     if ("amount" in f) anchors.push(f.amount.measure);
     if (anchors.some(a => a && (!realSpan(input, a) || !inside(f.scope, a)))) fail("label-anchor");
+    if ("owner" in f) {
+      // The authored label may fold pt-BR nominal spelling, never substitute
+      // another name. This comparison does not ask the producer for identity.
+      const name = literal(input, f.owner.name).normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
+        .toLocaleLowerCase("pt-BR").trim().replace(/\s+/gu, " ");
+      if (name !== f.owner.nameHint) fail("label-nominal-name");
+    }
     if ("owner" in f && f.owner.lexical) {
       const { entryId, variant } = f.owner.lexical;
       const rows = lexicon.filter(row => row.id === entryId);
