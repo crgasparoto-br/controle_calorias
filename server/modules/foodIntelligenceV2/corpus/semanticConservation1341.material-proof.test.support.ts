@@ -322,6 +322,24 @@ function uniqueNominalRole(name: string, lexicon: readonly LexicalRow[]) {
     !!row.targetRef?.trim() && !row.requiresClarification && unconditional(row) ? row : null;
 }
 
+// Narrow reference profile, not an ingredient recognizer. The independent
+// rubric assigns the nominal role; this guard cannot infer food membership.
+// Only alphabetic atoms (combining marks permitted) without syntactic/unit
+// tokens are admitted. A measured target may have one simple nominal link.
+const nominalLink = /^(?:de|da|do|das|dos)$/u;
+const nonNominalAtom = /^(?:e|ou|nem|com|sem|mais|por|para|mas|que|se|zero|um|uma|uns|umas|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|mil|milhao|milhoes|meio|meia)$/u;
+function nominalTarget(raw: string, measured: boolean) {
+  const words = raw.split(/[ \t]+/u);
+  const atom = (word: string) => {
+    const key = spelling(word);
+    return /^\p{L}[\p{L}\p{M}]*$/u.test(word) &&
+      !nominalLink.test(key) && !nonNominalAtom.test(key) && recognizedUnit(word) === null;
+  };
+  return (words.length === 1 && atom(words[0])) ||
+    (measured && words.length === 3 && atom(words[0]) &&
+      nominalLink.test(spelling(words[1])) && atom(words[2]));
+}
+
 function reference(input: Input, facts: Fact[], lexicon: readonly LexicalRow[]) {
   const scopes = facts.map(x => x.scope).sort((a, b) => a.start - b.start);
   if (scopes.some((x, i) => !realSpan(input, x) || i > 0 && scopes[i - 1].end > x.start)) fail("label-scope");
@@ -355,6 +373,8 @@ function reference(input: Input, facts: Fact[], lexicon: readonly LexicalRow[]) 
       const selected = uniqueNominalRole(f.owner.nameHint, lexicon);
       if (!selected || selected.id !== role.entryId || selected.targetRef !== role.variant) fail("label-lexical-role");
     }
+    if ((f.kind === "ingredient-measured" || f.kind === "negation-local") &&
+        !nominalTarget(literal(input, f.ingredient), f.kind === "ingredient-measured")) fail("label-target-nominal");
     if (f.kind === "negation-local" && (!role || !uniqueNominalRole(spelling(literal(input, f.ingredient)), lexicon))) {
       fail("label-lexical-role");
     }

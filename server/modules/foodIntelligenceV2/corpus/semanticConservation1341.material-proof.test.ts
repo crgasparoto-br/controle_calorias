@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { FOOD_CONTRACT_LIMITS } from "../contracts";
 import { diagnoseFoodMaterialPendingIncrements, type GovernedLexiconEntry } from "../linguisticComprehension";
-import type { FoodMaterialObservation } from "../schemas";
+import { parseFoodMaterialObservationBatch, type FoodMaterialObservation } from "../schemas";
 import { compareSealedMaterialProof, prepareMaterialProofInputs } from "./semanticConservation1341.material-proof.test.support";
 
 const ref = {
@@ -470,6 +470,64 @@ describe("sealed material proof, only public synthetic controls", () => {
     expect(compareSealedMaterialProof(seal([entry], [{ id: entry.id, result: live }], gold)).totals)
       .toEqual({ verified: 1, abstained: 1, mismatch: 0, missing: 0, duplicate: 0, extra: 0 });
   });
+
+  it.each([
+    ["ingredient", "alho ou sal"], ["ingredient", "???"], ["ingredient", "alho, 1 pera"],
+    ["ingredient", "alho e sal"], ["ingredient", "alho sal"], ["ingredient", "alho de dois"],
+    ["ingredient", "alho de sal de cozinha"], ["ingredient", "alho-poró"], ["ingredient", "alho2"],
+    ["negation", "anis ou alho"], ["negation", "anis do campo"], ["negation", "anis!"],
+  ] as const)("refuses a repinned %s target outside the nominal profile: %j", async (kind, target) => {
+    const originalTail = kind === "ingredient" ? "alho" : "anis";
+    const prefix = kind === "ingredient" ? "sopa com 4 g de " : "bolo sem ";
+    const original = input(1, prefix + originalTail);
+    const captured = await capture(original);
+    if (!captured.ok) throw new Error("expected known positive source");
+    const entry = { ...original, text: prefix + target };
+    const row = captured.observations[0], [claim] = row.materialClaims;
+    if (claim.kind !== "ingredient" && claim.kind !== "negation") throw new Error("expected ingredient-role claim");
+    const evidence = row.evidence.find(e => e.evidenceId === claim.ingredient.evidenceId)!;
+    row.rawInput = entry.text;
+    for (const anchor of [row.surfaceSpan, ...row.evidence.map(e => e.anchor), ...row.normalizationPath.map(s => s.anchor)]) {
+      if (anchor.span?.end === original.text.length) anchor.span = { ...anchor.span, end: entry.text.length };
+    }
+    claim.ingredient.name = evidence.value = target;
+    expect(parseFoodMaterialObservationBatch(captured.observations).ok).toBe(true);
+
+    const scope = at(entry.text, entry.text), ingredient = at(entry.text, target, prefix.length);
+    const gold = kind === "ingredient" ? {
+      kind: "ingredient-measured", scope, ingredient,
+      owner: { name: at(entry.text, "sopa"), nameHint: "sopa", whole: { status: "absent" } },
+      amount: { value: 4, unit: "g", measure: at(entry.text, "4 g") },
+    } : {
+      kind: "negation-local", scope, ingredient, operator: at(entry.text, "sem"),
+      owner: { name: at(entry.text, "bolo"), nameHint: "bolo", whole: { status: "absent" },
+        lexical: { entryId: 1, variant: "public-author-1" } },
+    };
+    // A new nominal alias cannot make the wrong clause structure legitimate.
+    const supplied = kind === "ingredient" ? snapshot : [...snapshot, lex(target, 90)];
+    const packet = seal([entry], [{ id: entry.id, result: captured }], [{ id: entry.id, facts: [gold] }], {}, supplied);
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-target-nominal");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["text", "audio_transcript"] as const)(
+    "preserves an explicit multiword nominal link and a separate single-target negation in %s", async mode => {
+      const raw = "sopa com 4 g de pimenta do reino; bolo sem anis";
+      const entry = input(1, raw, mode);
+      const labels = [{ id: entry.id, facts: [
+        { kind: "ingredient-measured", scope: at(raw, "sopa com 4 g de pimenta do reino"),
+          owner: { name: at(raw, "sopa"), nameHint: "sopa", whole: { status: "absent" } },
+          ingredient: at(raw, "pimenta do reino"), amount: { value: 4, unit: "g", measure: at(raw, "4 g") } },
+        { kind: "negation-local", scope: at(raw, "bolo sem anis"),
+          owner: { name: at(raw, "bolo"), nameHint: "bolo", whole: { status: "absent" },
+            lexical: { entryId: 1, variant: "public-author-1" } }, operator: at(raw, "sem"), ingredient: at(raw, "anis") },
+      ] }];
+      const live = await capture(entry);
+      const packet = seal([entry], [{ id: entry.id, result: live }], labels);
+      expect(compareSealedMaterialProof(packet).totals).toEqual({
+        verified: 2, abstained: 0, mismatch: 0, missing: 0, duplicate: 0, extra: 0,
+      });
+    });
 
   it("does not double-count a typed pending child, but rejects the aggregate +1 before labels", async () => {
     const entry = input(1);
