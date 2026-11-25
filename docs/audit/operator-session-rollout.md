@@ -47,8 +47,26 @@ A adocao dos nomes da Skill nao equivale a revisao independente.
 A integracao fixa o produtor oficial
 `.github/workflows/handoff-evidence.yml` no commit da Skill indicado
 acima. Por enquanto, somente PRs rotuladas `solverit-certified-handoff`
-executam a coleta. O produtor usa `pytest --junitxml` com casos realmente
-executados, `produce_actions_handoff_evidence.py` e um certificador separado.
+executam a coleta. O produtor executa primeiro o `pytest` dos testes de governanca e do conversor
+Node, preservando seu XML como `junit-shards/shard-25.xml`. Depois executa
+`scripts/collect-solverit-certification-tests.sh` com 24 shards Vitest
+(concorrencia 2) e com o `node:test` real, convertido para o
+`junit-shards/shard-26.xml`. Um 27º shard executa, sob o checkout imutável da Skill oficial, as seis suítes de revisão de sessão e regras (positivo, negativo e regressão), produzindo `junit-shards/shard-27.xml`. O agregador combina **27 shards reais**
+em um unico JUnit factual, indexado pelo produtor oficial, e usa
+`produce_actions_handoff_evidence.py` com certificador separado. A coleta
+recusa shard ausente, IDs repetidos entre shards, contagens inconsistentes,
+resultados falhos, suites vazias com contagens falsas, casos fora da hierarquia
+JUnit e qualquer shard sem teste nao-skipped efetivamente executado.
+O conversor Node tambem rejeita contagens `tests`, `failures`, `errors` e
+`skipped` declaradas na raiz que sejam invalidas ou contradigam os casos;
+XML sem essas contagens continua compativel com o reporter real. Os casos
+skipped permanecem skipped em shards com execucao real. A saida recusa symlinks
+de arquivo/diretorio, inclusive destino inexistente e trocas concorrentes.
+Casos parametrizados com mesmo nome preservam cada
+execucao com ID reprodutivel e nome original. O `Agent-first gate` exercita
+testes positivos e adversariais desse consolidador. As suítes oficiais permanecem no preflight independente e agora também integram o JUnit autenticado da coleta. O status do preflight isolado não é promovido a certificado; os testes precisam executar e passar no mesmo run do HEAD material.
+**O JUnit tecnico nao substitui o dossie semantico:** o mapeamento dos
+casos a requisitos permanece `UNKNOWN` ate uma closure revisada.
 **Sem uma closure semantica revisada, o certificador deve falhar**, e o
 workflow nao pode ser considerado pronto nem requerido pelos rulesets.
 
@@ -71,6 +89,18 @@ continuam separados do candidato.
 **Limite:** esta etapa nao gera `Verify session review (exact SHA)`, nao certifica a
 implementacao, nao satisfaz auditoria independente nem permite encerrar a #1298.
 CI verde neste workflow demonstra somente preflight estrutural, nao um review.
+
+### Barreira A-007: lock integral de workflows confiáveis (M1)
+
+O preflight `operator_session_workflow_guards.py` valida eventos, permissões,
+job único e guarda exata **e** exige o SHA-256 de todos os bytes dos dois
+wrappers confiáveis (review e pacote neutro). Isso impede que YAML com uma
+segunda chave `if`, etapas extras, `run` modificado ou checkout por `head.ref`
+continue passando por conter a condição legítima como texto. Qualquer mudança
+posterior nos wrappers, até comentários, deve ser revisada e ter seu lock
+atualizado explicitamente, com regressões negativas. Os testes exercitam o
+caminho feliz e mutações em ambos os workflows; o preflight continua
+**não certificador** e não ativa a política, checks ou rulesets.
 
 ### Prerequisitos antes de M2
 
@@ -140,3 +170,21 @@ administrativa previamente comprovada. Nunca remover `Agent-first gate`.
   Nao foi dispensado o gate, reduzido teste ou forjado SHA.
 - **Escopo da evidencia:** o resultado negativo **nao** e ensaio positivo de
   handoff, pacote neutro ou parecer independente. Esses itens continuam em M2.
+
+### Endurecimento do preflight M1 de evidências (23/11/2026)
+
+A matriz `verify_session_m1_controls.py` rejeita XML que apresente casos
+`testcase` fora da hierarquia de suíte, resultados contraditórios, suites vazias,
+contadores falsos em qualquer nível, duplicações ou falhas em testes fora dos
+12 cenários selecionados. A prova mantém o JUnit bruto e o SHA-256 do arquivo,
+sem sintetizar resultados de testes. Testes legítimos `skipped` fora dos
+cenários obrigatórios são mantidos como tal e não viram execução aprovada.
+
+O preflight verifica ainda a integridade **provisória** do mapa
+`test_bindings` de todas as obrigações `covered`: positivo, negativo e
+regressão devem ter IDs separados, presentes e não reutilizados entre classes.
+Essa checagem estrutural é adicional ao produtor oficial, que continua tendo
+que provar os casos em JUnit no SHA material. Ela **não** produz revisão
+semântica, certificados, pacote neutro ou auditoria em sessão separada.
+As obrigações M1-02/M1-03/M1-04, A-005/A-006 e a M2 permanecem abertas até
+provas reais aceitas pelo contrato.

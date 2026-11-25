@@ -21,6 +21,12 @@ on:
       - '.github/workflows/github-audit-mcp.yml'
       - '.github/workflows/publish-certified-handoff.yml'
       - 'scripts/operator_session_preflight.py'
+      - 'scripts/wrap-node-junit.py'
+      - 'tests/test_wrap_node_junit.py'
+      - 'tests/test_collect_official_session_junit.py'
+      - 'tests/test_issue1345_readiness_docs.py'
+      - 'scripts/verify_session_m1_controls.py'
+      - 'tests/test_session_m1_controls.py'
       - 'tests/test_operator_session_preflight.py'
       - 'docs/audit/**'
   push:
@@ -41,6 +47,12 @@ on:
       - '.github/workflows/github-audit-mcp.yml'
       - '.github/workflows/publish-certified-handoff.yml'
       - 'scripts/operator_session_preflight.py'
+      - 'scripts/wrap-node-junit.py'
+      - 'tests/test_wrap_node_junit.py'
+      - 'tests/test_collect_official_session_junit.py'
+      - 'tests/test_issue1345_readiness_docs.py'
+      - 'scripts/verify_session_m1_controls.py'
+      - 'tests/test_session_m1_controls.py'
       - 'tests/test_operator_session_preflight.py'
       - 'docs/audit/**'
 
@@ -63,6 +75,14 @@ jobs:
           python-version: '3.12'
       - name: Execute positive and adversarial preflight tests
         run: python -m unittest discover -s tests -p 'test_operator_session_preflight.py' -v
+      - name: Exercise node:test JUnit adapter safety controls
+        run: python -m unittest discover -s tests -p 'test_wrap_node_junit.py' -v
+      - name: Enforce upstream exact-JUnit collection contract
+        run: python -m unittest discover -s tests -p 'test_collect_official_session_junit.py' -v
+      - name: Validate documented M1 acceptance controls (non-certifying)
+        run: python -m unittest discover -s tests -p 'test_issue1345_readiness_docs.py' -v
+      - name: Test fail-closed M1-04 JUnit matrix (non-certifying)
+        run: python -m unittest discover -s tests -p 'test_session_m1_controls.py' -v
       - name: Validate governance and fail-closed bootstrap
         run: python scripts/operator_session_preflight.py
 
@@ -70,7 +90,15 @@ jobs:
     name: Pinned official session contract regression (non-certifying)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      SUBJECT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
+      - name: Checkout candidate only for read-only matrix verification
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: .candidate
+          persist-credentials: false
       - name: Checkout immutable official Skill source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,4 +126,24 @@ jobs:
             tests/test_session_review_runner.py \
             tests/test_session_review_workflows.py \
             tests/test_session_certificate_event.py \
-            tests/test_plan_session_ruleset_m2.py
+            tests/test_plan_session_ruleset_m2.py \
+            --junitxml="$RUNNER_TEMP/operator-session-official-junit.xml"
+      - name: Exercise candidate PR-isolation attack and M1-04 matrix
+        run: |
+          python -m pytest -q .candidate/tests/test_session_m1_controls.py \
+            --junitxml="$RUNNER_TEMP/operator-session-candidate-junit.xml"
+          python .candidate/scripts/verify_session_m1_controls.py \
+            --official-junit "$RUNNER_TEMP/operator-session-official-junit.xml" \
+            --candidate-junit "$RUNNER_TEMP/operator-session-candidate-junit.xml" \
+            --head-sha "$SUBJECT_SHA" \
+            --out "$RUNNER_TEMP/operator-session-m1-matrix.json"
+      - name: Publish authenticated executed M1-04 control evidence (not approval)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: operator-session-m1-controls-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/operator-session-official-junit.xml
+            ${{ runner.temp }}/operator-session-candidate-junit.xml
+            ${{ runner.temp }}/operator-session-m1-matrix.json
+          if-no-files-found: error
+          retention-days: 14

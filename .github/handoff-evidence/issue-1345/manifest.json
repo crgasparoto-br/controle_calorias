@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1345,
+  "pull_request_number": 1348,
+  "base_ref": "develop",
+  "head_ref": "fix/1346-junit-evidence-reconcile",
+  "work_item_start_sha": "0bee3ebae575641e43daa1e3bc43fad7ef56f2a1",
+  "evidence_profile": "critical",
+  "audit_history": "previous-rejection",
+  "remediation_mode": "targeted-remediation",
+  "review_state": "incomplete",
+  "risk_justification": "Governance checks and exact-SHA identity are critical for preventing unauthorized approval.",
+  "audit_history_evidence": "Prior PR 1348 independent audit found A-001, A-002 and A-003; fixes were rechecked with local adversarial replay.",
+  "artifact_sha256": {},
+  "test_bindings": {
+    "REQ-GOV-001": {
+      "positive": [
+        "tests.test_session_review::test_single_account_can_submit_only_explicitly_limited_review"
+      ],
+      "negative": [
+        "tests.test_session_review::test_policy_cannot_silently_downgrade_existing_guarantee[assurance-third-party]"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_fake_independence_label"
+      ]
+    },
+    "REQ-M1-BASE": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_valid_preflight_without_approval"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_base_must_remain_develop"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_requires_explicit_opt_in_label"
+      ]
+    },
+    "REQ-M1-FAILCLOSED": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_valid_preflight_without_approval"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_must_inspect_reviewed_closure"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_collector_must_fail_closed"
+      ]
+    },
+    "REQ-M1-INTEGRITY": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_pinned_official_mirror_is_complete"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_official_mirror_rejects_hash_mismatch"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_official_mirror_rejects_missing_validator"
+      ]
+    },
+    "REQ-M1-PROTECTIONS": {
+      "positive": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_valid_preflight_without_approval"
+      ],
+      "negative": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_required_check_is_not_implicitly_enabled"
+      ],
+      "regression": [
+        "tests.test_operator_session_preflight.OperatorSessionPreflightTests::test_activation_is_blocked"
+      ]
+    },
+    "REQ-M1-RULESETS": {
+      "positive": [
+        "tests.test_issue1345_readiness_docs.RulesetReadbackDocumentTests::test_positive_ruleset_inventory_and_limitations"
+      ],
+      "negative": [
+        "tests.test_issue1345_readiness_docs.RulesetReadbackDocumentTests::test_negative_wrong_main_ruleset_id"
+      ],
+      "regression": [
+        "tests.test_issue1345_readiness_docs.RulesetReadbackDocumentTests::test_regression_missing_bypass_visibility_limitation"
+      ]
+    },
+    "REQ-M1-REVIEW-DOC": {
+      "positive": [
+        "tests.test_issue1345_readiness_docs.ReviewProcedureDocumentTests::test_positive_review_procedure_is_documented"
+      ],
+      "negative": [
+        "tests.test_issue1345_readiness_docs.ReviewProcedureDocumentTests::test_negative_omitting_review_marker"
+      ],
+      "regression": [
+        "tests.test_issue1345_readiness_docs.ReviewProcedureDocumentTests::test_regression_invented_conversation_url_is_not_allowed"
+      ]
+    },
+    "REQ-M2-RETROSPECTIVE": {
+      "positive": [
+        "tests.test_issue1345_readiness_docs.RetrospectivePlanDocumentTests::test_positive_retrospective_plan_registration_only"
+      ],
+      "negative": [
+        "tests.test_issue1345_readiness_docs.RetrospectivePlanDocumentTests::test_negative_missing_historical_material_identity"
+      ],
+      "regression": [
+        "tests.test_issue1345_readiness_docs.RetrospectivePlanDocumentTests::test_regression_no_retroactive_certificate_fabrication"
+      ]
+    }
+  }
+}
