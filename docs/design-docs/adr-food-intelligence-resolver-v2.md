@@ -2083,7 +2083,7 @@ A fila de classificação em `server/modules/foods/classificationReview.ts` é a
 | Ação                   | Origem → destino                 | Resultado do ciclo | Efeito autorizado                                                                                                                                    |
 | ---------------------- | -------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Abrir                  | Caso ausente → `open`            | Nulo               | Criar ciclo 1 e alvo/proposta; não publicar. Repetição agrega ocorrência idempotente no mesmo caso.                                                  |
-| Iniciar revisão        | `open` → `in_review`             | Nulo               | Atribuir revisor autorizado e versão esperada; não publicar.                                                                                         |
+| Iniciar revisão        | `open` → `in_review`             | Nulo               | Verificar revisor autorizado e versão esperada; neste recorte, preservar a designação existente (§25.4); não publicar.                                                                                         |
 | Aprovar                | `in_review` → `closed`           | `approved`         | Aprovar somente candidato/versão elegível e explicitamente avaliado; registrar evidência e evento.                                                   |
 | Corrigir e aprovar     | `in_review` → `closed`           | `approved`         | Criar a versão corrigida; mudança de identidade exige variante correspondente. Aprovar o novo alvo, sem sobrescrever nutrição/histórico verificados. |
 | Rejeitar               | `in_review` → `closed`           | `rejected`         | Rejeitar o candidato e registrar motivo; não invalidar outro artefato/versão aprovado.                                                               |
@@ -2906,7 +2906,7 @@ Este registro preserva os números das decisões para rastreabilidade. **Itens 1
 1. **DECIDIDO — 2026-10-05:** nomes, campos, tipos e invariantes de `FoodObservation`/`FoodResolutionDecision` v2 em §4/§5. Implementar schemas e testes é entrega futura; calibração e ativação não foram comprovadas;
 2. thresholds numéricos de confiança e matriz final por tipo de fonte/campo;
 3. regras e números mínimos para promoção automática de conhecimento global;
-4. papéis/permissões dos revisores;
+4. **PARCIALMENTE DECIDIDO — 2026-11-25:** somente o revisor com permissão alimentar ativa e já designado ao caso pode iniciar revisão ou encerrar sem alteração, conforme §25.4. A matriz completa e as demais ações continuam `OPEN`;
 5. desenho visual detalhado, navegação e composição responsiva da console administrativa, mantendo as responsabilidades definidas na seção 19.2;
 6. **DECIDIDO — 2026-10-05:** política operacional da fila de §14.2–§14.5: dois fatores de alcance, composição exclusiva, ordenação/desempates, tratamento de zero e dado indisponível, metas de prazo, capacidade/excedente, responsabilidade nominal e contenção separada. Restam implementação, validação empírica de 28/29 e configuração operacional antes da ativação;
 7. calibração numérica dos limiares de cada eixo da política de estimativa provisória por família, cuja estrutura está definida na seção 10.1;
@@ -2994,6 +2994,17 @@ A passagem por gate segue este contrato:
 5. Habilitar o bloqueio gradualmente com telemetria, canário e rollback. Se houver regressão, retornar a `warning/shadow` e recomeçar a homologação.
 
 Essa política define os critérios e o **mínimo de observação**, não antecipa o rollout V2, não substitui o Gate A/B nem modifica as questões de ativação ainda abertas (§25 item 11).
+
+### 25.4. Decisão parcial 4 — revisor previamente designado (aprovada em 2026-11-25, #1309)
+
+Conforme o [aceite do responsável pelo produto na #1309](https://github.com/crgasparoto-br/controle_calorias/issues/1309#issuecomment-7170847702), somente o revisor autenticado com permissão **ativa e específica de revisão alimentar para a ação** e já designado ao caso pode:
+
+- iniciar revisão: `open → in_review`, preservando a designação;
+- encerrar sem alteração: `open | in_review → closed/no_change`, sem publicar nem mudar conhecimento.
+
+O vínculo de designação e a permissão por ação devem ser validados na mesma transação, mesmo antes de consultar o recibo de uma reentrega. Caso, alvo, ciclo e versão da linha bloqueada escopam a comprovação da **autorização atual**; permissão genérica de administração ou billing não concede essa autoridade. Separadamente, o recibo vincula o **comando original** ao ator, alvo, ciclo e versão esperada daquela ação. O reenvio idêntico preserva esse recibo sem exigir que o ciclo e a versão originais ainda sejam correntes, desde que o revisor continue designado e o alvo exato esteja coberto. Só uma transição nova exige a versão esperada corrente e o CAS de §14.8.
+
+Não está decidido quem designa ou reatribui revisores, como se concede ou revoga a permissão, nem as permissões das demais ações e identidades internas. O recorte técnico não implementa essas operações, não configura uma autoridade de produção, não cria rota ou consumidor e não libera a retenção real ou ativação. A matriz completa permanece `OPEN`, sem mudar as dependências dos itens 3, 9, 15, 21, 27, 28 e 29.
 
 ## 26. Regra de evolução deste ADR
 

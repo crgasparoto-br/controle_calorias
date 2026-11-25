@@ -7,9 +7,9 @@ import {
   foodReviewEvents,
 } from "../../../drizzle/food-intelligence-v2-schema";
 
-// This is a storage primitive for one approved transition (§14.8), not an
-// authorization policy or a public command handler. No runtime consumer.
-const action = "close_no_change";
+// Dormant storage seam for only the preassigned reviewer (§25 item 4).
+const start = "start_review";
+const close = "close_no_change";
 const reason = "no_material_effect";
 const dbInt = z.number().int().min(1).max(2_147_483_647);
 const opaque = (length: number) =>
@@ -20,59 +20,80 @@ const targetSchema = z.strictObject({
   revision: dbInt,
   contentHash: z.string().regex(/^[a-f0-9]{64}$/),
 });
-// Persisted event vocabulary is checked at the boundary, not treated as
-// unstructured text or as proof of a new command.
-const receiptStateSchema = z.object({
-  action: z.literal(action),
-  reason: z.literal(reason),
-  previousStatus: z.enum(["open", "in_review"]),
-  newStatus: z.literal("closed"),
-  outcome: z.literal("no_change"),
-});
-const commandSchema = z.strictObject({
+const commandFields = {
   caseId: dbInt,
   reviewCycle: dbInt,
   expectedStateVersion: dbInt.max(2_147_483_646),
   requestKey: opaque(191),
   target: targetSchema,
-  // The specifically implemented reason is §14.8's absence of material
-  // effect. Neither raw justifications nor new retained evidence enter.
-  reason: z.literal(reason),
+};
+const commandSchema = z.discriminatedUnion("action", [
+  z.strictObject({ ...commandFields, action: z.literal(start), reason: z.null() }),
+  z.strictObject({ ...commandFields, action: z.literal(close), reason: z.literal(reason) }),
+]);
+const receiptStateSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal(start), reason: z.null(), previousStatus: z.literal("open"),
+    newStatus: z.literal("in_review"), outcome: z.null(),
+  }),
+  z.object({
+    action: z.literal(close), reason: z.literal(reason), previousStatus: z.enum(["open", "in_review"]),
+    newStatus: z.literal("closed"), outcome: z.literal("no_change"),
+  }),
+]);
+const lockedScopeSchema = z.strictObject({
+  actorUserId: dbInt,
+  action: z.enum([start, close]),
+  caseId: dbInt,
+  reviewCycle: dbInt,
+  stateVersion: dbInt,
+  target: targetSchema,
+});
+const grantSchema = z.strictObject({
+  ...lockedScopeSchema.shape,
+  authority: z.literal("food_review"),
+  status: z.literal("active"),
+  policyVersion: opaque(100),
 });
 
-type Command = Readonly<Omit<z.infer<typeof commandSchema>, "target">> & {
-  readonly target: Readonly<z.infer<typeof targetSchema>>;
+type Command = z.infer<typeof commandSchema>;
+type FrozenScope = Readonly<Omit<z.infer<typeof lockedScopeSchema>, "target">> & {
+  readonly target: Readonly<Command["target"]>;
 };
-
-type Authorization = Readonly<{
-  actorId: string;
-  action: typeof action;
-  command: Command;
-}>;
+type Tx = Parameters<Parameters<MySql2Database["transaction"]>[0]>[0];
+type GrantRead = Pick<Tx, "select">;
 type Dependencies = {
   db: Pick<MySql2Database, "transaction">;
-  // Supplied only by a future authorized application boundary. Missing
-  // authorizer/decision denies; this module defines no actors or permissions.
-  authorize: (
-    input: Authorization
-  ) => Promise<Readonly<{ policyVersion: string }> | null>;
+  // Trusted future Food authority: lock and validate the active permission
+  // for this action in this very transaction, or return null. No permission
+  // source is configured here. Repo-wide admin/billing flags are not grants.
+  lockFoodReviewGrant: (
+    read: GrantRead,
+    lockedScope: FrozenScope
+  ) => Promise<Readonly<z.infer<typeof grantSchema>> | null>;
 };
-type Receipt = {
+
+type Transition =
+  | { action: typeof start; status: "in_review"; outcome: null }
+  | { action: typeof close; status: "closed"; outcome: "no_change" };
+const transitions: { [Action in Transition["action"]]: Extract<Transition, { action: Action }> } = {
+  [start]: { action: start, status: "in_review", outcome: null },
+  [close]: { action: close, status: "closed", outcome: "no_change" },
+};
+type Receipt = Transition & {
   eventId: number;
   caseId: number;
   reviewCycle: number;
   stateVersion: number;
-  status: "closed";
-  outcome: "no_change";
   policyVersion: string;
 };
 type ApplyResult =
-  | { kind: "closed"; receipt: Receipt }
+  | { kind: "applied"; receipt: Receipt }
   | { kind: "invalid" | "denied" | "conflict" | "unavailable" };
 
 const requestHash = (actorId: string, command: Command) =>
   createHash("sha256").update(JSON.stringify([
-    "food-review-no-change-v1", action, actorId, command.caseId,
+    "food-review-assigned-v1", command.action, actorId, command.caseId,
     command.reviewCycle, command.expectedStateVersion, command.requestKey,
     command.target.artifactType, command.target.artifactId,
     command.target.revision, command.target.contentHash, command.reason,
@@ -80,60 +101,81 @@ const requestHash = (actorId: string, command: Command) =>
 
 type StoredTarget = Pick<typeof foodReviewCases.$inferSelect,
   "targetArtifactType" | "targetArtifactId" | "targetRevision" | "targetContentHash">;
+const sameTarget = (left: Readonly<Command["target"]>, right: Readonly<Command["target"]>) =>
+  left.artifactType === right.artifactType && left.artifactId === right.artifactId &&
+  left.revision === right.revision && left.contentHash === right.contentHash;
 
-function matchesTarget(row: StoredTarget, target: Command["target"]): boolean {
-  return row.targetArtifactType === target.artifactType &&
-    row.targetArtifactId === target.artifactId &&
-    row.targetRevision === target.revision && row.targetContentHash === target.contentHash;
+function readTarget(row: StoredTarget): Command["target"] {
+  return {
+    artifactType: row.targetArtifactType, artifactId: row.targetArtifactId,
+    revision: row.targetRevision, contentHash: row.targetContentHash,
+  };
+}
+
+function grantPolicy(grant: unknown, scope: FrozenScope): string | null {
+  const proof = grantSchema.safeParse(grant);
+  if (!proof.success) return null;
+  const { actorUserId, action, caseId, reviewCycle, stateVersion, target, policyVersion } = proof.data;
+  return actorUserId === scope.actorUserId && action === scope.action &&
+    caseId === scope.caseId && reviewCycle === scope.reviewCycle && stateVersion === scope.stateVersion &&
+    sameTarget(target, scope.target) ? policyVersion : null;
 }
 
 class TransactionInvariantFailure extends Error {}
 
-export async function applyFoodReviewNoChange(
+// actorUserId is supplied only by a trusted authenticated application boundary,
+// never a public input field. No route, consumer or Food grant adapter exists.
+export async function applyAssignedFoodReview(
   dependencies: Dependencies,
-  authenticatedActorId: string,
+  authenticatedActorUserId: number,
   input: unknown
 ): Promise<ApplyResult> {
   const parsed = commandSchema.safeParse(input);
-  if (!parsed.success || !opaque(120).safeParse(authenticatedActorId).success) {
+  if (!parsed.success || !dbInt.safeParse(authenticatedActorUserId).success) {
     return { kind: "invalid" };
   }
-  if (typeof dependencies.authorize !== "function") return { kind: "denied" };
-  const command: Command = Object.freeze({
-    ...parsed.data, target: Object.freeze(parsed.data.target),
+  if (typeof dependencies.lockFoodReviewGrant !== "function") return { kind: "denied" };
+  const command = parsed.data;
+  const actorId = String(authenticatedActorUserId);
+  const digest = requestHash(actorId, command);
+  const stateVersion = command.expectedStateVersion + 1;
+  const transition = transitions[command.action];
+  const isStart = transition.outcome === null;
+  const applied = (eventId: number, policyVersion: string): ApplyResult => ({
+    kind: "applied",
+    receipt: {
+      ...transition, eventId, caseId: command.caseId, reviewCycle: command.reviewCycle,
+      stateVersion, policyVersion,
+    },
   });
-  const actorId = authenticatedActorId;
-  try {
-    // Fresh authorization is also required to read the result of a retry.
-    // Perform it before DB reads; do not hold DB locks across policy checks.
-    const permission = await dependencies.authorize(Object.freeze({ actorId, action, command }));
-    const policy = opaque(100).safeParse(permission?.policyVersion);
-    if (!policy.success) return { kind: "denied" };
-    const digest = requestHash(actorId, command);
-    const scope = eq(foodReviewCases.id, command.caseId);
-    const stateVersion = command.expectedStateVersion + 1;
-    const closed = (eventId: number, policyVersion: string): ApplyResult => ({
-      kind: "closed",
-      receipt: {
-        eventId, caseId: command.caseId, reviewCycle: command.reviewCycle,
-        stateVersion, status: "closed", outcome: "no_change", policyVersion,
-      },
-    });
 
-    // Lock the existing case before a current read of the receipt. This is
-    // deliberately not a check-then-insert in different transactions: retries
-    // serialize on the case; persisted CAS/unique constraints remain required.
+  try {
     return await dependencies.db.transaction(async tx => {
+      const caseCondition = eq(foodReviewCases.id, command.caseId);
+      // Assignment, grant, receipt and case update are evaluated under the
+      // same transaction, in that lock order. Never read a receipt first.
       const [current] = await tx.select({
         status: foodReviewCases.status, outcome: foodReviewCases.outcome,
         closedAt: foodReviewCases.closedAt, reviewCycle: foodReviewCases.reviewCycle,
-        stateVersion: foodReviewCases.stateVersion,
+        stateVersion: foodReviewCases.stateVersion, assignedReviewerId: foodReviewCases.assignedReviewerId,
         targetArtifactType: foodReviewCases.targetArtifactType,
         targetArtifactId: foodReviewCases.targetArtifactId,
         targetRevision: foodReviewCases.targetRevision,
         targetContentHash: foodReviewCases.targetContentHash,
-      }).from(foodReviewCases).where(scope).limit(1).for("update");
-      if (!current) return { kind: "conflict" };
+      }).from(foodReviewCases).where(caseCondition).limit(1).for("update");
+      if (!current || current.assignedReviewerId !== authenticatedActorUserId) {
+        return { kind: "denied" };
+      }
+      const scope: FrozenScope = Object.freeze({
+        actorUserId: authenticatedActorUserId, action: command.action, caseId: command.caseId,
+        reviewCycle: current.reviewCycle, stateVersion: current.stateVersion,
+        target: Object.freeze(readTarget(current)),
+      });
+      if (!lockedScopeSchema.safeParse(scope).success) throw new TransactionInvariantFailure();
+      // Do not hand the authority adapter a writer or a second connection.
+      const read: GrantRead = Object.freeze({ select: tx.select.bind(tx) });
+      const policy = grantPolicy(await dependencies.lockFoodReviewGrant(read, scope), scope);
+      if (!policy) return { kind: "denied" };
 
       const [previous] = await tx.select({
         id: foodReviewEvents.id, requestKey: foodReviewEvents.requestKey,
@@ -153,30 +195,34 @@ export async function applyFoodReviewNoChange(
       )).limit(1).for("update");
 
       if (previous) {
-        // Compare the persisted key byte-for-byte, regardless of SQL collation.
+        // The grant is for the presently locked case/target. Do not expose an
+        // older target's receipt under a grant for another target. A newer
+        // cycle/version alone is OK for same authenticated/designated actor.
+        if (!sameTarget(scope.target, command.target)) return { kind: "denied" };
         if (previous.requestKey !== command.requestKey || previous.requestHash !== digest ||
-            previous.actorId !== actorId || !receiptStateSchema.safeParse(previous).success ||
-            !matchesTarget(previous, command.target) ||
+            previous.actorId !== actorId || previous.action !== command.action ||
+            !receiptStateSchema.safeParse(previous).success ||
+            !sameTarget(readTarget(previous), command.target) ||
             !dbInt.safeParse(previous.id).success ||
             !opaque(100).safeParse(previous.policyVersion).success) {
           return { kind: "conflict" };
         }
-        return closed(previous.id, previous.policyVersion);
+        return applied(previous.id, previous.policyVersion);
       }
 
-      if ((current.status !== "open" && current.status !== "in_review") ||
+      if ((current.status !== "open" && (isStart || current.status !== "in_review")) ||
           current.outcome !== null || current.closedAt !== null ||
           current.reviewCycle !== command.reviewCycle ||
           current.stateVersion !== command.expectedStateVersion ||
-          !matchesTarget(current, command.target)) {
+          !sameTarget(scope.target, command.target)) {
         return { kind: "conflict" };
       }
-
       const [update] = await tx.update(foodReviewCases).set({
-        status: "closed", outcome: "no_change", stateVersion,
-        closedAt: sql`CURRENT_TIMESTAMP`,
+        status: transition.status, outcome: transition.outcome, stateVersion,
+        closedAt: isStart ? null : sql`CURRENT_TIMESTAMP`,
       }).where(and(
-        scope, eq(foodReviewCases.status, current.status),
+        caseCondition, eq(foodReviewCases.status, current.status),
+        eq(foodReviewCases.assignedReviewerId, authenticatedActorUserId),
         eq(foodReviewCases.reviewCycle, command.reviewCycle),
         eq(foodReviewCases.stateVersion, command.expectedStateVersion),
         eq(foodReviewCases.targetArtifactType, command.target.artifactType),
@@ -191,8 +237,8 @@ export async function applyFoodReviewNoChange(
       const [event] = await tx.insert(foodReviewEvents).values({
         caseId: command.caseId, reviewCycle: command.reviewCycle,
         requestKey: command.requestKey, requestHash: digest,
-        action, actorId, reason: command.reason, policyVersion: policy.data,
-        previousStatus: current.status, newStatus: "closed", outcome: "no_change",
+        action: command.action, actorId, reason: command.reason, policyVersion: policy,
+        previousStatus: current.status, newStatus: transition.status, outcome: transition.outcome,
         targetArtifactType: command.target.artifactType,
         targetArtifactId: command.target.artifactId,
         targetRevision: command.target.revision,
@@ -201,10 +247,9 @@ export async function applyFoodReviewNoChange(
       if (event?.affectedRows !== 1 || !dbInt.safeParse(event.insertId).success) {
         throw new TransactionInvariantFailure();
       }
-      return closed(event.insertId, policy.data);
+      return applied(event.insertId, policy);
     });
   } catch {
-    // Do not emit DB errors/parameters or convert failed commits into success.
     return { kind: "unavailable" };
   }
 }
