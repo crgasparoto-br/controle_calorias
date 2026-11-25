@@ -41,7 +41,8 @@ function authoredFacts(raw: string) {
         measure: at(raw, "2 fatias"), serving: at(raw, "2 fatias de") } },
       ingredient: at(raw, "canela"), amount: { value: 3, unit: "g", measure: at(raw, "3 g") } },
     { kind: "negation-local", scope: at(raw, "bolo sem anis"),
-      owner: { name: at(raw, "bolo"), nameHint: "bolo", whole: { status: "absent" } },
+      owner: { name: at(raw, "bolo"), nameHint: "bolo", lexical: { entryId: 1, variant: "public-author-1" },
+        whole: { status: "absent" } },
       operator: at(raw, "sem"), ingredient: at(raw, "anis") },
     { kind: "pending-increment", scope: at(raw, "MAIS 4 fatias"), operator: at(raw, "MAIS"),
       amount: { value: 4, unit: "fatia", measure: at(raw, "4 fatias") } },
@@ -55,7 +56,7 @@ function conflictFacts(raw: string) {
   const wording = at(raw, "2 medidores");
   return [
     { kind: "negation-local", scope: at(raw, "2 medidores de crepe sem anis"),
-      owner: { name: at(raw, "crepe"), nameHint: "crepe", whole: {
+      owner: { name: at(raw, "crepe"), nameHint: "crepe", lexical: { entryId: 3, variant: "public-author-3" }, whole: {
         status: "unit-conflict", serving: at(raw, "2"),
         hypotheses: [{ value: 2, unit: "copo", serving: wording }, { value: 2, unit: "fatia", serving: wording }],
       } }, operator: at(raw, "sem"), ingredient: at(raw, "anis") },
@@ -67,8 +68,9 @@ function conflictFacts(raw: string) {
 }
 
 function seal(entries: Input[], outputRows: unknown[], labels: unknown[] = entries.map(row =>
-  ({ id: row.id, facts: authoredFacts(row.text) })), manifestChange: Record<string, unknown> = {}) {
-  const lexiconSnapshot = json(snapshot), inputs = json(entries), outputs = json(outputRows);
+  ({ id: row.id, facts: authoredFacts(row.text) })), manifestChange: Record<string, unknown> = {},
+  lexicalEntries = snapshot) {
+  const lexiconSnapshot = json(lexicalEntries), inputs = json(entries), outputs = json(outputRows);
   const labelBytes = json({ nonce: "1".repeat(64), rows: labels });
   const manifest = json({ profile, schemaVersion: 1, ...ref, lexiconSha256: digest(lexiconSnapshot),
     inputsSha256: digest(inputs), labelsSha256: digest(labelBytes), caseCount: entries.length, ...manifestChange });
@@ -233,6 +235,94 @@ describe("sealed material proof, only public synthetic controls", () => {
     const report = compareSealedMaterialProof(packet);
     for (const kind of ["missing", "duplicate", "extra"] as const) expect(report.totals[kind]).toBe(kind === fault ? 1 : 0);
     expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [" com ", " sem "], [" com ", ";    "], ["3 g de canela", "3 g do canela"],
+  ])("rejects repinned positive ingredient labels with invalid literal boundary: %j → %j", async (old, replacement) => {
+    expect(replacement.length).toBe(old.length);
+    const original = input(1), result = await mixed(original);
+    const gold = [{ id: original.id, facts: authoredFacts(original.text) }];
+    const entry = { ...original, text: original.text.replace(old, replacement) };
+    for (const row of result.observations) row.rawInput = entry.text;
+    for (const item of result.affected) if (item.pendingObservation) item.pendingObservation.rawInput = entry.text;
+    const packet = seal([entry], [{ id: entry.id, result }], gold);
+    // Producer claim remains wire-valid and repinned, but gold is no longer a
+    // plausible literal positive. It cannot return a passing score.
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-ingredient-clause");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a labeled role variant absent from the pinned synthetic lexicon", async () => {
+    const entry = input(1);
+    const facts = authoredFacts(entry.text);
+    const nominal = facts[1].owner!;
+    nominal.lexical = { entryId: 1, variant: "not-a-pinned-variant" };
+    const result = await mixed(entry);
+    const packet = seal([entry], [{ id: entry.id, result }], [{ id: entry.id, facts }]);
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-lexical-role");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not credit a nominal role if the pinned row is revoked", async () => {
+    const entry = input(1), result = await mixed(entry);
+    const restricted = snapshot.map(row => row.id === 1 ? { ...row, status: "revoked" as const } : row);
+    const packet = seal([entry], [{ id: entry.id, result }], undefined, {}, restricted);
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-lexical-role");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["brand", "pao"], ["qualifier", "pao"], ["catalog", "pao"],
+    ["alternative", "pao"], ["normalized", "pao"], ["interpreter", "pao"],
+    ["catalog", "bolo"], ["alternative", "bolo"], ["normalized", "bolo"],
+    ["preparation", "figos"], ["barcode", "figos"], ["primary-variant", "figos"],
+    ["interpreter", "figos"],
+  ] as const)("reports repinned %s claim on nominal owner %s as a semantic mismatch", async (fault, food) => {
+    const entry = input(1), result = await mixed(entry);
+    const item = result.observations.find(o => o.identityHints.foodName === food)!;
+    if (fault === "brand") item.identityHints.brand = "Marca inventada";
+    if (fault === "qualifier") {
+      item.identityHints.qualifiers.push({ value: "zero lactose", role: "lactose", attributeCode: null, confidence: null });
+      item.evidence.push({ ...item.evidence[0], evidenceId: "invented-qualifier", field: "identity.qualifiers", value: "zero lactose" });
+    }
+    if (fault === "catalog") {
+      const echo = item.evidence.find(e => e.origin === "catalog");
+      if (echo) echo.value = "guacamole";
+      else item.evidence.push({ ...item.evidence[0], evidenceId: "invented-catalog-name",
+        field: "identity.foodName", origin: "catalog", value: "guacamole" });
+    }
+    if (fault === "alternative") item.alternatives.push({ hypothesisId: "invented-name",
+      identityHints: { ...item.identityHints, foodName: "guacamole" }, quantityHints: { ...item.quantityHints },
+      evidenceIds: [], confidence: null });
+    if (fault === "normalized") item.normalizedInput = "guacamole";
+    if (fault === "interpreter") {
+      item.interpreterVersion = "synthetic-interpreter";
+      item.normalizationPath.push({ stage: "S3", origin: "interpreter",
+        lexiconEntryId: null, anchor: item.surfaceSpan, confidence: 0.91 });
+    }
+    if (fault === "preparation") item.identityHints.preparation = ["assados"];
+    if (fault === "barcode") item.identityHints.barcode = "0123456789012";
+    if (fault === "primary-variant") item.identityHints.variant = "unobserved-variant";
+    const packet = seal([entry], [{ id: entry.id, result }]);
+    const report = compareSealedMaterialProof(packet);
+    expect(report.totals).toEqual({ verified: 2, abstained: 2, mismatch: 1, missing: 0, duplicate: 0, extra: 0 });
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the pinned same-name S2 variant but rejects a different identity in a valid unit hypothesis", async () => {
+    const entry = input(1, conflictText), gold = [{ id: entry.id, facts: conflictFacts(entry.text) }];
+    const result = await capture(entry);
+    if (!result.ok) throw new Error("expected ordinary conflict");
+    const owner = result.observations[0];
+    const variant = owner.alternatives.find(x => x.identityHints.variant === "public-author-3");
+    if (!variant) throw new Error("expected separately labeled same-name S2 role");
+    const good = seal([entry], [{ id: entry.id, result }], gold);
+    expect(compareSealedMaterialProof(good).totals).toMatchObject({ verified: 2, mismatch: 0 });
+    owner.alternatives.find(x => x.quantityHints.value !== null)!.identityHints.foodName = "guacamole";
+    const repinned = seal([entry], [{ id: entry.id, result }], gold);
+    expect(compareSealedMaterialProof(repinned).totals).toMatchObject({ verified: 1, mismatch: 1 });
+    expect(repinned.readLabels).toHaveBeenCalledTimes(1);
   });
 
   it("does not double-count a typed pending child, but rejects the aggregate +1 before labels", async () => {

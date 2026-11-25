@@ -43,8 +43,13 @@ const span = z.strictObject({ start: z.number().int().nonnegative(), end: z.numb
   .refine(x => x.start < x.end);
 const amount = z.strictObject({ value: z.number().finite().positive(), unit: z.string().trim().min(1).max(40) });
 const anchorAmount = amount.extend({ measure: span });
+// Nominal profile only: no brand, preparation, qualifier, barcode or
+// primary variant. A same-name S2 variant hypothesis must be separately labeled.
+const lexicalRole = z.strictObject({
+  entryId: z.number().int().positive(), variant: z.string().min(1).max(limits.nameText),
+});
 const owner = z.strictObject({
-  name: span, nameHint: z.string().min(1).max(limits.nameText),
+  name: span, nameHint: z.string().min(1).max(limits.nameText), lexical: lexicalRole.optional(),
   whole: z.discriminatedUnion("status", [
     z.strictObject({ status: z.literal("absent"), serving: span.optional() }),
     anchorAmount.extend({ status: z.literal("exact"), serving: span }),
@@ -69,6 +74,12 @@ type Fact = z.infer<typeof fact>;
 type Span = z.infer<typeof span>;
 type Owner = z.infer<typeof owner>;
 type Evidence = FoodMaterialObservation["evidence"][number];
+const lexicalRow = z.object({
+  id: z.number().int().positive(), kind: z.string(), targetType: z.string(), targetRef: z.string().nullable(),
+  normalizedTerm: z.string(), locale: z.string(), scope: z.string(), userId: z.number().nullable(),
+  status: z.string(), current: z.boolean(), requiresClarification: z.boolean(),
+  validFrom: z.string().nullable(), validTo: z.string().nullable(),
+});
 
 export interface MaterialProofInputs {
   manifest: Uint8Array;
@@ -212,7 +223,8 @@ function validated(input: Input, revision: string, result: z.infer<typeof result
           !claim.unresolvedAmount || child.normalizedInput !== null || h.foodName !== null ||
           h.brand !== null || h.variant !== null || h.barcode !== null || h.preparation.length || h.qualifiers.length ||
           !absentQuantity(child.quantityHints) || child.quantityHints.servingText !== null ||
-          child.alternatives.length || child.normalizationPath.length || child.unresolvedReason !== "unknown_surface" ||
+          child.alternatives.length || child.normalizationPath.length || child.interpreterVersion !== null ||
+          child.unresolvedReason !== "unknown_surface" ||
           child.evidence.length !== 2) fail("pending-authority");
     }
     return { scope, child };
@@ -221,7 +233,15 @@ function validated(input: Input, revision: string, result: z.infer<typeof result
   return { rows, omissions };
 }
 
-function reference(input: Input, facts: Fact[]) {
+function wholeHardScope(input: Input, scope: Span) {
+  const before = input.text.slice(0, scope.start);
+  const after = input.text.slice(scope.end);
+  return !/[;\r\n]/u.test(literal(input, scope)) &&
+    !before.slice(Math.max(before.lastIndexOf(";"), before.lastIndexOf("\n")) + 1).trim() &&
+    !after.split(/[;\n]/u, 1)[0].trim();
+}
+
+function reference(input: Input, facts: Fact[], lexicon: readonly z.infer<typeof lexicalRow>[]) {
   const scopes = facts.map(x => x.scope).sort((a, b) => a.start - b.start);
   if (scopes.some((x, i) => !realSpan(input, x) || i > 0 && scopes[i - 1].end > x.start)) fail("label-scope");
   for (const f of facts) {
@@ -241,18 +261,30 @@ function reference(input: Input, facts: Fact[]) {
     if ("operator" in f) anchors.push(f.operator);
     if ("amount" in f) anchors.push(f.amount.measure);
     if (anchors.some(a => a && (!realSpan(input, a) || !inside(f.scope, a)))) fail("label-anchor");
-    if (f.kind === "ingredient-measured" && (f.owner.name.end > f.amount.measure.start ||
-        f.amount.measure.end > f.ingredient.start)) fail("label-ingredient-order");
+    if ("owner" in f && f.owner.lexical) {
+      const { entryId, variant } = f.owner.lexical;
+      const rows = lexicon.filter(row => row.id === entryId);
+      const [row] = rows;
+      // Only the fixed synthetic role is in scope. Do not copy policy for
+      // personal, time-limited, revoked or otherwise conditional aliases.
+      if (rows.length !== 1 || row.kind !== "alias_surface" || row.targetType !== "food_variant" ||
+          row.targetRef !== variant || row.normalizedTerm !== f.owner.nameHint || row.locale !== "pt-BR" ||
+          row.scope !== "global" || row.userId !== null || row.status !== "verified" || !row.current ||
+          row.requiresClarification || row.validFrom !== null || row.validTo !== null) fail("label-lexical-role");
+    }
+    // This positive arm is deliberately narrower than the parser. Both
+    // literal connectors and the whole original clause must be proved;
+    // label ordering alone could launder a negation or a neighboring item.
+    if (f.kind === "ingredient-measured" && (!wholeHardScope(input, f.scope) ||
+        !/^[ \t]+com[ \t]+$/iu.test(input.text.slice(f.owner.name.end, f.amount.measure.start)) ||
+        !/^[ \t]+de[ \t]+$/iu.test(input.text.slice(f.amount.measure.end, f.ingredient.start)) ||
+        f.ingredient.end !== f.scope.end)) fail("label-ingredient-clause");
     if (f.kind === "negation-local" || f.kind === "pending-increment") {
       const left = f.kind === "negation-local" ? f.owner.name.end : f.scope.start;
       const right = f.kind === "negation-local" ? f.ingredient : f.amount.measure;
       const token = f.kind === "negation-local" ? "sem" : "mais";
-      const leading = input.text.slice(0, f.scope.start);
       const trailing = input.text.slice(f.scope.end);
-      if (literal(input, f.operator).toLowerCase() !== token ||
-          /[;\r\n]/u.test(literal(input, f.scope)) ||
-          leading.slice(Math.max(leading.lastIndexOf(";"), leading.lastIndexOf("\n")) + 1).trim() ||
-          trailing.split(/[;\n]/u, 1)[0].trim() ||
+      if (literal(input, f.operator).toLowerCase() !== token || !wholeHardScope(input, f.scope) ||
           (f.kind === "negation-local" ? !/^[ \t]+$/u.test(input.text.slice(left, f.operator.start)) : left !== f.operator.start) ||
           !/^[ \t]+$/u.test(input.text.slice(f.operator.end, right.start)) || right.end !== f.scope.end ||
           f.kind === "pending-increment" &&
@@ -273,31 +305,58 @@ function proof(input: Input, evidence: Evidence | undefined, field: Evidence["fi
 const quantities = (row: FoodMaterialObservation) => row.evidence.filter(e => e.field.startsWith("quantity."));
 const signature = (row: { value: number | null; unit: string | null; servingText: string | null }) =>
   JSON.stringify([row.value, row.unit, row.servingText]);
+function nominalHints(h: FoodMaterialObservation["identityHints"], name: string, variant: string | null = null) {
+  return h.foodName === name && h.variant === variant && h.brand === null && h.barcode === null &&
+    h.preparation.length === 0 && h.qualifiers.length === 0;
+}
+
 function ownerProof(input: Input, row: FoodMaterialObservation, gold: Owner) {
-  const names = row.evidence.filter(e => e.field === "identity.foodName" && (e.origin === "text" || e.origin === "transcription"));
-  if (row.identityHints.foodName !== gold.nameHint || names.length !== 1 ||
-      !proof(input, names[0], "identity.foodName", gold.name, literal(input, gold.name)) ||
-      row.evidence.some(e => e.field.startsWith("nutrition.")) || !noPackage(row.quantityHints)) return false;
-  const want = gold.whole;
+  if (!nominalHints(row.identityHints, gold.nameHint) || row.normalizedInput !== gold.nameHint ||
+      row.interpreterVersion !== null || row.normalizationPath.some(x => x.stage === "S3") ||
+      !noPackage(row.quantityHints)) return false;
+
+  const names = row.evidence.filter(e => e.field === "identity.foodName" &&
+    (e.origin === "text" || e.origin === "transcription"));
+  if (names.length !== 1 || !proof(input, names[0], "identity.foodName", gold.name, literal(input, gold.name)) ||
+      row.evidence.some(e => e.field.startsWith("nutrition.") || e.field.startsWith("variant.") ||
+        e.field.startsWith("classification.") || e.field.startsWith("identity.") && e.field !== "identity.foodName")) return false;
+
+  const lexical = gold.lexical;
+  const echoes = row.evidence.filter(e => e.field === "identity.foodName" && e !== names[0]);
+  const lexicalSteps = row.normalizationPath.filter(x => x.stage === "S2");
   const q = row.quantityHints, evidence = quantities(row);
+  const alternatives = row.alternatives.filter(x => !lexical || x.hypothesisId !== "lex-" + lexical.entryId);
+  if (lexical) {
+    const [echo] = echoes, [step] = lexicalSteps;
+    const variant = row.alternatives.filter(x => x.hypothesisId === "lex-" + lexical.entryId);
+    if (echoes.length !== 1 || lexicalSteps.length !== 1 || variant.length !== 1 ||
+        echo.origin !== "catalog" || echo.value !== gold.nameHint || echo.unit !== null ||
+        echo.verified || echo.sourceId !== null || !same(echo.anchor.span, row.surfaceSpan.span!) ||
+        step.origin !== "lexicon" || step.lexiconEntryId !== lexical.entryId || step.confidence !== echo.confidence ||
+        !same(step.anchor.span, row.surfaceSpan.span!) ||
+        !nominalHints(variant[0].identityHints, gold.nameHint, lexical.variant) ||
+        variant[0].evidenceIds.length || variant[0].confidence !== echo.confidence ||
+        !noPackage(variant[0].quantityHints) || signature(variant[0].quantityHints) !== signature(q)) return false;
+  } else if (echoes.length || lexicalSteps.length) {
+    return false;
+  }
+
+  const want = gold.whole;
   if (q.servingText !== (want.serving ? literal(input, want.serving) : null)) return false;
-  const alternatives = row.alternatives.map(x => x.quantityHints);
-  if (alternatives.some(x => !noPackage(x) ||
-      absentQuantity(x) && x.servingText !== null && x.servingText !== q.servingText)) return false;
   if (want.status === "unit-conflict") {
     if (!absentQuantity(q) || evidence.length || row.unresolvedReason !== "source_conflict" ||
-        row.alternatives.some(x => x.quantityHints.value !== null &&
-          (x.identityHints.foodName !== gold.nameHint || x.evidenceIds.length !== 0))) return false;
-    const got = alternatives.filter(x => x.value !== null || x.unit !== null).map(signature).sort();
+        alternatives.some(x => x.quantityHints.value === null || x.quantityHints.unit === null ||
+          !noPackage(x.quantityHints) || !nominalHints(x.identityHints, gold.nameHint) || x.evidenceIds.length)) return false;
+    const got = alternatives.map(x => signature(x.quantityHints)).sort();
     const expected = want.hypotheses.map(x => signature({ ...x, servingText: literal(input, x.serving) })).sort();
     return JSON.stringify(got) === JSON.stringify(expected);
   }
-  if (alternatives.some(x => !absentQuantity(x) &&
-      (x.value !== q.value || x.unit !== q.unit || x.servingText !== q.servingText))) return false;
+  if (alternatives.length) return false;
   if (want.status === "absent") return absentQuantity(q) && !evidence.length;
   return q.value === want.value && q.unit === want.unit && evidence.length === 1 &&
     proof(input, evidence[0], "quantity.value", want.measure, want.value, want.unit);
 }
+
 function provesFact(input: Input, row: FoodMaterialObservation, gold: Exclude<Fact, { kind: "pending-continuation" }>) {
   const [claim] = row.materialClaims;
   const byId = (id: string) => row.evidence.find(e => e.evidenceId === id);
@@ -367,10 +426,11 @@ export function compareSealedMaterialProof(config: SealedMaterialProof) {
   pin(config.outputs, receipt.outputsSha256, "outputs");
   const outputs = index(decode(config.outputs, outputsSchema, "outputs"), "outputs", inputs);
   const capture = new Map([...inputs].map(([k, row]) => [k, validated(row, manifest.lexiconRevision, outputs.get(k)!.result)]));
+  const lexicon = decode(config.lexiconSnapshot, z.array(lexicalRow).max(5000), "lexicon");
   const labelBytes = config.readLabels();
   pin(labelBytes, manifest.labelsSha256, "labels");
   const labels = index(decode(labelBytes, labelsSchema, "labels").rows, "labels", inputs);
-  for (const [k, row] of inputs) reference(row, labels.get(k)!.facts);
+  for (const [k, row] of inputs) reference(row, labels.get(k)!.facts, lexicon);
   const totals = counts();
   const strata: Record<string, Counts> = {};
   const reasons: Record<string, number> = {};
