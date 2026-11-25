@@ -29,11 +29,11 @@ export const CANONICAL_ADR_PATH =
  * declaradas. Alterar a ADR sem atualizar este pino **reprova** a verificação:
  * a referência precisa ser reexaminada, não herdada.
  */
-// #1305: revalidated after documenting the dormant continuation attempt envelope.
+// #1309: revalidated after documenting preassigned food-review authorization.
 // Existing equivalence/case references and food oracles remain unchanged;
 // referenceSource.test.ts still verifies every declared section exists.
 export const CANONICAL_ADR_SHA256 =
-  "93260b87add872b35f7ccce45eb3e88b93ae1a185fa145f02a7e0163a423caa4";
+  "c4587ecd7bf5f38817b32a8c47f64952c803f7f6f34abd6d7ec35eab74c2c371";
 
 export interface CanonicalReference {
   readonly path: string;
