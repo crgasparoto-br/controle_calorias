@@ -50,12 +50,24 @@ function validSpan(text: string, span: Span) {
 }
 
 const servingSpan = (owner: Owner) => owner.serving ?? owner.wholeAmount?.measure ?? null;
-function literalNegation(text: string, operator: Span) {
-  const trailingToken = /[\p{L}\p{M}\p{N}\p{Pc}\u200C\u200D]$/u;
-  const leadingToken = /^[\p{L}\p{M}\p{N}\p{Pc}\u200C\u200D]/u;
-  return sourceText(text, operator).toLowerCase() === "sem" &&
-    !trailingToken.test(text.slice(0, operator.start)) &&
-    !leadingToken.test(text.slice(operator.end));
+/** Validate the labeled occurrence, not the producer's token candidates.
+ * This profile admits one complete local clause; punctuation cannot stand
+ * in for horizontal separation between the labeled owner/operator/target.
+ */
+function literalNegation(text: string, scope: Span, name: Span, operator: Span, ingredient: Span) {
+  if (sourceText(text, operator).toLowerCase() !== "sem" ||
+      !before(name, operator) || !before(operator, ingredient) || ingredient.end !== scope.end) return false;
+  const horizontal = /^[ \t]+$/u;
+  if (!horizontal.test(text.slice(name.end, operator.start)) ||
+      !horizontal.test(text.slice(operator.end, ingredient.start))) return false;
+
+  // A reference cannot omit non-whitespace from either end of its clause
+  // or bind across a hard boundary. Do not discover food names or split input.
+  const leadingContext = text.slice(0, scope.start);
+  const trailingContext = text.slice(scope.end);
+  return !/[;\r\n]/u.test(sourceText(text, scope)) &&
+    !leadingContext.slice(Math.max(leadingContext.lastIndexOf(";"), leadingContext.lastIndexOf("\n")) + 1).trim() &&
+    !trailingContext.split(/[;\n]/u, 1)[0].trim();
 }
 
 function validateReference(text: string, label: Label) {
@@ -74,8 +86,8 @@ function validateReference(text: string, label: Label) {
     }) &&
     label.negations.every(({ owner, operator, ingredient }) => {
       const serving = servingSpan(owner), alias = owner.wholeAmount?.unitAlias;
-      return inScope(owner.scope, operator) && literalNegation(text, operator) &&
-        inScope(owner.scope, ingredient) && before(owner.name, operator) && before(operator, ingredient) &&
+      return inScope(owner.scope, operator) && inScope(owner.scope, ingredient) &&
+        literalNegation(text, owner.scope, owner.name, operator, ingredient) &&
         (!serving || before(serving, operator)) && (!alias || before(alias.anchor, operator));
     }) &&
     (label.expectedStatus === "abstain" ? label.affected.length > 0 : label.affected.length === 0) &&

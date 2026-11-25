@@ -283,6 +283,107 @@ describe("sealed R3 negation diagnostic (public synthetic fixtures)", () => {
   });
 
   it.each([
+    ["ASCII hyphen on right", " ", "-"],
+    ["en dash on right", " ", "–"],
+    ["em dash on left", "—", " "],
+    ["nonbreaking hyphen on right", " ", "‑"],
+    ["punctuation despite adjacent space", " ", " : "],
+    ["punctuation on owner side", ", ", " "],
+    ["no separation on right", " ", ""],
+    ["no separation on left", "", " "],
+    ["non-horizontal separator", " ", "\u00A0"],
+    ["different hard clause", " ", "\n"],
+    ["soft prefix skipped", " ", " ", "mingau, ", ""],
+    ["soft suffix skipped", " ", " ", "", ", torrada"],
+  ])("rejects a wire-valid repinned reference with %s", (_kind, left, right, prefix = "", suffix = "") => {
+    const name = "angu", ingredient = "açaí-em-pó", portion = "2 conchas de";
+    const clause = portion + " " + name + left + "SEM" + right + ingredient;
+    const text = "🥣 4 damascos; " + prefix + clause + suffix;
+    const start = 15 + prefix.length, nameStart = start + portion.length + 1;
+    const opStart = nameStart + name.length + left.length, targetStart = opStart + 3 + right.length;
+    const scope = range(start, text.length - suffix.length);
+    const nameAt = range(nameStart, nameStart + name.length), opAt = range(opStart, opStart + 3);
+    const targetAt = range(targetStart, scope.end), measure = range(start, start + "2 conchas".length);
+    const owner = capturedRow("last", "3 beijus sem anis", "beijus", 3, "sem");
+    owner.rawInput = text;
+    owner.surfaceSpan = anchor(scope);
+    owner.normalizedInput = owner.identityHints.foodName = name;
+    owner.quantityHints = { ...owner.quantityHints, value: 2, unit: "concha", servingText: portion };
+    const [identity, amount, op, target] = owner.evidence;
+    Object.assign(identity, { value: name, anchor: anchor(nameAt) });
+    Object.assign(amount, { value: 2, unit: "concha", anchor: anchor(measure) });
+    Object.assign(op, { value: "SEM", anchor: anchor(opAt) });
+    Object.assign(target, { value: ingredient, anchor: anchor(targetAt) });
+    const claim = owner.materialClaims[0];
+    if (claim.kind !== "negation") throw new Error("expected synthetic negation");
+    claim.ingredient.name = ingredient;
+    const sibling = capturedRow("sibling", "🥣 4 damascos", "damascos", 4);
+    sibling.rawInput = text;
+    const label = answer();
+    const reference = {
+      ...label.rows[0], forbiddenFoodNames: [ingredient], negations: [{
+        owner: { name: nameAt, nameHint: name, scope, serving: range(start, start + portion.length),
+          wholeAmount: { value: 2, unit: "concha", measure } },
+        operator: opAt, ingredient: targetAt,
+      }],
+    };
+    const fixture = seal({ label: { ...label, rows: [reference] }, input: [{ ...entries[0], text }],
+      result: { ok: true, observations: [owner, sibling] } });
+    expect(() => compareSealedR3NegationStudy(fixture)).toThrow("invalid-label-reference");
+    expect(fixture.readLabels).toHaveBeenCalledTimes(1); // wire/digest checks alone admit the mutation.
+  });
+
+  it.each([
+    ["text", " ", "  ", "SEM"], ["audio_transcript", " \t", "\t ", "sEm"],
+  ] as const)("credits a complete local %s clause with horizontal separation and UTF-16 offsets", async (modality, left, right, op) => {
+    const start = 15;
+    const clause = "beijus" + left + op + right + "anis";
+    const text = "🥣 4 damascos; " + clause + "\r\n";
+    const scope = range(start, start + clause.length), opStart = start + "beijus".length + left.length;
+    const label = answer();
+    const reference = { ...label.rows[0], negations: [{
+      owner: { name: range(start, start + 6), scope, nameHint: "beijus", wholeAmount: null },
+      operator: range(opStart, opStart + 3), ingredient: range(opStart + 3 + right.length, scope.end),
+    }] };
+    const input = [{ ...entries[0], text, modality }];
+    const fixture = { label: { ...label, rows: [reference] }, input };
+    const [{ rawText, sourceRef }] = verifiedR3NegationStudyInputs(seal(fixture)).inputs;
+    const result = await comprehendFoodMaterialLanguage({
+      rawText, sourceRef, modality, locale: "pt-BR", ownerUserId: null, lexiconRevision,
+      now: new Date("2026-11-24T12:00:00Z"),
+    }, { load: async () => lexicon });
+    expect(compareSealedR3NegationStudy(seal({ ...fixture, result })).totals)
+      .toMatchObject({ expected: 2, verifiedNegations: 1, verifiedSiblings: 1, mismatch: 0, extras: 0, statusMismatches: 0 });
+  });
+
+  it.each([
+    ["text", "-"], ["audio_transcript", "‑"], ["text", "–"], ["audio_transcript", "—"],
+  ] as const)("credits explicit %s abstention for an operator attached by %s", async (modality, separator) => {
+    const affected = "2 conchas de angu SEM" + separator + "açaí-em-pó";
+    const text = affected + "; 🥣 4 damascos";
+    const start = affected.length + 2;
+    const snapshot = ["angu", "acai-em-po"].map((term, i) => ({
+      ...lexicon[i], term, normalizedTerm: term,
+    }));
+    const label = answer();
+    const reference = {
+      ...label.rows[0], expectedStatus: "abstain", negations: [],
+      affected: [range(0, affected.length)], forbiddenFoodNames: ["acai-em-po"],
+      unaffected: [{ name: range(start + 5, text.length), scope: range(start, text.length), nameHint: "damascos",
+        wholeAmount: { value: 4, unit: "un", measure: range(start + 3, start + 4) } }],
+    };
+    const fixture = { input: [{ ...entries[0], text, modality }], snapshot, label: { ...label, rows: [reference] } };
+    const [{ rawText, sourceRef }] = verifiedR3NegationStudyInputs(seal(fixture)).inputs;
+    const result = await comprehendFoodMaterialLanguage({
+      rawText, sourceRef, modality, locale: "pt-BR", ownerUserId: null, lexiconRevision,
+      now: new Date("2026-11-24T12:00:00Z"),
+    }, { load: async () => snapshot });
+    expect(result).toMatchObject({ ok: false, reason: "unproven-material" });
+    expect(compareSealedR3NegationStudy(seal({ ...fixture, result })).totals)
+      .toMatchObject({ verifiedNegations: 0, abstained: 1, verifiedSiblings: 1, mismatch: 0, extras: 0, statusMismatches: 0 });
+  });
+
+  it.each([
     ["quantity evidence with zero", (r: FoodMaterialObservation[]) => r[0].evidence.push({
       ...r[0].evidence[1], evidenceId: "zero", value: 0,
       anchor: r[0].evidence.find(e => e.field === "material.ingredient")!.anchor,
