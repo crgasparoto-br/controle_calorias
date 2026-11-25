@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { FOOD_CONTRACT_LIMITS } from "./contracts";
 import {
   comprehendFoodLanguage,
   comprehendFoodMaterialLanguage,
@@ -229,6 +230,123 @@ describe("R3: negação explícita de ocorrência local sem inferência nutricio
     const result = await comprehendFoodMaterialLanguage(input("crepe sem gergelim; 2 uvas"), { load: async () => entries });
     if (result.ok || result.reason !== "unproven-material") throw new Error("unexpected authority");
     expect(result.observations.map(item => item.identityHints.foodName)).toEqual(["uvas"]);
+  });
+
+  const ambiguousTerm = "medidas-caseiras";
+  function serving(id: number, unit: string, extra: Partial<GovernedLexiconEntry> = {}) {
+    return nominal(ambiguousTerm, id, {
+      kind: "portion_term", targetType: "canonical_term", targetRef: unit, ...extra,
+    });
+  }
+  const independentRoles = [nominal("crepe", 61), nominal("gergelim-tostado", 62)];
+  const conflictingUnits = [serving(63, "fatia", { confidence: 0.27 }),
+    serving(64, "copo", { confidence: 0.94 })];
+
+  it.each(["text", "audio_transcript"] as const)(
+    "conserva a negação local no R3 %s sem transformar interpretações concorrentes em quantidade", async modality => {
+      const clause = "2 medidas-caseiras de Crêpe sEm gergelim-tostado";
+      const request = input("🥣 4 uvas; " + clause + "; 3 figos", {
+        modality, ...(modality === "audio_transcript" ? { transcriptionConfidence: 0.73 } : {}),
+      });
+      const residual = vi.fn(() => true);
+      request.shouldInterpretResidual = residual;
+      const entries = [...independentRoles, ...conflictingUnits];
+      const store = { load: async () => entries };
+      const result = await comprehendFoodMaterialLanguage(request, store);
+      if (!result.ok) throw new Error(result.reason);
+      expect(parseFoodMaterialObservationBatch(result.observations).ok).toBe(true);
+      expect(residual).not.toHaveBeenCalled();
+      expect(result.observations).toHaveLength(3);
+      const [before, item, after] = result.observations;
+      assertNegation(item, request, {
+        owner: "crepe", ownerLiteral: "Crêpe", clause, operator: "sEm", ingredient: "gergelim-tostado",
+      });
+      expect(item.unresolvedReason).toBe("source_conflict");
+      expect(item.quantityHints).toEqual({
+        value: null, unit: null, servingText: "2", visiblePackageQuantity: null, visiblePackageUnit: null,
+      });
+      // The historic non-authoritative serving hint is the literal prefix,
+      // not evidence for a measured quantity or a chosen interpretation.
+      expect(item.rawInput!.slice(item.surfaceSpan.span!.start, item.surfaceSpan.span!.start + 1))
+        .toBe(item.quantityHints.servingText);
+      expect(item.evidence.filter(e => e.field.startsWith("quantity."))).toEqual([]);
+      const hypotheses = item.alternatives.filter(alt => alt.hypothesisId.startsWith("unit-"));
+      expect(hypotheses.map(alt => [alt.hypothesisId, alt.identityHints.foodName, alt.quantityHints.value,
+        alt.quantityHints.unit, alt.evidenceIds])).toEqual([
+        ["unit-63", "crepe", 2, "fatia", []], ["unit-64", "crepe", 2, "copo", []],
+      ]);
+      expect(item.normalizationPath.filter(step => step.lexiconEntryId === 63 || step.lexiconEntryId === 64)).toEqual([]);
+      expect([before, after].map(o => [o.identityHints.foodName, o.quantityHints.value, o.materialClaims]))
+        .toEqual([["uvas", 4, []], ["figos", 3, []]]);
+
+      const reverse = await comprehendFoodMaterialLanguage(request, { load: async () => [...entries].reverse() });
+      if (!reverse.ok) throw new Error(reverse.reason);
+      expect(reverse.observations[1].materialClaims).toEqual(item.materialClaims);
+      expect(reverse.observations[1].quantityHints).toEqual(item.quantityHints);
+      expect(reverse.observations[1].unresolvedReason).toBe(item.unresolvedReason);
+      expect(reverse.observations[1].alternatives.map(alt => alt.hypothesisId).sort())
+        .toEqual(item.alternatives.map(alt => alt.hypothesisId).sort());
+
+      const withPending = await comprehendFoodMaterialLanguage(request, { load: async () => [
+        ...entries, serving(65, "porção", { requiresClarification: true, confidence: 0.99 }),
+      ] });
+      if (!withPending.ok) throw new Error(withPending.reason);
+      const extended = withPending.observations[1];
+      expect(extended.materialClaims).toEqual(item.materialClaims);
+      expect(extended.unresolvedReason).toBe("source_conflict");
+      expect(extended.quantityHints).toEqual(item.quantityHints);
+      expect(extended.evidence.filter(e => e.field.startsWith("quantity."))).toEqual([]);
+      expect(extended.normalizationPath.some(step => step.lexiconEntryId === 65)).toBe(false);
+      const pending = extended.alternatives.find(alt => alt.hypothesisId === "unit-65");
+      expect(pending).toMatchObject({ evidenceIds: [], quantityHints: { unit: "porção" } });
+
+      const legacy = await comprehendFoodLanguage(request, store);
+      expect(legacy[1]).toMatchObject({
+        schemaVersion: 2, unresolvedReason: "unknown_surface",
+        identityHints: { foodName: "2 medidas-caseiras de crepe sem gergelim-tostado" },
+        quantityHints: { value: null, unit: null },
+      });
+      expect(legacy[1]).not.toHaveProperty("materialClaims");
+    });
+
+  it.each([
+    ["alias desconhecido", "2 medidores-irreais de crepe sem gergelim-tostado", conflictingUnits],
+    ["sem conector de", "2 medidas-caseiras crepe sem gergelim-tostado", conflictingUnits],
+    ["limite nominal composto", "2 medidas-caseiras de creme doce sem gergelim-tostado",
+      [...conflictingUnits, nominal("creme doce", 65)]],
+    ["dono ausente", "2 medidas-caseiras de bolinho sem gergelim-tostado", conflictingUnits],
+    ["dono concorrente", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [...conflictingUnits, nominal("crepe", 65)]],
+    ["alvo ausente", "2 medidas-caseiras de crepe sem orégano", conflictingUnits],
+    ["alvo concorrente", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [...conflictingUnits, nominal("gergelim-tostado", 65)]],
+    ["coordenação", "2 medidas-caseiras de crepe sem gergelim-tostado e limão", conflictingUnits],
+    ["framing", "não comi 2 medidas-caseiras de crepe sem gergelim-tostado", conflictingUnits],
+    ["sem ligado por hífen", "2 medidas-caseiras de crepe sem-gergelim-tostado", conflictingUnits],
+    ["mesma unidade duplicada", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [serving(63, "copo"), serving(64, "copo")]],
+    ["candidato único sob clarificação", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [serving(63, "copo", { requiresClarification: true })]],
+    ["segunda unidade ainda depende de clarificação", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [serving(63, "copo"), serving(64, "fatia", { requiresClarification: true })]],
+    ["alvo de unidade inválido ao lado de candidato real", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [serving(63, "copo"), serving(64, "unidade-que-não-existe")]],
+    ["tipo de alvo fora do slot de unidade", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [serving(63, "copo"), serving(64, "fatia", { targetType: "food_variant" })]],
+    ["alias expirado", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [serving(63, "copo", { validTo: "2026-11-20T00:00:00Z" })]],
+    ["alias revogado", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      [serving(63, "copo", { status: "revoked" })]],
+    ["medida terminal descontínua", "2 medidas-caseiras de crepe e meia sem gergelim-tostado", conflictingUnits],
+    ["sem espaço para a hipótese nominal", "2 medidas-caseiras de crepe sem gergelim-tostado",
+      Array.from({ length: FOOD_CONTRACT_LIMITS.alternatives }, (_, i) => serving(70 + i, i === 0 ? "copo" : "fatia"))],
+  ] as const)("mantém abstenção e irmão fora do recorte: %s", async (_label, clause, units) => {
+    const request = input(clause + "; 2 uvas");
+    const result = await comprehendFoodMaterialLanguage(request, { load: async () => [...independentRoles, ...units] });
+    if (result.ok || result.reason !== "unproven-material") throw new Error("ambiguous owner escaped the slot boundary");
+    expect(result.affected[0].surfaceSpan.span?.start).toBe(0);
+    expect(result.observations.map(o => [o.identityHints.foodName, o.quantityHints.value, o.materialClaims]))
+      .toEqual([["uvas", 2, []]]);
   });
 
   it("não cria afirmação textual para modalidade ou locale fora do recorte", async () => {

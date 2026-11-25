@@ -190,7 +190,9 @@ function governedUnitAliases(
     const scoped = personal.length ? personal : matches.filter(item => item.scope === "global");
     const candidates = scoped.flatMap(item => {
       const unit = item.targetType === "canonical_term" ? recognizedUnit(item.targetRef ?? "") : null;
-      return unit === null ? [] : [{ entryId: item.id, unit, confidence: item.confidence }];
+      return unit === null ? [] : [{
+        entryId: item.id, unit, confidence: item.confidence, requiresClarification: item.requiresClarification,
+      }];
     });
     const selected = scoped.length === 1 && !scoped[0].requiresClarification && candidates.length === 1
       ? candidates[0] : null;
@@ -232,7 +234,7 @@ function detectQualifiers(name: string): FoodObservation["identityHints"]["quali
 
 function buildObservation(
   request: LinguisticRequest, segment: Segment, index: number, governedUnits: readonly GovernedUnitAlias[] = [],
-  preciseSourceEvidence = false,
+  preciseSourceEvidence = false, expectedConflictingUnitName?: Span,
 ): FoodObservation {
   const locale = request.locale === undefined || request.locale === null
     ? { requested: null, effective: DEFAULT_FOOD_LOCALE, status: "defaulted" as const }
@@ -243,7 +245,12 @@ function buildObservation(
   const foodSegment = foodOnlySpan(request.rawText, segment);
   const sourceSpans: FoodQuantitySourceSpans | undefined = preciseSourceEvidence ? {} : undefined;
   const quantity = supported ? readQuantity(foodSegment.text, governedUnits, false, sourceSpans) : null;
-  const name = supported ? (quantity?.name ?? foodSegment.text).trim() : "";
+  const candidateName = sourceSpans?.nameAfterConflictingUnit;
+  const conflictingName = expectedConflictingUnitName && candidateName &&
+    foodSegment.start + candidateName.start === expectedConflictingUnitName.start &&
+    foodSegment.start + candidateName.end === expectedConflictingUnitName.end ? candidateName : undefined;
+  const name = conflictingName ? foodSegment.text.slice(conflictingName.start, conflictingName.end) :
+    supported ? (quantity?.name ?? foodSegment.text).trim() : "";
   const observed = emptyIdentity();
   // A-019: commas coalesced with a qualifier are surface punctuation,
   // not part of the normalized food identity. Raw spans/evidence keep them.
@@ -286,7 +293,7 @@ function buildObservation(
   if (name && !qualifierOnly) evidence.push({
     evidenceId: "ev-name-" + index, field: "identity.foodName",
     origin, value: name, unit: null, confidence: sourceConfidence, verified: false,
-    anchor: lexicalAnchor(sourceSpans?.name), sourceId: null,
+    anchor: lexicalAnchor(conflictingName ?? sourceSpans?.name), sourceId: null,
   });
   if (qualifierOnly) {
     // Anchor every asserted attribute to its own UTF-16 bytes. Do not emit a
@@ -354,7 +361,7 @@ function buildObservation(
     surfaceSpan: originalAnchor({ start: foodSegment.start, end: foodSegment.end }),
     identityHints: observed, quantityHints: q, evidence,
     normalizationPath, alternatives,
-    unresolvedReason: !supported ? "unsupported_locale" : "unknown_surface",
+    unresolvedReason: !supported ? "unsupported_locale" : conflictingName ? "source_conflict" : "unknown_surface",
     lexiconRevision: request.lexiconRevision, interpreterVersion: null,
   };
 }
@@ -595,6 +602,7 @@ export async function comprehendFoodLanguage(
       entries, observation.identityHints.foodName ?? "", request.ownerUserId, now,
     );
     const segmentSyntax = syntax?.[i];
+    let conflictingUnitPending = false;
     if (material && segmentSyntax) {
       const previous = results.at(-1);
       const previousIsMaterial = previous !== undefined && material.has(previous.observationId);
@@ -606,15 +614,21 @@ export async function comprehendFoodLanguage(
       if (constituent && span) {
         const from = "operator" in constituent ? constituent.operator.start : constituent.measureSpan.start;
         if (from >= span.start && constituent.ingredient.end <= span.end) {
-          const owner = buildObservation(request, constituent.owner, i, units, true);
+          const conflictingOwnerName = "operator" in constituent ? constituent.conflictingGovernedOwner : undefined;
+          const owner = buildObservation(request, constituent.owner, i, units, true, conflictingOwnerName);
           let rolesProven = true;
           if ("operator" in constituent) {
             const name = owner.evidence.find(item => item.field === "identity.foodName");
             const nameSpan = name?.anchor.span;
             // Use the exact name evidence, not a normalized guess from the
             // entire clause. Both slots must independently prove a food role.
+            // The already-governed name can add one identity hypothesis. If
+            // retaining it would exhaust the existing wire budget, abstain.
             rolesProven = !!nameSpan && name?.anchor.sourceRef === request.sourceRef &&
               nameSpan.start >= span.start && nameSpan.end <= from &&
+              (!conflictingOwnerName ||
+                nameSpan.start === conflictingOwnerName.start && nameSpan.end === conflictingOwnerName.end &&
+                owner.alternatives.length < FOOD_CONTRACT_LIMITS.alternatives) &&
               typeof name.value === "string" &&
               request.rawText.slice(nameSpan.start, nameSpan.end) === name.value &&
               hasGovernedNominalRole(entries, name.value, request.ownerUserId, now) &&
@@ -622,6 +636,7 @@ export async function comprehendFoodLanguage(
           }
           if (owner.identityHints.foodName !== null && rolesProven) {
             observation = { ...owner, surfaceSpan: observation.surfaceSpan };
+            conflictingUnitPending = conflictingOwnerName !== undefined;
             material.set(observation.observationId, constituent);
           }
         }
@@ -639,6 +654,8 @@ export async function comprehendFoodLanguage(
       : selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
     if (lexiconChoice.selected) {
       observation = withLexicon(observation, lexiconChoice.selected, entries, request.ownerUserId, now);
+      // This lexical identity hypothesis cannot settle a different slot.
+      if (conflictingUnitPending) observation.unresolvedReason = "source_conflict";
     } else if (lexiconChoice.competing.length > 0) {
       if (lexiconChoice.competing.length > FOOD_CONTRACT_LIMITS.alternatives) {
         throw new Error("linguistic-ambiguity-limit");

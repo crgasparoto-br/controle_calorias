@@ -12,7 +12,9 @@ export type GovernedUnitAlias = {
   unit: string | null;
   entryId: number | null;
   confidence: number | null;
-  candidates: readonly { entryId: number; unit: string; confidence: number | null }[];
+  candidates: readonly {
+    entryId: number; unit: string; confidence: number | null; requiresClarification: boolean;
+  }[];
 };
 
 const unitMap: Readonly<Record<string, string>> = {
@@ -114,7 +116,11 @@ export function recognizedUnit(value: string): string | null {
   return unitMap[foldFoodSurface(value)] ?? null;
 }
 
-export type FoodQuantitySourceSpans = { name?: Span; quantity?: Span };
+export type FoodQuantitySourceSpans = {
+  name?: Span; quantity?: Span;
+  // A literal nominal slot, not a selected unit or measured amount.
+  nameAfterConflictingUnit?: Span;
+};
 
 export function readQuantity(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [], requireExplicitUnit = false,
@@ -281,13 +287,28 @@ export function readQuantity(
     }).sort((a, b) => b.term.length - a.term.length);
     const alias = matching[0];
     if (alias) {
+      const lastWord = words[alias.term.split(/\s+/u).length - 1];
+      const unitEnd = (lastWord.index ?? 0) + lastWord[0].length;
+      const afterUnit = remaining.slice(unitEnd);
       if (number === null || alias.unit === null) {
+        // Only the same governed prefix can prove this boundary: a genuine
+        // collision of usable meanings and an explicit, adjacent connector.
+        // Keep the original parse and emit no quantity evidence for this slot.
+        if (sourceSpans && number !== null &&
+            new Set(alias.candidates.filter(candidate => !candidate.requiresClarification)
+              .map(candidate => candidate.unit)).size > 1) {
+          const connector = /^[ \t]+de[ \t]+/iu.exec(afterUnit);
+          if (connector && connector[0].length < afterUnit.length) {
+            sourceSpans.nameAfterConflictingUnit = {
+              start: sourceStart + countedPrefix[0].length + unitEnd + connector[0].length,
+              end: sourceStart + source.length,
+            };
+          }
+        }
         return { value: null, unit: null, name: source, servingText: countedPrefix[0].trim(),
           uncertain: true, governedAlias: alias };
       }
-      const lastWord = words[alias.term.split(/\s+/u).length - 1];
-      const unitEnd = (lastWord.index ?? 0) + lastWord[0].length;
-      const rest = remaining.slice(unitEnd).trim().replace(/^de\s+/iu, "");
+      const rest = afterUnit.trim().replace(/^de\s+/iu, "");
       leading(countedPrefix[0].length + unitEnd, rest, false);
       return { value: number, unit: alias.unit, name: rest,
         servingText: source.slice(0, countedPrefix[0].length + unitEnd).trim(),
@@ -378,6 +399,7 @@ export type ExplicitIngredientNegation = {
   owner: Segment;
   ingredient: Segment;
   operator: Segment;
+  conflictingGovernedOwner?: Span;
 };
 
 export type MaterialSegmentSyntax = {
@@ -625,10 +647,13 @@ export function splitFoodSurface(
       const operator = { text: op[0], start: op.index, end: op.index + op[0].length };
       const owner = trimSpan(text, part.start, operator.start);
       const ingredient = trimSpan(text, operator.end, part.end);
-      if (owner && ingredient && ingredient.text.length <= FOOD_CONTRACT_LIMITS.nameText &&
+      const ownerSlots: FoodQuantitySourceSpans = {};
+      const parsedOwner = owner && readQuantity(owner.text, governedUnits, false, ownerSlots);
+      const pendingName = ownerSlots.nameAfterConflictingUnit;
+      if (owner && parsedOwner && ingredient && ingredient.text.length <= FOOD_CONTRACT_LIMITS.nameText &&
           // The quantity reader already owns the exact measured prefix. What
           // remains must be one local nominal slot, not a command or a list.
-          simpleName.test(readQuantity(owner.text, governedUnits).name) &&
+          simpleName.test(pendingName ? owner.text.slice(pendingName.start, pendingName.end) : parsedOwner.name) &&
           !/[()[\]{}]/u.test(owner.text) &&
           !/(?<![\p{L}\p{M}\p{N}])ou(?![\p{L}\p{M}\p{N}])/iu.test(owner.text) &&
           simpleName.test(ingredient.text) && !startsWithNumber.test(ingredient.text.split(/\p{Pd}/u)[0]) &&
@@ -636,7 +661,9 @@ export function splitFoodSurface(
           recognizedUnit(ingredient.text) === null &&
           !readQuantity(ingredient.text, governedUnits).uncertain &&
           !governedUnits.some(entry => foldFoodSurface(entry.term) === foldFoodSurface(ingredient.text))) {
-        negation = { owner, ingredient, operator };
+        negation = { owner, ingredient, operator, ...(pendingName && { conflictingGovernedOwner: {
+          start: owner.start + pendingName.start, end: owner.start + pendingName.end,
+        } }) };
       }
     }
     let found: { measure: ExplicitIngredientMeasure; remainder: Segment | null } | null = null;
