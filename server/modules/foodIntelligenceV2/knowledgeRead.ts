@@ -41,6 +41,8 @@ export type GovernedFoodMatch = {
   nutrition: NutritionFacts;
   governanceStatus: "verified" | "provisional";
   portions: readonly GovernedFoodPortion[];
+  /** The named barcode needed a current, owner-bound personal alias. */
+  barcodeNameRequiresPersonalAlias?: true;
   /** Absence never authorizes reuse; the repository includes all validity dependencies. */
   knowledgeValidity?: FoodKnowledgeValidity;
 };

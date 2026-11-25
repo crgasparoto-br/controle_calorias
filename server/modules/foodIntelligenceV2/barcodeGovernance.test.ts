@@ -349,9 +349,11 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
       [{ source, grant }], [proof], [barcodeMapping], [variantRow], [{ id: 22 }],
       [profile], [{ source, grant }], [barcodeMapping], [nutritionProof], [],
     );
-    expect(await createFoodV2KnowledgeRepository().readLocal({
+    const result = await createFoodV2KnowledgeRepository().readLocal({
       ...request, normalizedName: "meu pao",
-    })).toMatchObject({ kind: "match", variantId: 22 });
+    });
+    expect(result).toMatchObject({ kind: "match", variantId: 22, barcodeNameRequiresPersonalAlias: true });
+    expect(result).not.toHaveProperty("knowledgeValidity");
     expect(select).toHaveBeenCalledTimes(11);
     const query = new MySqlDialect().sqlToQuery(select.mock.results[5].value.where.mock.calls[0][0]);
     expect(query.sql).toContain("`user_food_aliases`.`user_id` = ?");

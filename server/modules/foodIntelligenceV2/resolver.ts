@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { FOOD_CONTRACT_LIMITS, FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "./contracts";
 import { canPreserveAcceptedIdentity, discardSupersededDerivedEvidence,
-  discardSupersededUserIdentityEvidence, hasConflictingIdentityEvidence } from "./resolutionContinuity";
+  discardSupersededUserIdentityEvidence, hasAcceptedGovernedVariant, hasConflictingIdentityEvidence } from "./resolutionContinuity";
 import { deferredFoodResolutionAttempt, detachedFoodResolutionFailure, emptyResolutionIdentity, emptyResolutionNutrition,
   emptyResolutionQuantity, identifyFoodResolutionAttempt, isDetachedResolutionFailure,
   reuseDeferredResolutionAttempt, type FoodResolutionAttempt } from "./resolutionAttempt";
@@ -504,15 +504,30 @@ export async function resolveFoodObservation(
     // Continuation without a fresh identity assertion must not erase previously
     // accepted identity, nutritional provenance, or quantity. An identity claim
     // in the evidence envelope counts as new only when it differs materially.
-    const compatiblePreviousIdentity = previous !== null && canPreserveAcceptedIdentity(observation, previous);
+    const acceptedLookup = previous?.evidence.find(item => previous.identity.evidenceIds.includes(item.evidenceId) &&
+      item.field === "identity.foodName" && item.sourceId === null &&
+      item.anchor.sourceRef === "food-lookup:" + previous.decisionId &&
+      (item.origin === "memory" || (item.verified && item.origin === "catalog")) &&
+      typeof item.value === "string");
+    // In older decisions the name accompanying a barcode was recorded as
+    // catalog regardless of the underlying proof. A clock-bound validity stamp
+    // cannot distinguish that case from a revoked personal alias.
+    const personalOrUncertainLookup = acceptedLookup?.origin === "memory" ||
+      (acceptedLookup !== undefined && previous?.identity.barcode != null);
+    const unprovenLookup = previous?.identity.variantId != null && acceptedLookup === undefined &&
+      !hasAcceptedGovernedVariant(previous);
+    const compatiblePreviousIdentity = previous !== null && !unprovenLookup &&
+      canPreserveAcceptedIdentity(observation, previous);
+    const mayReusePreviousKnowledge = previous !== null && !personalOrUncertainLookup && !unprovenLookup &&
+      previous.knowledgeRevision === context.knowledgeRevision &&
+      previous.policyVersion === context.policyVersion &&
+      isCurrentKnowledgeValidity(previous.knowledgeValidity, now, context.userId, context.resolverVersion);
     const fillsMissingQuantity = previous !== null &&
       (previous.quantity.value === null || previous.quantity.unit === null) &&
       previous.quantity.grams === null && previous.quantity.milliliters === null &&
       observation.quantityHints.value !== null && observation.quantityHints.unit !== null;
     if (previous && previous.nextAction !== "retry" && !fillsMissingQuantity &&
-        previous.knowledgeRevision === context.knowledgeRevision &&
-        previous.policyVersion === context.policyVersion &&
-        isCurrentKnowledgeValidity(previous.knowledgeValidity, now, context.userId, context.resolverVersion) &&
+        mayReusePreviousKnowledge &&
         (!previous.quantity.portionSnapshot || isCurrentPortion(previous.quantity.portionSnapshot, now)) &&
         compatiblePreviousIdentity) {
       // All still-current proofs belong to this continuation. Do not prune a
@@ -551,9 +566,6 @@ export async function resolveFoodObservation(
     }
     // Repeat the actual governed query (including personal aliases) when the
     // reply contains only a missing field, without guessing a canonical name.
-    const acceptedLookup = previous?.evidence.find(item => previous.identity.evidenceIds.includes(item.evidenceId) &&
-      item.field === "identity.foodName" && item.verified && item.sourceId === null &&
-      (item.origin === "catalog" || item.origin === "memory") && typeof item.value === "string");
     const acceptedName = typeof acceptedLookup?.value === "string"
       ? acceptedLookup.value : previous?.identity.canonicalName;
     const effectiveObservation = compatiblePreviousIdentity && previous ? {
@@ -563,7 +575,11 @@ export async function resolveFoodObservation(
         foodName: observation.identityHints.foodName ?? acceptedName ?? null,
         brand: observation.identityHints.brand ?? previous.identity.brand,
         barcode: observation.identityHints.barcode ?? previous.identity.barcode,
-        variant: observation.identityHints.variant ?? previous.identity.variant,
+        // The prior governed label is not a new material assertion about an
+        // alias. A genuinely distinct prior explicit variant still constrains.
+        variant: observation.identityHints.variant ?? (
+          personalOrUncertainLookup && previous.identity.variant === previous.identity.canonicalName
+            ? null : previous.identity.variant),
         preparation: observation.identityHints.preparation.length > 0
           ? observation.identityHints.preparation : previous.identity.preparation,
         qualifiers: observation.identityHints.qualifiers.length > 0
@@ -572,7 +588,11 @@ export async function resolveFoodObservation(
     } : observation;
     const request = {
       normalizedName: normalizeFoodName(effectiveObservation.identityHints.foodName ?? ""),
-      brand: effectiveObservation.identityHints.brand,
+      // A name-based personal alias was found without a brand assertion.
+      // Preserve the old brand as a comparison, not as a new explicit filter
+      // that would suppress the authoritative personal alias lookup.
+      brand: compatiblePreviousIdentity && acceptedLookup?.origin === "memory" && !previous?.identity.barcode
+        ? observation.identityHints.brand : effectiveObservation.identityHints.brand,
       barcode: effectiveObservation.identityHints.barcode,
       userId: context.userId,
       resolverVersion: context.resolverVersion,
@@ -586,10 +606,16 @@ export async function resolveFoodObservation(
       sourceCompatibleWithExplicitAttributes(effectiveObservation, knowledge) ? knowledge : null;
     const conflictingHypotheses = observation.alternatives.length > 0 &&
       !soleHypothesisIsRedundant(observation, eligibleMatch);
-    const identityEvidenceConflict = eligibleMatch !== null &&
+    const identityEvidenceConflict = eligibleMatch !== null && (
+      // A reply without a new name cannot implicitly replace the old item with
+      // a different food when the same surface has been reassigned since.
+      (previous !== null && personalOrUncertainLookup && compatiblePreviousIdentity &&
+        observation.identityHints.foodName === null &&
+        (previous.identity.variantId !== eligibleMatch.variantId ||
+          previous.identity.foodEntityId !== eligibleMatch.foodId)) ||
       hasConflictingIdentityEvidence(effectiveObservation, eligibleMatch, evidence, request.normalizedName,
         compatiblePreviousIdentity && previous?.identity.variantId === eligibleMatch.variantId &&
-          previous.identity.foodEntityId === eligibleMatch.foodId ? acceptedName : null);
+          previous.identity.foodEntityId === eligibleMatch.foodId ? acceptedName : null));
     // Não usar porção ou perfil de uma identidade ainda concorrente.
     const match = conflictingHypotheses || identityEvidenceConflict ? null : eligibleMatch;
     const incompatibleAttributes = knowledge.kind === "match" && eligibleMatch === null;
@@ -642,13 +668,15 @@ export async function resolveFoodObservation(
             sourceRef: "food-variant:" + match.variantId, span: null, region: null,
           }));
       }
-      if (match.governanceStatus === "verified" && request.normalizedName) {
+      const requiresPersonalAlias = match.matchingEvidence === "personal_alias" ||
+        match.barcodeNameRequiresPersonalAlias === true;
+      if ((match.governanceStatus === "verified" || requiresPersonalAlias) && request.normalizedName) {
         // Retain the surface accepted by this governed lookup (including a
         // family name accompanying a barcode), not just explicit aliases.
         // Identity acceptance is not attributed to the nutrition source.
         identity.evidenceIds.push(makeEvidence(observation, evidence, "identity.foodName",
-          request.normalizedName, null, null, true,
-          match.matchingEvidence === "personal_alias" ? "memory" : "catalog"));
+          request.normalizedName, null, null, match.governanceStatus === "verified",
+          requiresPersonalAlias ? "memory" : "catalog"));
         evidence[evidence.length - 1].anchor = {
           sourceRef: "food-lookup:" + decision.decisionId, span: null, region: null,
         };
@@ -659,7 +687,8 @@ export async function resolveFoodObservation(
           identity.barcode, null, null, false, "barcode"));
       }
       decision.unresolvedFields = decision.unresolvedFields.filter(field => field !== "identity" && field !== "variant");
-      if (isCurrentKnowledgeValidity(match.knowledgeValidity, now, context.userId, context.resolverVersion)) {
+      if (!requiresPersonalAlias &&
+          isCurrentKnowledgeValidity(match.knowledgeValidity, now, context.userId, context.resolverVersion)) {
         decision.knowledgeValidity = match.knowledgeValidity;
       }
       // A provisional governed profile is not yet an authorized estimate:
@@ -703,10 +732,7 @@ export async function resolveFoodObservation(
       decision.reasonCodes = [knowledge.reason === "provider_unavailable" ?
         "provider_unavailable" : "context_unavailable"];
       decision.nextAction = "retry";
-      if (previous && compatiblePreviousIdentity &&
-          previous.knowledgeRevision === context.knowledgeRevision &&
-          previous.policyVersion === context.policyVersion &&
-          isCurrentKnowledgeValidity(previous.knowledgeValidity, now, context.userId, context.resolverVersion)) {
+      if (previous && compatiblePreviousIdentity && mayReusePreviousKnowledge) {
         const accepted = previous.evidence.filter(item => previous.identity.evidenceIds.includes(item.evidenceId));
         // Preserve proved identity while a newly supplied quantity still needs
         // a profile read. An ID collision must not relabel different evidence.

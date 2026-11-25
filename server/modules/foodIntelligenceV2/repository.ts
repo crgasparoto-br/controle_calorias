@@ -116,17 +116,17 @@ function confirmedCurrentPersonalAlias(userId: number, normalizedName: string, a
   );
 }
 
-async function barcodeNameIsCompatible(
+async function barcodeNameAuthority(
   db: V2Database,
   request: FoodKnowledgeRequest,
   row: NonNullable<Awaited<ReturnType<typeof eligibleVariant>>>,
   validity: ValidityTracker,
-): Promise<boolean> {
+): Promise<"independent" | "personal_alias" | "conflict"> {
   const name = normalizeFoodName(request.normalizedName);
-  if (!name) return true;
+  if (!name) return "independent";
   if ([row.variant.normalizedName, row.family.normalizedName].some(
     known => typeof known === "string" && normalizeFoodName(known) === name,
-  )) return true;
+  )) return "independent";
 
   if (request.userId !== null) {
     const personal = await db.select({ id: userFoodAliases.foodVariantId })
@@ -134,22 +134,22 @@ async function barcodeNameIsCompatible(
         confirmedCurrentPersonalAlias(request.userId, name, at(request)),
         eq(userFoodAliases.foodVariantId, row.variant.id),
       )).limit(1);
-    if (personal.length === 1) return true;
+    if (personal.length === 1) return "personal_alias";
   }
-  if (row.family.scope !== "global") return false;
+  if (row.family.scope !== "global") return "conflict";
   const aliases = await db.select().from(foodAliases).where(and(
     eq(foodAliases.foodVariantId, row.variant.id),
     eq(foodAliases.normalizedAlias, name),
     eq(foodAliases.status, "active"),
     eq(foodAliases.governanceStatus, "verified"),
   )).limit(MAX_CANDIDATES + 1);
-  if (aliases.length > MAX_CANDIDATES) return false;
+  if (aliases.length > MAX_CANDIDATES) return "conflict";
   for (const alias of aliases) {
     if (alias.foodId !== row.family.id || !alias.sourceVersion || !alias.sourceId) continue;
     const approval = await readApprovedSource(db, alias.sourceId, at(request), true, validity);
-    if (approval?.source.version === alias.sourceVersion) return true;
+    if (approval?.source.version === alias.sourceVersion) return "independent";
   }
-  return false;
+  return "conflict";
 }
 
 async function readCurrentProfile(
@@ -402,7 +402,9 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
               group.barcodeEvidenceOwnerUserId !== null) {
             return { kind: "miss", reason: "incompatible_evidence" };
           }
-          if (group.match === "barcode" && !await barcodeNameIsCompatible(db, request, row, validity)) {
+          const nameAuthority = group.match === "barcode"
+            ? await barcodeNameAuthority(db, request, row, validity) : "independent";
+          if (nameAuthority === "conflict") {
             return { kind: "conflict", reason: "multiple_identities" };
           }
           // A globally visible barcode identity also needs permission to
@@ -423,6 +425,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
           };
           matches.push({
             kind: "match", matchingEvidence: group.match,
+            ...(nameAuthority === "personal_alias" ? { barcodeNameRequiresPersonalAlias: true as const } : {}),
             foodId: row.family.id, variantId: id, profileId: p.id,
             variantName: row.variant.displayName,
             // Return the stored identity that passed the governance checks,
@@ -441,7 +444,13 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         if (matches.length > 1) return { kind: "conflict", reason: "multiple_identities" };
         // Include later candidates whose scheduled activation may change the
         // currently unique result, not only dependencies read before the hit.
-        if (matches.length === 1) return { ...matches[0], knowledgeValidity: validity.snapshot() };
+        if (matches.length === 1) {
+          const [match] = matches;
+          // This metadata has a clock bound, not a durable per-alias revision.
+          // Do not grant cached authority for a current personal confirmation.
+          return match.matchingEvidence === "personal_alias" || match.barcodeNameRequiresPersonalAlias
+            ? match : { ...match, knowledgeValidity: validity.snapshot() };
+        }
         // An existing confirmed personal alias already fixes identity. If its
         // variant/profile is revoked, expired or unavailable, never borrow
         // macros from a same-name variant or an external cache/provider.
