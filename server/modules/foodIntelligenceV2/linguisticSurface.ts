@@ -120,6 +120,8 @@ export type FoodQuantitySourceSpans = {
   name?: Span; quantity?: Span;
   // A literal nominal slot, not a selected unit or measured amount.
   nameAfterConflictingUnit?: Span;
+  // The governed production reached the end before any nominal slot.
+  orphanedGovernedUnit?: true;
 };
 
 export function readQuantity(
@@ -291,6 +293,9 @@ export function readQuantity(
       const unitEnd = (lastWord.index ?? 0) + lastWord[0].length;
       const afterUnit = remaining.slice(unitEnd);
       if (number === null || alias.unit === null) {
+        if (sourceSpans && number !== null && !afterUnit && alias.candidates.length > 0) {
+          sourceSpans.orphanedGovernedUnit = true;
+        }
         // Only the same governed prefix can prove this boundary: a genuine
         // collision of usable meanings and an explicit, adjacent connector.
         // Keep the original parse and emit no quantity evidence for this slot.
@@ -407,6 +412,7 @@ export type MaterialSegmentSyntax = {
   negation: ExplicitIngredientNegation | null;
   materialOperator: boolean;
   continuation: boolean;
+  withheldScope?: Span;
 };
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
@@ -612,6 +618,45 @@ export function splitFoodSurface(
   }
   // The same splitter owns raw boundaries, constituents and any withheld tail.
   if (!material) return joined;
+
+  // Decide which *existing* hard blocks lack an independent observation
+  // before a soft split or quantity alternative can manufacture one.
+  const withheldBlocks = new Map<number, Span>();
+  const terminalOrphans = new Set<number>();
+  const overBudgetParts = new Set<Segment>();
+  const hardBlocks = [...hardStops, text.length].map((end, i) =>
+    trimSpan(text, i === 0 ? 0 : hardStops[i - 1] + 1, end));
+  let blockIndex = 0;
+  for (const part of joined) {
+    while (part.start > (hardStops[blockIndex] ?? text.length)) blockIndex++;
+    const block = hardBlocks[blockIndex];
+    if (!block || part.start < block.start || part.end > block.end) continue;
+    const slots: FoodQuantitySourceSpans = {};
+    const parsed = readQuantity(part.text, governedUnits, false, slots);
+    if (parsed.governedAlias?.unit === null &&
+        parsed.governedAlias.candidates.length > FOOD_CONTRACT_LIMITS.alternatives) {
+      overBudgetParts.add(part); // Let the existing builder report its limit.
+      continue;
+    }
+    if (slots.orphanedGovernedUnit) {
+      withheldBlocks.set(blockIndex, { start: block.start, end: block.end });
+      if (part.end === block.end) terminalOrphans.add(blockIndex);
+    }
+  }
+  for (const i of terminalOrphans) {
+    const from = hardBlocks[i]!;
+    let next = i + 1;
+    while (next < hardBlocks.length && !hardBlocks[next]) next++;
+    const to = hardBlocks[next];
+    // Do not rejoin lines or promote their meaning. Only an explicit 'de'
+    // at the start of the next nonempty line block can share the omission;
+    // a semicolon in the original gap still establishes independence.
+    if (to && /^de(?:[ \t]+|$)/iu.test(to.text) &&
+        /^[ \t\r]*\n[ \t\r\n]*$/u.test(text.slice(from.end, to.start))) {
+      withheldBlocks.set(next, { start: to.start, end: to.end });
+    }
+  }
+
   const parts: Segment[] = [];
   // A label is not a catch-all for whatever follows a measured ingredient.
   // Accept only words joined by ordinary spacing or intra-word punctuation.
@@ -712,6 +757,7 @@ export function splitFoodSurface(
         remainder,
       };
     }
+    const withheldScope = overBudgetParts.has(part) ? undefined : withheldBlocks.get(stopIndex);
     const remainder = found?.remainder;
     const initial = remainder && found
       ? trimSpan(text, part.start, found.measure.ingredient.end) : part;
@@ -720,10 +766,10 @@ export function splitFoodSurface(
     // Until the soft-scope case has typed candidates, don't present another
     // unproved fragment in the same negation block as an independent food.
     material.push({ measure: found?.measure ?? null, negation,
-      materialOperator: operators.length > 0 || blockHasNegation, continuation });
+      materialOperator: operators.length > 0 || blockHasNegation, continuation, withheldScope });
     if (remainder) {
       parts.push(remainder);
-      material.push({ measure: null, negation: null, materialOperator: true, continuation: true });
+      material.push({ measure: null, negation: null, materialOperator: true, continuation: true, withheldScope });
     }
   }
   return parts;

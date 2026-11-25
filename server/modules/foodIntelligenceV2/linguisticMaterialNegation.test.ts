@@ -349,6 +349,84 @@ describe("R3: negação explícita de ocorrência local sem inferência nutricio
       .toEqual([["uvas", 2, []]]);
   });
 
+  const orphan = "3 pazinhas";
+  const lineLexicon = { load: async () => [
+    nominal("canelone", 81), nominal("salvia", 82),
+    nominal("pazinhas", 83, { kind: "unit_term", targetType: "canonical_term", targetRef: "copo" }),
+    nominal("pazinhas", 84, { kind: "portion_term", targetType: "canonical_term", targetRef: "fatia" }),
+  ] };
+  const continuation = "De canelone SEM sálvia, 2 peras e 3 figos";
+  const lineBreaks = ["\n", "\r\n", "\n\n"] as const;
+  it.each(lineBreaks.flatMap((gap, i) =>
+    (["text", "audio_transcript"] as const).map(modality => [i, gap, modality] as const)
+  ))("conserva spans e irmãos na classe de quebra %s, %j, %s", async (_class, gap, modality) => {
+    const first = "🥣 4 uvas", last = "5 acerolas";
+    const request = input(first + "; " + orphan + gap + "\t" + continuation + "; " + last, {
+      modality, ...(modality === "audio_transcript" ? { transcriptionConfidence: 0.68 } : {}),
+    });
+    const result = await comprehendFoodMaterialLanguage(request, lineLexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("expected line scopes withheld");
+    expect(result.affected.map(item => item.surfaceSpan)).toEqual([orphan, continuation].map(
+      literal => ({ sourceRef: request.sourceRef, span: span(request.rawText, literal), region: null }),
+    ));
+    expect(result.observations.map(o => [o.identityHints.foodName, o.quantityHints.value, o.materialClaims]))
+      .toEqual([["uvas", 4, []], ["acerolas", 5, []]]);
+    expect(new Set([...result.affected, ...result.observations].map(o => o.observationId)).size).toBe(4);
+    expect(parseFoodMaterialObservationBatch(result.observations).ok).toBe(true);
+    expect(result.observations.every(o => o.rawInput === request.rawText && o.modality === modality)).toBe(true);
+    await expect(comprehendFoodLanguage(request, lineLexicon)).rejects.toThrow("invalid-food-observation:invalid-contract");
+  });
+
+  it.each([
+    [orphan, [orphan], []],
+    [orphan + "\n5 acerolas", [orphan], ["acerolas"]],
+    [orphan + "; de canelone, 5 acerolas", [orphan], ["de canelone", "acerolas"]],
+    [orphan + "\n" + "de-canelone, 5 acerolas", [orphan], ["de-canelone", "acerolas"]],
+    [orphan + "\n" + "dentro, 5 acerolas", [orphan], ["dentro", "acerolas"]],
+    [orphan + ", de canelone, 5 acerolas; 6 uvas", [orphan + ", de canelone, 5 acerolas"], ["uvas"]],
+    [orphan + "\n" + "de canelone, 5 acerolas\n6 uvas", [orphan, "de canelone, 5 acerolas"], ["uvas"]],
+  ] as const)("distingue fronteiras literais: %j", async (raw, withheld, independent) => {
+    const request = input(raw);
+    const result = await comprehendFoodMaterialLanguage(request, lineLexicon);
+    if (result.ok || result.reason !== "unproven-material") throw new Error("expected orphan withheld");
+    expect(result.affected.map(o => o.surfaceSpan.span)).toEqual(withheld.map(text => span(raw, text)));
+    expect(result.observations.map(o => o.identityHints.foodName)).toEqual(independent);
+    expect(result.observations.every(o => o.materialClaims.length === 0)).toBe(true);
+  });
+
+  it("preserva a prova inline e a próxima cláusula realmente independente", async () => {
+    const clause = orphan + " de canelone sem sálvia";
+    const request = input(clause + "\r\n5 acerolas");
+    const result = await comprehendFoodMaterialLanguage(request, lineLexicon);
+    if (!result.ok) throw new Error(result.reason);
+    assertNegation(result.observations[0], request, {
+      owner: "canelone", ownerLiteral: "canelone", clause, operator: "sem", ingredient: "sálvia",
+    });
+    expect(result.observations[0].unresolvedReason).toBe("source_conflict");
+    expect(result.observations[1].quantityHints.value).toBe(5);
+  });
+
+  it("não desconta as partes suaves retidas do orçamento nem transforma falha de infraestrutura em abstenção", async () => {
+    const raw = (count: number) => orphan + "\nde canelone, 2 peras;" + Array(count).fill("4 uvas").join(";");
+    const near = await comprehendFoodMaterialLanguage(input(raw(FOOD_CONTRACT_LIMITS.observations - 3)), lineLexicon);
+    expect(near).toMatchObject({ ok: false, reason: "unproven-material" });
+    if (near.ok || near.reason !== "unproven-material") throw new Error("expected bounded result");
+    expect(near.affected).toHaveLength(2);
+    expect(near.observations).toHaveLength(FOOD_CONTRACT_LIMITS.observations - 3);
+    await expect(comprehendFoodMaterialLanguage(input(raw(FOOD_CONTRACT_LIMITS.observations - 2)), lineLexicon))
+      .rejects.toThrow("linguistic-observation-limit");
+
+    await expect(comprehendFoodMaterialLanguage(
+      input(orphan + "; " + "x".repeat(FOOD_CONTRACT_LIMITS.nameText + 1)), lineLexicon,
+    )).rejects.toThrow("invalid-food-observation:invalid-contract");
+
+    const sentinel = new Error("synthetic-source-indisponível");
+    const load = vi.fn(async () => { throw sentinel; });
+    await expect(comprehendFoodMaterialLanguage(input(orphan), { load })).rejects.toBe(sentinel);
+    await expect(comprehendFoodMaterialLanguage(input(""), { load })).rejects.toThrow("invalid-linguistic-input");
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
   it("não cria afirmação textual para modalidade ou locale fora do recorte", async () => {
     const store = { load: vi.fn(async () => []) };
     for (const options of [{ modality: "image" }, { locale: "pt-PT" }] as const) {

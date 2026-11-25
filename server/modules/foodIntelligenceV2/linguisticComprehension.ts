@@ -232,6 +232,13 @@ function detectQualifiers(name: string): FoodObservation["identityHints"]["quali
   }).sort((a, b) => a.offset - b.offset).map(({ offset: _offset, ...qualifier }) => qualifier);
 }
 
+const observationIdForPart = (sourceRef: string, index: number) => sourceRef.slice(0, 145) + ":obs:" + index;
+type AffectedMaterial = Pick<FoodObservation, "observationId" | "surfaceSpan">;
+type MaterialProjection = {
+  facts: Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>;
+  withheld: Map<number, AffectedMaterial>;
+};
+
 function buildObservation(
   request: LinguisticRequest, segment: Segment, index: number, governedUnits: readonly GovernedUnitAlias[] = [],
   preciseSourceEvidence = false, expectedConflictingUnitName?: Span,
@@ -355,7 +362,7 @@ function buildObservation(
       confidence: unitAlias.confidence });
   }
   return {
-    schemaVersion: 2, observationId: request.sourceRef.slice(0, 145) + ":obs:" + index,
+    schemaVersion: 2, observationId: observationIdForPart(request.sourceRef, index),
     modality: request.modality, rawInput: request.rawText,
     normalizedInput: supported && !qualifierOnly ? normalizedName || null : null, locale,
     surfaceSpan: originalAnchor({ start: foodSegment.start, end: foodSegment.end }),
@@ -520,7 +527,7 @@ function addResidual(
 export async function comprehendFoodLanguage(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
   interpreter?: ResidualInterpreter,
-  material?: Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>,
+  material?: MaterialProjection,
 ): Promise<FoodObservation[]> {
   if (!request.rawText.trim() || request.rawText.length > FOOD_CONTRACT_LIMITS.rawText ||
       !request.sourceRef.trim() || request.sourceRef.length > 145 ||
@@ -595,17 +602,29 @@ export async function comprehendFoodLanguage(
   const results: FoodObservation[] = [];
   for (let i = 0; i < parsedParts.length; i++) {
     const part = parsedParts[i];
+    const segmentSyntax = syntax?.[i];
+    const withheld = segmentSyntax?.withheldScope;
+    if (material && withheld) {
+      // This scope has no buildable observation. Keep its original position
+      // and count already-checked parts before omitting internal soft splits.
+      if (!material.withheld.has(withheld.start)) {
+        material.withheld.set(withheld.start, {
+          observationId: observationIdForPart(request.sourceRef, i),
+          surfaceSpan: anchor(request.sourceRef, withheld),
+        });
+      }
+      continue;
+    }
     let observation = buildObservation(request, part, i, units, material !== undefined);
     // Governed exact aliases (including personal confirmed aliases) take
     // precedence over a lossy morphological interpretation of their surface.
     const exactChoice = selectLexicon(
       entries, observation.identityHints.foodName ?? "", request.ownerUserId, now,
     );
-    const segmentSyntax = syntax?.[i];
     let conflictingUnitPending = false;
     if (material && segmentSyntax) {
       const previous = results.at(-1);
-      const previousIsMaterial = previous !== undefined && material.has(previous.observationId);
+      const previousIsMaterial = previous !== undefined && material.facts.has(previous.observationId);
       const constituent = exactChoice.selected || exactChoice.competing.length
         ? null : segmentSyntax.measure ?? segmentSyntax.negation;
       // Meal/command framing is excluded by the existing observation scope.
@@ -637,16 +656,16 @@ export async function comprehendFoodLanguage(
           if (owner.identityHints.foodName !== null && rolesProven) {
             observation = { ...owner, surfaceSpan: observation.surfaceSpan };
             conflictingUnitPending = conflictingOwnerName !== undefined;
-            material.set(observation.observationId, constituent);
+            material.facts.set(observation.observationId, constituent);
           }
         }
       }
       // An unresolved clause does not end scope: otherwise a second conjoined
       // unknown would leak as an independent food merely because the first abstained.
       const ambiguousSibling = previousIsMaterial && segmentSyntax.continuation;
-      if (!material.has(observation.observationId) &&
+      if (!material.facts.has(observation.observationId) &&
           (ambiguousSibling || segmentSyntax.materialOperator)) {
-        material.set(observation.observationId, null);
+        material.facts.set(observation.observationId, null);
       }
     }
     const lexiconChoice = exactChoice.selected || exactChoice.competing.length
@@ -715,16 +734,16 @@ export async function comprehendFoodMaterialLanguage(
       request.locale != null && request.locale !== DEFAULT_FOOD_LOCALE) {
     return { ok: false, reason: "unsupported-input" };
   }
-  const material = new Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>();
+  const material: MaterialProjection = { facts: new Map(), withheld: new Map() };
   const base = await comprehendFoodLanguage({
     ...request, shouldInterpretResidual: undefined, interpreterVersion: undefined,
   }, lexicon, undefined, material);
   if (base.some(item => item.modality !== modality)) {
     return { ok: false, reason: "invalid-material-observations" };
   }
-  const affected: Pick<FoodObservation, "observationId" | "surfaceSpan">[] = [];
+  const affected = [...material.withheld.values()];
   const candidates = base.flatMap<FoodMaterialObservation>(observation => {
-    const fact = material.get(observation.observationId);
+    const fact = material.facts.get(observation.observationId);
     if (fact === null) {
       affected.push({ observationId: observation.observationId, surfaceSpan: observation.surfaceSpan });
       return []; // Never expose a guessed food for the clause that needs clarification.
@@ -776,7 +795,9 @@ export async function comprehendFoodMaterialLanguage(
   const checked = parseFoodMaterialObservationBatch(candidates);
   if (!checked.ok) return { ok: false, reason: "invalid-material-observations" };
   return affected.length
-    ? { ok: false, reason: "unproven-material", affected, observations: checked.value }
+    ? { ok: false, reason: "unproven-material",
+      affected: affected.sort((left, right) => left.surfaceSpan.span!.start - right.surfaceSpan.span!.start),
+      observations: checked.value }
     : { ok: true, observations: checked.value };
 }
 
