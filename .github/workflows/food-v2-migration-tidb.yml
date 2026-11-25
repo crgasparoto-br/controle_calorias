@@ -8,6 +8,8 @@ on:
       - "scripts/test-food-v2-current-slots.mjs"
       - "scripts/issue-1301-schema-contract.test.mjs"
       - "scripts/issue-1302-schema-contract.test.mjs"
+      - "server/modules/foodIntelligenceV2/reviewCaseNoChange.ts"
+      - "server/modules/foodIntelligenceV2/reviewCaseNoChange.test.ts"
       - ".github/workflows/food-v2-migration-tidb.yml"
   workflow_dispatch:
 
@@ -75,6 +77,13 @@ jobs:
           FOOD_V2_TEST_MODE=upgrade \
           DATABASE_URL=mysql://root@127.0.0.1:4000/ci_foodv2_upgrade \
           node scripts/test-food-v2-migration-tidb.mjs
+
+      - name: Exercise E1 no-change against upgraded fixture
+        env:
+          FOOD_V2_TEST_DB_ISOLATED: "1"
+          FOOD_V2_TEST_MODE: upgrade
+          FOOD_V2_E1_TEST_DB: mysql://root@127.0.0.1:4000/ci_foodv2_upgrade
+        run: pnpm exec vitest run server/modules/foodIntelligenceV2/reviewCaseNoChange.test.ts
 
       - name: Pre-cutover rollback preserves legacy
         run: |
