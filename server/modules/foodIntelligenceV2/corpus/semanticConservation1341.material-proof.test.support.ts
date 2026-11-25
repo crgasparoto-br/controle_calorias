@@ -58,12 +58,13 @@ const owner = z.strictObject({
       hypotheses: z.array(amount.extend({ serving: span })).min(2).max(limits.alternatives) }),
   ]),
 });
+// One authored fact per hard scope. An affected anchor without a typed
+// observation cannot establish what kind of continuation (if any) occurred.
 const fact = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("ingredient-measured"), scope: span, owner,
     ingredient: span, amount: anchorAmount }),
   z.strictObject({ kind: z.literal("negation-local"), scope: span, owner, operator: span, ingredient: span }),
   z.strictObject({ kind: z.literal("pending-increment"), scope: span, operator: span, amount: anchorAmount }),
-  z.strictObject({ kind: z.literal("pending-continuation"), scope: span }),
   z.strictObject({ kind: z.literal("independent-sibling"), scope: span, owner }),
 ]);
 const labelsSchema = z.strictObject({
@@ -489,7 +490,7 @@ function ownerProof(input: Input, row: FoodMaterialObservation, gold: Owner) {
     proof(input, evidence[0], "quantity.value", want.measure, want.value, want.unit);
 }
 
-function provesFact(input: Input, row: FoodMaterialObservation, gold: Exclude<Fact, { kind: "pending-continuation" }>) {
+function provesFact(input: Input, row: FoodMaterialObservation, gold: Fact) {
   const [claim] = row.materialClaims;
   const byId = (id: string) => row.evidence.find(e => e.evidenceId === id);
   if (gold.kind === "pending-increment") {
@@ -531,10 +532,7 @@ function tally(input: Input, facts: Fact[], result: ReturnType<typeof validated>
     }
     const row = rows[0];
     const child = "child" in row ? row.child : undefined;
-    if (gold.kind === "pending-continuation") {
-      if (!row.ordinary && !child) emit("abstained", "untyped-pending-anchored");
-      else emit("mismatch", "unexpected-authority");
-    } else if (gold.kind === "pending-increment") {
+    if (gold.kind === "pending-increment") {
       if (child && provesFact(input, child, gold)) emit("abstained", "typed-pending-anchored");
       else if (!row.ordinary && !child) emit("missing", "pending-evidence-absent");
       else emit("mismatch", "pending-evidence-or-partition");

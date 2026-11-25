@@ -46,7 +46,6 @@ function authoredFacts(raw: string) {
       operator: at(raw, "sem"), ingredient: at(raw, "anis") },
     { kind: "pending-increment", scope: at(raw, "MAIS 4 fatias"), operator: at(raw, "MAIS"),
       amount: { value: 4, unit: "fatia", measure: at(raw, "4 fatias") } },
-    { kind: "pending-continuation", scope: at(raw, "mais um pouco") },
     { kind: "independent-sibling", scope: at(raw, "figos"),
       owner: { name: at(raw, "figos"), nameHint: "figos", whole: { status: "absent" } } },
   ];
@@ -110,9 +109,11 @@ describe("sealed material proof, only public synthetic controls", () => {
     const packet = seal(entries, results.reverse());
     const report = compareSealedMaterialProof(packet);
     expect(report).toMatchObject({ authority: "diagnostic-only", profile,
-      totals: { verified: 6, abstained: 4, missing: 0, mismatch: 0, duplicate: 0, extra: 0 } });
+      totals: { verified: 6, abstained: 2, missing: 0, mismatch: 0, duplicate: 0, extra: 2 } });
     expect(report.reasons["holdout/audio_transcript/pending-increment/typed-pending-anchored"]).toBe(1);
-    expect(report.strata["holdout/text/pending-continuation"].abstained).toBe(1);
+    expect(report.strata["holdout/text/unlabeled"]).toEqual({
+      verified: 0, abstained: 0, missing: 0, mismatch: 0, duplicate: 0, extra: 1,
+    });
     expect(packet.readLabels).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(report)).not.toContain(publicText);
   });
@@ -123,7 +124,7 @@ describe("sealed material proof, only public synthetic controls", () => {
     const gold = entries.map(row => ({ id: row.id, facts: authoredFacts(row.text) }));
     const captureRows = await Promise.all(entries.map(async row => ({ id: row.id, result: await capture(row) })));
     expect(compareSealedMaterialProof(seal(entries, captureRows, gold)).totals)
-      .toEqual({ verified: 6, abstained: 4, missing: 0, mismatch: 0, duplicate: 0, extra: 0 });
+      .toEqual({ verified: 6, abstained: 2, missing: 0, mismatch: 0, duplicate: 0, extra: 2 });
   });
 
   it("accepts separately labeled lexical uncertainty without crediting an exact main amount", async () => {
@@ -198,6 +199,25 @@ describe("sealed material proof, only public synthetic controls", () => {
     expect(packet.readLabels).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["text", "audio_transcript"] as const)(
+    "does not credit an anchor with its increment child removed as continuation (%s)", async mode => {
+      const entry = input(1, publicText, mode);
+      const facts = authoredFacts(entry.text);
+      const rows = [{ id: entry.id, result: await mixed(entry) }];
+      const increment = facts.find(x => x.kind === "pending-increment")!;
+      const affected = rows[0].result.affected.find(row => row.surfaceSpan.span?.start === increment.scope.start)!;
+      expect(affected.pendingObservation?.materialClaims[0].kind).toBe("increment");
+      delete affected.pendingObservation;
+      const wrong = seal([entry], rows, [{ id: entry.id, facts: facts.map(f =>
+        f === increment ? { kind: "pending-continuation", scope: f.scope } : f) }]);
+      expect(() => compareSealedMaterialProof(wrong)).toThrow("labels-shape");
+      expect(wrong.readLabels).toHaveBeenCalledTimes(1);
+
+      const correct = compareSealedMaterialProof(seal([entry], rows));
+      expect(correct.totals).toEqual({ verified: 3, abstained: 0, missing: 1, mismatch: 0, duplicate: 0, extra: 1 });
+      expect(correct.reasons[`holdout/${mode}/pending-increment/pending-evidence-absent`]).toBe(1);
+    });
+
   it.each(["missing", "duplicate", "extra"] as const)("distinguishes capture row %s before labels", async fault => {
     const entry = input(1), result = await mixed(entry);
     const row = { id: entry.id, result };
@@ -215,7 +235,7 @@ describe("sealed material proof, only public synthetic controls", () => {
     delete result.affected[0].pendingObservation;
     const packet = seal([entry], [{ id: entry.id, result }]);
     const report = compareSealedMaterialProof(packet);
-    expect(report.totals).toMatchObject({ verified: 2, abstained: 1, missing: 1, mismatch: 1 });
+    expect(report.totals).toMatchObject({ verified: 2, abstained: 0, missing: 1, mismatch: 1, extra: 1 });
     expect(report.reasons["holdout/text/pending-increment/pending-evidence-absent"]).toBe(1);
     expect(packet.readLabels).toHaveBeenCalledTimes(1);
   });
@@ -233,7 +253,7 @@ describe("sealed material proof, only public synthetic controls", () => {
     }
     const packet = seal([entry], [{ id: entry.id, result }]);
     const report = compareSealedMaterialProof(packet);
-    for (const kind of ["missing", "duplicate", "extra"] as const) expect(report.totals[kind]).toBe(kind === fault ? 1 : 0);
+    for (const kind of ["missing", "duplicate", "extra"] as const) expect(report.totals[kind]).toBe(Number(kind === fault) + Number(kind === "extra"));
     expect(packet.readLabels).toHaveBeenCalledTimes(1);
   });
 
@@ -315,7 +335,7 @@ describe("sealed material proof, only public synthetic controls", () => {
     if (fault === "primary-variant") item.identityHints.variant = "unobserved-variant";
     const packet = seal([entry], [{ id: entry.id, result }]);
     const report = compareSealedMaterialProof(packet);
-    expect(report.totals).toEqual({ verified: 2, abstained: 2, mismatch: 1, missing: 0, duplicate: 0, extra: 0 });
+    expect(report.totals).toEqual({ verified: 2, abstained: 1, mismatch: 1, missing: 0, duplicate: 0, extra: 1 });
     expect(packet.readLabels).toHaveBeenCalledTimes(1);
   });
 
@@ -577,7 +597,7 @@ describe("sealed material proof, only public synthetic controls", () => {
     for (const ordered of [roles, [...roles].reverse()]) {
       const packet = seal([entry], [{ id: entry.id, result: stale }], undefined, {}, ordered);
       if (lifecycle === "revoked" || lifecycle === "inactive") {
-        expect(compareSealedMaterialProof(packet).totals).toMatchObject({ verified: 3, mismatch: 0, abstained: 2 });
+        expect(compareSealedMaterialProof(packet).totals).toMatchObject({ verified: 3, mismatch: 0, abstained: 1, extra: 1 });
       } else {
         // Executor time is not sealed by this comparator: a dated compatible
         // role is not declared safely out of the way even if today's run is.
@@ -610,7 +630,7 @@ describe("sealed material proof, only public synthetic controls", () => {
   it("does not double-count a typed pending child, but rejects the aggregate +1 before labels", async () => {
     const entry = input(1);
     const result = await mixed(entry);
-    const plain = result.affected[1];
+    const { pendingObservation: _typedChild, ...plain } = result.affected[0];
     for (let i = result.affected.length + result.observations.length; i < FOOD_CONTRACT_LIMITS.observations; i++) {
       result.affected.push({ ...plain, observationId: "public-extra-" + i });
     }
