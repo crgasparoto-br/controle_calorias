@@ -7,7 +7,7 @@ import { z } from "zod";
 import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_INPUT_TYPES, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
 import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
+import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, ExplicitPendingIncrement, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
 import { parseFoodMaterialObservationBatch, parseFoodObservation, type FoodMaterialObservation, type FoodObservation } from "./schemas";
 import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
@@ -237,6 +237,7 @@ type AffectedMaterial = Pick<FoodObservation, "observationId" | "surfaceSpan">;
 type MaterialProjection = {
   facts: Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>;
   withheld: Map<number, AffectedMaterial>;
+  pendingIncrements?: Map<string, ExplicitPendingIncrement>;
 };
 
 function buildObservation(
@@ -597,7 +598,7 @@ export async function comprehendFoodLanguage(
     entry.kind === "protected_token" && applicable(entry, request.ownerUserId, now),
   ).map(entry => entry.normalizedTerm);
   const syntax: MaterialSegmentSyntax[] | undefined = material ? [] : undefined;
-  const parsedParts = splitFoodSurface(request.rawText, units, protectedTerms, syntax);
+  const parsedParts = splitFoodSurface(request.rawText, units, protectedTerms, syntax, material?.pendingIncrements !== undefined);
   if (parsedParts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   const results: FoodObservation[] = [];
   for (let i = 0; i < parsedParts.length; i++) {
@@ -666,6 +667,10 @@ export async function comprehendFoodLanguage(
       if (!material.facts.has(observation.observationId) &&
           (ambiguousSibling || segmentSyntax.materialOperator)) {
         material.facts.set(observation.observationId, null);
+        if (segmentSyntax.pendingIncrement && !exactChoice.selected && exactChoice.competing.length === 0 &&
+            span?.start === part.start && span.end === part.end) {
+          material.pendingIncrements?.set(observation.observationId, segmentSyntax.pendingIncrement);
+        }
       }
     }
     const lexiconChoice = exactChoice.selected || exactChoice.competing.length
@@ -716,17 +721,51 @@ export async function comprehendFoodLanguage(
   return results;
 }
 
-export type FoodMaterialLanguageResult =
+type MaterialLanguageResult =
   | { ok: true; observations: FoodMaterialObservation[] }
   | { ok: false; reason: "unsupported-input" | "invalid-material-observations" }
   | { ok: false; reason: "unproven-material";
       affected: Pick<FoodObservation, "observationId" | "surfaceSpan">[];
       observations: FoodMaterialObservation[] };
 
+export type FoodMaterialLanguageResult = MaterialLanguageResult & { diagnosticProfile?: never };
+
+const pendingIncrementProfile = "r3-pending-increment-v1" as const;
+type PendingIncrementDiagnostic = { diagnosticProfile: typeof pendingIncrementProfile } & (
+  Exclude<MaterialLanguageResult, { reason: "unproven-material" }> |
+  { ok: false; reason: "unproven-material";
+    affected: (AffectedMaterial & { pendingObservation?: FoodMaterialObservation })[];
+    observations: FoodMaterialObservation[] }
+);
+
 /** Internal fixture/diagnostic producer. No provider, resolver or persistent
  * consumer accepts this shape. Unsupported clauses cannot yield a batch pass. */
 export async function comprehendFoodMaterialLanguage(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
+): Promise<FoodMaterialLanguageResult> {
+  return collectFoodMaterialLanguage(request, lexicon);
+}
+
+/** The explicitly selected diagnostic profile does not redefine legacy R3
+ * observations. Full canonical pending observations are confined to affected.
+ */
+export async function diagnoseFoodMaterialPendingIncrements(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore,
+): Promise<PendingIncrementDiagnostic> {
+  const pending = new Map<string, FoodMaterialObservation>();
+  const result = await collectFoodMaterialLanguage(request, lexicon, pending);
+  if (!("affected" in result)) return { ...result, diagnosticProfile: pendingIncrementProfile };
+  return { ...result, diagnosticProfile: pendingIncrementProfile,
+    affected: result.affected.map(row => {
+      const pendingObservation = pending.get(row.observationId);
+      return pendingObservation ? { ...row, pendingObservation } : row;
+    }),
+  };
+}
+
+async function collectFoodMaterialLanguage(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore,
+  pending?: Map<string, FoodMaterialObservation>,
 ): Promise<FoodMaterialLanguageResult> {
   const [textModality, transcriptModality] = FOOD_INPUT_TYPES;
   const modality = request.modality;
@@ -734,7 +773,9 @@ export async function comprehendFoodMaterialLanguage(
       request.locale != null && request.locale !== DEFAULT_FOOD_LOCALE) {
     return { ok: false, reason: "unsupported-input" };
   }
-  const material: MaterialProjection = { facts: new Map(), withheld: new Map() };
+  const material: MaterialProjection = {
+    facts: new Map(), withheld: new Map(), pendingIncrements: pending ? new Map() : undefined,
+  };
   const base = await comprehendFoodLanguage({
     ...request, shouldInterpretResidual: undefined, interpreterVersion: undefined,
   }, lexicon, undefined, material);
@@ -745,7 +786,35 @@ export async function comprehendFoodMaterialLanguage(
   const candidates = base.flatMap<FoodMaterialObservation>(observation => {
     const fact = material.facts.get(observation.observationId);
     if (fact === null) {
-      affected.push({ observationId: observation.observationId, surfaceSpan: observation.surfaceSpan });
+      const { observationId, surfaceSpan } = observation;
+      affected.push({ observationId, surfaceSpan });
+      const increment = material.pendingIncrements?.get(observationId);
+      if (increment && pending) {
+        const claimId = observationId + ":material";
+        const operatorEvidenceId = claimId + ":operator";
+        const amountId = claimId + ":amount";
+        const evidence = {
+          origin: modality === transcriptModality ? "transcription" as const : "text" as const,
+          confidence: request.transcriptionConfidence ?? null, verified: false, sourceId: null,
+        };
+        pending.set(observationId, {
+          ...observation, modality, schemaVersion: FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION,
+          normalizedInput: null, identityHints: emptyIdentity(), quantityHints: emptyQuantity(),
+          alternatives: [], normalizationPath: [], unresolvedReason: "unknown_surface",
+          evidence: [{
+            ...evidence, evidenceId: operatorEvidenceId, field: "material.increment", value: increment.operator.text,
+            unit: null, anchor: anchor(request.sourceRef, { start: increment.operator.start, end: increment.operator.end }),
+          }, {
+            ...evidence, evidenceId: amountId, field: "material.amount", value: increment.value, unit: increment.unit,
+            anchor: anchor(request.sourceRef, increment.measureSpan),
+          }],
+          materialClaims: [{
+            kind: "increment", claimId, operatorEvidenceId, ingredient: null, target: null,
+            binding: { status: "unresolved", reason: "owner_unknown", candidateObservationIds: [] },
+            unresolvedAmount: { value: increment.value, unit: increment.unit, evidenceId: amountId },
+          }],
+        });
+      }
       return []; // Never expose a guessed food for the clause that needs clarification.
     }
     const candidate: FoodMaterialObservation = {
@@ -792,13 +861,20 @@ export async function comprehendFoodMaterialLanguage(
       }],
     }];
   });
-  const checked = parseFoodMaterialObservationBatch(candidates);
+  // Validate both partitions together for shared batch limits and distinct
+  // provenance; after validation emit evidence-only rows under affected only.
+  const checked = parseFoodMaterialObservationBatch(pending ? [...candidates, ...pending.values()] : candidates);
   if (!checked.ok) return { ok: false, reason: "invalid-material-observations" };
+  if (pending) {
+    pending.clear();
+    for (const row of checked.value.slice(candidates.length)) pending.set(row.observationId, row);
+  }
+  const observations = pending ? checked.value.slice(0, candidates.length) : checked.value;
   return affected.length
     ? { ok: false, reason: "unproven-material",
       affected: affected.sort((left, right) => left.surfaceSpan.span!.start - right.surfaceSpan.span!.start),
-      observations: checked.value }
-    : { ok: true, observations: checked.value };
+      observations }
+    : { ok: true, observations };
 }
 
 function validate(input: FoodObservation): FoodObservation {

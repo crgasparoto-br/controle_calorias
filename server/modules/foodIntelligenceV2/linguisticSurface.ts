@@ -407,12 +407,20 @@ export type ExplicitIngredientNegation = {
   conflictingGovernedOwner?: Span;
 };
 
+export type ExplicitPendingIncrement = {
+  operator: Segment;
+  measureSpan: Span;
+  value: number;
+  unit: string;
+};
+
 export type MaterialSegmentSyntax = {
   measure: ExplicitIngredientMeasure | null;
   negation: ExplicitIngredientNegation | null;
   materialOperator: boolean;
   continuation: boolean;
   withheldScope?: Span;
+  pendingIncrement?: ExplicitPendingIncrement;
 };
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
@@ -422,6 +430,7 @@ export function splitFoodSurface(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [],
   protectedTerms: readonly string[] = [],
   material?: MaterialSegmentSyntax[],
+  capturePendingIncrements = false,
 ): Segment[] {
   // A comma before a recognized material attribute belongs to the prior food.
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
@@ -430,7 +439,7 @@ export function splitFoodSurface(
   // In the opt-in material grammar punctuation does not hide an operator.
   // Consult the same applicable S2 protected phrases with raw UTF-16 offsets.
   const rawOperators = material ? [...text.matchAll(
-    /(?<![\p{L}\p{M}\p{N}])(?:com|sem|mais)(?![\p{L}\p{M}\p{N}])/giu,
+    /(?<![\p{L}\p{M}\p{N}])(?:com|sem|(?<increment>mais))(?![\p{L}\p{M}\p{N}])/giu,
   )] : [];
   const operatorsIn = (part: Segment) => rawOperators.filter(match =>
     match.index >= part.start && match.index + match[0].length <= part.end &&
@@ -643,16 +652,21 @@ export function splitFoodSurface(
       if (part.end === block.end) terminalOrphans.add(blockIndex);
     }
   }
-  for (const i of terminalOrphans) {
-    const from = hardBlocks[i]!;
+  const deContinuationAfter = (i: number) => {
+    const from = hardBlocks[i];
     let next = i + 1;
     while (next < hardBlocks.length && !hardBlocks[next]) next++;
     const to = hardBlocks[next];
     // Do not rejoin lines or promote their meaning. Only an explicit 'de'
     // at the start of the next nonempty line block can share the omission;
     // a semicolon in the original gap still establishes independence.
-    if (to && /^de(?:[ \t]+|$)/iu.test(to.text) &&
-        /^[ \t\r]*\n[ \t\r\n]*$/u.test(text.slice(from.end, to.start))) {
+    return from && to && /^de(?:[ \t]+|$)/iu.test(to.text) &&
+      /^[ \t\r]*\n[ \t\r\n]*$/u.test(text.slice(from.end, to.start)) ? next : null;
+  };
+  for (const i of terminalOrphans) {
+    const next = deContinuationAfter(i);
+    if (next !== null) {
+      const to = hardBlocks[next]!;
       withheldBlocks.set(next, { start: to.start, end: to.end });
     }
   }
@@ -758,6 +772,35 @@ export function splitFoodSurface(
       };
     }
     const withheldScope = overBudgetParts.has(part) ? undefined : withheldBlocks.get(stopIndex);
+    let pendingIncrement: ExplicitPendingIncrement | undefined;
+    const incrementToken = op?.groups?.increment;
+    if (capturePendingIncrements && !withheldScope && !found && !negation && op &&
+        // The broad Unicode scanner can recognize case-folding lookalikes;
+        // this profile promises the literal Portuguese operator only.
+        incrementToken && /^[\x00-\x7f]+$/u.test(incrementToken) &&
+        op.index === part.start && !groupingDepthDelta[op.index] &&
+        block?.start === part.start && block.end === part.end &&
+        deContinuationAfter(stopIndex) === null) {
+      const operatorEnd = op.index + op[0].length;
+      const suffix = trimSpan(text, operatorEnd, part.end);
+      if (suffix && /^[ \t]+$/u.test(text.slice(operatorEnd, suffix.start))) {
+        const slots: FoodQuantitySourceSpans = {};
+        const amount = readQuantity(suffix.text, governedUnits, true, slots);
+        // The same reader must consume the whole explicit quantity: no
+        // trailing 'de', name, interpreted owner, or fallback implicit unit.
+        // This proof is text/transcription only: no promoted governed
+        // unit alias whose canonical meaning would need separate evidence.
+        if (amount.value !== null && amount.unit !== null && !amount.name && !amount.uncertain &&
+            !amount.governedAlias &&
+            slots.quantity?.start === 0 && slots.quantity.end === suffix.text.length) {
+          pendingIncrement = {
+            operator: { start: op.index, end: operatorEnd, text: op[0] },
+            measureSpan: { start: suffix.start, end: suffix.end },
+            value: amount.value, unit: amount.unit,
+          };
+        }
+      }
+    }
     const remainder = found?.remainder;
     const initial = remainder && found
       ? trimSpan(text, part.start, found.measure.ingredient.end) : part;
@@ -766,7 +809,7 @@ export function splitFoodSurface(
     // Until the soft-scope case has typed candidates, don't present another
     // unproved fragment in the same negation block as an independent food.
     material.push({ measure: found?.measure ?? null, negation,
-      materialOperator: operators.length > 0 || blockHasNegation, continuation, withheldScope });
+      materialOperator: operators.length > 0 || blockHasNegation, continuation, withheldScope, pendingIncrement });
     if (remainder) {
       parts.push(remainder);
       material.push({ measure: null, negation: null, materialOperator: true, continuation: true, withheldScope });
