@@ -5,16 +5,27 @@ import type { FoodEvidence, FoodObservation, FoodResolutionDecision } from "./sc
 import type { GovernedFoodMatch } from "./knowledgeRead";
 import { portionConversionEvidenceIds } from "./portionProvenance";
 
+function acceptedIdentityEvidence(previous: FoodResolutionDecision) {
+  const acceptedIds = new Set(previous.identity.evidenceIds);
+  return previous.evidence.filter(item => acceptedIds.has(item.evidenceId));
+}
+
+export function hasAcceptedGovernedVariant(
+  previous: FoodResolutionDecision, accepted = acceptedIdentityEvidence(previous),
+): boolean {
+  const { variantId } = previous.identity;
+  return variantId !== null && accepted.some(item =>
+    item.field === "variant.variantId" && item.value === variantId &&
+    item.verified && item.origin === "catalog");
+}
+
 export function canPreserveAcceptedIdentity(
   observation: FoodObservation, previous: FoodResolutionDecision,
 ): boolean {
   const identity = previous.identity;
   if (identity.canonicalName === null || observation.alternatives.length > 0) return false;
-  const acceptedIds = new Set(identity.evidenceIds);
-  const accepted = previous.evidence.filter(item => acceptedIds.has(item.evidenceId));
-  const governedVariant = identity.variantId !== null && accepted.some(item =>
-    item.field === "variant.variantId" && item.value === identity.variantId &&
-    item.verified && item.origin === "catalog");
+  const accepted = acceptedIdentityEvidence(previous);
+  const governedVariant = hasAcceptedGovernedVariant(previous, accepted);
   const acceptedName = (value: string | null): boolean => value === null ||
     normalizeFoodName(value) === normalizeFoodName(identity.canonicalName ?? "") ||
     (governedVariant && accepted.some(item =>

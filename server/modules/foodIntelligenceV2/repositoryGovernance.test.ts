@@ -101,6 +101,7 @@ describe("B2 actual repository governed read", () => {
       variantId: 22, governanceStatus: "verified",
       sourceReference: mapping.sourceUrl,
     });
+    expect(result).not.toHaveProperty("knowledgeValidity");
     const query = new MySqlDialect().sqlToQuery(select.mock.results[0].value.where.mock.calls[0][0]);
     expect(query.sql).toContain("`user_food_aliases`.`user_id` = ?");
     expect(query.sql).toContain("`user_food_aliases`.`normalized_alias` = ?");

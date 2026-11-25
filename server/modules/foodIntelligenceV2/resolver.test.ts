@@ -469,6 +469,138 @@ describe("#1305 Food Intelligence V2 — núcleo", () => {
     expect(store.readLocal).toHaveBeenCalledTimes(1);
   });
 
+  describe("releitura autoritativa de identidade por alias pessoal", () => {
+    const old = { ...context, now: new Date("2026-07-01T00:00:00.000Z") };
+    const later = { ...context, now: new Date("2026-07-01T00:01:00.000Z") };
+    const name = "meu lanche";
+    const barcode = "7891234500000";
+    const miss = { kind: "miss", reason: "not_found" } as const;
+    function personalInput(withBarcode = false) {
+      const input = buildFoodObservationFixture({ identityHints: { foodName: name, barcode: withBarcode ? barcode : null } });
+      input.evidence[0].value = name;
+      return input;
+    }
+    function reply() {
+      return buildFoodObservationFixture({ identityHints: { foodName: null },
+        quantityHints: { value: null, unit: null, servingText: null }, evidence: [] });
+    }
+    const personalMatch = { ...match, matchingEvidence: "personal_alias" as const, matchedBrand: "Marca de teste" };
+
+    it("relê a superfície e o dono exatos sem herdar como explícita a marca derivada", async () => {
+      const initial = await resolveFoodObservation(personalInput(), old, fakeStore(personalMatch));
+      expect(initial.nextAction).toBe("propose");
+      expect(initial.knowledgeValidity).toBeUndefined();
+      expect(initial.evidence).toEqual(expect.arrayContaining([expect.objectContaining({ origin: "memory", value: name })]));
+      const frozen = JSON.stringify(initial);
+      const continued = fakeStore(personalMatch);
+      const current = await resolveFoodObservation(reply(), { ...later, previousDecision: JSON.parse(frozen) }, continued);
+      expect(continued.readLocal).toHaveBeenCalledWith(expect.objectContaining({
+        normalizedName: name, userId: context.userId, brand: null,
+      }));
+      expect(current.nextAction).toBe("propose");
+      expect(current.identity).toEqual(expect.objectContaining({ variantId: initial.identity.variantId,
+        brand: personalMatch.matchedBrand }));
+      expect(current.nutrition).toEqual(initial.nutrition);
+      expect(JSON.stringify(initial)).toBe(frozen);
+    });
+
+    it.each(["miss", "unavailable", "reassigned", "cached_external"] as const)(
+      "não revive prova e macros pessoais no estado %s, mesmo com selo V2 antigo válido",
+      async failure => {
+        const initial = await resolveFoodObservation(personalInput(), old, fakeStore(personalMatch));
+        // Model the historical durable format, which used to stamp personal lookup.
+        const legacy = { ...initial, knowledgeValidity: match.knowledgeValidity };
+        const frozen = JSON.stringify(legacy);
+        const store = fakeStore(failure === "reassigned" ? { ...personalMatch, variantId: 991 } : miss);
+        if (failure === "unavailable") vi.mocked(store.readLocal).mockRejectedValue(new Error("unavailable"));
+        if (failure === "cached_external") vi.mocked(store.readPendingEvidence).mockResolvedValue({
+          nutrition: match.nutrition, sourceId: match.sourceId, sourceReference: match.sourceReference,
+        });
+        const current = await resolveFoodObservation(reply(), { ...later, previousDecision: JSON.parse(frozen) }, store);
+        expect(store.readLocal).toHaveBeenCalledTimes(1);
+        expect(current.nextAction).toBe(failure === "unavailable" ? "retry" : "clarify");
+        if (failure === "reassigned") expect(current.reasonCodes).toContain("source_conflict");
+        expect(current.identity.variantId).toBeNull();
+        expect(current.nutrition.consumed).toBeNull();
+        expect(current.quantity.grams).toBeNull();
+        expect(current.knowledgeValidity).toBeUndefined();
+        expect(current.evidence.some(item => item.origin === "memory")).toBe(false);
+        expect(store.stagePendingEvidence).not.toHaveBeenCalled();
+        expect(JSON.stringify(legacy)).toBe(frozen);
+      },
+    );
+
+    it("descarta contexto pessoal de outro titular e entrega identidade atual explícita à B2", async () => {
+      const initial = await resolveFoodObservation(personalInput(), old, fakeStore(personalMatch));
+      const other = fakeStore(miss);
+      const result = await resolveFoodObservation(reply(), { ...later, userId: 17, previousDecision: initial }, other);
+      expect(other.readLocal).not.toHaveBeenCalled();
+      expect(result.identity.variantId).toBeNull();
+      expect(result.nutrition.consumed).toBeNull();
+      const ownTurn = buildFoodObservationFixture({ identityHints: { foodName: "presunto" } });
+      ownTurn.evidence[0].value = "presunto";
+      ownTurn.surfaceSpan.sourceRef = "another-explicit-turn";
+      for (const item of [...ownTurn.evidence, ...ownTurn.normalizationPath]) {
+        if (item.anchor) item.anchor.sourceRef = ownTurn.surfaceSpan.sourceRef;
+      }
+      const independentlyChosen = fakeStore({ ...match, variantName: "Presunto", variantId: 108, matchedBrand: undefined,
+        portions: match.portions.map(portion => ({ ...portion, variantId: 108 })) });
+      const explicit = await resolveFoodObservation(ownTurn, { ...later, previousDecision: initial }, independentlyChosen);
+      expect(independentlyChosen.readLocal).toHaveBeenCalledWith(expect.objectContaining({ normalizedName: "presunto", brand: null }));
+      expect(explicit.nextAction).toBe("propose");
+      expect(explicit.identity.variantId).toBe(108);
+    });
+
+    it.each([false, true])("relê nome pessoal junto com barcode, inclusive snapshot legado=%s", async legacy => {
+      const previous = await resolveFoodObservation(personalInput(true), old, fakeStore({
+        ...match, matchingEvidence: "barcode", matchedBarcode: barcode, barcodeNameRequiresPersonalAlias: true,
+      }));
+      expect(previous.nextAction).toBe("propose");
+      expect(previous.knowledgeValidity).toBeUndefined();
+      expect(previous.evidence).toEqual(expect.arrayContaining([expect.objectContaining({ origin: "memory", value: name })]));
+      const before = legacy ? {
+        ...previous, knowledgeValidity: match.knowledgeValidity, evidence: previous.evidence.map(item =>
+          item.origin === "memory" ? { ...item, origin: "catalog" as const } : item),
+      } : previous;
+      const store = fakeStore({ kind: "conflict", reason: "multiple_identities" });
+      const after = await resolveFoodObservation(reply(), { ...later, previousDecision: before }, store);
+      expect(store.readLocal).toHaveBeenCalledWith(expect.objectContaining({ normalizedName: name, barcode, userId: context.userId }));
+      expect(after.nextAction).toBe("clarify");
+      expect(after.identity.variantId).toBeNull();
+      expect(after.nutrition.consumed).toBeNull();
+    });
+
+    it("não troca nome de um snapshot provisório legado sem prova de busca por variante ou barcode", async () => {
+      const uncertain = await resolveFoodObservation(personalInput(true), old, fakeStore({
+        ...match, governanceStatus: "provisional", matchingEvidence: "barcode", matchedBarcode: barcode,
+      }));
+      expect(uncertain.identity.variantId).toBe(match.variantId);
+      expect(uncertain.evidence.filter(item => item.anchor.sourceRef === "food-lookup:" + uncertain.decisionId)).toHaveLength(0);
+      const reopened = fakeStore(match);
+      const current = await resolveFoodObservation(reply(), { ...later, previousDecision: uncertain }, reopened);
+      expect(reopened.readLocal).not.toHaveBeenCalled();
+      expect(current.identity.variantId).toBeNull();
+      expect(current.nutrition.consumed).toBeNull();
+    });
+
+    it("mantém fast path de variante global e código sem nome independente", async () => {
+      const global = fakeStore(match);
+      const initial = await resolveFoodObservation(buildFoodObservationFixture(), old, global);
+      expect(initial.knowledgeValidity).toBeDefined();
+      const next = await resolveFoodObservation(reply(), { ...later, previousDecision: initial }, global);
+      expect(global.readLocal).toHaveBeenCalledTimes(1);
+      expect(next.nextAction).toBe("propose");
+      const barcodeOnly = fakeStore({ ...match, matchingEvidence: "barcode", matchedBarcode: barcode });
+      const barcodeInput = buildFoodObservationFixture({ identityHints: { foodName: null, barcode } });
+      barcodeInput.evidence = barcodeInput.evidence.slice(1);
+      const independent = await resolveFoodObservation(barcodeInput, old, barcodeOnly);
+      expect(independent.nextAction).toBe("propose");
+      const continued = await resolveFoodObservation(reply(), { ...later, previousDecision: independent }, barcodeOnly);
+      expect(continued.nextAction).toBe("propose");
+      expect(barcodeOnly.readLocal).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("continuação no limite de evidências", () => {
     function classifications(turn: number, count: number, isFood = true) {
       const seed = buildFoodObservationFixture();

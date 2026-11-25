@@ -167,18 +167,20 @@ describe("A-001: commercial proof through the actual repository", () => {
   });
 });
 
-describe("A-002: accepted governed identities remain monotonic", () => {
-  it.each(["personal_alias", "global_alias", "generic_family", "barcode"] as const)(
+describe("A-002: only continuously eligible proof remains authoritative", () => {
+  it.each(["global_alias", "generic_family", "barcode"] as const)(
     "preserves %s through serialization, equivalent names and database unavailability", async mode => {
       installKnowledge(mode);
       const store = createFoodV2KnowledgeRepository();
       const code = mode === "barcode" ? barcode : null;
-      const original = await resolveFoodObservation(observation("pao", null, code), context, store);
+      const original = await resolveFoodObservation(observation(code ? null : "pao", null, code), context, store);
       expect(original.status).toBe("resolved");
       const previous = JSON.parse(JSON.stringify(original)) as typeof original;
       const frozen = JSON.stringify(previous);
       vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
-      for (const name of ["pao", " PAO ", "Pao de forma", null]) {
+      // A barcode without a name never needed alias concordance. Adding a
+      // name later is a new assertion, not a right to reuse the old result.
+      for (const name of code ? [null] : ["pao", " PAO ", "Pao de forma", null]) {
         const current = await resolveFoodObservation(observation(name, null, code),
           { ...context, previousDecision: previous }, store);
         expect(current.status).toBe("resolved");
@@ -194,19 +196,50 @@ describe("A-002: accepted governed identities remain monotonic", () => {
     },
   );
 
-  it("records an accepted alias even when observation identity evidence is absent", async () => {
+  it.each(["personal_alias", "barcode"] as const)(
+    "requires a current read for %s when the saved name may depend on personal confirmation", async mode => {
+      installKnowledge(mode);
+      const store = createFoodV2KnowledgeRepository();
+      const code = mode === "barcode" ? barcode : null;
+      const original = await resolveFoodObservation(observation("pao", null, code), context, store);
+      expect(original.status).toBe("resolved");
+      const serialized = JSON.stringify(original);
+      const previous = JSON.parse(serialized);
+      vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
+      const after = await resolveFoodObservation(observation(null, null, code),
+        { ...context, previousDecision: previous }, store);
+      expect(after.nextAction).toBe("retry");
+      expect(after.identity.variantId).toBeNull();
+      expect(after.nutrition.consumed).toBeNull();
+      expect(after.knowledgeValidity).toBeUndefined();
+      expect(parseFoodResolutionDecision(after).ok).toBe(true);
+      expect(JSON.stringify(previous)).toBe(serialized);
+      expect(getDb).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("rechecks the exact accepted alias even when observation identity evidence is absent", async () => {
     installKnowledge("personal_alias");
     const seed = observation();
     const input = { ...seed, evidence: seed.evidence.filter(item => item.field.startsWith("quantity.")) };
     const store = createFoodV2KnowledgeRepository();
     const original = await resolveFoodObservation(input, context, store);
     expect(original.status).toBe("resolved");
-    vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
-    const current = await resolveFoodObservation(input, { ...context, previousDecision: original }, store);
+    installKnowledge("personal_alias");
+    const read = vi.spyOn(store, "readLocal");
+    const current = await resolveFoodObservation(observation(null), { ...context, previousDecision: original }, store);
+    expect(read).toHaveBeenCalledWith(expect.objectContaining({ normalizedName: "pao", brand: null, userId: context.userId }));
     expect(current.status).toBe("resolved");
-    expect(current.nutrition).toEqual(original.nutrition);
+    expect(current.nutrition).toEqual({ ...original.nutrition, evidenceIds: expect.any(Array) });
+    expect(current.nutrition.evidenceIds).toHaveLength(original.nutrition.evidenceIds.length);
+    expect(current.nutrition.evidenceIds.every(id => current.evidence.some(item => item.evidenceId === id))).toBe(true);
     expect(parseFoodResolutionDecision(current).ok).toBe(true);
-    expect(getDb).toHaveBeenCalledTimes(1);
+    vi.mocked(getDb).mockRejectedValue(new Error("temporarily unavailable"));
+    const failed = await resolveFoodObservation(input, { ...context, previousDecision: current }, store);
+    expect(failed.nextAction).toBe("retry");
+    expect(failed.identity.variantId).toBeNull();
+    expect(failed.nutrition.consumed).toBeNull();
+    expect(getDb).toHaveBeenCalledTimes(3);
   });
 
   it("does not hide new name, brand, barcode, qualifier or evidence assertions behind an alias", async () => {
