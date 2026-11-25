@@ -86,16 +86,55 @@ export function readFoodFilesAtGitRef(ref: string, cwd: string): FoodArchitectur
       ref.includes("..") || ref.includes("//")) {
     throw new Error("Invalid baseline Git ref");
   }
+  const maxBlobBytes = 32 * 1024 * 1024;
   const git = (...args: string[]) => execFileSync("git", args, {
-    cwd, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
+    cwd, encoding: "utf8", maxBuffer: maxBlobBytes,
   });
+  // Keep the historical pathname enumeration, ordering and eligibility. Only
+  // change how the selected immutable objects are read, not which paths count.
   const names = git("ls-tree", "-r", "--name-only", ref)
     .split(/\r?\n/).filter(isFoodArchitectureSourcePath);
   if (!names.length) throw new Error("Baseline Git tree contains no production TypeScript files: " + ref);
-  return names.map(file => ({
-    path: file,
-    content: git("show", ref + ":" + file),
-  }));
+  const result: FoodArchitectureFile[] = [];
+  const readOne = (file: string) => ({ path: file, content: git("show", ref + ":" + file) });
+  for (let i = 0; i < names.length; i += 128) {
+    const batch = names.slice(i, i + 128);
+    let raw: Buffer;
+    try {
+      raw = execFileSync("git", ["cat-file", "--batch"], {
+        cwd, input: batch.map(file => ref + ":" + file).join("\n") + "\n",
+        maxBuffer: 2 * maxBlobBytes,
+      });
+    } catch (error) {
+      // A batch-wide memory limit must not reject individually readable blobs.
+      // Any other Git error is blocking; no fallback for unavailable evidence.
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOBUFS") throw error;
+      for (const file of batch) result.push(readOne(file));
+      continue;
+    }
+    let offset = 0;
+    for (const file of batch) {
+      const end = raw.indexOf(10, offset);
+      // Unlike "ascii", latin1 preserves high bits for the strict header regex.
+      const header = end < 0 ? null :
+        /^([a-f0-9]{40}|[a-f0-9]{64}) ([a-z]+) (\d+)$/u.exec(raw.toString("latin1", offset, end));
+      if (!header) throw new Error("Invalid or missing baseline Git object: " + ref + ":" + file);
+      const size = Number(header[3]);
+      const bodyEnd = end + 1 + size;
+      if (!Number.isSafeInteger(size) || raw[bodyEnd] !== 10) {
+        throw new Error("Truncated baseline Git object: " + ref + ":" + file);
+      }
+      // For non-blobs (such as Git links) or oversized raw entries, keep
+      // git show's formatting and per-call buffer behavior rather than
+      // treating raw object size as the size of its rendered output.
+      result.push(header[2] === "blob" && size <= maxBlobBytes
+        ? { path: file, content: raw.toString("utf8", end + 1, bodyEnd) }
+        : readOne(file));
+      offset = bodyEnd + 1;
+    }
+    if (offset !== raw.length) throw new Error("Unexpected extra baseline Git objects: " + ref);
+  }
+  return result;
 }
 
 export function findFoodBaselineDelta(
