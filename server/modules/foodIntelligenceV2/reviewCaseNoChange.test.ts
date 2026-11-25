@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { int, mysqlTable, varchar } from "drizzle-orm/mysql-core";
 import { createPool } from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { foodReviewEvents } from "../../../drizzle/food-intelligence-v2-schema";
+import { foodReviewCases, foodReviewEvents } from "../../../drizzle/food-intelligence-v2-schema";
 import { applyAssignedFoodReview } from "./reviewCaseNoChange";
 
 const actor = 101;
@@ -54,6 +54,31 @@ describe("E1 sem efeito material: fronteira inativa do comando", () => {
     expect(lockFoodReviewGrant).not.toHaveBeenCalled();
     expect(db.transaction).not.toHaveBeenCalled();
   });
+  it("recusa alvo fora do caso bloqueado sem consultar grant ou recibo", async () => {
+    type Db = Parameters<typeof applyAssignedFoodReview>[0]["db"];
+    type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+    const from = vi.fn((table: unknown) => {
+      if (table !== foodReviewCases) throw new Error("Unexpected read in wrong-target path.");
+      return { where: () => ({ limit: () => ({
+        for: async () => [{
+          status: "open", outcome: null, closedAt: null,
+          reviewCycle: 1, stateVersion: 3, assignedReviewerId: actor,
+          targetArtifactType: target.artifactType, targetArtifactId: target.artifactId,
+          targetRevision: target.revision, targetContentHash: target.contentHash,
+        }],
+      }) }) };
+    });
+    const db: Db = { transaction: work => work({ select: () => ({ from }) } as unknown as Tx) };
+    const lockFoodReviewGrant = vi.fn<FoodLock>(async (_read, scope) => ({
+      ...scope, authority: "food_review", status: "active", policyVersion: "fixture:policy",
+    }));
+    expect(await applyAssignedFoodReview({ db, lockFoodReviewGrant }, actor, {
+      ...command, target: { ...target, revision: target.revision + 1 },
+    })).toEqual({ kind: "denied" });
+    expect(from.mock.calls).toEqual([[foodReviewCases]]);
+    expect(lockFoodReviewGrant).not.toHaveBeenCalled();
+  });
+
 });
 
 // Only the dedicated GitHub Actions service can opt in. Never read the
@@ -360,7 +385,7 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     const input = await seed("same-key");
     const close = (candidate = input, actorId = reviewer) => apply(candidate, actorId);
     expect(await close({ ...input, target: { ...target, revision: target.revision + 1 } }))
-      .toEqual({ kind: "conflict" });
+      .toEqual({ kind: "denied" });
     expect(await close({ ...input, expectedStateVersion: 2 })).toEqual({ kind: "conflict" });
     const [first, second] = await Promise.all([close(), close()]);
     expect(first.kind).toBe("applied");
@@ -372,6 +397,23 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
       .toEqual({ kind: "denied" });
     expect(await close({ ...input, expectedStateVersion: 2 })).toEqual({ kind: "conflict" });
     expect((await read(input.caseId)).events).toHaveLength(1);
+  });
+
+  it("nega o alvo anterior identicamente com e sem recibo após mudança real do alvo", async () => {
+    const original = await seed("retargeted");
+    expect((await apply(original)).kind).toBe("applied");
+    // Simulate a distinct, already-authorized new cycle/target as fixture
+    // setup; this review seam does not perform that operation.
+    await pool.execute(`UPDATE food_review_cases
+      SET status='open', outcome=NULL, closed_at=NULL, review_cycle=2, state_version=5,
+        target_revision=target_revision+1 WHERE id=?`, [original.caseId]);
+    expect(await apply(original)).toEqual({ kind: "denied" });
+    expect(await apply({ ...original, requestKey: "fixture:no-receipt-for-old-target" }))
+      .toEqual({ kind: "denied" });
+    expect(await read(original.caseId)).toMatchObject({
+      current: { status: "open", cycle: 2, version: 5 },
+      events: [{ cycle: 1, requestKey: original.requestKey }],
+    });
   });
 
   it("entre duas chaves concorrentes só uma encerra a versão corrente", async () => {

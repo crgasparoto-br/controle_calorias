@@ -172,6 +172,9 @@ export async function applyAssignedFoodReview(
         target: Object.freeze(readTarget(current)),
       });
       if (!lockedScopeSchema.safeParse(scope).success) throw new TransactionInvariantFailure();
+      // A different target is outside the locked case's authority, even if
+      // an old command has a receipt. Reject before looking up that receipt.
+      if (!sameTarget(scope.target, command.target)) return { kind: "denied" };
       // Do not hand the authority adapter a writer or a second connection.
       const read: GrantRead = Object.freeze({ select: tx.select.bind(tx) });
       const policy = grantPolicy(await dependencies.lockFoodReviewGrant(read, scope), scope);
@@ -195,10 +198,8 @@ export async function applyAssignedFoodReview(
       )).limit(1).for("update");
 
       if (previous) {
-        // The grant is for the presently locked case/target. Do not expose an
-        // older target's receipt under a grant for another target. A newer
-        // cycle/version alone is OK for same authenticated/designated actor.
-        if (!sameTarget(scope.target, command.target)) return { kind: "denied" };
+        // A newer cycle/version alone is OK for the same authorized and
+        // designated reviewer, provided the original command is unchanged.
         if (previous.requestKey !== command.requestKey || previous.requestHash !== digest ||
             previous.actorId !== actorId || previous.action !== command.action ||
             !receiptStateSchema.safeParse(previous).success ||
@@ -213,8 +214,7 @@ export async function applyAssignedFoodReview(
       if ((current.status !== "open" && (isStart || current.status !== "in_review")) ||
           current.outcome !== null || current.closedAt !== null ||
           current.reviewCycle !== command.reviewCycle ||
-          current.stateVersion !== command.expectedStateVersion ||
-          !sameTarget(scope.target, command.target)) {
+          current.stateVersion !== command.expectedStateVersion) {
         return { kind: "conflict" };
       }
       const [update] = await tx.update(foodReviewCases).set({
