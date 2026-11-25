@@ -27,6 +27,11 @@ const manifestSchema = z.strictObject({
   labelsSha256: digest,
   caseCount: z.number().int().positive(),
 });
+const negationManifestSchema = manifestSchema.omit({ lexiconRevision: true }).extend({
+  studyKind: z.literal("r3-negation-v1"),
+  lexiconRevision: opaqueId(200),
+  lexiconSha256: digest,
+});
 const receiptSchema = z.strictObject({
   schemaVersion: version,
   studyId: opaque,
@@ -189,9 +194,11 @@ interface PinnedInputs {
   /** Git HEAD checked by the operator from the trusted checkout. */
   parserCheckoutSha: string;
 }
-function readPinnedInputs(config: PinnedInputs) {
+function readPinnedInputs<T extends Omit<z.infer<typeof manifestSchema>, "lexiconRevision">>(
+  config: PinnedInputs, schema: z.ZodType<T>,
+) {
   verifyDigest(config.manifest, config.pinnedManifestSha256, "manifest");
-  const manifest = checkedJson(config.manifest, manifestSchema, "manifest");
+  const manifest = checkedJson(config.manifest, schema, "manifest");
   if (manifest.parserSha !== config.parserCheckoutSha) fail("parser-checkout-mismatch");
   verifyDigest(config.inputs, manifest.inputsSha256, "inputs");
   const inputs = checkedJson(config.inputs, inputsSchema, "inputs");
@@ -219,7 +226,7 @@ function readPinnedInputs(config: PinnedInputs) {
 
 /** Runner-side, has no label/receipt parameter. Only these fields go to the subject. */
 export function verifiedC1bReservedInputs(config: PinnedInputs) {
-  return readPinnedInputs(config).inputs.map(({ id, text, modality }) => ({
+  return readPinnedInputs(config, manifestSchema).inputs.map(({ id, text, modality }) => ({
     id, rawText: text, modality, sourceRef: "c1b:" + id,
   }));
 }
@@ -235,9 +242,10 @@ interface SealedStudy extends PinnedInputs {
   readLabels: () => Bytes;
 }
 
-/** Evaluate the sealed study after capture. No runtime writes, promotion, or admission. */
-export function compareSealedC1bReservedStudy(config: SealedStudy) {
-  const { manifest, inputs, byId } = readPinnedInputs(config);
+function capturePreflight<T extends Omit<z.infer<typeof manifestSchema>, "lexiconRevision">>(
+  config: SealedStudy, schema: z.ZodType<T>,
+) {
+  const { manifest, inputs, byId } = readPinnedInputs(config, schema);
   if (manifest.comparatorSha !== config.comparatorCheckoutSha) fail("comparator-checkout-mismatch");
   verifyDigest(config.receipt, config.pinnedReceiptSha256, "receipt");
   const receipt = checkedJson(config.receipt, receiptSchema, "receipt");
@@ -251,11 +259,69 @@ export function compareSealedC1bReservedStudy(config: SealedStudy) {
     entry.id, validatedResult(captured.get(entry.id)!.result, entry),
   ]));
 
-  // The exact capture is now snapshotted; only the evaluator requests labels.
-  const labelBytes = config.readLabels();
-  verifyDigest(labelBytes, manifest.labelsSha256, "labels");
-  const labels = uniqueById(checkedJson(labelBytes, labelsSchema, "labels").rows, "labels");
+  return { manifest, inputs, byId, receipt, validated };
+}
+
+function pinnedLabels<T extends { rows: { id: string }[] }>(
+  config: SealedStudy, pinned: string, byId: Map<string, unknown>, schema: z.ZodType<T>,
+): Map<string, T["rows"][number]> {
+  // Only the evaluator requests labels; snapshots and pins have already passed.
+  const bytes = config.readLabels();
+  verifyDigest(bytes, pinned, "labels");
+  const labels = uniqueById<T["rows"][number]>(checkedJson(bytes, schema, "labels").rows, "labels");
   sameIds(byId, labels, "labels");
+  return labels;
+}
+
+interface NegationPinnedInputs extends PinnedInputs {
+  /** Exact bytes of the authorized synthetic lexicon, supplied separately, never a live data source. */
+  lexiconSnapshot: Bytes;
+}
+export interface SealedR3NegationStudy extends SealedStudy, NegationPinnedInputs {}
+
+/** Runner API strictly pinned to the specialized protocol, without a label capability. */
+export function verifiedR3NegationStudyInputs(config: NegationPinnedInputs) {
+  const { manifest, inputs } = readPinnedInputs(config, negationManifestSchema);
+  verifyDigest(config.lexiconSnapshot, manifest.lexiconSha256, "lexicon");
+  return {
+    lexiconRevision: manifest.lexiconRevision,
+    inputs: inputs.map(({ id, text, modality }) => ({ id, rawText: text, modality, sourceRef: "c1b:" + id })),
+  };
+}
+
+export function hasSourceUtf16Boundary(text: string, at: number): boolean {
+  return !(/[\uD800-\uDBFF]/u.test(text[at - 1] ?? "") && /[\uDC00-\uDFFF]/u.test(text[at] ?? ""));
+}
+
+export function evaluatePinnedR3NegationCapture<T extends { rows: { id: string }[] }>(
+  config: SealedR3NegationStudy, schema: z.ZodType<T>,
+) {
+  const { manifest, inputs, byId, receipt, validated } = capturePreflight(config, negationManifestSchema);
+  verifyDigest(config.lexiconSnapshot, manifest.lexiconSha256, "lexicon");
+  for (const input of inputs) {
+    const result = validated.get(input.id)!;
+    if (!("observations" in result)) continue;
+    const check = (where: FoodAnchor) => where.span !== null &&
+      hasSourceUtf16Boundary(input.text, where.span.start) &&
+      hasSourceUtf16Boundary(input.text, where.span.end);
+    for (const item of result.observations) {
+      if (item.lexiconRevision !== manifest.lexiconRevision) fail("outputs-lexicon-revision-mismatch");
+      if (![item.surfaceSpan, ...item.evidence.map(e => e.anchor), ...item.normalizationPath.map(e => e.anchor)].every(check)) {
+        fail("outputs-invalid-utf16-boundary");
+      }
+    }
+    if (!result.ok && result.affected.some(item => !check(item.surfaceSpan))) {
+      fail("outputs-invalid-utf16-boundary");
+    }
+  }
+  const labels = pinnedLabels(config, manifest.labelsSha256, byId, schema);
+  return { manifest, inputs, receipt, validated, labels };
+}
+
+/** Evaluate the sealed study after capture. No runtime writes, promotion, or admission. */
+export function compareSealedC1bReservedStudy(config: SealedStudy) {
+  const { manifest, inputs, byId, receipt, validated } = capturePreflight(config, manifestSchema);
+  const labels = pinnedLabels(config, manifest.labelsSha256, byId, labelsSchema);
   const cases: C1bCase[] = inputs.map(row => ({ ...row, facts: labels.get(row.id)!.facts }));
   cases.forEach(validateC1bReference);
   return {
