@@ -294,7 +294,12 @@ describe.runIf(Boolean(databaseUrl))("TiDB descartável: revogação explícita,
         return result;
       }, config),
     };
-    await expect(f.revoke(owner, f.issuer, conflictingTx)(f.input)).rejects.toThrow(/constraint|violate/i);
+    await expect(f.revoke(owner, f.issuer, conflictingTx)(f.input)).rejects.toMatchObject({
+      cause: {
+        errno: 3819,
+        sqlMessage: expect.stringContaining("Check constraint 'user_food_aliases_revocation_ck' is violated"),
+      },
+    });
     expect(await f.readAlias()).toEqual(row);
     expect((await f.observe(owner)).kind).toBe("match");
     expect(await f.revoke()(f.input)).toMatchObject({ kind: "revoked" });
