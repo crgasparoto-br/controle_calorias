@@ -529,6 +529,84 @@ describe("sealed material proof, only public synthetic controls", () => {
       });
     });
 
+  it.each([
+    ["ingredient-measured", " ou "], ["ingredient-measured", " e  "], ["ingredient-measured", ",   "],
+    ["independent-sibling", " ou "], ["independent-sibling", " e  "], ["independent-sibling", "/   "],
+  ] as const)("does not certify an entire but non-nominal owner slot (%s, %j)", async (kind, separator) => {
+    const nominal = "sopa de caldo", raw = nominal + (kind === "ingredient-measured" ? " com 4 g de alho" : "");
+    const original = input(1, raw), known = await capture(original);
+    if (!known.ok) throw new Error("expected positive compound owner");
+    const entry = { ...original, text: raw.replace(" de ", separator) };
+    const candidate = known.observations[0], forgedName = nominal.replace(" de ", separator);
+    const witness = candidate.evidence.find(e => e.field === "identity.foodName")!;
+    candidate.rawInput = entry.text;
+    candidate.identityHints.foodName = candidate.normalizedInput = forgedName.trim().replace(/\s+/gu, " ");
+    witness.value = forgedName;
+    expect(parseFoodMaterialObservationBatch(known.observations).ok).toBe(true);
+    const labels = [{ id: entry.id, facts: [{
+      kind, scope: at(entry.text, entry.text),
+      owner: { name: at(entry.text, forgedName), nameHint: candidate.identityHints.foodName, whole: { status: "absent" } },
+      ...(kind === "ingredient-measured" ? { ingredient: at(entry.text, "alho"),
+        amount: { value: 4, unit: "g", measure: at(entry.text, "4 g") } } : {}),
+    }] }];
+    const packet = seal([entry], [{ id: entry.id, result: known }], labels);
+    expect(() => compareSealedMaterialProof(packet)).toThrow("label-nominal-boundary");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+  });
+
+  const roleCycles = [
+    ["text", "unit_term", "active"], ["audio_transcript", "portion_term", "active"],
+    ["audio_transcript", "unit_term", "revoked"], ["text", "portion_term", "revoked"],
+    ["text", "unit_term", "inactive"], ["audio_transcript", "portion_term", "inactive"],
+    ["text", "unit_term", "dated"], ["audio_transcript", "portion_term", "dated"],
+  ] as const;
+  it.each(roleCycles)("checks nominal/unit competition by literal key (%s, %s, %s)", async (mode, kind, lifecycle) => {
+    const entry = input(1, publicText, mode);
+    const stale = await mixed(entry);
+    const extra = lex("Ánis", 95, {
+      kind, targetType: "canonical_term", targetRef: "copo",
+      status: lifecycle === "revoked" ? "revoked" : "verified",
+      current: lifecycle !== "inactive",
+      validTo: lifecycle === "dated" ? new Date("2026-01-01T00:00:00Z") : null,
+    });
+    const roles = [...snapshot, extra];
+    const live = await capture(entry, roles);
+    const liveNegation = "observations" in live && live.observations.some(row =>
+      row.materialClaims.some(claim => claim.kind === "negation"));
+    expect(liveNegation).toBe(lifecycle !== "active");
+    for (const ordered of [roles, [...roles].reverse()]) {
+      const packet = seal([entry], [{ id: entry.id, result: stale }], undefined, {}, ordered);
+      if (lifecycle === "revoked" || lifecycle === "inactive") {
+        expect(compareSealedMaterialProof(packet).totals).toMatchObject({ verified: 3, mismatch: 0, abstained: 2 });
+      } else {
+        // Executor time is not sealed by this comparator: a dated compatible
+        // role is not declared safely out of the way even if today's run is.
+        expect(() => compareSealedMaterialProof(packet)).toThrow("label-nominal-unit-role");
+      }
+      expect(packet.readLabels).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it.each(["owner-atom", "ingredient-atom", "sibling-atom"] as const)(
+    "applies the same role boundary to an atom inside a valid nominal link: %s", async which => {
+      const raw = "caldo de sopa com 4 g de pimenta do reino; suco de uva";
+      const entry = input(1, raw), live = await capture(entry);
+      const labels = [{ id: entry.id, facts: [
+        { kind: "ingredient-measured", scope: at(raw, "caldo de sopa com 4 g de pimenta do reino"),
+          owner: { name: at(raw, "caldo de sopa"), nameHint: "caldo de sopa", whole: { status: "absent" } },
+          ingredient: at(raw, "pimenta do reino"), amount: { value: 4, unit: "g", measure: at(raw, "4 g") } },
+        { kind: "independent-sibling", scope: at(raw, "suco de uva"),
+          owner: { name: at(raw, "suco de uva"), nameHint: "suco de uva", whole: { status: "absent" } } },
+      ] }];
+      const clean = seal([entry], [{ id: entry.id, result: live }], labels);
+      expect(compareSealedMaterialProof(clean).totals.verified).toBe(2);
+      const key = { "owner-atom": "sopa", "ingredient-atom": "reino", "sibling-atom": "uva" }[which];
+      const homonym = lex(key, 96, { kind: "unit_term", targetType: "canonical_term", targetRef: "copo" });
+      const collision = seal([entry], [{ id: entry.id, result: live }], labels, {}, [...snapshot, homonym]);
+      expect(() => compareSealedMaterialProof(collision)).toThrow("label-nominal-unit-role");
+      expect(collision.readLabels).toHaveBeenCalledTimes(1);
+    });
+
   it("does not double-count a typed pending child, but rejects the aggregate +1 before labels", async () => {
     const entry = input(1);
     const result = await mixed(entry);

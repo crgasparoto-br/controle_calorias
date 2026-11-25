@@ -272,10 +272,20 @@ const possibleGlobal = (row: LexicalRow) => row.locale === "pt-BR" && row.scope 
 const unconditional = (row: LexicalRow) => row.validFrom === null && row.validTo === null;
 const unitKind = (row: LexicalRow) => row.kind === "unit_term" || row.kind === "portion_term";
 
-function nominalStart(input: Input, scope: Span, gold: Owner, lexicon: readonly LexicalRow[]) {
-  const name = literal(input, gold.name);
-  if (name !== name.trim() ||
-      !/^\p{L}[\p{L}\p{M}\p{N}]*(?:[ \t'’\p{Pd}]+[\p{L}][\p{L}\p{M}\p{N}]*)*$/u.test(name)) fail("label-nominal-boundary");
+type LexicalGroups = ReadonlyMap<string, readonly LexicalRow[]>;
+function indexCompatibleRoles(rows: readonly LexicalRow[]): LexicalGroups {
+  const out = new Map<string, LexicalRow[]>();
+  for (const row of rows) {
+    if (!possibleGlobal(row)) continue;
+    const key = spelling(row.normalizedTerm);
+    const existing = out.get(key);
+    if (existing) existing.push(row);
+    else out.set(key, [row]);
+  }
+  return out;
+}
+
+function nominalStart(input: Input, scope: Span, gold: Owner, lexicon: LexicalGroups) {
   const wanted = gold.whole;
   const prefixStart = wanted.status === "absent" ? gold.name.start : wanted.serving.start;
   if (!decorations.test(input.text.slice(scope.start, prefixStart))) fail("label-nominal-boundary");
@@ -300,7 +310,7 @@ function nominalStart(input: Input, scope: Span, gold: Owner, lexicon: readonly 
   const suffix = input.text.slice(wanted.serving.end, prefix.end);
   const alias = suffix.trim();
   if (!alias || !/^[ \t]+\S/u.test(suffix) || recognizedUnit(alias.split(/[ \t]+/u, 1)[0]) !== null) fail("label-unit-conflict");
-  const candidates = lexicon.filter(row => unitKind(row) && possibleGlobal(row) && spelling(row.normalizedTerm) === spelling(alias));
+  const candidates = (lexicon.get(spelling(alias)) ?? []).filter(unitKind);
   if (candidates.some(row => !unconditional(row))) fail("label-unit-conflict");
   const represented = candidates.flatMap(row => {
     const unit = row.targetType === "canonical_term" && row.targetRef ? recognizedUnit(row.targetRef) : null;
@@ -311,36 +321,44 @@ function nominalStart(input: Input, scope: Span, gold: Owner, lexicon: readonly 
       JSON.stringify(represented.map(x => x.unit).sort()) !== JSON.stringify(expected)) fail("label-unit-conflict");
 }
 
-function uniqueNominalRole(name: string, lexicon: readonly LexicalRow[]) {
-  // The exact-name selector sees all compatible meanings before it checks
-  // the chosen role, including slang and same-target duplicates. This proof
-  // is global-only; a possible dated competitor cannot be discarded.
-  const group = lexicon.filter(row => !unitKind(row) && possibleGlobal(row) &&
-    spelling(row.normalizedTerm) === name);
-  const [row] = group;
-  return group.length === 1 && row.kind === "alias_surface" && row.targetType === "food_variant" &&
-    !!row.targetRef?.trim() && !row.requiresClarification && unconditional(row) ? row : null;
+function nominalRole(row: LexicalRow) {
+  return row.kind === "alias_surface" && row.targetType === "food_variant" &&
+    !!row.targetRef?.trim() && !row.requiresClarification && unconditional(row);
+}
+function uniqueNominalRole(name: string, lexicon: LexicalGroups) {
+  const group = lexicon.get(name) ?? [];
+  return group.length === 1 && nominalRole(group[0]) ? group[0] : null;
 }
 
-// Narrow reference profile, not an ingredient recognizer. The independent
-// rubric assigns the nominal role; this guard cannot infer food membership.
-// Only alphabetic atoms (combining marks permitted) without syntactic/unit
-// tokens are admitted. A measured target may have one simple nominal link.
+// Nominal witnesses, not an ingredient recognizer. Apply the same boundary
+// to owner, ingredient and sibling. Only a non-negated slot can use one
+// simple nominal link; plausible but undecidable spellings are out of scope.
 const nominalLink = /^(?:de|da|do|das|dos)$/u;
 const nonNominalAtom = /^(?:e|ou|nem|com|sem|mais|por|para|mas|que|se|zero|um|uma|uns|umas|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|mil|milhao|milhoes|meio|meia)$/u;
-function nominalTarget(raw: string, measured: boolean) {
+function nominalAtoms(raw: string, compound: boolean) {
   const words = raw.split(/[ \t]+/u);
   const atom = (word: string) => {
     const key = spelling(word);
     return /^\p{L}[\p{L}\p{M}]*$/u.test(word) &&
       !nominalLink.test(key) && !nonNominalAtom.test(key) && recognizedUnit(word) === null;
   };
-  return (words.length === 1 && atom(words[0])) ||
-    (measured && words.length === 3 && atom(words[0]) &&
-      nominalLink.test(spelling(words[1])) && atom(words[2]));
+  if (words.length === 1 && atom(words[0])) return [spelling(words[0])];
+  if (compound && words.length === 3 && atom(words[0]) &&
+      nominalLink.test(spelling(words[1])) && atom(words[2])) return [spelling(words[0]), spelling(words[2])];
+  return null;
+}
+function nominalAuthority(raw: string, atoms: string[], lexicon: LexicalGroups) {
+  const full = spelling(raw);
+  for (const key of new Set([full, ...atoms])) {
+    const group = lexicon.get(key) ?? [];
+    // No ranking by confidence, kind or id. A live unit homonym or dated
+    // interpretation cannot certify this narrow, time-independent food slot.
+    if (group.some(row => unitKind(row))) fail("label-nominal-unit-role");
+    if (group.length && (group.length > 1 || !nominalRole(group[0]))) fail("label-lexical-role");
+  }
 }
 
-function reference(input: Input, facts: Fact[], lexicon: readonly LexicalRow[]) {
+function reference(input: Input, facts: Fact[], lexicon: LexicalGroups) {
   const scopes = facts.map(x => x.scope).sort((a, b) => a.start - b.start);
   if (scopes.some((x, i) => !realSpan(input, x) || i > 0 && scopes[i - 1].end > x.start)) fail("label-scope");
   for (const f of facts) {
@@ -363,7 +381,11 @@ function reference(input: Input, facts: Fact[], lexicon: readonly LexicalRow[]) 
     if ("owner" in f) {
       // The authored label may fold pt-BR nominal spelling, never substitute
       // another name. This comparison does not ask the producer for identity.
-      if (spelling(literal(input, f.owner.name)) !== f.owner.nameHint) fail("label-nominal-name");
+      const raw = literal(input, f.owner.name);
+      if (spelling(raw) !== f.owner.nameHint) fail("label-nominal-name");
+      const atoms = nominalAtoms(raw, f.kind !== "negation-local");
+      if (!atoms) return fail("label-nominal-boundary");
+      nominalAuthority(raw, atoms, lexicon);
       nominalStart(input, f.scope, f.owner, lexicon);
       if (f.kind === "independent-sibling" &&
           (f.owner.name.end !== f.scope.end || !wholeHardScope(input, f.scope))) fail("label-nominal-boundary");
@@ -373,10 +395,12 @@ function reference(input: Input, facts: Fact[], lexicon: readonly LexicalRow[]) 
       const selected = uniqueNominalRole(f.owner.nameHint, lexicon);
       if (!selected || selected.id !== role.entryId || selected.targetRef !== role.variant) fail("label-lexical-role");
     }
-    if ((f.kind === "ingredient-measured" || f.kind === "negation-local") &&
-        !nominalTarget(literal(input, f.ingredient), f.kind === "ingredient-measured")) fail("label-target-nominal");
-    if (f.kind === "negation-local" && (!role || !uniqueNominalRole(spelling(literal(input, f.ingredient)), lexicon))) {
-      fail("label-lexical-role");
+    if (f.kind === "ingredient-measured" || f.kind === "negation-local") {
+      const raw = literal(input, f.ingredient);
+      const atoms = nominalAtoms(raw, f.kind === "ingredient-measured");
+      if (!atoms) return fail("label-target-nominal");
+      nominalAuthority(raw, atoms, lexicon);
+      if (f.kind === "negation-local" && (!role || !uniqueNominalRole(spelling(raw), lexicon))) fail("label-lexical-role");
     }
     // This positive arm is deliberately narrower than the parser. Both
     // literal connectors and the whole original clause must be proved;
@@ -534,7 +558,7 @@ export function compareSealedMaterialProof(config: SealedMaterialProof) {
   pin(config.outputs, receipt.outputsSha256, "outputs");
   const outputs = index(decode(config.outputs, outputsSchema, "outputs"), "outputs", inputs);
   const capture = new Map([...inputs].map(([k, row]) => [k, validated(row, manifest.lexiconRevision, outputs.get(k)!.result)]));
-  const lexicon = decode(config.lexiconSnapshot, z.array(lexicalRow).max(5000), "lexicon");
+  const lexicon = indexCompatibleRoles(decode(config.lexiconSnapshot, z.array(lexicalRow).max(5000), "lexicon"));
   const labelBytes = config.readLabels();
   pin(labelBytes, manifest.labelsSha256, "labels");
   const labels = index(decode(labelBytes, labelsSchema, "labels").rows, "labels", inputs);
