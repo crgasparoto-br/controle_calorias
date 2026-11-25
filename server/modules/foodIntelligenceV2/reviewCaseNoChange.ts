@@ -7,9 +7,15 @@ import {
   foodReviewEvents,
 } from "../../../drizzle/food-intelligence-v2-schema";
 
+import {
+  lockReviewedProfileApproval, profileApprovalEvidence, profileApprovalTarget,
+  type LockProfileApprovalEvidence,
+} from "./reviewProfileApproval";
+
 // Dormant storage seam for only the preassigned reviewer (§25 item 4).
 const start = "start_review";
 const close = "close_no_change";
+const approve = "approve_profile";
 const reason = "no_material_effect";
 const initialAssignment = "single_reviewer_initial_assignment";
 const existingAssignment = "existing_assignment";
@@ -32,6 +38,10 @@ const commandFields = {
 const commandSchema = z.discriminatedUnion("action", [
   z.strictObject({ ...commandFields, action: z.literal(start), reason: z.null() }),
   z.strictObject({ ...commandFields, action: z.literal(close), reason: z.literal(reason) }),
+  z.strictObject({
+    ...commandFields, action: z.literal(approve), reason: z.null(),
+    target: profileApprovalTarget, evidence: profileApprovalEvidence,
+  }),
 ]);
 const receiptStateSchema = z.discriminatedUnion("action", [
   z.object({
@@ -42,10 +52,14 @@ const receiptStateSchema = z.discriminatedUnion("action", [
     action: z.literal(close), reason: z.literal(reason), previousStatus: z.enum(["open", "in_review"]),
     newStatus: z.literal("closed"), outcome: z.literal("no_change"),
   }),
+  z.object({
+    action: z.literal(approve), reason: z.null(), previousStatus: z.literal("in_review"),
+    newStatus: z.literal("closed"), outcome: z.literal("approved"),
+  }),
 ]);
 const lockedScopeSchema = z.strictObject({
   actorUserId: dbInt,
-  action: z.enum([start, close]),
+  action: z.enum([start, close, approve]),
   caseId: dbInt,
   reviewCycle: dbInt,
   stateVersion: dbInt,
@@ -70,6 +84,7 @@ type Dependencies = {
   // Optional closed single-reviewer policy. This is trusted dependency
   // configuration, never inferred from an actor, command, or generic role.
   singleReviewerUserId?: number;
+  lockProfileApprovalEvidence?: LockProfileApprovalEvidence;
   // Trusted future Food authority: lock and validate the active permission
   // for this action in this very transaction, or return null. No permission
   // source is configured here. Repo-wide admin/billing flags are not grants.
@@ -81,10 +96,12 @@ type Dependencies = {
 
 type Transition =
   | { action: typeof start; status: "in_review"; outcome: null }
-  | { action: typeof close; status: "closed"; outcome: "no_change" };
+  | { action: typeof close; status: "closed"; outcome: "no_change" }
+  | { action: typeof approve; status: "closed"; outcome: "approved" };
 const transitions: { [Action in Transition["action"]]: Extract<Transition, { action: Action }> } = {
   [start]: { action: start, status: "in_review", outcome: null },
   [close]: { action: close, status: "closed", outcome: "no_change" },
+  [approve]: { action: approve, status: "closed", outcome: "approved" },
 };
 type Receipt = Transition & {
   eventId: number;
@@ -103,6 +120,8 @@ const requestHash = (actorId: string, command: Command) =>
     command.reviewCycle, command.expectedStateVersion, command.requestKey,
     command.target.artifactType, command.target.artifactId,
     command.target.revision, command.target.contentHash, command.reason,
+    ...("evidence" in command ? [command.evidence.toSorted((a, b) => a.id - b.id)
+      .map(item => [item.id, item.contentHash])] : []),
   ])).digest("hex");
 
 type StoredTarget = Pick<typeof foodReviewCases.$inferSelect,
@@ -149,6 +168,14 @@ export async function applyAssignedFoodReview(
     return { kind: "denied" };
   }
   const command = parsed.data;
+  const isApproval = "evidence" in command;
+  const evidenceAuthority = dependencies.lockProfileApprovalEvidence;
+  if (isApproval && (singleReviewer === undefined || typeof evidenceAuthority !== "function")) {
+    return { kind: "denied" };
+  }
+  const evidenceIdsJson = isApproval
+    ? JSON.stringify(command.evidence.map(entry => entry.id).sort((a, b) => a - b))
+    : null;
   const actorId = String(authenticatedActorUserId);
   const digest = requestHash(actorId, command);
   const stateVersion = command.expectedStateVersion + 1;
@@ -216,6 +243,7 @@ export async function applyAssignedFoodReview(
         targetRevision: foodReviewEvents.targetRevision,
         targetContentHash: foodReviewEvents.targetContentHash,
         policyVersion: foodReviewEvents.policyVersion,
+        evidenceIdsJson: foodReviewEvents.evidenceIdsJson,
       }).from(foodReviewEvents).where(and(
         eq(foodReviewEvents.caseId, command.caseId),
         eq(foodReviewEvents.reviewCycle, command.reviewCycle),
@@ -227,6 +255,7 @@ export async function applyAssignedFoodReview(
         // designated reviewer, provided the original command is unchanged.
         if (previous.requestKey !== command.requestKey || previous.requestHash !== digest ||
             previous.actorId !== actorId || previous.action !== command.action ||
+            previous.evidenceIdsJson !== evidenceIdsJson ||
             !receiptStateSchema.safeParse(previous).success ||
             !sameTarget(readTarget(previous), command.target) ||
             !dbInt.safeParse(previous.id).success ||
@@ -236,12 +265,21 @@ export async function applyAssignedFoodReview(
         return applied(previous.id, previous.policyVersion);
       }
 
-      if ((current.status !== "open" && (isStart || current.status !== "in_review")) ||
+      if ((isApproval && current.status !== "in_review") ||
+          (current.status !== "open" && (isStart || current.status !== "in_review")) ||
           current.outcome !== null || current.closedAt !== null ||
           current.reviewCycle !== command.reviewCycle ||
           current.stateVersion !== command.expectedStateVersion) {
         return { kind: "conflict" };
       }
+      const approveLockedProfile = isApproval && evidenceAuthority
+        ? await lockReviewedProfileApproval(tx, evidenceAuthority, {
+          actorUserId: authenticatedActorUserId, caseId: command.caseId,
+          reviewCycle: command.reviewCycle, stateVersion: command.expectedStateVersion,
+          target: command.target, evidence: command.evidence, policyVersion: policy,
+        }) : null;
+      if (isApproval && !approveLockedProfile) return { kind: "denied" };
+
       const [update] = await tx.update(foodReviewCases).set({
         status: transition.status, outcome: transition.outcome, stateVersion,
         closedAt: isStart ? null : sql`CURRENT_TIMESTAMP`,
@@ -262,11 +300,12 @@ export async function applyAssignedFoodReview(
       if (update?.affectedRows === 0) return { kind: "conflict" };
       if (update?.affectedRows !== 1) throw new TransactionInvariantFailure();
 
+      if (approveLockedProfile) await approveLockedProfile();
       const [event] = await tx.insert(foodReviewEvents).values({
         caseId: command.caseId, reviewCycle: command.reviewCycle,
         requestKey: command.requestKey, requestHash: digest,
         action: command.action, actorId, reason: assignInitially ? initialAssignment : command.reason,
-        policyVersion: policy,
+        policyVersion: policy, evidenceIdsJson,
         previousStatus: current.status, newStatus: transition.status, outcome: transition.outcome,
         targetArtifactType: command.target.artifactType,
         targetArtifactId: command.target.artifactId,

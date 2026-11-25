@@ -1,10 +1,18 @@
 import { and, eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { int, mysqlTable, varchar } from "drizzle-orm/mysql-core";
 import { createPool } from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { foodReviewCases, foodReviewEvents } from "../../../drizzle/food-intelligence-v2-schema";
 import { applyAssignedFoodReview } from "./reviewCaseNoChange";
+
+import { getDb } from "../../db";
+import { foodSources } from "../../../drizzle/schema";
+import { createFoodV2KnowledgeRepository } from "./repository";
+import type { LockProfileApprovalEvidence } from "./reviewProfileApproval";
+
+vi.mock("../../db", () => ({ getDb: vi.fn() }));
 
 const actor = 101;
 const target = {
@@ -29,6 +37,9 @@ describe("E1 sem efeito material: fronteira inativa do comando", () => {
   it.each([
     { ...command, actorUserId: actor },
     { ...command, action: "approve" },
+    { ...command, action: "approve_profile", reason: null, evidence: [] },
+    { ...command, action: "approve_profile", reason: null,
+      evidence: [{ id: 2, contentHash: "a".repeat(64) }] },
     { ...command, action: "start_review" },
     { ...command, reason: "texto livre sintético" },
     { ...command, expectedStateVersion: 2_147_483_647 },
@@ -41,6 +52,18 @@ describe("E1 sem efeito material: fronteira inativa do comando", () => {
       .toEqual({ kind: "invalid" });
     expect(lockFoodReviewGrant).not.toHaveBeenCalled();
     expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it("aprovação válida não consulta caso sem porta confiável de evidência", async () => {
+    const db = { transaction: vi.fn() };
+    const lockFoodReviewGrant = vi.fn(deniedGrant);
+    expect(await applyAssignedFoodReview({ db, lockFoodReviewGrant, singleReviewerUserId: actor }, actor, {
+      ...command, action: "approve_profile", reason: null,
+      target: { ...target, artifactType: "nutrition_profile", artifactId: "2" },
+      evidence: [{ id: 4, contentHash: "a".repeat(64) }],
+    })).toEqual({ kind: "denied" });
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(lockFoodReviewGrant).not.toHaveBeenCalled();
   });
 
   it("recusa identidade ausente ou integração sem porta Food", async () => {
@@ -215,8 +238,9 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
       );
       await pool.execute(`INSERT INTO ${grantTable}
         (actor_user_id, action, active, policy_version) VALUES
-        (?, 'start_review', 1, 'fixture:policy-v1'), (?, 'close_no_change', 1, 'fixture:policy-v1')`,
-        [result.insertId, result.insertId]);
+        (?, 'start_review', 1, 'fixture:policy-v1'), (?, 'close_no_change', 1, 'fixture:policy-v1'),
+        (?, 'approve_profile', 1, 'fixture:policy-v1')`,
+        [result.insertId, result.insertId, result.insertId]);
       return result.insertId;
     }
     reviewer = await addReviewer("ci-e1-food-reviewer");
@@ -585,9 +609,196 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     });
   });
 
-  it.each([false, true])("rollback no TiDB quando a etapa de evento falha depois do CAS (designação inicial: %s)", async claim => {
+  async function seedProfile(suffix: string, options: { owner?: number; inCurrentSlot?: boolean } = {}) {
+    const name = `e1 fixture ${suffix}`;
+    async function insert(query: string, values: unknown[]) {
+      const [result] = await pool.execute<import("mysql2").ResultSetHeader>(query, values);
+      return result.insertId;
+    }
+    const sourceId = await insert(
+      "INSERT INTO food_sources (slug, name, version, source_url) VALUES (?, ?, 'v1', ?)",
+      [`ci-e1-${suffix}`, name, "https://food-review.example.invalid/source"],
+    );
+    await insert(`INSERT INTO food_source_read_grants
+      (source_id, source_version, status, allow_read, allow_global_publication,
+        license_reference, approval_reference, approved_at)
+      VALUES (?, 'v1', 'approved', 1, 1, 'https://food-review.example.invalid/license', 'fixture', NOW())`, [sourceId]);
+    const family = await insert(`INSERT INTO foods
+      (name, normalized_name, canonical_key, canonical_name, scope, owner_user_id,
+      calories_kcal_per_100g, protein_grams_per_100g, carbs_grams_per_100g, fat_grams_per_100g)
+      VALUES (?, ?, ?, ?, ?, ?, 100, 1, 2, 3)`,
+    [name, name, `ci:e1:${suffix}`, name, options.owner ? "user" : "global", options.owner ?? null]);
+    const variantId = await insert(`INSERT INTO food_variants
+      (food_id, variant_type, display_name, normalized_name, identity_key, status, governance_status)
+      VALUES (?, 'generic', ?, ?, ?, 'active', 'verified')`, [family, name, name, `ci:e1:variant:${suffix}`]);
+    const contentHash = createHash("sha256").update(`fixture:${suffix}:profile:2`).digest("hex");
+    const addProfile = (version: number, status: string, slot: number | null, calories: number, hash: string) =>
+      insert(`INSERT INTO food_nutrition_profiles
+       (food_variant_id, source_id, source_version, profile_key, version, status,
+        basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, current_slot)
+       VALUES (?, ?, 'v1', ?, ?, ?, 100, 'g', ?, 1, 2, 3, ?, ?)`,
+      [variantId, sourceId, `ci:e1:profile:${suffix}`, version, status, calories, hash, slot]);
+    const previous = await addProfile(1, "verified", options.inCurrentSlot ? null : 1, 100, "e".repeat(64));
+    const profile = await addProfile(2, "pending_review", options.inCurrentSlot ? 1 : null, 175, contentHash);
+    const evContentHash = createHash("sha256").update(`fixture:${suffix}:evidence`).digest("hex");
+    const evidence = [{ id: await insert(`INSERT INTO food_evidence
+      (subject_key, food_variant_id, evidence_type, source_id, content_hash, payload_json)
+      VALUES (?, ?, 'official_source', ?, ?, '{}')`,
+    [`ci:e1:evidence:${suffix}`, variantId, sourceId, evContentHash]), contentHash: evContentHash }];
+    const profileTarget = { artifactType: "nutrition_profile", artifactId: String(profile),
+      revision: 2, contentHash };
+    const kase = await seed(`approve-${suffix}`, "in_review", profileTarget);
+    const input = { ...kase, action: "approve_profile", reason: null, evidence };
+    const lockProfileApprovalEvidence: LockProfileApprovalEvidence = async (read, scope) => {
+      // Fixture-only version proof. The application does not resolve or
+      // authorize any production source/license/retention.
+      const [source] = await read.select({ version: foodSources.version }).from(foodSources)
+        .where(eq(foodSources.id, sourceId)).limit(1).for("update");
+      if (scope.caseId !== kase.caseId || scope.target.artifactId !== String(profile) ||
+          scope.target.revision !== 2 || scope.target.contentHash !== contentHash ||
+          scope.sourceId !== sourceId || scope.sourceVersion !== source?.version ||
+          scope.variantId !== variantId || scope.evidence.length !== 1 ||
+          scope.evidence[0].id !== evidence[0].id ||
+          scope.evidence[0].contentHash !== evContentHash) return null;
+      return { ...scope, target: { ...scope.target }, evidence: scope.evidence.map(row => ({ ...row })) };
+    };
+    const statuses = async () => (await pool.execute<import("mysql2").RowDataPacket[]>(
+      "SELECT * FROM food_nutrition_profiles WHERE id IN (?, ?) ORDER BY version", [previous, profile]
+    ))[0];
+    const observe = () => createFoodV2KnowledgeRepository().readLocal({
+      normalizedName: name, userId: null, brand: null, barcode: null,
+      policyVersion: "fixture:policy", resolverVersion: "fixture:resolver",
+    });
+    return { input, lockProfileApprovalEvidence, statuses, observe, previous, profile };
+  }
+
+  it("aprova revisão exata não corrente com evidência e preserva a seleção B2 real", async () => {
+    const f = await seedProfile("approval");
+    vi.mocked(getDb).mockResolvedValue(db as never); // Real fixture connection, not query-result mocks.
+    try {
+      const beforeProfiles = await f.statuses();
+      const before = await f.observe();
+      expect(before).toMatchObject({ kind: "match", profileId: f.previous });
+      const grant = { ...singleReviewerPolicy(), lockProfileApprovalEvidence: f.lockProfileApprovalEvidence };
+      const approve = (input: unknown = f.input, actor = reviewer) =>
+        applyAssignedFoodReview(grant, actor, input);
+      const [first, duplicate, denied] = await Promise.all([approve(), approve(), approve(f.input, otherReviewer)]);
+      expect(first).toMatchObject({ kind: "applied", receipt: { outcome: "approved", stateVersion: 4 } });
+      expect(duplicate).toStrictEqual(first);
+      expect(denied).toEqual({ kind: "denied" });
+      const [unchanged, verified] = await f.statuses();
+      expect(unchanged).toStrictEqual(beforeProfiles[0]);
+      expect(verified).toMatchObject({ status: "verified", current_slot: null,
+        valid_from: null, valid_to: null, calories_kcal: 175, verified_at: expect.any(Date) });
+      const { status: _s, verified_at: _v, updated_at: _u, ...material } = verified;
+      const { status: _bs, verified_at: _bv, updated_at: _bu, ...beforeMaterial } = beforeProfiles[1];
+      expect(material).toStrictEqual(beforeMaterial);
+      expect(await f.observe()).toMatchObject({ kind: "match", profileId: f.previous });
+      expect(await read(f.input.caseId)).toMatchObject({
+        current: { status: "closed", outcome: "approved", version: 4 },
+        events: [{ action: "approve_profile", actorId: String(reviewer),
+          evidence: JSON.stringify(f.input.evidence.map(item => item.id)) }],
+      });
+      const changedProof = [{ ...f.input.evidence[0], contentHash: "a".repeat(64) }];
+      expect(await approve({ ...f.input, evidence: changedProof })).toEqual({ kind: "conflict" });
+      await pool.execute(`UPDATE ${grantTable} SET active=0
+        WHERE actor_user_id=? AND action='approve_profile'`, [reviewer]);
+      try {
+        expect(await approve()).toEqual({ kind: "denied" });
+      } finally {
+        await pool.execute(`UPDATE ${grantTable} SET active=1
+          WHERE actor_user_id=? AND action='approve_profile'`, [reviewer]);
+      }
+    } finally {
+      vi.mocked(getDb).mockReset();
+    }
+  });
+
+  it("nega aprovação sem evidência e não publica ao encerrar sem alteração", async () => {
+    const f = await seedProfile("approval-denials");
+    const before = await f.statuses();
+    const action = (input: unknown, proof: LockProfileApprovalEvidence = f.lockProfileApprovalEvidence) =>
+      applyAssignedFoodReview({ ...singleReviewerPolicy(), lockProfileApprovalEvidence: proof }, reviewer, input);
+    expect(await applySingle(f.input)).toEqual({ kind: "denied" });
+    expect(await action({ ...f.input, target: { ...f.input.target, artifactType: "food_variants" } }))
+      .toEqual({ kind: "invalid" });
+    const missingEvidence = { ...f.input.evidence[0], id: 2_147_483_647 };
+    const wrongEvidence = { ...f.input.evidence[0], contentHash: "d".repeat(64) };
+    expect(await action({ ...f.input, evidence: [missingEvidence] })).toEqual({ kind: "denied" });
+    expect(await action({ ...f.input, evidence: [wrongEvidence] })).toEqual({ kind: "denied" });
+    const another = await seedProfile("wrong-profile-evidence");
+    expect(await action({ ...f.input, evidence: another.input.evidence })).toEqual({ kind: "denied" });
+    await pool.execute("UPDATE food_evidence SET retention_until='2001-01-01 00:00:00' WHERE id=?",
+      [f.input.evidence[0].id]);
+    expect(await action(f.input)).toEqual({ kind: "denied" });
+    await pool.execute("UPDATE food_evidence SET retention_until=NULL WHERE id=?", [f.input.evidence[0].id]);
+    expect(await action(f.input, async () => null)).toEqual({ kind: "denied" });
+    expect(await action(f.input, async (read, scope) => {
+      const proof = await f.lockProfileApprovalEvidence(read, scope);
+      return proof && { ...proof, sourceVersion: "not-the-fixture-version" };
+    })).toEqual({ kind: "denied" });
+    const inOpen = await seed("profile-still-open", "open", f.input.target);
+    expect(await action({ ...f.input, caseId: inOpen.caseId })).toEqual({ kind: "conflict" });
+    expect(await read(f.input.caseId)).toMatchObject({
+      current: { status: "in_review", version: 3 }, events: [],
+    });
+    const noChange = await applySingle({
+      ...f.input, action: "close_no_change", reason: "no_material_effect", evidence: undefined,
+    });
+    expect(noChange).toEqual({ kind: "invalid" }); // explicit payloads are disjoint
+    const { evidence: _ignored, ...closeFields } = f.input;
+    expect(await applySingle({ ...closeFields, action: "close_no_change", reason: "no_material_effect" }))
+      .toMatchObject({ kind: "applied", receipt: { outcome: "no_change" } });
+    expect(await f.statuses()).toStrictEqual(before);
+  });
+
+  it.each(["private", "current", "changed-version"] as const)(
+    "não verifica candidato fora do recorte não corrente (%s)", async kind => {
+      const f = await seedProfile(`eligibility-${kind}`, {
+        owner: kind === "private" ? reviewer : undefined,
+        inCurrentSlot: kind === "current",
+      });
+      if (kind === "changed-version") {
+        await pool.execute("UPDATE food_nutrition_profiles SET version=3 WHERE id=?", [f.profile]);
+      }
+      const before = await f.statuses();
+      const evidence = vi.fn(f.lockProfileApprovalEvidence);
+      expect(await applyAssignedFoodReview({ ...singleReviewerPolicy(), lockProfileApprovalEvidence: evidence },
+        reviewer, f.input)).toEqual({ kind: "denied" });
+      expect(evidence).not.toHaveBeenCalled();
+      expect(await read(f.input.caseId)).toMatchObject({
+        current: { status: "in_review", version: 3 }, events: [],
+      });
+      expect(await f.statuses()).toStrictEqual(before);
+    }
+  );
+
+  it("CAS incompatível de aprovação e no_change só grava a decisão vencedora", async () => {
+    const f = await seedProfile("competing-approval");
+    const grant = { ...singleReviewerPolicy(), lockProfileApprovalEvidence: f.lockProfileApprovalEvidence };
+    const { evidence: _ignored, ...close } = f.input;
+    const [approval, noChange] = await Promise.all([
+      applyAssignedFoodReview(grant, reviewer, f.input),
+      applySingle({ ...close, requestKey: "fixture:competing-close",
+        action: "close_no_change", reason: "no_material_effect" }),
+    ]);
+    expect([approval.kind, noChange.kind].sort()).toEqual(["applied", "conflict"]);
+    const approved = approval.kind === "applied";
+    const [, row] = await f.statuses();
+    expect(row).toMatchObject({ status: approved ? "verified" : "pending_review", current_slot: null });
+    expect(await read(f.input.caseId)).toMatchObject({
+      current: { outcome: approved ? "approved" : "no_change", status: "closed", version: 4 },
+      events: [{ action: approved ? "approve_profile" : "close_no_change" }],
+    });
+  });
+
+  it.each(["close", "initial", "approve"] as const)(
+    "rollback real do caso, designação e perfil na falha de evento após CAS (%s)", async kind => {
+    const claim = kind === "initial";
     const assignment = claim ? null : reviewer;
-    const input = await seed(`rollback-event-${claim}`, "open", target, assignment);
+    const profile = kind === "approve" ? await seedProfile("rollback-approval") : null;
+    const input = profile?.input ?? await seed(`rollback-event-${kind}`, "open", target, assignment);
+    const beforeProfiles = await profile?.statuses();
     const cmd = claim ? { ...input, action: "start_review", reason: null } : input;
     let eventAttempted = false;
     const dbWithBadEventWritableConnection: Pick<typeof db, "transaction"> = {
@@ -607,14 +818,21 @@ describe.skipIf(fixtureSetting === undefined)("E1 sem efeito material: TiDB desc
     };
     if (claim) await allowInitialAssignment(1);
     try {
-      const broken = claim ? singleReviewerPolicy(dbWithBadEventWritableConnection)
-        : dependencies(dbWithBadEventWritableConnection);
+      const broken = profile ? { ...singleReviewerPolicy(dbWithBadEventWritableConnection),
+        lockProfileApprovalEvidence: profile.lockProfileApprovalEvidence }
+        : claim ? singleReviewerPolicy(dbWithBadEventWritableConnection)
+          : dependencies(dbWithBadEventWritableConnection);
       expect(await applyAssignedFoodReview(broken, reviewer, cmd)).toEqual({ kind: "unavailable" });
       expect(eventAttempted).toBe(true);
       expect(await read(input.caseId)).toMatchObject({
-        current: { status: "open", outcome: null, version: 3, hasClosedAt: 0, assigned: assignment }, events: [],
+        current: { status: profile ? "in_review" : "open", outcome: null,
+          version: 3, hasClosedAt: 0, assigned: assignment }, events: [],
       });
-      expect((await (claim ? applySingle(cmd) : apply(cmd))).kind).toBe("applied");
+      if (profile) expect(await profile.statuses()).toStrictEqual(beforeProfiles);
+      const allowed = profile ? { ...singleReviewerPolicy(),
+        lockProfileApprovalEvidence: profile.lockProfileApprovalEvidence }
+        : claim ? singleReviewerPolicy() : dependencies();
+      expect((await applyAssignedFoodReview(allowed, reviewer, cmd)).kind).toBe("applied");
       expect(await read(input.caseId)).toMatchObject({
         current: { assigned: reviewer, version: 4 }, events: [{}],
       });
