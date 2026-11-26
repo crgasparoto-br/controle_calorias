@@ -98,10 +98,42 @@ describe("#1307 / A-004: bounded C4 baseline diagnostics, never operational appr
     expect(direct.segments).toHaveLength(1);
     expect(direct.segments[0]).toMatchObject({
       runs: 8, compared: 7, failed: 1, potentialSilentFallbacks: 5,
+      v1ItemObservation: { snapshotRuns: 8, missingSnapshotRuns: 0, observedItems: 8 },
     });
     expect(replay.baseline).toEqual(direct);
     expect(replay.baseline.verifiedAccuracy).toBeNull();
     expect(replay.baseline.rolloutEligible).toBe(false);
+  });
+
+  it("#1311 distinguishes missing, empty and measured V1 item samples with zero flags", () => {
+    const request = {
+      modality: "text" as const, entrypoint: "replay" as const, failure: "none" as const,
+      v2: [buildFoodResolutionDecisionFixture()], observations: [buildFoodObservationFixture()],
+      timings: { v1Ms: 1, languageMs: 1, resolverMs: 1, totalMs: 3 },
+    };
+    const original = buildV1HistoricalSnapshotFixture();
+    const documentedZero = { ...original.items[0], calories: 0, protein: 0, carbs: 0, fat: 0,
+      resolution: { nutritionOrigin: "catalog" as const } };
+    const absent = buildFoodShadowEvent({ ...request, traceId: baseTrace, scenarioClass: "ambiguous",
+      v1: null, v1Failure: "clarification" });
+    const empty = buildFoodShadowEvent({ ...request, traceId: "eee00901-35bd-44cd-932a-000000000001",
+      scenarioClass: "unknown", v1: { ...original, items: [] }, v1Failure: null });
+    const observed = buildFoodShadowEvent({ ...request, traceId: "eee00901-35bd-44cd-932a-000000000002",
+      scenarioClass: "generic", v1: { ...original, items: [documentedZero, documentedZero] }, v1Failure: null });
+    const mixed = buildFoodShadowEvent({ ...request, traceId: "eee00901-35bd-44cd-932a-000000000003",
+      scenarioClass: "generic", v1: null, v1Failure: "failed" });
+    const report = replaySanitizedFoodShadowEvents(envelope(absent, empty, observed, mixed));
+    expect(report.baseline.segments).toHaveLength(3);
+    expect(report.baseline.segments).toEqual([
+      expect.objectContaining({ scenarioClass: "ambiguous", potentialSilentFallbacks: 0,
+        v1ItemObservation: { snapshotRuns: 0, missingSnapshotRuns: 1, observedItems: 0 } }),
+      expect.objectContaining({ scenarioClass: "generic", potentialSilentFallbacks: 0, pairedItems: 1,
+        v1ItemObservation: { snapshotRuns: 1, missingSnapshotRuns: 1, observedItems: 2 } }),
+      expect.objectContaining({ scenarioClass: "unknown", potentialSilentFallbacks: 0,
+        v1ItemObservation: { snapshotRuns: 1, missingSnapshotRuns: 0, observedItems: 0 } }),
+    ]);
+    expect(report).toMatchObject({ status: "diagnostic-only", gateAApproved: false,
+      sampleProvenanceVerified: false, baseline: { verifiedAccuracy: null, rolloutEligible: false } });
   });
 
   it("A-026 enforces the same strict sanitization for direct aggregation and replay", () => {
