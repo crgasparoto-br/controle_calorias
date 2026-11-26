@@ -805,7 +805,9 @@ function projectMeasuredPrefix(
   request: LinguisticRequest, trial: MeasuredPrefixPendingSyntax, part: Segment,
   entries: readonly GovernedLexiconEntry[], now: Date,
 ): AffectedMeasuredPrefix | null {
-  if (request.modality !== "text" && request.modality !== "audio_transcript") return null;
+  const [textModality, transcriptModality] = FOOD_INPUT_TYPES;
+  const modality = request.modality;
+  if (modality !== textModality && modality !== transcriptModality) return null;
   if (detectQualifiers(trial.name.text).length) return null;
   // An applicable competing lexical interpretation in any of these slots is
   // an abstention, even when S1 did not consult that kind of alias. Do not
@@ -820,7 +822,7 @@ function projectMeasuredPrefix(
   const span = ({ start, end }: Span) => ({ start, end });
   return {
     kind: "withheld-lexical-evidence", materializable: false, sourceRef: request.sourceRef,
-    modality: request.modality, lexiconRevision: request.lexiconRevision, clause: span(part),
+    modality, lexiconRevision: request.lexiconRevision, clause: span(part),
     measuredSurface: {
       kind: "lexically-attributed-measure", materializable: false, span: span(trial.prefix),
       nominalSurface: { kind: "literal-not-resolved-identity", span: span(trial.name), literal: trial.name.text },
