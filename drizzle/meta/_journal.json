@@ -393,6 +393,13 @@
       "when": 1795530817342,
       "tag": "0057_food_v2_current_slot_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1795654500000,
+      "tag": "0058_food_v2_personal_alias_revocation_receipt",
+      "breakpoints": true
     }
   ]
 }

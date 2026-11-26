@@ -131,12 +131,14 @@ export const userFoodAliases = mysqlTable("user_food_aliases", {
   currentSlot: int("current_slot").default(1),
   confirmedAt: timestamp("confirmed_at"),
   revokedAt: timestamp("revoked_at"),
+  revocationRequestHash: varchar("revocation_request_hash", { length: 64 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 }, table => ({
   u0: uniqueIndex("user_food_aliases_u0").on(table.userId, table.normalizedAlias, table.currentSlot),
   i0: index("user_food_aliases_i0").on(table.userId, table.normalizedAlias, table.status),
   ck0: check("user_food_aliases_ck0", sql`(status='active' AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)`),
+  revocationReceipt: check("user_food_aliases_revocation_ck", sql`(revocation_request_hash IS NULL OR (status='revoked' AND revoked_at IS NOT NULL AND current_slot IS NULL))`),
   currentSlotState: check("user_food_aliases_current_ck", sql`((status='active' AND current_slot IS NOT NULL AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL))`),
 }));
 

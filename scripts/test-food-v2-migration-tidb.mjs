@@ -311,6 +311,14 @@ try {
   const slotChecks = await applyFile("../drizzle/0057_food_v2_current_slot_checks.sql");
   assert.equal(slotChecks, 3);
   await slotFixtures.verifySchemaAndRows(true);
+  const revocationReceipt = await applyFile("../drizzle/0058_food_v2_personal_alias_revocation_receipt.sql");
+  assert.equal(revocationReceipt, 2);
+  const [receiptColumn] = await queryRows(
+    "SELECT COUNT(*) AS c FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='user_food_aliases' AND column_name='revocation_request_hash' AND is_nullable='YES'",
+  );
+  assert.equal(Number(receiptColumn.c), 1);
+  const [fabricatedReceipt] = await queryRows("SELECT COUNT(*) AS c FROM user_food_aliases WHERE revocation_request_hash IS NOT NULL");
+  assert.equal(Number(fabricatedReceipt.c), 0, "existing aliases must not acquire receipts");
   // AUD-1302-026: database leaves unknown B1/legacy provenance unassigned.
   for (const table of ["food_nutrition_profiles", "food_portions", "food_aliases"]) {
     const [column] = await queryRows(
@@ -371,6 +379,12 @@ try {
     await slotFixtures.verifyCurrentRotation();
     await testUpgrade(fixture);
   } else {
+    const revocationReversed = await applyFile("../drizzle/rollback/0058_food_v2_personal_alias_revocation_receipt.sql");
+    assert.equal(revocationReversed, 2);
+    const [remainingReceiptColumn] = await queryRows(
+      "SELECT COUNT(*) AS c FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='user_food_aliases' AND column_name='revocation_request_hash'",
+    );
+    assert.equal(Number(remainingReceiptColumn.c), 0);
     const slotReversed = await applyFile("../drizzle/rollback/0057_food_v2_current_slot_checks.sql");
     assert.equal(slotReversed, 3);
     await slotFixtures.verifySchemaAndRows(false);
