@@ -7,7 +7,7 @@ import { z } from "zod";
 import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_INPUT_TYPES, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
 import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, ExplicitPendingIncrement, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
+import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, ExplicitPendingIncrement, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, MeasuredPrefixPendingSyntax, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
 import { parseFoodMaterialObservationBatch, parseFoodObservation, type FoodMaterialObservation, type FoodObservation } from "./schemas";
 import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
@@ -238,6 +238,7 @@ type MaterialProjection = {
   facts: Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>;
   withheld: Map<number, AffectedMaterial>;
   pendingIncrements?: Map<string, ExplicitPendingIncrement>;
+  measuredPrefixes?: Map<string, AffectedMeasuredPrefix>;
 };
 
 function buildObservation(
@@ -598,7 +599,8 @@ export async function comprehendFoodLanguage(
     entry.kind === "protected_token" && applicable(entry, request.ownerUserId, now),
   ).map(entry => entry.normalizedTerm);
   const syntax: MaterialSegmentSyntax[] | undefined = material ? [] : undefined;
-  const parsedParts = splitFoodSurface(request.rawText, units, protectedTerms, syntax, material?.pendingIncrements !== undefined);
+  const parsedParts = splitFoodSurface(request.rawText, units, protectedTerms, syntax,
+    material?.pendingIncrements !== undefined, material?.measuredPrefixes !== undefined);
   if (parsedParts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   const results: FoodObservation[] = [];
   for (let i = 0; i < parsedParts.length; i++) {
@@ -670,6 +672,14 @@ export async function comprehendFoodLanguage(
         if (segmentSyntax.pendingIncrement && !exactChoice.selected && exactChoice.competing.length === 0 &&
             span?.start === part.start && span.end === part.end) {
           material.pendingIncrements?.set(observation.observationId, segmentSyntax.pendingIncrement);
+        }
+        const trial = segmentSyntax.measuredPrefixPending;
+        if (trial && material.measuredPrefixes && !exactChoice.selected && !exactChoice.competing.length &&
+            span?.start === part.start && span.end === part.end &&
+            (!trial.requiresPriorMeasuredSibling || (previous && previousIsMaterial &&
+              material.facts.get(previous.observationId) !== null))) {
+          const proof = projectMeasuredPrefix(request, trial, part, entries, now);
+          if (proof) material.measuredPrefixes.set(observation.observationId, proof);
         }
       }
     }
@@ -763,9 +773,94 @@ export async function diagnoseFoodMaterialPendingIncrements(
   };
 }
 
+const measuredPrefixProfile = "r3-measured-prefix-pending-local-prototype-v2" as const;
+// This is lexical provenance for a withheld clause, not a meal item. Neither
+// the sidecar nor its children can pass a FoodObservation decoder detached.
+type AffectedMeasuredPrefix = {
+  kind: "withheld-lexical-evidence";
+  materializable: false;
+  sourceRef: string;
+  modality: "text" | "audio_transcript";
+  lexiconRevision: string;
+  clause: Span;
+  measuredSurface: {
+    kind: "lexically-attributed-measure";
+    materializable: false;
+    span: Span;
+    nominalSurface: { kind: "literal-not-resolved-identity"; span: Span; literal: string };
+    measure: { span: Span; literal: string; value: number; unit: string; literalUnit: string };
+  };
+  pendingSurface: {
+    kind: "indefinite-increment-without-binding";
+    materializable: false;
+    span: Span;
+    operator: { span: Span; literal: string };
+    owner: null;
+    target: null;
+    amount: null;
+  };
+};
+
+function projectMeasuredPrefix(
+  request: LinguisticRequest, trial: MeasuredPrefixPendingSyntax, part: Segment,
+  entries: readonly GovernedLexiconEntry[], now: Date,
+): AffectedMeasuredPrefix | null {
+  if (request.modality !== "text" && request.modality !== "audio_transcript") return null;
+  if (detectQualifiers(trial.name.text).length) return null;
+  // An applicable competing lexical interpretation in any of these slots is
+  // an abstention, even when S1 did not consult that kind of alias. Do not
+  // mistake an active unit/portion term for a nominal or vice versa.
+  const slots = [trial.name.text, trial.unitSurface, trial.tail.text].map(x => " " + foldFoodSurface(x) + " ");
+  if (entries.some(e => {
+    if (!applicable(e, request.ownerUserId, now)) return false;
+    const term = foldFoodSurface(e.normalizedTerm);
+    return !!term && slots.some(slot => slot.includes(" " + term + " "));
+  })) return null;
+
+  const span = ({ start, end }: Span) => ({ start, end });
+  return {
+    kind: "withheld-lexical-evidence", materializable: false, sourceRef: request.sourceRef,
+    modality: request.modality, lexiconRevision: request.lexiconRevision, clause: span(part),
+    measuredSurface: {
+      kind: "lexically-attributed-measure", materializable: false, span: span(trial.prefix),
+      nominalSurface: { kind: "literal-not-resolved-identity", span: span(trial.name), literal: trial.name.text },
+      measure: { span: span(trial.amount), literal: trial.amount.text, value: trial.value, unit: trial.unit,
+        literalUnit: trial.unitSurface },
+    },
+    pendingSurface: {
+      kind: "indefinite-increment-without-binding", materializable: false, span: span(trial.tail),
+      operator: { span: span(trial.operator), literal: trial.operator.text },
+      owner: null, target: null, amount: null,
+    },
+  };
+}
+
+type MeasuredPrefixDiagnostic = { diagnosticProfile: typeof measuredPrefixProfile } & (
+  Exclude<MaterialLanguageResult, { reason: "unproven-material" }> |
+  { ok: false; reason: "unproven-material";
+    affected: (AffectedMaterial & { evidenceOnly?: AffectedMeasuredPrefix })[];
+    observations: FoodMaterialObservation[] }
+);
+
+/** Prototype only: never project either child into ordinary observations. */
+export async function diagnoseFoodMaterialMeasuredPrefixPending(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore,
+): Promise<MeasuredPrefixDiagnostic> {
+  const proof = new Map<string, AffectedMeasuredPrefix>();
+  const result = await collectFoodMaterialLanguage(request, lexicon, undefined, proof);
+  if (!("affected" in result)) return { ...result, diagnosticProfile: measuredPrefixProfile };
+  return { ...result, diagnosticProfile: measuredPrefixProfile,
+    affected: result.affected.map(row => {
+      const evidenceOnly = proof.get(row.observationId);
+      return evidenceOnly ? { ...row, evidenceOnly } : row;
+    }),
+  };
+}
+
 async function collectFoodMaterialLanguage(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
   pending?: Map<string, FoodMaterialObservation>,
+  measuredPrefix?: Map<string, AffectedMeasuredPrefix>,
 ): Promise<FoodMaterialLanguageResult> {
   const [textModality, transcriptModality] = FOOD_INPUT_TYPES;
   const modality = request.modality;
@@ -775,6 +870,7 @@ async function collectFoodMaterialLanguage(
   }
   const material: MaterialProjection = {
     facts: new Map(), withheld: new Map(), pendingIncrements: pending ? new Map() : undefined,
+    measuredPrefixes: measuredPrefix,
   };
   const base = await comprehendFoodLanguage({
     ...request, shouldInterpretResidual: undefined, interpreterVersion: undefined,
@@ -861,8 +957,8 @@ async function collectFoodMaterialLanguage(
       }],
     }];
   });
-  // Validate both partitions together for shared batch limits and distinct
-  // provenance; after validation emit evidence-only rows under affected only.
+  // Only canonical children of the older profile enter the wire validator.
+  // Measured-prefix extras are inert lexical projections, never observations.
   const checked = parseFoodMaterialObservationBatch(pending ? [...candidates, ...pending.values()] : candidates);
   if (!checked.ok) return { ok: false, reason: "invalid-material-observations" };
   if (pending) {

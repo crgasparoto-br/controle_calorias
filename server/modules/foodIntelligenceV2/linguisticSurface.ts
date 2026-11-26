@@ -122,11 +122,14 @@ export type FoodQuantitySourceSpans = {
   nameAfterConflictingUnit?: Span;
   // The governed production reached the end before any nominal slot.
   orphanedGovernedUnit?: true;
+  // Complete terminal qualitative serving production, with no explicit amount.
+  terminalIndefiniteServing?: true;
 };
 
 export function readQuantity(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [], requireExplicitUnit = false,
   sourceSpans?: FoodQuantitySourceSpans,
+  captureTerminalIndefiniteServing = false,
 ): {
   value: number | null; unit: string | null; name: string;
   servingText: string | null; uncertain: boolean; governedAlias?: GovernedUnitAlias;
@@ -326,15 +329,22 @@ export function readQuantity(
   // Counted containers/portions without an approved unit are *not* counts
   // of individual foods. This is quantity vocabulary, never a food-name list.
   const uncertainServing = new RegExp(
-    "^(?:" + bounds + "\\s+(?:de\\s+)?)?(?:pouc[oa]s?|pouquinhos?|pouquinhas?|" +
-      "tiquinhos?|bastante|punhados?|punhadinhos?|pedacos?|pedacinhos?|" +
+    "^(?:(?<servingCount>" + bounds + ")\\s+(?<servingConnector>de\\s+)?)?" +
+      "(?:(?<qualitative>pouc[oa]s?|pouquinhos?|pouquinhas?|tiquinhos?|bastante)|punhados?|punhadinhos?|pedacos?|pedacinhos?|" +
       "pitadas?|goles?|garfadas?|colheradas?|canecas?|tigelas?|" +
       "cumbucas?|copinhos?|prat[aã]o|pratos?|marmitas?|potes?|" +
       "bandejas?|garrafas?|pacotes?|embalage(?:m|ns)|sach[eê]s?|" +
       "latas?|caixas?|frascos?|cartelas?|bisnagas?|" +
       "prato\\s+grande)(?=\\s|$)", "iu",
   );
-  if (uncertainServing.test(foldFoodSurface(source)) ||
+  const foldedServing = foldFoodSurface(source);
+  const uncertainMatch = uncertainServing.exec(foldedServing);
+  const count = uncertainMatch?.groups?.servingCount;
+  if (captureTerminalIndefiniteServing && sourceSpans && uncertainMatch?.[0] === foldedServing && uncertainMatch.groups?.qualitative &&
+      !uncertainMatch.groups.servingConnector && (!count || count === "um" || count === "uma")) {
+    sourceSpans.terminalIndefiniteServing = true;
+  }
+  if (uncertainMatch ||
       /\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
     return unresolved();
   }
@@ -414,6 +424,18 @@ export type ExplicitPendingIncrement = {
   unit: string;
 };
 
+export type MeasuredPrefixPendingSyntax = {
+  prefix: Segment;
+  amount: Segment;
+  name: Segment;
+  value: number;
+  unit: string;
+  unitSurface: string;
+  tail: Segment;
+  operator: Segment;
+  requiresPriorMeasuredSibling: boolean;
+};
+
 export type MaterialSegmentSyntax = {
   measure: ExplicitIngredientMeasure | null;
   negation: ExplicitIngredientNegation | null;
@@ -421,7 +443,23 @@ export type MaterialSegmentSyntax = {
   continuation: boolean;
   withheldScope?: Span;
   pendingIncrement?: ExplicitPendingIncrement;
+  measuredPrefixPending?: MeasuredPrefixPendingSyntax;
 };
+
+/** Prototype-only output advertises an exact scalar only if the bounded
+ * decimal token is representable without rounding. readQuantity owns parsing;
+ * this witness checks its result against the original token, never replaces it. */
+function losslessMeasuredLiteral(surface: string, value: number, unit: string): string | null {
+  const m = /^(0|[1-9][0-9]{0,11})(?:[.,]([0-9]{1,3}))?[ \t]+(.+)$/u.exec(surface);
+  if (!m || recognizedUnit(m[3]) !== unit || !Number.isFinite(value) || value <= 0) return null;
+  const fraction = m[2] ?? "";
+  const numerator = BigInt(m[1] + fraction);
+  const factorOfFive = 5n ** BigInt(fraction.length);
+  if (numerator % factorOfFive !== 0n) return null;
+  const binaryNumerator = numerator / factorOfFive; // bounds above keep this under 2^53
+  if (binaryNumerator > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return Number(binaryNumerator) / 2 ** fraction.length === value ? m[3] : null;
+}
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
  * Protected phrases come exclusively from the already authorized S2 snapshot.
@@ -431,6 +469,7 @@ export function splitFoodSurface(
   protectedTerms: readonly string[] = [],
   material?: MaterialSegmentSyntax[],
   capturePendingIncrements = false,
+  captureMeasuredPrefixPending = false,
 ): Segment[] {
   // A comma before a recognized material attribute belongs to the prior food.
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
@@ -801,6 +840,51 @@ export function splitFoodSurface(
         }
       }
     }
+    let measuredPrefixPending: MeasuredPrefixPendingSyntax | undefined;
+    const previousMeasured = captureMeasuredPrefixPending && material.at(-1)?.measure;
+    const isInitial = block?.start === part.start;
+    const exactConjunct = !!previousMeasured && /^[ \t]+e[ \t]+$/iu.test(gap);
+    if (captureMeasuredPrefixPending && !withheldScope && !found && !blockHasNegation &&
+        block?.end === part.end && (isInitial || exactConjunct) && deContinuationAfter(stopIndex) === null &&
+        operators.length === 2 && !/[()[\]{}]/u.test(part.text)) {
+      const [connector, increment] = operators;
+      const operatorEnd = increment.index + increment[0].length;
+      const prefix = trimSpan(text, part.start, connector.index);
+      const remainder = trimSpan(text, operatorEnd, part.end);
+      if (prefix && remainder && /^com$/iu.test(connector[0]) && increment.groups?.increment &&
+          /^[\x00-\x7f]+$/u.test(increment[0]) &&
+          /^[ \t]+$/u.test(text.slice(prefix.end, connector.index)) &&
+          /^[ \t]+$/u.test(text.slice(connector.index + connector[0].length, increment.index)) &&
+          /^[ \t]+$/u.test(text.slice(operatorEnd, remainder.start))) {
+        const slots: FoodQuantitySourceSpans = {}, tailSlots: FoodQuantitySourceSpans = {};
+        const q = readQuantity(prefix.text, governedUnits, true, slots);
+        const tail = readQuantity(remainder.text, governedUnits, true, tailSlots, true);
+        // Reuse A-021's complete uncertain serving production, not a scan
+        // for a known phrase or the absence of any successful amount parse.
+        // Never turn the determiner inside this production into a count.
+        const rawAmount = slots.quantity && prefix.text.slice(slots.quantity.start, slots.quantity.end);
+        const unitSurface = rawAmount && q.value !== null && q.unit !== null
+          ? losslessMeasuredLiteral(rawAmount, q.value, q.unit) : null;
+        if (unitSurface && q.value !== null && q.unit !== null && !q.uncertain && !q.governedAlias &&
+            slots.quantity?.start === 0 && slots.name?.end === prefix.text.length &&
+            q.name.length <= FOOD_CONTRACT_LIMITS.nameText && simpleName.test(q.name) && recognizedUnit(q.name) === null &&
+            !/^(?:e|ou|zero|nada|nao|nenhum[ao]?|qualquer)$/u.test(foldFoodSurface(q.name)) &&
+            !startsWithNumber.test(q.name) &&
+            !protectedTerms.some(term => foldFoodSurface(q.name) === term) &&
+            /^[ \t]+de[ \t]+$/iu.test(prefix.text.slice(slots.quantity.end, slots.name.start)) &&
+            tail.uncertain && tailSlots.terminalIndefiniteServing &&
+            !protectedTerms.some(term => foldFoodSurface(remainder.text) === term)) {
+          const absolute = (span: Span) => ({ start: prefix.start + span.start, end: prefix.start + span.end,
+            text: prefix.text.slice(span.start, span.end) });
+          measuredPrefixPending = {
+            prefix, amount: absolute(slots.quantity), name: absolute(slots.name), value: q.value, unit: q.unit, unitSurface,
+            tail: { start: increment.index, end: part.end, text: text.slice(increment.index, part.end) },
+            operator: { start: increment.index, end: operatorEnd, text: increment[0] },
+            requiresPriorMeasuredSibling: !isInitial,
+          };
+        }
+      }
+    }
     const remainder = found?.remainder;
     const initial = remainder && found
       ? trimSpan(text, part.start, found.measure.ingredient.end) : part;
@@ -809,7 +893,8 @@ export function splitFoodSurface(
     // Until the soft-scope case has typed candidates, don't present another
     // unproved fragment in the same negation block as an independent food.
     material.push({ measure: found?.measure ?? null, negation,
-      materialOperator: operators.length > 0 || blockHasNegation, continuation, withheldScope, pendingIncrement });
+      materialOperator: operators.length > 0 || blockHasNegation, continuation, withheldScope, pendingIncrement,
+      ...(measuredPrefixPending ? { measuredPrefixPending } : {}) });
     if (remainder) {
       parts.push(remainder);
       material.push({ measure: null, negation: null, materialOperator: true, continuation: true, withheldScope });
