@@ -6,7 +6,7 @@ import {
   isFoodCandidateSemanticallyCompatible,
 } from "./foodSemanticCompatibility";
 import { buildHeuristicItem } from "./mealItemBuilders";
-import { normalizeForMatching, splitFoodTextSegments } from "./mealTextParsing";
+import { isOwnerlessVagueAmountClause, normalizeForMatching, readLeadingSpoonComponent, splitFoodTextSegments } from "./mealTextParsing";
 import type { LlmItem, MealDraftItem } from "./nutritionEngineTypes";
 
 const UNSWEETENED_COFFEE_REFERENCE = FOOD_CATALOG_REFERENCE.find(
@@ -21,6 +21,25 @@ const COFFEE_CALORIES_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.calories;
 const COFFEE_ML_PER_CUP = UNSWEETENED_COFFEE_REFERENCE.gramsPerServing;
 const SUGAR_CALORIES_PER_GRAM = 4;
 export const DEFAULT_SUGAR_GRAMS_PER_CANONICAL_COFFEE_CUP = 5;
+
+const UNBOUND_AMOUNT_PROMPT =
+  "Não ficou claro a qual alimento pertence a quantidade adicional. Informe o alimento e a medida exata, e envie a descrição completa da refeição. Nada foi registrado.";
+
+export function getUnboundCoffeeSugarAmountClarification(sourceText: string): string | null {
+  const segments = splitFoodTextSegments(sourceText);
+  const unbound = segments.some((segment, index) => {
+    const previous = segments[index - 1];
+    if (!previous || !isOwnerlessVagueAmountClause(segment)) return false;
+    const normalized = normalizeForMatching(previous);
+    const connector = normalized.indexOf(" com ");
+    if (connector < 0) return false;
+    const component = readLeadingSpoonComponent(normalized.slice(connector + 5));
+    // Project only the already named component for the existing compatibility
+    // guard; do not infer its count, convert the unit, or alter the input.
+    return component !== null && isCoffeeWithAddedSugar(`${normalized.slice(0, connector)} com ${component}`);
+  });
+  return unbound ? UNBOUND_AMOUNT_PROMPT : null;
+}
 
 type ExplicitSugarQuantity = {
   quantity: number;

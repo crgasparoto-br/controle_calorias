@@ -18,6 +18,7 @@ import {
 import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildCoffeeWithExplicitSugarItem,
+  getUnboundCoffeeSugarAmountClarification,
   normalizeSweetenedCoffeeDraftItems,
   shouldRequestSugarQuantity,
 } from "./coffeeSugarNutrition";
@@ -1425,6 +1426,9 @@ export async function processMealInput(
     .filter(Boolean)
     .join("\n")
     .trim();
+  const unboundAmount = getUnboundCoffeeSugarAmountClarification(sourceText);
+  if (unboundAmount)
+    throw new MealInferenceError(unboundAmount, { context: { originalText: sourceText } });
   const quantityClarification = getQuantityExpressionClarification(sourceText);
   if (quantityClarification)
     throw new MealInferenceError(quantityClarification);

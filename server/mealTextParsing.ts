@@ -1,5 +1,6 @@
 import { roundNutritionValue } from "../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
+import { parseCountableQuantity } from "../shared/quantityUnitVocabulary";
 import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngineTypes";
 
 export const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
@@ -160,6 +161,43 @@ export function splitFoodTextSegments(sourceText: string) {
     .flatMap(splitFoodConjunctions)
     .map(value => value.trim())
     .filter(Boolean);
+}
+
+// The legacy A-1339 ellipsis grammar distinguished measure heads from food
+// names. Here we only need its complete, ownerless vague-amount clause.
+// A named owner or trailing genitive is deliberately not consumed.
+const VAGUE_AMOUNT_HEADS = new Set([
+  "pouco", "pouca", "pouquinho", "pouquinha", "tanto", "tantinho", "bocado",
+  "tiquinho", "tiquinha", "cadinho", "cadinha",
+]);
+const AMOUNT_DISCOURSE_MODIFIERS = new Set([
+  "talvez", "ainda", "tambem", "so", "apenas", "depois", "entao",
+]);
+const AMOUNT_ADJUSTMENTS = new Set(["mais", "menos"]);
+
+export function isOwnerlessVagueAmountClause(segment: string) {
+  const words = normalizeForMatching(segment).trim().split(" ");
+  let index = 0;
+  while (AMOUNT_DISCOURSE_MODIFIERS.has(words[index])) index++;
+  if (words[index] === "com") index++;
+  while (AMOUNT_DISCOURSE_MODIFIERS.has(words[index])) index++;
+  if (AMOUNT_ADJUSTMENTS.has(words[index])) index++;
+  if (words[index] && parseCountableQuantity(words[index]) !== null) index++;
+  if (!VAGUE_AMOUNT_HEADS.has(words[index++])) return false;
+  if (AMOUNT_ADJUSTMENTS.has(words[index])) index++;
+  return index === words.length;
+}
+
+// This reads a noun next to a canonical spoon unit, not its count, physical
+// quantity or food identity. The caller decides whether that noun is relevant.
+export function readLeadingSpoonComponent(source: string): string | null {
+  const words = normalizeForMatching(source).trim().split(" ");
+  const start = words[0] && parseCountableQuantity(words[0]) !== null ? 1 : 0;
+  if (!words[start] || normalizeUnit(words[start]) !== "colher") return null;
+  const unit = normalizeUnit(words.slice(start, start + 3).join(" "));
+  let noun = start + (unit === "colher de chá" || unit === "colher de sopa" ? 3 : 1);
+  if (words[noun] === "de") noun++;
+  return words[noun] || null;
 }
 
 export function estimateGramsFromQuantity(quantity: number, unit: string) {

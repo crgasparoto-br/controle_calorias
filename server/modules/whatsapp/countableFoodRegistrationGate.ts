@@ -15,6 +15,7 @@ import {
 import { createWhatsappMealIntentRegistrationDetailsInteraction } from "./mealIntentRegistrationDetailsInteraction";
 import { parseFoodText } from "../../mealTextParsing";
 import { materializeResolvedCountableMeal } from "../../resolvedCommercialMealMaterialization";
+import { getUnboundCoffeeSugarAmountClarification } from "../../coffeeSugarNutrition";
 
 export type ResolvedRegistrationSegment = {
   segmentIndex: number;
@@ -39,6 +40,21 @@ export type CountableFoodRegistrationGateResult =
     }
   | { kind: "clarification"; result: WhatsappIntentResult };
 
+export function getOwnerlessAmountRegistrationReply(text: string): WhatsappIntentResult | null {
+  const reply = getUnboundCoffeeSugarAmountClarification(text);
+  if (!reply) return null;
+  // No pending sugar-only recipe: the affected item is not known. A complete
+  // replacement description is required and no meal draft exists to resume.
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply,
+    eventType: "whatsapp.meal_intent_decision.registration_details_required",
+    detail: "Continuação quantitativa sem vínculo bloqueada antes da preparação de porções.",
+    data: { retryRequiresFullMessage: true, consumptionPersisted: false },
+  };
+}
+
 export async function prepareWhatsappCountableFoodRegistration(input: {
   userId: number;
   text?: string | null;
@@ -49,6 +65,8 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   resolvedSegments?: ResolvedRegistrationSegment[];
 }): Promise<CountableFoodRegistrationGateResult> {
   const text = input.text?.trim() ?? "";
+  const ownerlessAmount = getOwnerlessAmountRegistrationReply(text);
+  if (ownerlessAmount) return { kind: "clarification", result: ownerlessAmount };
   const userTimezone = input.userTimezone ?? DEFAULT_APP_TIME_ZONE;
   const prepared = await prepareCountableFoodRegistrationResolved(
     input.userId,
