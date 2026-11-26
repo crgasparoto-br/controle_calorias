@@ -13,6 +13,7 @@ import { buildMealSemanticContract } from "../../mealSemanticContract";
 import type { WhatsappIntentResult } from "./intent/types";
 import type { CountableFoodPendingItem } from "../../countableFoodQuantity";
 import {
+  getOwnerlessAmountRegistrationReply,
   prepareWhatsappCountableFoodRegistration,
   type ResolvedRegistrationSegment,
 } from "./countableFoodRegistrationGate";
@@ -173,6 +174,11 @@ export function createConfirmedMealRegistrationService(
         registrationText = prepared.registrationText;
         resolvedSegments = prepared.resolvedSegments ?? resolvedSegments;
         skippedItems = prepared.skippedItems;
+      } else {
+        // A previously prepared subset must never bypass the same textual
+        // guard when the caller still supplies an ownerless continuation.
+        const result = getOwnerlessAmountRegistrationReply(registrationText);
+        if (result) return { status: "clarification_requested", result };
       }
 
       const processingInput = {
