@@ -369,6 +369,17 @@ do livro de dívida.
   (`null`), sem tratar ausência como zero chamadas. São números diagnósticos,
   **não SLOs aprovados**; nenhuma janela, coorte representativa, limite de custo
   ou tolerância é inferida.
+- No replay diagnóstico (#1311), `v1ItemObservation` mostra, para cada
+  segmento, execuções com snapshot V1 (`snapshotRuns`), sem snapshot
+  (`missingSnapshotRuns`) e quantos itens V1 foram observados
+  (`observedItems`). Um snapshot vazio conta como observado, mas não
+  acrescenta itens. Observações parciais ou falhas do lado V2 não apagam
+  itens V1 já observados. `observedItems` é o denominador de
+  `potentialSilentFallbacks`, não a contagem de pares ou requisições.
+  Denominador zero é ausência de amostra de itens; suspeitas zero com
+  itens observados ainda não provam zero fallback silencioso. O sinal V2
+  `missingNutritionProvenance` tem outra população (decisões com nutrição
+  consumida) e não usa este denominador.
 - `server/modules/foodIntelligenceV2/shadowBaselineReplay.ts` valida em profundidade
   eventos pré-sanitizados, rejeitando campos inesperados (inclusive texto/PII),
   números incoerentes, correlações duplicadas, somas de itens sem par e

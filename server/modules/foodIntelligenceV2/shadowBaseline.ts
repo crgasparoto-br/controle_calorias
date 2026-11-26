@@ -29,6 +29,8 @@ export type FoodShadowBaselineSegment = {
   identityDifferences: number; variantDifferences: number; variantIdUnverifiable: number;
   quantityDifferences: number; nutritionDifferences: number; sourceDifferences: number;
   clarificationDifferences: number; potentialSilentFallbacks: number;
+  /** V1 snapshot coverage and item denominator for potentialSilentFallbacks, not verified fallback. */
+  v1ItemObservation: { snapshotRuns: number; missingSnapshotRuns: number; observedItems: number };
   missingNutritionProvenance: number; explicitFailures: number;
   sourceConflicts: number;
   macroAbsDelta: FoodShadowEvent["differences"]["macros"];
@@ -134,6 +136,7 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
       identityDifferences: 0, variantDifferences: 0, variantIdUnverifiable: 0, quantityDifferences: 0,
       nutritionDifferences: 0, sourceDifferences: 0, clarificationDifferences: 0,
       potentialSilentFallbacks: 0, missingNutritionProvenance: 0, explicitFailures: 0,
+      v1ItemObservation: { snapshotRuns: 0, missingSnapshotRuns: 0, observedItems: 0 },
       sourceConflicts: 0,
       macroAbsDelta: { calories: null, protein: null, carbs: null, fat: null },
       capabilityUsageObservedRuns: 0, capabilityUsageUnavailableRuns: 0,
@@ -181,6 +184,13 @@ export function buildFoodShadowBaseline(events: readonly FoodShadowEvent[]) {
     // Outcome-level clarification is comparable even when V1 threw a
     // clarification exception and item-level comparison is partial.
     if (event.differences.clarification === true) row.clarificationDifferences = sumShadowCounts(row.clarificationDifferences, 1);
+    const v1Observation = row.v1ItemObservation;
+    if (event.v1ItemsObserved) {
+      v1Observation.snapshotRuns = sumShadowCounts(v1Observation.snapshotRuns, 1);
+      v1Observation.observedItems = sumShadowCounts(v1Observation.observedItems, event.v1ItemCount);
+    } else {
+      v1Observation.missingSnapshotRuns = sumShadowCounts(v1Observation.missingSnapshotRuns, 1);
+    }
     row.potentialSilentFallbacks = sumShadowCounts(row.potentialSilentFallbacks, event.flagged.possibleSilentFallback);
     row.missingNutritionProvenance = sumShadowCounts(row.missingNutritionProvenance, event.flagged.v2MissingNutritionProvenance);
     row.explicitFailures = sumShadowCounts(row.explicitFailures, event.flagged.explicitFailure);
