@@ -20,6 +20,9 @@ export const FOOD_OBSERVATION_SCHEMA_VERSION = 2;
 /** Revisão de observação com vínculos materiais, ainda sem consumidor produtivo. */
 export const FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION = 3;
 
+/** Evidência apenas de esclarecimento; revisão opt-in sem consumidor produtivo. */
+export const FOOD_MATERIAL_CLARIFICATION_OBSERVATION_SCHEMA_VERSION = 4;
+
 /** `schemaVersion` aceito por `FoodResolutionDecision` (§5). */
 export const FOOD_RESOLUTION_DECISION_SCHEMA_VERSION = 2;
 

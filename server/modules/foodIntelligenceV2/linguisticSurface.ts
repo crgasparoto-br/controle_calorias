@@ -118,6 +118,9 @@ export function recognizedUnit(value: string): string | null {
 
 export type FoodQuantitySourceSpans = {
   name?: Span; quantity?: Span;
+  /** The clarification dialect asks this reader to distinguish a single nominal slot. */
+  checkWrittenNominal?: true;
+  writtenNominalProven?: true;
   // A literal nominal slot, not a selected unit or measured amount.
   nameAfterConflictingUnit?: Span;
   // The governed production reached the end before any nominal slot.
@@ -141,6 +144,11 @@ export function readQuantity(
     const nameStart = source.length - name.length;
     if (name && nameStart >= consumed && source.endsWith(name)) {
       sourceSpans.name = { start: sourceStart + nameStart, end: sourceStart + source.length };
+      if (sourceSpans.checkWrittenNominal && writtenNominalWord.test(name) &&
+          !nonNominalWord.test(foldFoodSurface(name)) && !materialQualifier.test(name) &&
+          parseNumber(name) === null && recognizedUnit(name) === null) {
+        sourceSpans.writtenNominalProven = true;
+      }
     }
     const prefix = source.slice(0, consumed).trimEnd();
     const end = (trailingConnector ? prefix.replace(endConnector, "").trimEnd() : prefix).length;
@@ -408,8 +416,120 @@ export type ExplicitIngredientNegation = {
   conflictingGovernedOwner?: Span;
 };
 
+const materialQualifier = /^(?:(?:sem|com|zero)\s+(?:a[cç][uú]car|lactose|gl[uú]ten|sal|gordura|cafe[ií]na)\b|(?:frit[ao]s?|cozid[ao]s?|desnatad[ao]s?|integral|diet|light|uht)\b)/iu;
+const nominalWordPattern = "[\\p{L}][\\p{L}\\p{M}]*(?:['’\\p{Pd}][\\p{L}][\\p{L}\\p{M}]*)*";
+const simpleName = new RegExp("^" + nominalWordPattern + "$", "u");
+const literalMore = /^[Mm][Aa][Ii][Ss]$/u;
+const littleAmount = /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u;
+const nonNominalWord = /^(?:o|a|os|as|e|ou|nem|com|sem|mais|por|para|mas|que|se|zero|nada|nao|nenhum[ao]?|qualquer|pouco|de|da|do|das|dos|uns|umas|mil|milhao|milhoes)$/u;
+const writtenNominalWord = /^[\p{L}][\p{L}\p{M}]*$/u;
+// Units here describe a literal shape, never food knowledge or a conversion.
+export const WRITTEN_MEASURE_UNITS = ["ml", "g", "kg"] as const;
+const metricDecimal = new RegExp("^([0-9]+(?:[,.][0-9]+)?)[ \t]+(" +
+  WRITTEN_MEASURE_UNITS.join("|") + ")$", "iu");
+
+function isLosslessWrittenDecimal(literal: string, amount: number): boolean {
+  const [whole, decimal = ""] = literal.split(/[,.]/u);
+  const integral = whole.replace(/^0+(?=\d)/u, "");
+  const fraction = decimal.replace(/0+$/u, "");
+  // Conservatively decline forms that need exponent notation or cannot
+  // round-trip through the exact decimal representation of the wire number.
+  return amount <= Number.MAX_SAFE_INTEGER &&
+    String(amount) === (fraction ? `${integral}.${fraction}` : integral);
+}
+
+export type PendingIncrementMode = {
+  readonly allowUnquantified: boolean;
+  readonly retainWrittenMeasure?: true;
+};
+
+export type WrittenClarificationPrefix = {
+  measure: Segment & { value: number; unit: typeof WRITTEN_MEASURE_UNITS[number] };
+  writtenNominal: Segment | null;
+};
+
+/** Project the original slots for an already isolated pending occurrence.
+ * No search for a neighboring name, conversions, or lexical arbitration. */
+export function readWrittenClarificationPrefix(
+  surface: Segment, operator: Span, governedUnits: readonly GovernedUnitAlias[] = [],
+): WrittenClarificationPrefix | null {
+  const begin = operator.start - surface.start;
+  const end = operator.end - surface.start;
+  if (begin <= 0 || end > surface.text.length || !literalMore.test(surface.text.slice(begin, end)) ||
+      !littleAmount.test(surface.text.slice(end).replace(/\.$/u, ""))) return null;
+  const before = surface.text.slice(0, begin);
+  const connector = /[ \t]+[Cc][Oo][Mm][ \t]+$/u.exec(before);
+  if (!connector) return null;
+  const prefix = before.slice(0, connector.index);
+  const slots: FoodQuantitySourceSpans = { checkWrittenNominal: true };
+  const amount = readQuantity(prefix, governedUnits, true, slots);
+  if (amount.value === null || !Number.isFinite(amount.value) || amount.value <= 0 ||
+      amount.uncertain || amount.governedAlias || !slots.quantity || slots.quantity.start !== 0) return null;
+  const literal = prefix.slice(0, slots.quantity.end);
+  const metric = metricDecimal.exec(literal);
+  if (literal.length > FOOD_CONTRACT_LIMITS.shortText || !metric ||
+      !isLosslessWrittenDecimal(metric[1], amount.value)) return null;
+  const unit = WRITTEN_MEASURE_UNITS.find(item => item === amount.unit && item === metric[2].toLowerCase());
+  if (unit === undefined) return null;
+  const nominal = slots.name;
+  if (nominal) {
+    if (nominal.end !== prefix.length || amount.name.length > FOOD_CONTRACT_LIMITS.shortText ||
+        !slots.writtenNominalProven ||
+        !/^[ \t]+[Dd][Ee][ \t]+$/u.test(prefix.slice(slots.quantity.end, nominal.start))) return null;
+  } else if (slots.quantity.end !== prefix.length || amount.name) return null;
+  return {
+    measure: { start: surface.start, end: surface.start + slots.quantity.end,
+      text: literal, value: amount.value, unit },
+    writtenNominal: nominal ? {
+      start: surface.start + nominal.start, end: surface.start + nominal.end, text: amount.name,
+    } : null,
+  };
+}
+
+function enclosingIndefiniteRanges(text: string): Span[] {
+  const enclosedRanges: Span[] = [];
+  const starts = new Map<string, string>([['"', '"'], ["'", "'"], ["“", "”"], ["‘", "’"], ["«", "»"], ["(", ")"], ["[", "]"], ["{", "}"]]);
+  const opens: { end: string; index: number }[] = [];
+  for (const mark of text.matchAll(/(?<![\p{L}\p{M}\p{N}])['’]|['’](?![\p{L}\p{M}\p{N}])|["“”‘«»()[\]{}]/gu)) {
+    if (opens.at(-1)?.end === mark[0]) {
+      const closed = opens.pop()!;
+      enclosedRanges.push({ start: closed.index, end: mark.index + 1 });
+    } else {
+      const end = starts.get(mark[0]);
+      if (end) opens.push({ end, index: mark.index });
+      else enclosedRanges.push({ start: mark.index, end: mark.index + 1 });
+    }
+  }
+  for (const open of opens) enclosedRanges.push({ start: open.index, end: text.length });
+  return enclosedRanges;
+}
+const explicitPendingBlockWords = new Set(["ou", "sem", "nao", "nem", "nunca"]);
+function indefiniteScopeBlocked(scope: Segment, ranges: readonly Span[]): boolean {
+  // Split normalized control words only, using the same Unicode token
+  // boundaries as the previous predicate. Every source offset stays raw.
+  return ranges.some(range => range.start < scope.end && range.end > scope.start) ||
+    foldFoodSurface(scope.text).split(/[^\p{L}\p{M}\p{N}]+/u).some(token => explicitPendingBlockWords.has(token));
+}
+
+/** Check original coordination and guarded context without splitting or interpreting food. */
+export function hasWrittenClarificationContext(source: string, span: Span): boolean {
+  if (span.start <= 0 || span.end > source.length) return false;
+  const before = source.slice(0, span.start);
+  const start = Math.max(before.lastIndexOf(";"), before.lastIndexOf("\n")) + 1;
+  const nextHard = source.slice(span.end).search(/[;\n]/u);
+  const end = nextHard < 0 ? source.length : span.end + nextHard;
+  const scope = trimSpan(source, start, end);
+  return scope !== null && !/[;\n]/u.test(source.slice(span.start, span.end)) &&
+    /[ \t]+e[ \t]+$/iu.test(source.slice(start, span.start)) &&
+    (span.end === scope.end || !source.slice(span.start, span.end).endsWith(".") &&
+      /^[ \t]+e[ \t]+/iu.test(source.slice(span.end, scope.end))) &&
+    !indefiniteScopeBlocked(scope, enclosingIndefiniteRanges(source)) &&
+    !/^[ \t\r]*\n[ \t\r\n]*de(?:[ \t]+|$)/iu.test(source.slice(scope.end));
+}
+
 export type PendingIncrementCue = {
   operator: Segment;
+  writtenPrefix?: WrittenClarificationPrefix;
 } & (
   | { measureSpan: Span; value: number; unit: string }
   | { measureSpan: null; value: null; unit: null }
@@ -431,12 +551,11 @@ export function splitFoodSurface(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [],
   protectedTerms: readonly string[] = [],
   material?: MaterialSegmentSyntax[],
-  pendingIncrementMode?: { readonly allowUnquantified: boolean },
+  pendingIncrementMode?: PendingIncrementMode,
 ): Segment[] {
   // A comma before a recognized material attribute belongs to the prior food.
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
   // tokens are not silently consumed as food identity or a modifier.
-  const materialQualifier = /^(?:(?:sem|com|zero)\s+(?:a[cç][uú]car|lactose|gl[uú]ten|sal|gordura|cafe[ií]na)\b|(?:frit[ao]s?|cozid[ao]s?|desnatad[ao]s?|integral|diet|light|uht)\b)/iu;
   // In the opt-in material grammar punctuation does not hide an operator.
   // Consult the same applicable S2 protected phrases with raw UTF-16 offsets.
   const rawOperators = material ? [...text.matchAll(
@@ -675,28 +794,11 @@ export function splitFoodSurface(
   // A hard cut inside speech or unbalanced grouping is not an authority boundary.
   // Keep this provenance scan local to the indefinite diagnostic. It does
   // not reinterpret segmentation, materialize speech, or alter v1.
-  const enclosedRanges: Span[] = [];
-  if (pendingIncrementMode?.allowUnquantified) {
-    const starts = new Map<string, string>([['"', '"'], ["'", "'"], ["“", "”"], ["‘", "’"], ["«", "»"], ["(", ")"], ["[", "]"], ["{", "}"]]);
-    const opens: { end: string; index: number }[] = [];
-    for (const mark of text.matchAll(/(?<![\p{L}\p{M}\p{N}])['’]|['’](?![\p{L}\p{M}\p{N}])|["“”‘«»()[\]{}]/gu)) {
-      if (opens.at(-1)?.end === mark[0]) {
-        const closed = opens.pop()!;
-        enclosedRanges.push({ start: closed.index, end: mark.index + 1 });
-      } else {
-        const end = starts.get(mark[0]);
-        if (end) opens.push({ end, index: mark.index });
-        else enclosedRanges.push({ start: mark.index, end: mark.index + 1 });
-      }
-    }
-    for (const open of opens) enclosedRanges.push({ start: open.index, end: text.length });
-  }
+  const enclosedRanges = pendingIncrementMode?.allowUnquantified ? enclosingIndefiniteRanges(text) : [];
   const indefiniteBlockedBlocks = new Set<number>();
   if (pendingIncrementMode?.allowUnquantified) {
     for (const [i, scope] of hardBlocks.entries()) {
-      // Fold only the refusal predicate. All spans still use the raw source.
-      if (!scope || enclosedRanges.some(r => r.start < scope.end && r.end > scope.start) ||
-          /(?<![\p{L}\p{M}\p{N}])(?:ou|sem|nao|nem|nunca)(?![\p{L}\p{M}\p{N}])/u.test(foldFoodSurface(scope.text))) {
+      if (!scope || indefiniteScopeBlocked(scope, enclosedRanges)) {
         indefiniteBlockedBlocks.add(i);
       }
     }
@@ -704,9 +806,7 @@ export function splitFoodSurface(
   const parts: Segment[] = [];
   // A label is not a catch-all for whatever follows a measured ingredient.
   // Accept only words joined by ordinary spacing or intra-word punctuation.
-  const nameWord = "[\\p{L}][\\p{L}\\p{M}]*(?:['’\\p{Pd}][\\p{L}][\\p{L}\\p{M}]*)*";
-  const simpleName = new RegExp("^" + nameWord + "$", "u");
-  const lexicalName = new RegExp("^" + nameWord + "(?:[ \\t]+" + nameWord + ")*$", "u");
+  const lexicalName = new RegExp("^" + nominalWordPattern + "(?:[ \\t]+" + nominalWordPattern + ")*$", "u");
   const startsWithNumber = new RegExp("^(?:[0-9¼½¾]|(?:" + writtenPattern + ")(?=\\s|$))", "iu");
   let stopIndex = 0;
   let block = trimSpan(text, 0, hardStops[0] ?? text.length);
@@ -850,7 +950,7 @@ export function splitFoodSurface(
         /^[ \t]+e[ \t]+$/iu.test(gap) && deContinuationAfter(stopIndex) === null) {
       // Only refine an existing coordinated residual. Neither a soft
       // separator nor the nominal prefix establishes an owner or measure.
-      const more = operators.filter(m => m.groups?.increment && /^[Mm][Aa][Ii][Ss]$/u.test(m[0]));
+      const more = operators.filter(m => m.groups?.increment && literalMore.test(m[0]));
       const cue = more.length === 1 ? more[0] : undefined;
       const eIndex = previous ? previous.end + gap.search(/[^ \t]/u) : -1;
       const contextualProtection = indefiniteProtected && block && cue &&
@@ -869,11 +969,13 @@ export function splitFoodSurface(
         const suffix = text.slice(end, part.end);
         const terminalPeriod = suffix.endsWith(".") && block?.end === part.end;
         const quantifier = terminalPeriod ? suffix.slice(0, -1) : suffix;
-        if ((independentPrefix || localPrefix) &&
-            /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(quantifier)) {
+        if ((independentPrefix || localPrefix) && littleAmount.test(quantifier)) {
+          const operator = { start: cue.index, end, text: cue[0] };
+          const writtenPrefix = localPrefix && pendingIncrementMode.retainWrittenMeasure && hasWrittenClarificationContext(text, part) ?
+            readWrittenClarificationPrefix(part, operator, governedUnits) : null;
           pendingIncrement = {
-            operator: { start: cue.index, end, text: cue[0] },
-            measureSpan: null, value: null, unit: null,
+            operator, measureSpan: null, value: null, unit: null,
+            ...(writtenPrefix ? { writtenPrefix } : {}),
           };
         }
       }

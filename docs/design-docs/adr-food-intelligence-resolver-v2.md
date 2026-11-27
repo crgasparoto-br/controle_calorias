@@ -221,6 +221,14 @@ A validação interna exige lote homogêneo por revisão, unicidade de IDs, evid
 
 A revisão **2** acima permanece estrita para readers, histórico e pendências fixadas: não sintetizar `materialClaims: []` para fazê-la parecer 3. A nova revisão tem validação de lote interna, sem consumidor ativo nesta entrega. A evolução não muda as revisões de `FoodResolutionDecision`, envelope, V1 ou persistência. #1304 deve produzir os vínculos antes de #1308 consumir a nova revisão, sob seus gates específicos. Nada aqui altera flags ou autoriza S3, shadow real, gravação pública ou cutover.
 
+#### Evidência de esclarecimento em observação pendente (#1341)
+
+**Decisão de produto, 27/11/2026:** preservar a medida escrita antes de um acréscimo sem quantidade quando ambos pertencem ao mesmo trecho retido. A opção A permanece: usar uma revisão interna, explícita e opt-in da mesma observação. A LCL ancora, na fonte original e em offsets UTF-16, a medida literal, a forma nominal escrita quando comprovável naquele trecho e a ocorrência local do operador. Sem forma nominal comprovável, a medida permanece explicitamente sem alimento atribuído. Forma nominal observada não comprova identidade, porção ou quantidade do acréscimo. Operadores repetidos são ocorrências distintas; cada um mantém sua âncora, sem quantidade, dono ou alvo inferidos.
+
+A evidência serve só para esclarecimento: não preenche `quantityHints`, não constitui alvo de incremento e não transforma o trecho ou seu prefixo em observação resolvida. A medida que antecede o operador não é a `unresolvedAmount` do incremento. Reter a relação local não permite escolher variante, calcular nutrientes nem registrar o item. A validação confere a procedência e a associação aos papéis da própria pendência; evidência destacada não é observação. Se não for possível comprovar o vínculo, não o inferir nem contar o caso como evidência válida do vínculo.
+
+Leitores R2 e R3 permanecem estritos e inalterados: rejeitam a revisão nova. Lotes mistos não são convertidos; não há adaptação que transfira a evidência para um campo que dê autoridade de consumo. A revisão nova limita-se ao recorte opt-in de texto e transcrição de um turno. Não modifica o envelope, as decisões de resolução, as pendências históricas, as rotas, a persistência nem o resultado padrão. Aplica-se a política de §7.2; nenhum consumidor produtivo é habilitado nesta entrega.
+
 Cada execução recebe um envelope interno versionado com `traceId`, chave idempotente da operação, proprietário autenticado, referências de conversa/turno quando aplicáveis, timezone efetivo, `MealOperation` separado e revisões de código, conhecimento, léxico e política. Os adapters reutilizam autenticação, contexto e lifecycle existentes: identidade enviada por cliente/provider não é autoridade. Para `previousMessage`, `preferences` e `recentHistory`, o envelope exige `status = available | absent | expired | unavailable | not_applicable`, motivo e referência de origem por fonte, conforme §1.2. Falha de consulta não pode virar ausência ou não aplicabilidade.
 
 ### 4.1. Camada de Compreensão Linguística
@@ -556,6 +564,8 @@ Um turno pode conter vários itens alimentares com qualidade de evidência difer
 - o usuário não deve receber erro genérico quando parte do lote é válida (`#1282`);
 - cada exclusão deve referenciar o `unresolvedReason` da observação que a originou;
 - nenhum item do lote pode ser registrado sem procedência nutricional declarada (§9.2).
+
+A evidência de esclarecimento de §4 não torna resolvido um item potencialmente afetado. Não calcular ou gravar esse item a partir da parte que já tem medida. Um item comprovadamente independente mantém a elegibilidade já definida acima, sem aproveitar a medida ou atribuir a si a pendência do outro. Essa é uma fronteira de decisão, não autorização para migrar ou ativar entrypoints.
 
 ## 8. Banco de conhecimento único
 
