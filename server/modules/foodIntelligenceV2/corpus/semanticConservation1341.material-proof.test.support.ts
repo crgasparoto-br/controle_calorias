@@ -873,10 +873,11 @@ export function preflightProspectiveMaterialProof(
       if ((pairCells.get(cell + "/" + mode)?.size ?? 0) < requirement[mode]) fail("plan-pair-minimum");
     }
   }
-  // Counts only. Projection is a separate payload available through the established API.
+  // Counts of declared (kind, unordered case pair) keys, not physical
+  // pairs or evidence of semantic equivalence. No case or label is returned.
   return { status: "diagnostic-planning-only" as const, manifestSha256: plan.manifestSha256,
     planSha256: config.pinnedPlanSha256, projectionSha256: plan.projectionSha256,
-    checkedCells: required.size, checkedPairs: used.size };
+    checkedCells: required.size, checkedPairDeclarations: used.size };
 }
 
 function verifyReceiptBytes<T extends {

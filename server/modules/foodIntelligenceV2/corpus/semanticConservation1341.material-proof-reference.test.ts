@@ -132,14 +132,25 @@ describe("prospective planning with public R3 fixtures only", () => {
     return { plan, config };
   }
   const requiredCells = [{ split: "calibration", modality: "text", kind: "ingredient-measured" }] as const;
-  const run = ({ plan, config }: ReturnType<typeof setup>, require = requiredCells) => {
+  type Required = Parameters<typeof preflightProspectiveMaterialProof>[0]["requiredCells"];
+  const run = ({ plan, config }: ReturnType<typeof setup>, required: Required = requiredCells) => {
     const bytes = json(plan);
-    return preflightProspectiveMaterialProof({ ...config, plan: bytes, pinnedPlanSha256: pin(bytes), requiredCells: require }, "r3-material-proof-v1");
+    return preflightProspectiveMaterialProof({ ...config, plan: bytes, pinnedPlanSha256: pin(bytes), requiredCells: required }, "r3-material-proof-v1");
   };
   it("commits projected bytes and verifies one family; reveals no labels or member IDs", () => {
     const v = setup(), result = run(v);
     expect(result).toEqual({ status: "diagnostic-planning-only", manifestSha256: v.plan.manifestSha256,
-      planSha256: pin(json(v.plan)), projectionSha256: v.plan.projectionSha256, checkedCells: 1, checkedPairs: 2 });
+      planSha256: pin(json(v.plan)), projectionSha256: v.plan.projectionSha256, checkedCells: 1, checkedPairDeclarations: 2 });
+  });
+  it("reports declarations by fact kind, not unique physical pairs or actual equivalence", () => {
+    const v = setup();
+    v.plan.minima.push({ ...v.plan.minima[0], kind: "independent-sibling" });
+    v.plan.pairs.push(...v.plan.pairs.map(pair => ({ ...pair, kind: "independent-sibling" })));
+    const result = run(v, [...requiredCells, { ...requiredCells[0], kind: "independent-sibling" }]);
+    // The two physical pairs each occur in two declared cells; this does not
+    // assert the declared change to the sibling actually occurred.
+    expect(result.checkedPairDeclarations).toBe(4);
+    expect(result).not.toHaveProperty("checkedPairs");
   });
   it("fails if pair polarity, declared cell, independent families, or exact projection are replaced", () => {
     const a = setup(); a.plan.pairs[1].expectation = "preserve";
