@@ -846,8 +846,14 @@ de `mais`: uma cláusula inteira ou um residual já retido por coordenação
 `e`. No caso coordenado, uma medida anterior com prova permanece independente;
 o gabarito precisa cobrir cada cauda dessa cláusula, com ocorrências e âncoras
 distintas. Vírgula isolada, alternativa `ou`, retomada por `de`, negação,
-termo protegido ou alvo não provado não servem de autorização. O recorte não
-prova uma segunda medida dentro do próprio residual retido, como leite
+termo protegido ou alvo não provado não servem de autorização. Uma alternativa
+ou negação no mesmo bloco impede a prova, mesmo antes de uma divisão por `e`.
+Pontuação dentro de fala citada ou grupo delimitado não restabelece a
+autoridade do bloco. Um bloco separado depois do fechamento ainda pode
+trazer evidência.
+O produtor e o verificador inspecionam esse contexto diretamente no original;
+concordar sobre os offsets locais não substitui a prova do escopo. O recorte
+não prova uma segunda medida dentro do próprio residual retido, como leite
 quantificado antes do incremento. Um escopo afetado sem filho tipado é falta
 de evidência no verificador, não confirmação da pendência.
 

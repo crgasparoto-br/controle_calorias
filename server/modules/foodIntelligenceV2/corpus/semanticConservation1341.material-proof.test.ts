@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FOOD_CONTRACT_LIMITS } from "../contracts";
 import { diagnoseFoodMaterialPendingIncrements, diagnoseFoodMaterialUnquantifiedIncrements, type GovernedLexiconEntry } from "../linguisticComprehension";
 import { parseFoodMaterialObservationBatch, type FoodMaterialObservation } from "../schemas";
-import { compareSealedMaterialProof, compareSealedUnquantifiedMaterialProof, prepareMaterialProofInputs, prepareUnquantifiedMaterialProofInputs } from "./semanticConservation1341.material-proof.test.support";
+import { compareSealedMaterialProof, compareSealedUnquantifiedMaterialProof, prepareMaterialProofInputs, prepareUnquantifiedMaterialProofInputs, preflightUnquantifiedMaterialProofReference } from "./semanticConservation1341.material-proof.test.support";
 
 const ref = {
   studyId: "b".repeat(32), parserSha: "c".repeat(40), comparatorSha: "d".repeat(40),
@@ -737,4 +737,57 @@ it("scores a proved measured prefix and each coordinated indefinite suffix at it
     { profile: "r3-material-proof-v2" }, []);
   expect(() => compareSealedUnquantifiedMaterialProof(falseOrigin)).toThrow(/^c1b-r3-material-proof:/u);
   expect(falseOrigin.readLabels).not.toHaveBeenCalled();
+});
+
+describe("indefinite evidence cannot borrow authority from quoted or alternative context", () => {
+  const version = { profile: "r3-material-proof-v2" };
+  const producer = (entry: Input) => diagnoseFoodMaterialUnquantifiedIncrements({
+    rawText: entry.text, modality: entry.modality, sourceRef: "c1b:" + entry.id,
+    lexiconRevision: ref.lexiconRevision, ownerUserId: null, locale: "pt-BR",
+    now: new Date("2026-11-25T00:00:00Z"),
+  }, { load: async () => [] });
+  const gold = (entry: Input) => [{ id: entry.id, facts: [{
+    kind: "pending-increment", scope: at(entry.text, "mais um pouco"),
+    operator: at(entry.text, "mais"), amount: null,
+  }] }];
+
+  it.each([
+    ["Café ou chá e mais um pouco", "Café e  chá e mais um pouco"],
+    ["Café sem chá e mais um pouco", "Café com chá e mais um pouco"],
+    ["“café; mais um pouco; chá”", " café; mais um pouco; chá "],
+    ["«café e mais um pouco; chá»", " café e mais um pouco; chá "],
+  ])("refuses both a mislabeled scope and a forged child: %s", async (text, neutral) => {
+    const entry = input(1, text);
+    const other = input(1, neutral);
+    expect(at(entry.text, "mais um pouco")).toEqual(at(other.text, "mais um pouco"));
+    const result = await producer(entry);
+    const positive = await producer(other);
+    if (result.ok || positive.ok || result.reason !== "unproven-material" ||
+        positive.reason !== "unproven-material") throw new Error("expected controlled pending");
+    const span = at(entry.text, "mais um pouco");
+    const heldRows = result.affected;
+    const held = heldRows.find(r => r.surfaceSpan.span?.start === span.start && r.surfaceSpan.span.end === span.end);
+    const source = positive.affected.find(r => r.pendingObservation?.surfaceSpan.span?.start === span.start);
+    if (!held || !source?.pendingObservation) throw new Error("expected author-independent donor and affected range");
+    expect(held.pendingObservation).toBeUndefined();
+    const packet = seal([entry], [{ id: entry.id, result }], gold(entry), version, []);
+    expect(() => preflightUnquantifiedMaterialProofReference({ ...packet, labels: packet.readLabels() }))
+      .toThrow("label-operator");
+    packet.readLabels.mockClear();
+    expect(() => compareSealedUnquantifiedMaterialProof(packet)).toThrow("label-operator");
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+
+    held.pendingObservation = { ...source.pendingObservation, rawInput: text,
+      observationId: held.observationId, surfaceSpan: held.surfaceSpan };
+    const forged = seal([entry], [{ id: entry.id, result }], gold(entry), version, []);
+    expect(() => compareSealedUnquantifiedMaterialProof(forged)).toThrow("pending-authority");
+    expect(forged.readLabels).not.toHaveBeenCalled();
+  });
+
+  it("keeps an independently delimited fact after completed speech and an alternative", async () => {
+    const entry = input(1, "“fala; outra fala”; café ou chá; mais um pouco", "audio_transcript");
+    const packet = seal([entry], [{ id: entry.id, result: await producer(entry) }], gold(entry), version, []);
+    expect(compareSealedUnquantifiedMaterialProof(packet).totals)
+      .toMatchObject({ abstained: 1, missing: 0, mismatch: 0 });
+  });
 });

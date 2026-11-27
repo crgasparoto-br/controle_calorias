@@ -397,8 +397,36 @@ const conjunction = /^[ \t]+[Ee][ \t]+$/u;
 function hardTail(input: Input, pos: number) {
   return input.text.slice(pos).split(/[;\n]/u, 1)[0];
 }
+// Review the original context as a whole, independent of the parser's
+// segmented parts. Do not treat punctuation inside a quote as a reset.
+function independentIndefiniteContext(input: Input, scope: Span) {
+  const before = input.text.slice(0, scope.start);
+  const start = Math.max(before.lastIndexOf(";"), before.lastIndexOf("\n")) + 1;
+  const local = input.text.slice(start, scope.end) + hardTail(input, scope.end);
+  const materialWords: readonly string[] = local.toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+  if (materialWords.includes("ou") || materialWords.includes("sem")) return false;
+  const envelopeMarks = (source: string) => [...source].filter((mark, i, chars) => {
+    if (!/["'“”‘’«»()[\]{}]/u.test(mark)) return false;
+    if (!/['’]/u.test(mark)) return true;
+    const wordAtom = /^[\p{L}\p{M}\p{N}]$/u;
+    return !wordAtom.test(chars[i - 1] ?? "") || !wordAtom.test(chars[i + 1] ?? "");
+  });
+  if (envelopeMarks(local).length) return false;
+  const marks = envelopeMarks(input.text.slice(0, start));
+  const pairs = ['""', "''", "“”", "‘’", "«»", "()", "[]", "{}"];
+  const unclosed: string[] = [];
+  for (const mark of marks) {
+    if (unclosed.at(-1) === mark) unclosed.pop();
+    else {
+      const opener = pairs.find(pair => pair[0] === mark);
+      if (opener) unclosed.push(opener[1]);
+    }
+  }
+  return unclosed.length === 0;
+}
+
 function indefiniteScope(input: Input, scope: Span, operator: Span) {
-  if (!inside(scope, operator) || !/^[Mm][Aa][Ii][Ss]$/u.test(literal(input, operator)) ||
+  if (!independentIndefiniteContext(input, scope) || !inside(scope, operator) || !/^[Mm][Aa][Ii][Ss]$/u.test(literal(input, operator)) ||
       /^[ \t\r]*\n[ \t\r\n]*de(?=[ \t;\r\n]|$)/iu.test(input.text.slice(scope.end))) return false;
   const ending = input.text.slice(operator.end, scope.end);
   if (wholeHardScope(input, scope) && operator.start === scope.start) {

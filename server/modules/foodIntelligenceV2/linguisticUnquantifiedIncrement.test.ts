@@ -54,6 +54,16 @@ describe("diagnóstico versionado de incremento sem quantidade", () => {
     "café com 3 g de açúcar ou mais um pouco",
     "café com 3 g de açúcar e leite sem mais um pouco",
     "café com 3 g de açúcar e leite com mais um pouco de canela",
+    "Café ou chá e mais um pouco",
+    "Café com 1 colher de chá de açúcar ou chá e leite com mais um pouco e mais um pouco.",
+    "“Café e mais um pouco; disse a pessoa”",
+    "“Café; mais um pouco; chá”",
+    "\"Café; mais um pouco; chá\"",
+    "‘Café; mais um pouco; chá’",
+    "«Café; mais um pouco; chá»",
+    "(Café; mais um pouco; chá)",
+    "(Café; mais um pouco; chá",
+    "Café sem chá e mais um pouco",
   ])("não cria um incremento sem autoridade: %s", async raw => {
     const input = request(raw, "text");
     const result = await diagnoseFoodMaterialUnquantifiedIncrements(input, empty);

@@ -671,6 +671,28 @@ export function splitFoodSurface(
     }
   }
 
+  // A hard cut inside speech or unbalanced grouping is not an authority boundary.
+  // Keep this provenance scan local to the indefinite diagnostic. It does
+  // not reinterpret segmentation, materialize speech, or alter v1.
+  const enclosedRanges: Span[] = [];
+  if (pendingIncrementMode?.allowUnquantified) {
+    const starts = new Map<string, string>([['"', '"'], ["'", "'"], ["“", "”"], ["‘", "’"], ["«", "»"], ["(", ")"], ["[", "]"], ["{", "}"]]);
+    const opens: { end: string; index: number }[] = [];
+    for (const mark of text.matchAll(/(?<![\p{L}\p{M}\p{N}])['’]|['’](?![\p{L}\p{M}\p{N}])|["“”‘«»()[\]{}]/gu)) {
+      if (opens.at(-1)?.end === mark[0]) {
+        const closed = opens.pop()!;
+        enclosedRanges.push({ start: closed.index, end: mark.index + 1 });
+      } else {
+        const end = starts.get(mark[0]);
+        if (end) opens.push({ end, index: mark.index });
+        else enclosedRanges.push({ start: mark.index, end: mark.index + 1 });
+      }
+    }
+    for (const open of opens) enclosedRanges.push({ start: open.index, end: text.length });
+  }
+  const blocksIndefinite = (scope: Segment | null) =>
+    scope === null || enclosedRanges.some(r => r.start < scope.end && r.end > scope.start) ||
+    /(?<![\p{L}\p{M}\p{N}])(?:ou|sem)(?![\p{L}\p{M}\p{N}])/iu.test(scope.text);
   const parts: Segment[] = [];
   // A label is not a catch-all for whatever follows a measured ingredient.
   // Accept only words joined by ordinary spacing or intra-word punctuation.
@@ -684,11 +706,13 @@ export function splitFoodSurface(
   const hasNegationOperator = (scope: Segment | null) =>
     scope !== null && operatorsIn(scope).some(match => negationOperator.test(match[0]));
   let blockHasNegation = hasNegationOperator(block);
+  let indefiniteBlocked = pendingIncrementMode?.allowUnquantified && blocksIndefinite(block);
   for (const part of joined) {
     while (part.start > (hardStops[stopIndex] ?? text.length)) {
       const start = hardStops[stopIndex++] + 1;
       block = trimSpan(text, start, hardStops[stopIndex] ?? text.length);
       blockHasNegation = hasNegationOperator(block);
+      indefiniteBlocked = pendingIncrementMode?.allowUnquantified && blocksIndefinite(block);
     }
     const operators = operatorsIn(part);
     const previous = parts.at(-1);
@@ -798,7 +822,7 @@ export function splitFoodSurface(
             measureSpan: { start: suffix.start, end: suffix.end },
             value: amount.value, unit: amount.unit,
           };
-        } else if (pendingIncrementMode?.allowUnquantified &&
+        } else if (pendingIncrementMode?.allowUnquantified && !indefiniteBlocked &&
             /^[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(suffix.text)) {
           // In this diagnostic dialect the isolated indefinite quantifier
           // establishes the operator, never a value, unit, target, or owner.
@@ -809,7 +833,7 @@ export function splitFoodSurface(
         }
       }
     }
-    if (pendingIncrementMode?.allowUnquantified && !pendingIncrement &&
+    if (pendingIncrementMode?.allowUnquantified && !indefiniteBlocked && !pendingIncrement &&
         continuation && !withheldScope && !found && !negation && !blockHasNegation &&
         /^[ \t]+e[ \t]+$/iu.test(gap) && deContinuationAfter(stopIndex) === null) {
       // Only refine an existing coordinated residual. Neither a soft
