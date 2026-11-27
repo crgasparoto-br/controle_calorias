@@ -694,8 +694,9 @@ export function splitFoodSurface(
   const indefiniteBlockedBlocks = new Set<number>();
   if (pendingIncrementMode?.allowUnquantified) {
     for (const [i, scope] of hardBlocks.entries()) {
+      // Fold only the refusal predicate. All spans still use the raw source.
       if (!scope || enclosedRanges.some(r => r.start < scope.end && r.end > scope.start) ||
-          /(?<![\p{L}\p{M}\p{N}])(?:ou|sem|n[aã]o|nem|nunca)(?![\p{L}\p{M}\p{N}])/iu.test(scope.text)) {
+          /(?<![\p{L}\p{M}\p{N}])(?:ou|sem|nao|nem|nunca)(?![\p{L}\p{M}\p{N}])/u.test(foldFoodSurface(scope.text))) {
         indefiniteBlockedBlocks.add(i);
       }
     }

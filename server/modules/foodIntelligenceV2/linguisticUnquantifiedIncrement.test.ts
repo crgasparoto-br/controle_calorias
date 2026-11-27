@@ -91,6 +91,16 @@ describe("diagnóstico versionado de incremento sem quantidade", () => {
     }
   });
 
+  it.each(["text", "audio_transcript"] as const)(
+    "preserva a mesma abstenção não tipada sob negação Unicode em %s", async modality => {
+      const composed = "Não acrescente café e mais um pouco";
+      for (const form of ["NFC", "NFD"] as const) {
+        const input = request(composed.normalize(form), modality);
+        const result = await diagnoseFoodMaterialUnquantifiedIncrements(input, empty);
+        const previous = await diagnoseFoodMaterialPendingIncrements(input, empty);
+        expect({ ...result, diagnosticProfile: previous.diagnosticProfile }).toEqual(previous);
+      }
+    });
   it("preserva o caso explícito do perfil anterior", async () => {
     const input = request("5 pitangas; mais 4 fatias", "text");
     const previous = await diagnoseFoodMaterialPendingIncrements(input, empty);

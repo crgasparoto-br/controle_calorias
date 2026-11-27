@@ -755,6 +755,7 @@ describe("indefinite evidence cannot borrow authority from quoted or alternative
     ["Café ou chá e mais um pouco", "Café e  chá e mais um pouco"],
     ["Café sem chá e mais um pouco", "Café com chá e mais um pouco"],
     ["Não acrescente café e mais um pouco", "Xxx acrescente café e mais um pouco"],
+    ["Na\u0303o acrescente café e mais um pouco", "Xxxx acrescente café e mais um pouco"],
     ["“café; mais um pouco; chá”", " café; mais um pouco; chá "],
     ["«café e mais um pouco; chá»", " café e mais um pouco; chá "],
   ])("refuses both a mislabeled scope and a forged child: %s", async (text, neutral) => {
