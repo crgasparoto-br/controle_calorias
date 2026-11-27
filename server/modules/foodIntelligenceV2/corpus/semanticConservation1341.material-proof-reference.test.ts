@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { compareSealedMaterialProof, preflightMaterialProofReference, prepareMaterialProofInputs } from "./semanticConservation1341.material-proof.test.support";
+import { compareSealedMaterialProof, preflightMaterialProofReference, preflightProspectiveMaterialProof, prepareMaterialProofInputs } from "./semanticConservation1341.material-proof.test.support";
 
 const pin = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 const json = (value: unknown) => Buffer.from(JSON.stringify(value));
@@ -101,4 +101,75 @@ describe("custodian reference preflight without a capture", () => {
     expect(readLabels).not.toHaveBeenCalled();
   });
 
+});
+
+describe("prospective planning with public R3 fixtures only", () => {
+  const caseId = (n: number) => n.toString().repeat(32);
+  function setup() {
+    const data = fixture();
+    for (const n of [3, 4]) {
+      const row = { ...data.inputs[0], id: caseId(n) };
+      const gold = facts();
+      if (n === 3) row.text += ";";
+      else {
+        row.text = row.text.replace("2 g", "3 g");
+        gold[0].amount!.value = 3;
+      }
+      data.inputs.push(row);
+      data.labels.rows.push({ id: row.id, facts: gold });
+    }
+    const config = seal(data);
+    const plan = {
+      version: 1, manifestSha256: config.pinnedManifestSha256,
+      projectionSha256: pin(json(prepareMaterialProofInputs(config))),
+      excludedFamilies: [] as string[],
+      minima: [{ split: "calibration", modality: "text", kind: "ingredient-measured", families: 1, preserve: 1, change: 1 }],
+      pairs: [
+        { members: [caseId(1), caseId(3)], kind: "ingredient-measured", expectation: "preserve" },
+        { members: [caseId(1), caseId(4)], kind: "ingredient-measured", expectation: "change" },
+      ],
+    };
+    return { plan, config };
+  }
+  const requiredCells = [{ split: "calibration", modality: "text", kind: "ingredient-measured" }] as const;
+  type Required = Parameters<typeof preflightProspectiveMaterialProof>[0]["requiredCells"];
+  const run = ({ plan, config }: ReturnType<typeof setup>, required: Required = requiredCells) => {
+    const bytes = json(plan);
+    return preflightProspectiveMaterialProof({ ...config, plan: bytes, pinnedPlanSha256: pin(bytes), requiredCells: required }, "r3-material-proof-v1");
+  };
+  it("commits projected bytes and verifies one family; reveals no labels or member IDs", () => {
+    const v = setup(), result = run(v);
+    expect(result).toEqual({ status: "diagnostic-planning-only", manifestSha256: v.plan.manifestSha256,
+      planSha256: pin(json(v.plan)), projectionSha256: v.plan.projectionSha256, checkedCells: 1, checkedPairDeclarations: 2 });
+  });
+  it("reports declarations by fact kind, not unique physical pairs or actual equivalence", () => {
+    const v = setup();
+    v.plan.minima.push({ ...v.plan.minima[0], kind: "independent-sibling" });
+    v.plan.pairs.push(...v.plan.pairs.map(pair => ({ ...pair, kind: "independent-sibling" })));
+    const result = run(v, [...requiredCells, { ...requiredCells[0], kind: "independent-sibling" }]);
+    // The two physical pairs each occur in two declared cells; this does not
+    // assert the declared change to the sibling actually occurred.
+    expect(result.checkedPairDeclarations).toBe(4);
+    expect(result).not.toHaveProperty("checkedPairs");
+  });
+  it("fails if pair polarity, declared cell, independent families, or exact projection are replaced", () => {
+    const a = setup(); a.plan.pairs[1].expectation = "preserve";
+    expect(() => run(a)).toThrow("plan-pair-minimum");
+    const b = setup(); b.plan.pairs[0].members[1] = caseId(2);
+    expect(() => run(b)).toThrow("plan-pair-cell");
+    const c = setup(); c.plan.minima[0].families = 2;
+    expect(() => run(c)).toThrow("plan-family-minimum");
+    const d = setup(); d.plan.projectionSha256 = "0".repeat(64);
+    expect(() => run(d)).toThrow("plan-projection-digest");
+    const e = setup(); e.plan.excludedFamilies.push("a".repeat(32));
+    expect(() => run(e)).toThrow("plan-excluded-family");
+    const f = setup(); f.plan.pairs[1].members = [caseId(3), caseId(1)];
+    expect(() => run(f)).toThrow("plan-duplicate-pair");
+    const g = setup(); g.plan.minima[0].kind = "independent-sibling";
+    expect(() => run(g)).toThrow("plan-required-cells");
+    const h = setup(); h.plan.minima.push({ ...h.plan.minima[0] });
+    expect(() => run(h)).toThrow("plan-required-cells");
+    const j = setup(); j.plan.pairs.push({ members: [caseId(1), caseId(3)], kind: "independent-sibling", expectation: "preserve" });
+    expect(() => run(j)).toThrow("plan-pair-unregistered");
+  });
 });

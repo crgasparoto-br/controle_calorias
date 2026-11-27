@@ -793,6 +793,93 @@ export function compareSealedUnquantifiedMaterialProof(config: SealedMaterialPro
   return compareSealedMaterialProofFor(config, successor);
 }
 
+const planningKind = z.enum(["ingredient-measured", "negation-local", "pending-increment", "independent-sibling"]);
+const planningPolarity = z.enum(["preserve", "change"]);
+const planningWire = z.strictObject({
+  version: z.literal(1),
+  manifestSha256: digest,
+  projectionSha256: digest,
+  excludedFamilies: z.array(id).max(maxCases),
+  minima: z.array(z.strictObject({
+    split, modality, kind: planningKind,
+    families: z.number().int().min(1).max(maxCases),
+    preserve: z.number().int().min(1).max(maxCases),
+    change: z.number().int().min(1).max(maxCases),
+  })).min(1).max(16),
+  pairs: z.array(z.strictObject({
+    members: z.tuple([id, id]), kind: planningKind, expectation: planningPolarity,
+  })).max(maxCases * 4),
+});
+
+type PlanningCell = Pick<Input, "split" | "modality"> & { kind: Fact["kind"] };
+const planningKey = ({ split, modality, kind }: PlanningCell) => [split, modality, kind].join("/");
+const rowCell = (row: Input, kind: Fact["kind"]) => planningKey({ ...row, kind });
+const sha256 = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
+
+/** Test-only planning support for existing R3 profiles. No capture or access authority. */
+export function preflightProspectiveMaterialProof(
+  config: MaterialProofReference & {
+    plan: Uint8Array;
+    pinnedPlanSha256: string;
+    requiredCells: readonly PlanningCell[];
+  },
+  selected: Profile,
+) {
+  pin(config.plan, config.pinnedPlanSha256, "plan");
+  const plan = decode(config.plan, planningWire, "plan");
+  // Requiring the single compact parsed representation also rejects duplicate keys.
+  if (sha256(Buffer.from(JSON.stringify(plan))) !== config.pinnedPlanSha256) fail("plan-noncanonical");
+  if (plan.manifestSha256 !== config.pinnedManifestSha256) fail("plan-manifest");
+  const { inputs, manifest } = inputsFor(config, selected);
+  verifyComparatorCheckout(manifest, config.comparatorCheckoutSha);
+  const required = new Set(config.requiredCells.map(planningKey));
+  const declared = new Set(plan.minima.map(planningKey));
+  if (!required.size || required.size !== config.requiredCells.length || declared.size !== plan.minima.length
+      || required.size !== declared.size || [...required].some(cell => !declared.has(cell))) fail("plan-required-cells");
+  const labels = labelsFor(manifest, inputs, lexicalRolesFor(config.lexiconSnapshot), config.labels);
+  const projection = Buffer.from(JSON.stringify(prepareMaterialProofInputsFor(config, selected)));
+  pin(projection, plan.projectionSha256, "plan-projection");
+  const excluded = new Set(plan.excludedFamilies);
+  if (excluded.size !== plan.excludedFamilies.length) fail("plan-duplicate-exclusion");
+  const familyCells = new Map<string, Set<string>>();
+  const pairCells = new Map<string, Set<string>>();
+  const register = (cells: Map<string, Set<string>>, cell: string, group: string) => {
+    const groups = cells.get(cell) ?? new Set<string>();
+    groups.add(group);
+    cells.set(cell, groups);
+  };
+  for (const [caseId, row] of inputs) {
+    if (excluded.has(row.semanticGroup)) fail("plan-excluded-family");
+    for (const entry of labels.get(caseId)!.facts) register(familyCells, rowCell(row, entry.kind), row.semanticGroup);
+  }
+  const used = new Set<string>();
+  for (const pair of plan.pairs) {
+    const [aId, bId] = pair.members;
+    const a = inputs.get(aId), b = inputs.get(bId);
+    if (!a || !b || aId === bId) return fail("plan-pair-members");
+    const signature = [pair.kind, ...pair.members.slice().sort()].join("/");
+    if (used.has(signature)) fail("plan-duplicate-pair");
+    used.add(signature);
+    const cell = rowCell(a, pair.kind);
+    if (cell !== rowCell(b, pair.kind) || a.semanticGroup !== b.semanticGroup) fail("plan-pair-cell");
+    if (!required.has(cell)) fail("plan-pair-unregistered");
+    if (!pair.members.every(caseId => labels.get(caseId)!.facts.some(item => item.kind === pair.kind))) fail("plan-pair-kind");
+    register(pairCells, cell + "/" + pair.expectation, a.semanticGroup);
+  }
+  for (const requirement of plan.minima) {
+    const cell = planningKey(requirement);
+    if ((familyCells.get(cell)?.size ?? 0) < requirement.families) fail("plan-family-minimum");
+    for (const mode of ["preserve", "change"] as const) {
+      if ((pairCells.get(cell + "/" + mode)?.size ?? 0) < requirement[mode]) fail("plan-pair-minimum");
+    }
+  }
+  // Counts of declared (kind, unordered case pair) keys, not physical
+  // pairs or evidence of semantic equivalence. No case or label is returned.
+  return { status: "diagnostic-planning-only" as const, manifestSha256: plan.manifestSha256,
+    planSha256: config.pinnedPlanSha256, projectionSha256: plan.projectionSha256,
+    checkedCells: required.size, checkedPairDeclarations: used.size };
+}
+
 function verifyReceiptBytes<T extends {
   profile: string; studyId: string; runId: string; parserSha: string; manifestSha256: string; outputsSha256: string;
 }>(
