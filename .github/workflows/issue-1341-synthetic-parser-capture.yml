@@ -1,0 +1,112 @@
+name: 1341 product-parser synthetic capture
+on:
+  push:
+    branches: [test/1341-hosted-parser-v1]
+    paths: ['.github/workflows/issue-1341-synthetic-parser-capture.yml']
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PARSER_SHA: 3027bda2cd5e22f008d0a7d27242f204f5ade444
+      PARSER_TREE: 99d1f730b7806e6571eaa138eb09da7edde283d0
+    steps:
+      - name: Checkout the protected parser commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 3027bda2cd5e22f008d0a7d27242f204f5ade444
+          persist-credentials: false
+      - name: Confirm capture credential cannot read custody fixture
+        env:
+          PROBE_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == 'crgasparoto-br/controle_calorias' && "$GITHUB_REF" == 'refs/heads/test/1341-hosted-parser-v1' && "$GITHUB_RUN_ATTEMPT" == 1 ]]
+          [[ "$(git rev-parse HEAD)" == "$PARSER_SHA" && "$(git rev-parse HEAD^{tree})" == "$PARSER_TREE" ]]
+          test -z "$(git config --local --get-regexp '^http\..*\.extraheader$' || true)"
+          get() {
+            curl -sS --connect-timeout 5 --max-time 15 -H "Authorization: Bearer ${PROBE_TOKEN}" \
+              -H 'Accept: application/vnd.github.raw+json' -o "$2" -w '%{http_code}' "https://api.github.com/repos/$1"
+          }
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          own="$(get "$GITHUB_REPOSITORY/contents/package.json?ref=$PARSER_SHA" "$tmp/own")"
+          denied="$(get 'crgasparoto-br/cal-1341-lab-custody/contents/synthetic-key.txt?ref=c6193125a56e6abaa3911ee038093e3affcadf1b' "$tmp/denied")"
+          [[ "$own" == 200 && ( "$denied" == 403 || "$denied" == 404 ) ]]
+          python3 -c 'import json,sys; assert json.load(open(sys.argv[1])).get("message") in ("Not Found","Resource not accessible by integration")' "$tmp/denied"
+          echo "Capture own fixture HTTP $own; custody fixture HTTP $denied"
+      - name: Prepare locked parser dependencies
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.22.3
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          run_install: false
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Capture fictional inputs using the exact parser without network
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="$(mktemp -d "$PWD/.capture1341-XXXXXX")"
+          trap 'rm -rf "$src"' EXIT
+          mkdir "$RUNNER_TEMP/cal1341-result"
+          cat > "$src/capture.ts" <<'TYPESCRIPT'
+          import { createHash } from "node:crypto";
+          import { readFileSync, writeFileSync } from "node:fs";
+          import { join } from "node:path";
+          import { diagnoseFoodMaterialPendingIncrements } from "../server/modules/foodIntelligenceV2/linguisticComprehension";
+          
+          const [out, checkout, tree, workflowCommit, run, attempt] = process.argv.slice(2);
+          const sha = (v: Uint8Array) => createHash("sha256").update(v).digest("hex");
+          const inputs = [
+            { id: "synthetic-text", modality: "text", rawText: "Mamão com 2 colheres de aveia e mais um pouco." },
+            { id: "synthetic-transcript", modality: "audio_transcript", rawText: "Comi 75 g de carambola." },
+          ] as const;
+          const bytes = (x: unknown) => Buffer.from(JSON.stringify(x) + "\n");
+          async function main() {
+            if (!out || ![checkout, tree, workflowCommit].every(x => /^[0-9a-f]{40}$/.test(x)) ||
+                !/^[1-9][0-9]*$/.test(run) || attempt !== "1") throw new Error("invalid synthetic run identity");
+            const encodedInputs = bytes(inputs);
+            const results = [];
+            for (const { id, ...request } of inputs) {
+              const result = await diagnoseFoodMaterialPendingIncrements({
+                ...request, sourceRef: "fixture-" + id, ownerUserId: null, locale: "pt-BR",
+                lexiconRevision: "empty-synthetic-v1", now: new Date("2026-11-27T00:00:00Z"),
+              }, { load: async () => [] });
+              results.push({ id, result });
+            }
+            const output = bytes(results);
+            if (!output.length || output.length > 65536 || results.length !== inputs.length) throw new Error("invalid output size");
+            const receipt = bytes({
+              kind: "cal-1341-hosted-parser-synthetic-v1", scope: "diagnostic-only", repository: "crgasparoto-br/controle_calorias",
+              checkout, tree, workflowCommit, run, attempt: 1,
+              node: process.version, caseCount: results.length, inputsSha256: sha(encodedInputs), outputSha256: sha(output),
+              lockSha256: sha(readFileSync("pnpm-lock.yaml")), parserFileSha256: sha(readFileSync("server/modules/foodIntelligenceV2/linguisticComprehension.ts")),
+            });
+            writeFileSync(join(out, "inputs.json"), encodedInputs, { flag: "wx" });
+            writeFileSync(join(out, "outputs.json"), output, { flag: "wx" });
+            writeFileSync(join(out, "receipt.json"), receipt, { flag: "wx" });
+          }
+          void main().catch(() => { process.stderr.write("synthetic capture failed\n"); process.exitCode = 1; });
+          TYPESCRIPT
+          outer="$(readlink /proc/self/ns/net)"
+          sudo --non-interactive unshare --net -- setpriv --reuid "$(id -u)" --regid "$(id -g)" --clear-groups \
+            --no-new-privs env -i PATH="$PATH" HOME="$src" TMPDIR="$src" TZ=UTC NODE_ENV=test \
+            bash -ec 'test "$(readlink /proc/self/ns/net)" != "$1"
+              test "$(grep -c ":" /proc/net/dev)" = 1
+              grep -qE "^ *lo:" /proc/net/dev
+              if grep -qE "^[^[:space:]]+[[:space:]]+[0-9A-Fa-f]{8}[[:space:]]" /proc/net/route; then exit 1; fi
+              shift
+              exec node --import tsx "$@"' sandbox "$outer" "$src/capture.ts" "$RUNNER_TEMP/cal1341-result" "$PARSER_SHA" "$PARSER_TREE" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+          (cd "$RUNNER_TEMP/cal1341-result"; sha256sum inputs.json outputs.json receipt.json > SHA256SUMS)
+      - name: Upload one immutable diagnostic artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: 1341-parser-capture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cal1341-result/
+          if-no-files-found: error
+          retention-days: 1
