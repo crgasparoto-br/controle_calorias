@@ -2,7 +2,8 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { FOOD_CONTRACT_LIMITS as limits } from "../contracts";
-import { recognizedUnit } from "../linguisticSurface";
+import { foldFoodSurface, readWrittenClarificationPrefix, recognizedUnit } from "../linguisticSurface";
+import { isLinguisticLexiconEntryValidAt } from "../linguisticLexiconValidity";
 import { foodAnchorSchema, opaqueId, type FoodAnchor } from "../schemaShared";
 import {
   parseFoodMaterialObservationBatch, parseFoodMaterialClarificationObservationBatch,
@@ -834,6 +835,58 @@ function compareSealedMaterialProofFor(config: SealedMaterialProof, version: Pro
     totals, strata, reasons };
 }
 
+// R3 has no trusted lexical clock. R4 projects the active global rows for its
+// independently pinned instant, without widening the inherited R3 contract.
+const timedLexicalRow = lexicalRow.extend({
+  validFrom: lexicalUtc.nullable(), validTo: lexicalUtc.nullable(),
+});
+function publicLexicon(snapshot: Uint8Array, lexicalAtUtc: string) {
+  const at = new Date(lexicalAtUtc);
+  const date = (bound: string | null) => bound === null ? null : new Date(bound);
+  const rows = decode(snapshot, z.array(timedLexicalRow).max(5000), "lexicon")
+    .filter(row => possibleGlobal(row) && isLinguisticLexiconEntryValidAt(date(row.validFrom), date(row.validTo), at));
+  const rolesBySurface = new Map<string, LexicalRow[]>();
+  const unitTerms = new Set<string>();
+  for (const row of rows) {
+    const term = foldFoodSurface(row.normalizedTerm);
+    if (unitKind(row)) {
+      if (term.length > 0 && term.length <= 160) unitTerms.add(term);
+    } else {
+      const group = rolesBySurface.get(term) ?? [];
+      group.push(row);
+      rolesBySurface.set(term, group);
+    }
+  }
+  return {
+    // The R3 boundary helper treats dated rows as merely possible. After
+    // projection these rows describe only the verified instant, not all time.
+    roles: indexCompatibleRoles(rows.map(row => ({ ...row, validFrom: null, validTo: null }))),
+    rolesBySurface, unitTerms,
+    unitFences: [...unitTerms].map(term => ({
+      term, unit: null, entryId: null, confidence: null, candidates: [],
+    })),
+  };
+}
+type PublicLexicon = ReturnType<typeof publicLexicon>;
+
+function publicWrittenWitness(input: Input, scope: Span, operator: Span, lexicon: PublicLexicon) {
+  // This is a local witness for an authored or captured occurrence. It does
+  // not run the producer, invent a reference fact, or repair a missing row.
+  if (!indefiniteScope(input, scope, operator, lexicon.roles)) return null;
+  const surface = { ...scope, text: literal(input, scope) };
+  const prefix = readWrittenClarificationPrefix(surface, operator, lexicon.unitFences);
+  if (!prefix) return null;
+  const tokens = [prefix.measure.unit, literal(input, operator),
+    input.text.slice(prefix.measure.start, operator.start).trim(),
+    ...(prefix.writtenNominal ? [prefix.writtenNominal.text] : [])];
+  if (tokens.some(value => {
+    const term = foldFoodSurface(value);
+    const roles = lexicon.rolesBySurface.get(term) ?? [];
+    return lexicon.unitTerms.has(term) || roles.length > 1 || roles[0]?.requiresClarification === true;
+  })) return null;
+  return prefix;
+}
+
 /** Experimental public calibration only. Never opens labels, never authenticates
  * actual custody, and does not accept the legacy result/profile by adaptation. */
 export function verifyPublicClarificationCapture(
@@ -847,6 +900,7 @@ export function verifyPublicClarificationCapture(
   if ([...inputs.values()].some(row => row.split !== "calibration")) fail("public-clarification-only");
   const receipt = verifyReceiptBytes(config, manifest, clarificationReceiptSchema);
   if (receipt.lexicalAtUtc !== manifest.lexicalAtUtc) fail("lexical-clock-receipt");
+  const lexicon = publicLexicon(config.lexiconSnapshot, manifest.lexicalAtUtc);
   const outputs = index(decode(config.outputs, clarificationOutputsSchema, "outputs"), "outputs", inputs);
   const capture = new Map([...inputs].map(([caseId, input]) => {
     const result = outputs.get(caseId)!.result;
@@ -876,10 +930,22 @@ export function verifyPublicClarificationCapture(
           child.interpreterVersion !== null || child.unresolvedReason !== "unknown_surface" || child.evidence.length !== 1 ||
           child.evidence[0].field !== "material.increment" || child.evidence[0].evidenceId !== claim.operatorEvidenceId ||
           child.evidence[0].sourceId !== null || child.evidence[0].verified) fail("pending-authority");
+      const operator = child.evidence[0].anchor.span;
+      if (!operator || !indefiniteScope(input, scope, operator, lexicon.roles)) return fail("pending-context");
+      const got = child.clarificationEvidence;
+      if (got !== null) {
+        const witness = publicWrittenWitness(input, scope, operator, lexicon);
+        if (!witness || witness.measure.value !== got.measure.value || witness.measure.unit !== got.measure.unit ||
+            !same(got.measure.anchor.span, witness.measure) || witness.measure.text !== got.measure.literal ||
+            (witness.writtenNominal === null) !== (got.writtenNominal === null) ||
+            (witness.writtenNominal && got.writtenNominal &&
+              (!same(got.writtenNominal.anchor.span, witness.writtenNominal) ||
+               witness.writtenNominal.text !== got.writtenNominal.literal))) fail("clarification-lexical-witness");
+      }
     }
     return [caseId, { ordinary, pending }] as const;
   }));
-  return { manifest, receipt, capture, inputs };
+  return { manifest, receipt, capture, inputs, lexicon };
 }
 
 /** Public-only diagnostics reusing the material proof tally. A legitimate
@@ -888,8 +954,7 @@ export function verifyPublicClarificationCapture(
 export function comparePublicClarificationProof(
   config: SealedMaterialProof & { expectedLexicalAtUtc: string },
 ) {
-  const { manifest, inputs, capture } = verifyPublicClarificationCapture(config);
-  const lexicon = lexicalRolesFor(config.lexiconSnapshot);
+  const { manifest, inputs, capture, lexicon } = verifyPublicClarificationCapture(config);
   const bytes = config.readLabels();
   pin(bytes, manifest.labelsSha256, "labels");
   const gold = index(decode(bytes, clarificationLabelsSchema, "labels").rows, "labels", inputs);
@@ -900,7 +965,7 @@ export function comparePublicClarificationProof(
   };
   for (const [id, input] of inputs) {
     const label = gold.get(id)!;
-    reference(input, label.facts, lexicon, successor);
+    reference(input, label.facts, lexicon.roles, successor);
     const { ordinary, pending } = capture.get(id)!;
     tally(input, label.facts, {
       rows: ordinary, omissions: pending.map(child => ({ scope: child.surfaceSpan.span!, child })),
@@ -920,6 +985,25 @@ export function comparePublicClarificationProof(
       const before = mid?.end ?? want.measure.measure.end;
       if (before >= increment.operator.start || !/^[ \t]+com[ \t]+$/iu.test(
           input.text.slice(before, increment.operator.start))) fail("label-clarification-operator");
+      // Validate a declared measure even if the name is unsupported. Use
+      // the original measure and operator tail with only the nominal removed
+      // to obtain a literal-only measure witness, not an alternate label.
+      const measureText = literal(input, want.measure.measure);
+      const connector = input.text.slice(before, increment.operator.start);
+      const surfaceText = measureText + connector + input.text.slice(increment.operator.start, want.scope.end);
+      const offset = measureText.length + connector.length;
+      const measureOnly = readWrittenClarificationPrefix(
+        { text: surfaceText, start: 0, end: surfaceText.length },
+        { start: offset, end: offset + increment.operator.end - increment.operator.start },
+      );
+      if (!measureOnly || measureOnly.measure.end !== measureText.length ||
+          measureOnly.measure.value !== want.measure.value || measureOnly.measure.unit !== want.measure.unit) {
+        fail("label-clarification-measure");
+      }
+      const witness = publicWrittenWitness(input, want.scope, increment.operator, lexicon);
+      const expectedRole = witness === null ? "unproven" : witness.writtenNominal === null ? "absent" : "proven";
+      if (want.nominal.status !== expectedRole ||
+          (witness?.writtenNominal && !same(mid, witness.writtenNominal))) fail("label-clarification-lexical-role");
       const row = affected.get(scopeKey);
       const got = row?.clarificationEvidence;
       if (want.nominal.status === "unproven") {
