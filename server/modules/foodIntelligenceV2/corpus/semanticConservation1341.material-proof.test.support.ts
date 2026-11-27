@@ -2,9 +2,13 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { FOOD_CONTRACT_LIMITS as limits } from "../contracts";
-import { recognizedUnit } from "../linguisticSurface";
+import { foldFoodSurface, readWrittenClarificationPrefix, recognizedUnit } from "../linguisticSurface";
+import { isLinguisticLexiconEntryValidAt } from "../linguisticLexiconValidity";
 import { foodAnchorSchema, opaqueId, type FoodAnchor } from "../schemaShared";
-import { parseFoodMaterialObservationBatch, type FoodMaterialObservation } from "../schemas";
+import {
+  parseFoodMaterialObservationBatch, parseFoodMaterialClarificationObservationBatch,
+  type FoodMaterialObservation, type FoodMaterialClarificationObservation,
+} from "../schemas";
 import { hasSourceUtf16Boundary } from "./semanticConservation1341.reserved.test.support";
 
 const profile = "r3-material-proof-v1";
@@ -42,6 +46,24 @@ const resultSchema = z.union([
   z.strictObject({ diagnosticProfile, ok: z.literal(false), reason: z.enum(["unsupported-input", "invalid-material-observations"]) }),
 ]);
 const outputsSchema = z.array(z.strictObject({ id, result: resultSchema })).max(maxCases);
+const clarificationProfile = "r4-clarification-public-proof-v1";
+const lexicalUtc = z.string().refine(value => {
+  const clock = new Date(value);
+  return Number.isFinite(clock.getTime()) && clock.toISOString() === value;
+});
+const clarificationManifestSchema = manifestSchema.extend({
+  profile: z.literal(clarificationProfile), lexicalAtUtc: lexicalUtc,
+});
+const clarificationReceiptSchema = receiptSchema.extend({
+  profile: z.literal(clarificationProfile), lexicalAtUtc: lexicalUtc,
+});
+const clarificationResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true), observations }),
+  z.strictObject({ ok: z.literal(false), reason: z.literal("unproven-material"),
+    observations, affected: z.array(affectedSchema).min(1).max(limits.observations) }),
+]);
+const clarificationOutputsSchema = z.array(z.strictObject({ id, result: clarificationResultSchema })).max(maxCases);
+
 
 const span = z.strictObject({ start: z.number().int().nonnegative(), end: z.number().int().positive() })
   .refine(x => x.start < x.end);
@@ -74,11 +96,26 @@ const labelsSchema = z.strictObject({
   nonce: digest, rows: z.array(z.strictObject({ id,
     facts: z.array(fact).min(1).max(limits.observations) })).max(maxCases),
 });
+const clarificationFact = z.strictObject({
+  scope: span, measure: anchorAmount,
+  nominal: z.discriminatedUnion("status", [
+    z.strictObject({ status: z.literal("absent") }),
+    z.strictObject({ status: z.enum(["proven", "unproven"]), span }),
+  ]),
+});
+const clarificationLabelsSchema = labelsSchema.extend({
+  rows: z.array(z.strictObject({ id,
+    facts: z.array(fact).min(1).max(limits.observations),
+    clarification: z.array(clarificationFact).max(limits.observations),
+  })).max(maxCases),
+});
+
 type Input = z.infer<typeof inputSchema>;
 type Fact = z.infer<typeof fact>;
 type Span = z.infer<typeof span>;
 type Owner = z.infer<typeof owner>;
 type Evidence = FoodMaterialObservation["evidence"][number];
+type ProofObservation = FoodMaterialObservation | FoodMaterialClarificationObservation;
 const lexicalRow = z.object({
   id: z.number().int().positive(), kind: z.string(), targetType: z.string(), targetRef: z.string().nullable(),
   normalizedTerm: z.string(), locale: z.string(), scope: z.string(), userId: z.number().nullable(),
@@ -148,6 +185,14 @@ function inputsFor(config: MaterialProofInputs, expected: Profile = profile) {
   pin(config.manifest, config.pinnedManifestSha256, "manifest");
   const manifest = decode(config.manifest, manifestSchema, "manifest");
   if (manifest.profile !== expected) fail("manifest-shape");
+  return { manifest, inputs: verifyInputBytes(config, manifest) };
+}
+
+function verifyInputBytes(
+  config: MaterialProofInputs,
+  manifest: Pick<z.infer<typeof manifestSchema>,
+    "parserSha" | "adrSha256" | "lockfileSha256" | "inputsSha256" | "lexiconSha256" | "caseCount">,
+) {
   if (manifest.parserSha !== config.parserCheckoutSha ||
       manifest.adrSha256 !== config.adrSha256 || manifest.lockfileSha256 !== config.lockfileSha256) fail("checkout-pins");
   pin(config.inputs, manifest.inputsSha256, "inputs");
@@ -168,7 +213,7 @@ function inputsFor(config: MaterialProofInputs, expected: Profile = profile) {
     groups.set(row.semanticGroup, row);
     surfaces.set(text, row);
   }
-  return { manifest, inputs };
+  return inputs;
 }
 
 /** Runner receives no strata, split, semantic group, outputs, receipt or label capability. */
@@ -196,6 +241,22 @@ function noPackage(q: FoodMaterialObservation["quantityHints"]) {
 function absentQuantity(q: FoodMaterialObservation["quantityHints"]) {
   return q.value === null && q.unit === null && noPackage(q);
 }
+function verifyCaptureProvenance(input: Input, revision: string,
+  all: readonly ProofObservation[]) {
+  const evidenceIds = new Set<string>();
+  for (const row of all) {
+    const scope = scopeOf(input, row.surfaceSpan);
+    if (row.rawInput !== input.text || row.modality !== input.modality || row.lexiconRevision !== revision) fail("entry-provenance");
+    for (const item of [...row.evidence, ...row.normalizationPath]) {
+      if (!inside(scope, scopeOf(input, item.anchor))) fail("owner-provenance");
+    }
+    for (const e of row.evidence) {
+      if (evidenceIds.has(e.evidenceId)) fail("evidence-duplicate");
+      evidenceIds.add(e.evidenceId);
+    }
+  }
+}
+
 function validated(input: Input, revision: string, result: z.infer<typeof resultSchema>,
   version: Profile, lexicon?: LexicalGroups) {
   if (result.diagnosticProfile !== (version === successor ? "r3-pending-increment-v2" : "r3-pending-increment-v1")) fail("outputs-shape");
@@ -210,18 +271,7 @@ function validated(input: Input, revision: string, result: z.infer<typeof result
   const pending = all.slice(rows.length);
   let childIndex = 0;
   const usedIds = new Set(rows.map(row => row.observationId));
-  const evidenceIds = new Set<string>();
-  for (const row of all) {
-    const scope = scopeOf(input, row.surfaceSpan);
-    if (row.rawInput !== input.text || row.modality !== input.modality || row.lexiconRevision !== revision) fail("entry-provenance");
-    for (const item of [...row.evidence, ...row.normalizationPath]) {
-      if (!inside(scope, scopeOf(input, item.anchor))) fail("owner-provenance");
-    }
-    for (const e of row.evidence) {
-      if (evidenceIds.has(e.evidenceId)) fail("evidence-duplicate");
-      evidenceIds.add(e.evidenceId);
-    }
-  }
+  verifyCaptureProvenance(input, revision, all);
   for (const row of rows) {
     if (row.materialClaims.some(claim => claim.kind === "increment" || claim.binding.status !== "bound")) fail("ordinary-pending");
   }
@@ -574,7 +624,7 @@ function proof(input: Input, evidence: Evidence | undefined, field: Evidence["fi
     !evidence.verified && evidence.sourceId === null && same(evidence.anchor.span, span) &&
     evidence.origin === (input.modality === "text" ? "text" : "transcription");
 }
-const quantities = (row: FoodMaterialObservation) => row.evidence.filter(e => e.field.startsWith("quantity."));
+const quantities = (row: ProofObservation) => row.evidence.filter(e => e.field.startsWith("quantity."));
 const signature = (row: { value: number | null; unit: string | null; servingText: string | null }) =>
   JSON.stringify([row.value, row.unit, row.servingText]);
 function nominalHints(h: FoodMaterialObservation["identityHints"], name: string, variant: string | null = null) {
@@ -582,7 +632,7 @@ function nominalHints(h: FoodMaterialObservation["identityHints"], name: string,
     h.preparation.length === 0 && h.qualifiers.length === 0;
 }
 
-function ownerProof(input: Input, row: FoodMaterialObservation, gold: Owner) {
+function ownerProof(input: Input, row: ProofObservation, gold: Owner) {
   if (!nominalHints(row.identityHints, gold.nameHint) || row.normalizedInput !== gold.nameHint ||
       row.interpreterVersion !== null || row.normalizationPath.some(x => x.stage === "S3") ||
       !noPackage(row.quantityHints)) return false;
@@ -629,7 +679,7 @@ function ownerProof(input: Input, row: FoodMaterialObservation, gold: Owner) {
     proof(input, evidence[0], "quantity.value", want.measure, want.value, want.unit);
 }
 
-function provesFact(input: Input, row: FoodMaterialObservation, gold: Fact) {
+function provesFact(input: Input, row: ProofObservation, gold: Fact) {
   const [claim] = row.materialClaims;
   const byId = (id: string) => row.evidence.find(e => e.evidenceId === id);
   if (gold.kind === "pending-increment") {
@@ -654,7 +704,10 @@ function provesFact(input: Input, row: FoodMaterialObservation, gold: Fact) {
 const counts = () => ({ verified: 0, abstained: 0, missing: 0, mismatch: 0, duplicate: 0, extra: 0 });
 type Counts = ReturnType<typeof counts>;
 type Finding = (kind: Fact["kind"] | "unlabeled", event: keyof Counts, reason: string) => void;
-function tally(input: Input, facts: Fact[], result: ReturnType<typeof validated>, count: Finding) {
+function tally(input: Input, facts: Fact[], result: {
+  rows: readonly ProofObservation[];
+  omissions: readonly { scope: Span; child?: ProofObservation }[];
+}, count: Finding) {
   const actual = [
     ...result.rows.map(row => ({ scope: row.surfaceSpan.span!, ordinary: row })),
     ...result.omissions.map(row => ({ ...row, ordinary: undefined })),
@@ -740,14 +793,24 @@ export function compareSealedUnquantifiedMaterialProof(config: SealedMaterialPro
   return compareSealedMaterialProofFor(config, successor);
 }
 
-function compareSealedMaterialProofFor(config: SealedMaterialProof, version: Profile) {
-  const { manifest, inputs } = inputsFor(config, version);
-  verifyComparatorCheckout(manifest, config.comparatorCheckoutSha);
+function verifyReceiptBytes<T extends {
+  profile: string; studyId: string; runId: string; parserSha: string; manifestSha256: string; outputsSha256: string;
+}>(
+  config: SealedMaterialProof, manifest: { profile: string; studyId: string; parserSha: string },
+  schema: z.ZodType<T>,
+): T {
   pin(config.receipt, config.pinnedReceiptSha256, "receipt");
-  const receipt = decode(config.receipt, receiptSchema, "receipt");
+  const receipt = decode(config.receipt, schema, "receipt");
   if (receipt.profile !== manifest.profile || receipt.studyId !== manifest.studyId || receipt.runId !== config.expectedRunId ||
       receipt.parserSha !== manifest.parserSha || receipt.manifestSha256 !== config.pinnedManifestSha256) fail("receipt-identity");
   pin(config.outputs, receipt.outputsSha256, "outputs");
+  return receipt;
+}
+
+function compareSealedMaterialProofFor(config: SealedMaterialProof, version: Profile) {
+  const { manifest, inputs } = inputsFor(config, version);
+  verifyComparatorCheckout(manifest, config.comparatorCheckoutSha);
+  const receipt = verifyReceiptBytes(config, manifest, receiptSchema);
   const outputs = index(decode(config.outputs, outputsSchema, "outputs"), "outputs", inputs);
   const captureLexicon = version === successor ? lexicalRolesFor(config.lexiconSnapshot) : undefined;
   const capture = new Map([...inputs].map(([k, row]) => [k,
@@ -770,4 +833,206 @@ function compareSealedMaterialProofFor(config: SealedMaterialProof, version: Pro
     manifestSha256: config.pinnedManifestSha256, receiptSha256: config.pinnedReceiptSha256,
     inputsSha256: manifest.inputsSha256, outputsSha256: receipt.outputsSha256, labelsSha256: manifest.labelsSha256,
     totals, strata, reasons };
+}
+
+// R3 has no trusted lexical clock. R4 projects the active global rows for its
+// independently pinned instant, without widening the inherited R3 contract.
+const timedLexicalRow = lexicalRow.extend({
+  kind: z.enum(["slang", "abbreviation", "regionalism", "typo", "alias_surface", "portion_term", "unit_term", "protected_token"]),
+  targetType: z.enum(["canonical_term", "food_variant", "none"]),
+  scope: z.enum(["global", "user"]),
+  status: z.enum(["verified", "provisional", "pending_review", "rejected", "revoked", "active"]),
+  validFrom: lexicalUtc.nullable(), validTo: lexicalUtc.nullable(),
+}).refine(row => row.validFrom === null || row.validTo === null ||
+  Date.parse(row.validFrom) < Date.parse(row.validTo));
+function publicLexicon(snapshot: Uint8Array, lexicalAtUtc: string) {
+  const at = new Date(lexicalAtUtc);
+  const date = (bound: string | null) => bound === null ? null : new Date(bound);
+  const rows = decode(snapshot, z.array(timedLexicalRow).max(5000), "lexicon")
+    .filter(row => possibleGlobal(row) && isLinguisticLexiconEntryValidAt(date(row.validFrom), date(row.validTo), at));
+  const rolesBySurface = new Map<string, LexicalRow[]>();
+  const unitTerms = new Set<string>();
+  for (const row of rows) {
+    const term = foldFoodSurface(row.normalizedTerm);
+    if (unitKind(row)) {
+      if (term.length > 0 && term.length <= 160) unitTerms.add(term);
+    } else {
+      const group = rolesBySurface.get(term) ?? [];
+      group.push(row);
+      rolesBySurface.set(term, group);
+    }
+  }
+  return {
+    // The R3 boundary helper treats dated rows as merely possible. After
+    // projection these rows describe only the verified instant, not all time.
+    roles: indexCompatibleRoles(rows.map(row => ({ ...row, validFrom: null, validTo: null }))),
+    rolesBySurface, unitTerms,
+    unitFences: [...unitTerms].map(term => ({
+      term, unit: null, entryId: null, confidence: null, candidates: [],
+    })),
+  };
+}
+type PublicLexicon = ReturnType<typeof publicLexicon>;
+
+function publicWrittenWitness(input: Input, scope: Span, operator: Span, lexicon: PublicLexicon) {
+  // This is a local witness for an authored or captured occurrence. It does
+  // not run the producer, invent a reference fact, or repair a missing row.
+  if (!indefiniteScope(input, scope, operator, lexicon.roles)) return null;
+  const surface = { ...scope, text: literal(input, scope) };
+  const prefix = readWrittenClarificationPrefix(surface, operator, lexicon.unitFences);
+  if (!prefix) return null;
+  const tokens = [prefix.measure.unit, literal(input, operator),
+    input.text.slice(prefix.measure.start, operator.start).trim(),
+    ...(prefix.writtenNominal ? [prefix.writtenNominal.text] : [])];
+  if (tokens.some(value => {
+    const term = foldFoodSurface(value);
+    const roles = lexicon.rolesBySurface.get(term) ?? [];
+    return lexicon.unitTerms.has(term) || roles.length > 1 || roles[0]?.requiresClarification === true;
+  })) return null;
+  return prefix;
+}
+
+/** Experimental public calibration only. Never opens labels, never authenticates
+ * actual custody, and does not accept the legacy result/profile by adaptation. */
+export function verifyPublicClarificationCapture(
+  config: SealedMaterialProof & { expectedLexicalAtUtc: string },
+) {
+  pin(config.manifest, config.pinnedManifestSha256, "manifest");
+  const manifest = decode(config.manifest, clarificationManifestSchema, "manifest");
+  const inputs = verifyInputBytes(config, manifest);
+  if (manifest.comparatorSha !== config.comparatorCheckoutSha) fail("comparator-checkout");
+  if (manifest.lexicalAtUtc !== config.expectedLexicalAtUtc) fail("lexical-clock");
+  if ([...inputs.values()].some(row => row.split !== "calibration")) fail("public-clarification-only");
+  const receipt = verifyReceiptBytes(config, manifest, clarificationReceiptSchema);
+  if (receipt.lexicalAtUtc !== manifest.lexicalAtUtc) fail("lexical-clock-receipt");
+  const lexicon = publicLexicon(config.lexiconSnapshot, manifest.lexicalAtUtc);
+  const outputs = index(decode(config.outputs, clarificationOutputsSchema, "outputs"), "outputs", inputs);
+  const capture = new Map([...inputs].map(([caseId, input]) => {
+    const result = outputs.get(caseId)!.result;
+    const affected = result.ok ? [] : result.affected;
+    if (affected.some(row => row.pendingObservation === undefined)) fail("pending-child-absent");
+    if (result.observations.length + affected.length > limits.observations) fail("occurrence-budget");
+    const parsed = parseFoodMaterialClarificationObservationBatch([
+      ...result.observations, ...affected.map(row => row.pendingObservation),
+    ]);
+    if (!parsed.ok) return fail("invalid-wire");
+    verifyCaptureProvenance(input, manifest.lexiconRevision, parsed.value);
+    const ordinary = parsed.value.slice(0, result.observations.length);
+    const pending = parsed.value.slice(ordinary.length);
+    if (ordinary.some(row => row.clarificationEvidence !== null ||
+        row.materialClaims.some(claim => claim.kind === "increment" || claim.binding.status !== "bound"))) fail("ordinary-pending");
+    for (const [i, item] of affected.entries()) {
+      const child = pending[i], scope = scopeOf(input, item.surfaceSpan), [claim] = child.materialClaims;
+      if (child.observationId !== item.observationId || !same(child.surfaceSpan.span, scope)) fail("pending-parent");
+      if (i > 0 && scopeOf(input, affected[i - 1].surfaceSpan).end > scope.start) fail("pending-order");
+      if (child.materialClaims.length !== 1 || claim.kind !== "increment" ||
+          claim.binding.status !== "unresolved" || claim.binding.reason !== "owner_unknown" ||
+          claim.binding.candidateObservationIds.length || claim.target !== null || claim.ingredient !== null ||
+          claim.unresolvedAmount !== null || child.normalizedInput !== null || !absentQuantity(child.quantityHints) ||
+          child.quantityHints.servingText !== null || child.identityHints.foodName !== null || child.identityHints.brand !== null ||
+          child.identityHints.variant !== null || child.identityHints.barcode !== null || child.identityHints.preparation.length ||
+          child.identityHints.qualifiers.length || child.alternatives.length || child.normalizationPath.length ||
+          child.interpreterVersion !== null || child.unresolvedReason !== "unknown_surface" || child.evidence.length !== 1 ||
+          child.evidence[0].field !== "material.increment" || child.evidence[0].evidenceId !== claim.operatorEvidenceId ||
+          child.evidence[0].sourceId !== null || child.evidence[0].verified) fail("pending-authority");
+      const operator = child.evidence[0].anchor.span;
+      if (!operator || !indefiniteScope(input, scope, operator, lexicon.roles)) return fail("pending-context");
+      const got = child.clarificationEvidence;
+      if (got !== null) {
+        const witness = publicWrittenWitness(input, scope, operator, lexicon);
+        if (!witness || witness.measure.value !== got.measure.value || witness.measure.unit !== got.measure.unit ||
+            !same(got.measure.anchor.span, witness.measure) || witness.measure.text !== got.measure.literal ||
+            (witness.writtenNominal === null) !== (got.writtenNominal === null) ||
+            (witness.writtenNominal && got.writtenNominal &&
+              (!same(got.writtenNominal.anchor.span, witness.writtenNominal) ||
+               witness.writtenNominal.text !== got.writtenNominal.literal))) fail("clarification-lexical-witness");
+      }
+    }
+    return [caseId, { ordinary, pending }] as const;
+  }));
+  return { manifest, receipt, capture, inputs, lexicon };
+}
+
+/** Public-only diagnostics reusing the material proof tally. A legitimate
+ * packet with missing semantic content is scored after the labels are read,
+ * not misclassified as transport tampering or adequate coverage. */
+export function comparePublicClarificationProof(
+  config: SealedMaterialProof & { expectedLexicalAtUtc: string },
+) {
+  const { manifest, inputs, capture, lexicon } = verifyPublicClarificationCapture(config);
+  const bytes = config.readLabels();
+  pin(bytes, manifest.labelsSha256, "labels");
+  const gold = index(decode(bytes, clarificationLabelsSchema, "labels").rows, "labels", inputs);
+  const material = counts();
+  const clarification = {
+    measureRetained: 0, measureMissing: 0, measureMismatch: 0, namedProven: 0,
+    nameAbsent: 0, nominalMismatch: 0, unprovenAbstention: 0, unexpected: 0,
+  };
+  for (const [id, input] of inputs) {
+    const label = gold.get(id)!;
+    reference(input, label.facts, lexicon.roles, successor);
+    const { ordinary, pending } = capture.get(id)!;
+    tally(input, label.facts, {
+      rows: ordinary, omissions: pending.map(child => ({ scope: child.surfaceSpan.span!, child })),
+    }, (_role, event) => { material[event]++; });
+    const affected = new Map(pending.map(row => [key(row.surfaceSpan.span!), row]));
+    const eligibleScopes = new Set<string>();
+    for (const want of label.clarification) {
+      const scopeKey = key(want.scope);
+      const increment = label.facts.find(f => f.kind === "pending-increment" && key(f.scope) === scopeKey);
+      if (!increment || increment.kind !== "pending-increment" || increment.amount !== null ||
+          eligibleScopes.has(scopeKey) || !realSpan(input, want.measure.measure) ||
+          !inside(want.scope, want.measure.measure) || want.measure.measure.start !== want.scope.start) return fail("label-clarification-scope");
+      eligibleScopes.add(scopeKey);
+      const mid = want.nominal.status === "absent" ? null : want.nominal.span;
+      if (mid !== null && (!realSpan(input, mid) || !inside(want.scope, mid) ||
+          !/^[ \t]+de[ \t]+$/iu.test(input.text.slice(want.measure.measure.end, mid.start)))) fail("label-clarification-nominal");
+      const before = mid?.end ?? want.measure.measure.end;
+      if (before >= increment.operator.start || !/^[ \t]+com[ \t]+$/iu.test(
+          input.text.slice(before, increment.operator.start))) fail("label-clarification-operator");
+      // Validate a declared measure even if the name is unsupported. Use
+      // the original measure and operator tail with only the nominal removed
+      // to obtain a literal-only measure witness, not an alternate label.
+      const measureText = literal(input, want.measure.measure);
+      const connector = input.text.slice(before, increment.operator.start);
+      const surfaceText = measureText + connector + input.text.slice(increment.operator.start, want.scope.end);
+      const offset = measureText.length + connector.length;
+      const measureOnly = readWrittenClarificationPrefix(
+        { text: surfaceText, start: 0, end: surfaceText.length },
+        { start: offset, end: offset + increment.operator.end - increment.operator.start },
+      );
+      if (!measureOnly || measureOnly.measure.end !== measureText.length ||
+          measureOnly.measure.value !== want.measure.value || measureOnly.measure.unit !== want.measure.unit) {
+        fail("label-clarification-measure");
+      }
+      const witness = publicWrittenWitness(input, want.scope, increment.operator, lexicon);
+      // Absence describes the literal slot. Even an absent slot can
+      // be ineligible for written proof when a governed unit collides.
+      const expectedRole = mid === null ? "absent" : witness === null ? "unproven" : "proven";
+      if (want.nominal.status !== expectedRole ||
+          (witness?.writtenNominal && !same(mid, witness.writtenNominal))) fail("label-clarification-lexical-role");
+      const row = affected.get(scopeKey);
+      const got = row?.clarificationEvidence;
+      if (witness === null) {
+        if (row && got === null) clarification.unprovenAbstention++;
+        else clarification.unexpected++;
+        continue;
+      }
+      if (!got) { clarification.measureMissing++; continue; }
+      const observed = got.measure;
+      if (observed.value !== want.measure.value || observed.unit !== want.measure.unit ||
+          observed.literal !== literal(input, want.measure.measure) ||
+          !same(observed.anchor.span, want.measure.measure)) clarification.measureMismatch++;
+      else clarification.measureRetained++;
+      if (want.nominal.status === "absent" && got.writtenNominal === null) clarification.nameAbsent++;
+      else if (want.nominal.status === "proven" && got.writtenNominal !== null &&
+          same(got.writtenNominal.anchor.span, want.nominal.span) &&
+          got.writtenNominal.literal === literal(input, want.nominal.span)) clarification.namedProven++;
+      else clarification.nominalMismatch++;
+    }
+    for (const [scope, row] of affected) {
+      if (!eligibleScopes.has(scope) && row.clarificationEvidence !== null) clarification.unexpected++;
+    }
+  }
+  return { authority: "public-diagnostic-only", material, clarification } as const;
 }
