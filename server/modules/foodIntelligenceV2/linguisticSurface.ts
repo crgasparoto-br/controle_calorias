@@ -372,7 +372,7 @@ export function trimSpan(text: string, start: number, end: number): Segment | nu
  * The returned offsets always refer to the original, untouched segment.
  */
 function protectedConjunctions(
-  segment: Segment, protectedTerms: readonly string[], connector = "e",
+  segment: Segment, protectedTerms: readonly string[], connector = "e", includePhraseEdges = false,
 ): Set<number> {
   const tokenPattern = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu;
   const words = [...segment.text.matchAll(tokenPattern)].map(match => ({
@@ -381,10 +381,11 @@ function protectedConjunctions(
   const protectedOffsets = new Set<number>();
   for (const term of protectedTerms) {
     const phrase = [...term.matchAll(tokenPattern)].map(match => foldFoodSurface(match[0]));
-    if (phrase.length < 3 || !phrase.includes(connector) || phrase.length > words.length) continue;
+    if (phrase.length < (includePhraseEdges ? 1 : 3) || !phrase.includes(connector) || phrase.length > words.length) continue;
     for (let start = 0; start <= words.length - phrase.length; start++) {
       if (!phrase.every((word, offset) => words[start + offset].folded === word)) continue;
-      for (let offset = 1; offset < phrase.length - 1; offset++) {
+      const edge = includePhraseEdges ? 0 : 1;
+      for (let offset = edge; offset < phrase.length - edge; offset++) {
         if (phrase[offset] === connector) protectedOffsets.add(words[start + offset].start);
       }
     }
@@ -407,12 +408,12 @@ export type ExplicitIngredientNegation = {
   conflictingGovernedOwner?: Span;
 };
 
-export type ExplicitPendingIncrement = {
+export type PendingIncrementCue = {
   operator: Segment;
-  measureSpan: Span;
-  value: number;
-  unit: string;
-};
+} & (
+  | { measureSpan: Span; value: number; unit: string }
+  | { measureSpan: null; value: null; unit: null }
+);
 
 export type MaterialSegmentSyntax = {
   measure: ExplicitIngredientMeasure | null;
@@ -420,7 +421,7 @@ export type MaterialSegmentSyntax = {
   materialOperator: boolean;
   continuation: boolean;
   withheldScope?: Span;
-  pendingIncrement?: ExplicitPendingIncrement;
+  pendingIncrement?: PendingIncrementCue;
 };
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
@@ -430,7 +431,7 @@ export function splitFoodSurface(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [],
   protectedTerms: readonly string[] = [],
   material?: MaterialSegmentSyntax[],
-  capturePendingIncrements = false,
+  pendingIncrementMode?: { readonly allowUnquantified: boolean },
 ): Segment[] {
   // A comma before a recognized material attribute belongs to the prior food.
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
@@ -671,6 +672,35 @@ export function splitFoodSurface(
     }
   }
 
+  // A hard cut inside speech or unbalanced grouping is not an authority boundary.
+  // Keep this provenance scan local to the indefinite diagnostic. It does
+  // not reinterpret segmentation, materialize speech, or alter v1.
+  const enclosedRanges: Span[] = [];
+  if (pendingIncrementMode?.allowUnquantified) {
+    const starts = new Map<string, string>([['"', '"'], ["'", "'"], ["“", "”"], ["‘", "’"], ["«", "»"], ["(", ")"], ["[", "]"], ["{", "}"]]);
+    const opens: { end: string; index: number }[] = [];
+    for (const mark of text.matchAll(/(?<![\p{L}\p{M}\p{N}])['’]|['’](?![\p{L}\p{M}\p{N}])|["“”‘«»()[\]{}]/gu)) {
+      if (opens.at(-1)?.end === mark[0]) {
+        const closed = opens.pop()!;
+        enclosedRanges.push({ start: closed.index, end: mark.index + 1 });
+      } else {
+        const end = starts.get(mark[0]);
+        if (end) opens.push({ end, index: mark.index });
+        else enclosedRanges.push({ start: mark.index, end: mark.index + 1 });
+      }
+    }
+    for (const open of opens) enclosedRanges.push({ start: open.index, end: text.length });
+  }
+  const indefiniteBlockedBlocks = new Set<number>();
+  if (pendingIncrementMode?.allowUnquantified) {
+    for (const [i, scope] of hardBlocks.entries()) {
+      // Fold only the refusal predicate. All spans still use the raw source.
+      if (!scope || enclosedRanges.some(r => r.start < scope.end && r.end > scope.start) ||
+          /(?<![\p{L}\p{M}\p{N}])(?:ou|sem|nao|nem|nunca)(?![\p{L}\p{M}\p{N}])/u.test(foldFoodSurface(scope.text))) {
+        indefiniteBlockedBlocks.add(i);
+      }
+    }
+  }
   const parts: Segment[] = [];
   // A label is not a catch-all for whatever follows a measured ingredient.
   // Accept only words joined by ordinary spacing or intra-word punctuation.
@@ -684,11 +714,16 @@ export function splitFoodSurface(
   const hasNegationOperator = (scope: Segment | null) =>
     scope !== null && operatorsIn(scope).some(match => negationOperator.test(match[0]));
   let blockHasNegation = hasNegationOperator(block);
+  const protectedDiagnosticOffsets = (scope: Segment | null) => pendingIncrementMode?.allowUnquantified && scope && protectedTerms.length
+    ? { increment: protectedConjunctions(scope, protectedTerms, "mais", true),
+        coordination: protectedConjunctions(scope, protectedTerms, "e", true) } : null;
+  let indefiniteProtected = protectedDiagnosticOffsets(block);
   for (const part of joined) {
     while (part.start > (hardStops[stopIndex] ?? text.length)) {
       const start = hardStops[stopIndex++] + 1;
       block = trimSpan(text, start, hardStops[stopIndex] ?? text.length);
       blockHasNegation = hasNegationOperator(block);
+      indefiniteProtected = protectedDiagnosticOffsets(block);
     }
     const operators = operatorsIn(part);
     const previous = parts.at(-1);
@@ -772,9 +807,9 @@ export function splitFoodSurface(
       };
     }
     const withheldScope = overBudgetParts.has(part) ? undefined : withheldBlocks.get(stopIndex);
-    let pendingIncrement: ExplicitPendingIncrement | undefined;
+    let pendingIncrement: PendingIncrementCue | undefined;
     const incrementToken = op?.groups?.increment;
-    if (capturePendingIncrements && !withheldScope && !found && !negation && op &&
+    if (pendingIncrementMode && !withheldScope && !found && !negation && op &&
         // The broad Unicode scanner can recognize case-folding lookalikes;
         // this profile promises the literal Portuguese operator only.
         incrementToken && /^[\x00-\x7f]+$/u.test(incrementToken) &&
@@ -797,6 +832,48 @@ export function splitFoodSurface(
             operator: { start: op.index, end: operatorEnd, text: op[0] },
             measureSpan: { start: suffix.start, end: suffix.end },
             value: amount.value, unit: amount.unit,
+          };
+        } else if (pendingIncrementMode?.allowUnquantified && !indefiniteBlockedBlocks.has(stopIndex) &&
+            !indefiniteProtected?.increment.has(op.index - (block?.start ?? 0)) &&
+            /^[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(suffix.text)) {
+          // In this diagnostic dialect the isolated indefinite quantifier
+          // establishes the operator, never a value, unit, target, or owner.
+          pendingIncrement = {
+            operator: { start: op.index, end: operatorEnd, text: op[0] },
+            measureSpan: null, value: null, unit: null,
+          };
+        }
+      }
+    }
+    if (pendingIncrementMode?.allowUnquantified && !indefiniteBlockedBlocks.has(stopIndex) && !pendingIncrement &&
+        continuation && !withheldScope && !found && !negation && !blockHasNegation &&
+        /^[ \t]+e[ \t]+$/iu.test(gap) && deContinuationAfter(stopIndex) === null) {
+      // Only refine an existing coordinated residual. Neither a soft
+      // separator nor the nominal prefix establishes an owner or measure.
+      const more = operators.filter(m => m.groups?.increment && /^[Mm][Aa][Ii][Ss]$/u.test(m[0]));
+      const cue = more.length === 1 ? more[0] : undefined;
+      const eIndex = previous ? previous.end + gap.search(/[^ \t]/u) : -1;
+      const contextualProtection = indefiniteProtected && block && cue &&
+        (indefiniteProtected.increment.has(cue.index - block.start) ||
+         indefiniteProtected.coordination.has(eIndex - block.start));
+      if (cue && !groupingDepthDelta[cue.index] && !contextualProtection) {
+        const end = cue.index + cue[0].length;
+        const prefix = text.slice(part.start, cue.index);
+        const connector = operators.length === 2 &&
+          /^[Cc][Oo][Mm]$/u.test(operators[0][0]) &&
+          operators[0].index + operators[0][0].length < cue.index &&
+          /^[ \t]+$/u.test(text.slice(operators[0].index + operators[0][0].length, cue.index));
+        const independentPrefix = !prefix && operators.length === 1;
+        const localPrefix = connector && !/[()[\]{}"'“”]/u.test(prefix) &&
+          !/(?<![\p{L}\p{M}\p{N}])(?:ou|sem)(?![\p{L}\p{M}\p{N}])/iu.test(prefix);
+        const suffix = text.slice(end, part.end);
+        const terminalPeriod = suffix.endsWith(".") && block?.end === part.end;
+        const quantifier = terminalPeriod ? suffix.slice(0, -1) : suffix;
+        if ((independentPrefix || localPrefix) &&
+            /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(quantifier)) {
+          pendingIncrement = {
+            operator: { start: cue.index, end, text: cue[0] },
+            measureSpan: null, value: null, unit: null,
           };
         }
       }

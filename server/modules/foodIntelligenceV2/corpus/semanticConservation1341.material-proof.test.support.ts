@@ -8,7 +8,10 @@ import { parseFoodMaterialObservationBatch, type FoodMaterialObservation } from 
 import { hasSourceUtf16Boundary } from "./semanticConservation1341.reserved.test.support";
 
 const profile = "r3-material-proof-v1";
-const diagnosticProfile = z.literal("r3-pending-increment-v1");
+const successor = "r3-material-proof-v2";
+type Profile = typeof profile | typeof successor;
+const profiles = z.enum([profile, successor]);
+const diagnosticProfile = z.enum(["r3-pending-increment-v1", "r3-pending-increment-v2"]);
 const maxCases = 200, maxBytes = 8 * 1024 * 1024;
 const id = z.string().regex(/^[0-9a-f]{32}$/u);
 const head = z.string().regex(/^[0-9a-f]{40}$/u);
@@ -17,12 +20,12 @@ const version = z.literal(1);
 const split = z.enum(["calibration", "holdout"]);
 const modality = z.enum(["text", "audio_transcript"]);
 const manifestSchema = z.strictObject({
-  profile: z.literal(profile), schemaVersion: version, studyId: id, parserSha: head, comparatorSha: head,
+  profile: profiles, schemaVersion: version, studyId: id, parserSha: head, comparatorSha: head,
   adrSha256: digest, lockfileSha256: digest, lexiconRevision: opaqueId(200), lexiconSha256: digest,
   inputsSha256: digest, labelsSha256: digest, caseCount: z.number().int().positive().max(maxCases),
 });
 const receiptSchema = z.strictObject({
-  profile: z.literal(profile), schemaVersion: version, studyId: id, runId: id, parserSha: head,
+  profile: profiles, schemaVersion: version, studyId: id, runId: id, parserSha: head,
   manifestSha256: digest, outputsSha256: digest,
 });
 const inputSchema = z.strictObject({
@@ -64,7 +67,7 @@ const fact = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("ingredient-measured"), scope: span, owner,
     ingredient: span, amount: anchorAmount }),
   z.strictObject({ kind: z.literal("negation-local"), scope: span, owner, operator: span, ingredient: span }),
-  z.strictObject({ kind: z.literal("pending-increment"), scope: span, operator: span, amount: anchorAmount }),
+  z.strictObject({ kind: z.literal("pending-increment"), scope: span, operator: span, amount: anchorAmount.nullable() }),
   z.strictObject({ kind: z.literal("independent-sibling"), scope: span, owner }),
 ]);
 const labelsSchema = z.strictObject({
@@ -141,9 +144,10 @@ function realSpan(input: Input, a: Span) {
   return a.end <= input.text.length && !!literal(input, a).trim() &&
     hasSourceUtf16Boundary(input.text, a.start) && hasSourceUtf16Boundary(input.text, a.end);
 }
-function inputsFor(config: MaterialProofInputs) {
+function inputsFor(config: MaterialProofInputs, expected: Profile = profile) {
   pin(config.manifest, config.pinnedManifestSha256, "manifest");
   const manifest = decode(config.manifest, manifestSchema, "manifest");
+  if (manifest.profile !== expected) fail("manifest-shape");
   if (manifest.parserSha !== config.parserCheckoutSha ||
       manifest.adrSha256 !== config.adrSha256 || manifest.lockfileSha256 !== config.lockfileSha256) fail("checkout-pins");
   pin(config.inputs, manifest.inputsSha256, "inputs");
@@ -169,7 +173,13 @@ function inputsFor(config: MaterialProofInputs) {
 
 /** Runner receives no strata, split, semantic group, outputs, receipt or label capability. */
 export function prepareMaterialProofInputs(config: MaterialProofInputs) {
-  const { manifest, inputs } = inputsFor(config);
+  return prepareMaterialProofInputsFor(config, profile);
+}
+export function prepareUnquantifiedMaterialProofInputs(config: MaterialProofInputs) {
+  return prepareMaterialProofInputsFor(config, successor);
+}
+function prepareMaterialProofInputsFor(config: MaterialProofInputs, expected: Profile) {
+  const { manifest, inputs } = inputsFor(config, expected);
   return { lexiconRevision: manifest.lexiconRevision,
     inputs: [...inputs.values()].map(row => ({ id: row.id, rawText: row.text, modality: row.modality, sourceRef: sourceRef(row) })) };
 }
@@ -186,7 +196,9 @@ function noPackage(q: FoodMaterialObservation["quantityHints"]) {
 function absentQuantity(q: FoodMaterialObservation["quantityHints"]) {
   return q.value === null && q.unit === null && noPackage(q);
 }
-function validated(input: Input, revision: string, result: z.infer<typeof resultSchema>) {
+function validated(input: Input, revision: string, result: z.infer<typeof resultSchema>,
+  version: Profile, lexicon?: LexicalGroups) {
+  if (result.diagnosticProfile !== (version === successor ? "r3-pending-increment-v2" : "r3-pending-increment-v1")) fail("outputs-shape");
   if (!("observations" in result)) return fail("producer-technical-" + result.reason);
   const affected = "affected" in result ? result.affected : [];
   if (result.observations.length + affected.length > limits.observations) fail("occurrence-budget");
@@ -229,12 +241,18 @@ function validated(input: Input, revision: string, result: z.infer<typeof result
       if (child.materialClaims.length !== 1 || claim.kind !== "increment" ||
           claim.binding.status !== "unresolved" || claim.binding.reason !== "owner_unknown" ||
           claim.binding.candidateObservationIds.length || claim.ingredient !== null || claim.target !== null ||
-          !claim.unresolvedAmount || child.normalizedInput !== null || h.foodName !== null ||
+          (!claim.unresolvedAmount && version !== successor) || child.normalizedInput !== null || h.foodName !== null ||
           h.brand !== null || h.variant !== null || h.barcode !== null || h.preparation.length || h.qualifiers.length ||
           !absentQuantity(child.quantityHints) || child.quantityHints.servingText !== null ||
           child.alternatives.length || child.normalizationPath.length || child.interpreterVersion !== null ||
           child.unresolvedReason !== "unknown_surface" ||
-          child.evidence.length !== 2) fail("pending-authority");
+          child.evidence.length !== (claim.unresolvedAmount ? 2 : 1)) fail("pending-authority");
+      if (claim?.kind === "increment" && !claim.unresolvedAmount) {
+        const e = child.evidence[0];
+        const operator = e.anchor.span;
+        if (!operator || !lexicon || !indefiniteScope(input, scope, operator, lexicon) ||
+            !proof(input, e, "material.increment", operator, literal(input, operator))) fail("pending-authority");
+      }
     }
     return { scope, child };
   });
@@ -267,6 +285,15 @@ function exactWrittenAmount(input: Input, wanted: z.infer<typeof anchorAmount>, 
   const parts = /^([0-9.,]+|[¼½¾])(?:[ \t]*([\p{L}][\p{L}\p{M}]*))?$/u.exec(literal(input, wanted.measure));
   return !!parts && literalNumber(parts[1]) === wanted.value &&
     (parts[2] ? recognizedUnit(parts[2]) === wanted.unit : implicitUn && wanted.unit === "un");
+}
+function exactQualifiedSpoon(input: Input, wanted: z.infer<typeof anchorAmount>) {
+  // Only the exact qualified unit and numeral of the authored anchor; the
+  // bound ingredient connector is checked independently by reference().
+  const parts = /^([0-9.,]+|[¼½¾])[ \t]+colher(?:es)?[ \t]+de[ \t]+(chá|cha|café|cafe|sopa|sobremesa)$/iu
+    .exec(literal(input, wanted.measure));
+  if (!parts || literalNumber(parts[1]) !== wanted.value) return false;
+  const name = parts[2].toLowerCase();
+  return wanted.unit === "colher de " + (name === "cha" ? "chá" : name === "cafe" ? "café" : name);
 }
 const spelling = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
   .toLocaleLowerCase("pt-BR").trim().replace(/\s+/gu, " ");
@@ -366,7 +393,106 @@ function nominalAuthority(raw: string, atoms: string[], lexicon: LexicalGroups) 
   }
 }
 
-function reference(input: Input, facts: Fact[], lexicon: LexicalGroups) {
+const conjunction = /^[ \t]+[Ee][ \t]+$/u;
+function hardTail(input: Input, pos: number) {
+  return input.text.slice(pos).split(/[;\n]/u, 1)[0];
+}
+// Review the original context as a whole, independent of the parser's
+// segmented parts. Do not treat punctuation inside a quote as a reset.
+function independentIndefiniteContext(input: Input, scope: Span, operator: Span, lexicon: LexicalGroups) {
+  const before = input.text.slice(0, scope.start);
+  const start = Math.max(before.lastIndexOf(";"), before.lastIndexOf("\n")) + 1;
+  const local = input.text.slice(start, scope.end) + hardTail(input, scope.end);
+  const rawWords = [...local.matchAll(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu)];
+  const words = rawWords.map(word => spelling(word[0]));
+  if (words.some(word => word === "ou" || word === "sem" || word === "nao" || word === "nem" || word === "nunca")) return false;
+  // Resolve no meaning from active names. Any matching non-unit identity role
+  // is enough to invalidate this witness, including competing or time-scoped
+  // roles: the proof packet has no trusted lexical clock.
+  const rawScope = literal(input, scope);
+  for (const roleKey of new Set([spelling(rawScope), spelling(rawScope.replace(/\.$/u, ""))])) {
+    if ((lexicon.get(roleKey) ?? []).some(role => !unitKind(role))) return false;
+  }
+  // Independently locate the operator token and query slices of the original
+  // words against the pinned protected-name index. A soft split must not
+  // erase a governed phrase overlapping the cue.
+  const at = rawWords.findIndex(token => start + token.index === operator.start);
+  if (at < 0) return false;
+  const coordination = rawWords.findIndex(token => /^[Ee]$/u.test(token[0]) &&
+    start + token.index + 1 < scope.start &&
+    /^[ \t]+$/u.test(input.text.slice(start + token.index + 1, scope.start)));
+  const relevant = (coordination < 0 ? [at] : [at, coordination]);
+  for (const [key, group] of lexicon) {
+    if (!group.some(role => role.kind === "protected_token")) continue;
+    const term = key.match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu) ?? [];
+    if (!term.length || term.length > words.length) continue;
+    for (const pivot of relevant) {
+      for (let offset = 0; offset < term.length; offset++) {
+        const from = pivot - offset;
+        if (term[offset] === words[pivot] && from >= 0 && from + term.length <= words.length &&
+            term.every((word, index) => word === words[from + index])) return false;
+      }
+    }
+  }
+  const envelopeMarks = (source: string) => [...source].filter((mark, i, chars) => {
+    if (!/["'“”‘’«»()[\]{}]/u.test(mark)) return false;
+    if (!/['’]/u.test(mark)) return true;
+    const wordAtom = /^[\p{L}\p{M}\p{N}]$/u;
+    return !wordAtom.test(chars[i - 1] ?? "") || !wordAtom.test(chars[i + 1] ?? "");
+  });
+  if (envelopeMarks(local).length) return false;
+  const marks = envelopeMarks(input.text.slice(0, start));
+  const pairs = ['""', "''", "“”", "‘’", "«»", "()", "[]", "{}"];
+  const unclosed: string[] = [];
+  for (const mark of marks) {
+    if (unclosed.at(-1) === mark) unclosed.pop();
+    else {
+      const opener = pairs.find(pair => pair[0] === mark);
+      if (opener) unclosed.push(opener[1]);
+    }
+  }
+  return unclosed.length === 0;
+}
+
+function indefiniteScope(input: Input, scope: Span, operator: Span, lexicon: LexicalGroups) {
+  if (!inside(scope, operator) || !/^[Mm][Aa][Ii][Ss]$/u.test(literal(input, operator)) ||
+      !independentIndefiniteContext(input, scope, operator, lexicon) ||
+      /^[ \t\r]*\n[ \t\r\n]*de(?=[ \t;\r\n]|$)/iu.test(input.text.slice(scope.end))) return false;
+  const ending = input.text.slice(operator.end, scope.end);
+  if (wholeHardScope(input, scope) && operator.start === scope.start) {
+    return /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(ending);
+  }
+  const before = input.text.slice(0, scope.start);
+  const localHead = before.slice(Math.max(before.lastIndexOf(";"), before.lastIndexOf("\n")) + 1);
+  const prefix = input.text.slice(scope.start, operator.start);
+  const rest = hardTail(input, scope.end);
+  return /\S[ \t]+[Ee][ \t]+$/u.test(localHead) &&
+    (!prefix || (/(?:^|[ \t])[Cc][Oo][Mm][ \t]+$/u.test(prefix) &&
+      !/[()[\]{}"'“”]/u.test(prefix) &&
+      !/(?<![\p{L}\p{M}\p{N}])(?:ou|sem|mais)(?![\p{L}\p{M}\p{N}])/iu.test(prefix))) &&
+    (/^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(ending) ||
+      !rest.trim() && /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]\.$/u.test(ending)) &&
+    (!rest.trim() || /^[ \t]+[Ee][ \t]+\S/u.test(rest));
+}
+function witnessedMeasuredPrefix(input: Input, scope: Span, facts: Fact[], version: Profile, lexicon: LexicalGroups) {
+  if (wholeHardScope(input, scope)) return true;
+  if (version !== successor || /[;\r\n]/u.test(literal(input, scope))) return false;
+  const before = input.text.slice(0, scope.start);
+  if (before.slice(Math.max(before.lastIndexOf(";"), before.lastIndexOf("\n")) + 1).trim()) return false;
+  const tail = facts.filter(f => f.scope.start >= scope.end &&
+    f.scope.start < scope.end + hardTail(input, scope.end).length)
+    .sort((a,b) => a.scope.start - b.scope.start);
+  if (!tail.length) return false;
+  let end = scope.end;
+  for (const f of tail) {
+    if (f.kind !== "pending-increment" || f.amount !== null ||
+        !conjunction.test(input.text.slice(end, f.scope.start)) ||
+        !indefiniteScope(input, f.scope, f.operator, lexicon)) return false;
+    end = f.scope.end;
+  }
+  return !hardTail(input, end).trim();
+}
+function reference(input: Input, facts: Fact[], lexicon: LexicalGroups, version: Profile) {
   const scopes = facts.map(x => x.scope).sort((a, b) => a.start - b.start);
   if (scopes.some((x, i) => !realSpan(input, x) || i > 0 && scopes[i - 1].end > x.start)) fail("label-scope");
   for (const f of facts) {
@@ -384,7 +510,7 @@ function reference(input: Input, facts: Fact[], lexicon: LexicalGroups) {
     }
     if ("ingredient" in f) anchors.push(f.ingredient);
     if ("operator" in f) anchors.push(f.operator);
-    if ("amount" in f) anchors.push(f.amount.measure);
+    if ("amount" in f && f.amount) anchors.push(f.amount.measure);
     if (anchors.some(a => a && (!realSpan(input, a) || !inside(f.scope, a)))) fail("label-anchor");
     if ("owner" in f) {
       // The authored label may fold pt-BR nominal spelling, never substitute
@@ -413,15 +539,21 @@ function reference(input: Input, facts: Fact[], lexicon: LexicalGroups) {
     // This positive arm is deliberately narrower than the parser. Both
     // literal connectors and the whole original clause must be proved;
     // label ordering alone could launder a negation or a neighboring item.
-    if (f.kind === "ingredient-measured" && (!wholeHardScope(input, f.scope) ||
+    if (f.kind === "ingredient-measured" && (!witnessedMeasuredPrefix(input, f.scope, facts, version, lexicon) ||
         !/^[ \t]+com[ \t]+$/iu.test(input.text.slice(f.owner.name.end, f.amount.measure.start)) ||
         !/^[ \t]+de[ \t]+$/iu.test(input.text.slice(f.amount.measure.end, f.ingredient.start)) ||
         f.ingredient.end !== f.scope.end)) fail("label-ingredient-clause");
-    if ((f.kind === "ingredient-measured" || f.kind === "pending-increment") &&
-        !exactWrittenAmount(input, f.amount)) fail("label-exact-amount");
-    if (f.kind === "negation-local" || f.kind === "pending-increment") {
+    if (f.kind === "pending-increment" && f.amount === null) {
+      if (version !== successor) fail("labels-shape");
+      if (!indefiniteScope(input, f.scope, f.operator, lexicon)) fail("label-operator");
+    } else if ((f.kind === "ingredient-measured" || f.kind === "pending-increment") &&
+        !exactWrittenAmount(input, f.amount!) &&
+        !(version === successor && f.kind === "ingredient-measured" && exactQualifiedSpoon(input, f.amount))) {
+      fail("label-exact-amount");
+    }
+    if (f.kind === "negation-local" || (f.kind === "pending-increment" && f.amount)) {
       const left = f.kind === "negation-local" ? f.owner.name.end : f.scope.start;
-      const right = f.kind === "negation-local" ? f.ingredient : f.amount.measure;
+      const right = f.kind === "negation-local" ? f.ingredient : f.amount!.measure;
       const token = f.kind === "negation-local" ? "sem" : "mais";
       const trailing = input.text.slice(f.scope.end);
       if (literal(input, f.operator).toLowerCase() !== token || !wholeHardScope(input, f.scope) ||
@@ -501,9 +633,10 @@ function provesFact(input: Input, row: FoodMaterialObservation, gold: Fact) {
   const [claim] = row.materialClaims;
   const byId = (id: string) => row.evidence.find(e => e.evidenceId === id);
   if (gold.kind === "pending-increment") {
-    return claim?.kind === "increment" && !!claim.unresolvedAmount &&
+    return claim?.kind === "increment" &&
       proof(input, byId(claim.operatorEvidenceId), "material.increment", gold.operator, literal(input, gold.operator)) &&
-      proof(input, byId(claim.unresolvedAmount.evidenceId), "material.amount", gold.amount.measure, gold.amount.value, gold.amount.unit);
+      (gold.amount === null ? claim.unresolvedAmount === null : !!claim.unresolvedAmount &&
+        proof(input, byId(claim.unresolvedAmount.evidenceId), "material.amount", gold.amount.measure, gold.amount.value, gold.amount.unit));
   }
   if (!ownerProof(input, row, gold.owner)) return false;
   if (gold.kind === "independent-sibling") return row.materialClaims.length === 0;
@@ -565,7 +698,7 @@ function labelsFor(manifest: z.infer<typeof manifestSchema>, inputs: ReadonlyMap
   lexicon: LexicalGroups, bytes: Uint8Array) {
   pin(bytes, manifest.labelsSha256, "labels");
   const labels = index(decode(bytes, labelsSchema, "labels").rows, "labels", inputs);
-  for (const [k, row] of inputs) reference(row, labels.get(k)!.facts, lexicon);
+  for (const [k, row] of inputs) reference(row, labels.get(k)!.facts, lexicon, manifest.profile);
   return labels;
 }
 
@@ -573,7 +706,13 @@ function labelsFor(manifest: z.infer<typeof manifestSchema>, inputs: ReadonlyMap
  * Counts support quota review; they do not prove equivalence or human authorship.
  */
 export function preflightMaterialProofReference(config: MaterialProofReference) {
-  const { manifest, inputs } = inputsFor(config);
+  return preflightMaterialProofReferenceFor(config, profile);
+}
+export function preflightUnquantifiedMaterialProofReference(config: MaterialProofReference) {
+  return preflightMaterialProofReferenceFor(config, successor);
+}
+function preflightMaterialProofReferenceFor(config: MaterialProofReference, expected: Profile) {
+  const { manifest, inputs } = inputsFor(config, expected);
   verifyComparatorCheckout(manifest, config.comparatorCheckoutSha);
   const labels = labelsFor(manifest, inputs, lexicalRolesFor(config.lexiconSnapshot), config.labels);
   const cases: Record<string, number> = {};
@@ -594,16 +733,26 @@ export function preflightMaterialProofReference(config: MaterialProofReference) 
 }
 
 export function compareSealedMaterialProof(config: SealedMaterialProof) {
-  const { manifest, inputs } = inputsFor(config);
+  return compareSealedMaterialProofFor(config, profile);
+}
+
+export function compareSealedUnquantifiedMaterialProof(config: SealedMaterialProof) {
+  return compareSealedMaterialProofFor(config, successor);
+}
+
+function compareSealedMaterialProofFor(config: SealedMaterialProof, version: Profile) {
+  const { manifest, inputs } = inputsFor(config, version);
   verifyComparatorCheckout(manifest, config.comparatorCheckoutSha);
   pin(config.receipt, config.pinnedReceiptSha256, "receipt");
   const receipt = decode(config.receipt, receiptSchema, "receipt");
-  if (receipt.studyId !== manifest.studyId || receipt.runId !== config.expectedRunId ||
+  if (receipt.profile !== manifest.profile || receipt.studyId !== manifest.studyId || receipt.runId !== config.expectedRunId ||
       receipt.parserSha !== manifest.parserSha || receipt.manifestSha256 !== config.pinnedManifestSha256) fail("receipt-identity");
   pin(config.outputs, receipt.outputsSha256, "outputs");
   const outputs = index(decode(config.outputs, outputsSchema, "outputs"), "outputs", inputs);
-  const capture = new Map([...inputs].map(([k, row]) => [k, validated(row, manifest.lexiconRevision, outputs.get(k)!.result)]));
-  const lexicon = lexicalRolesFor(config.lexiconSnapshot);
+  const captureLexicon = version === successor ? lexicalRolesFor(config.lexiconSnapshot) : undefined;
+  const capture = new Map([...inputs].map(([k, row]) => [k,
+    validated(row, manifest.lexiconRevision, outputs.get(k)!.result, version, captureLexicon)]));
+  const lexicon = captureLexicon ?? lexicalRolesFor(config.lexiconSnapshot);
   const labels = labelsFor(manifest, inputs, lexicon, config.readLabels());
   const totals = counts();
   const strata: Record<string, Counts> = {};
@@ -615,7 +764,7 @@ export function compareSealedMaterialProof(config: SealedMaterialProof) {
     const why = stratum + "/" + reason;
     reasons[why] = (reasons[why] ?? 0) + 1;
   });
-  return { authority: "diagnostic-only", profile, studyId: manifest.studyId, runId: receipt.runId,
+  return { authority: "diagnostic-only", profile: version, studyId: manifest.studyId, runId: receipt.runId,
     parserSha: manifest.parserSha, comparatorSha: manifest.comparatorSha, adrSha256: manifest.adrSha256,
     lockfileSha256: manifest.lockfileSha256, lexiconRevision: manifest.lexiconRevision, lexiconSha256: manifest.lexiconSha256,
     manifestSha256: config.pinnedManifestSha256, receiptSha256: config.pinnedReceiptSha256,
