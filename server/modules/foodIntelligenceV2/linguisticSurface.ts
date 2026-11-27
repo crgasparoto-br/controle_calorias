@@ -407,12 +407,12 @@ export type ExplicitIngredientNegation = {
   conflictingGovernedOwner?: Span;
 };
 
-export type ExplicitPendingIncrement = {
+export type PendingIncrementCue = {
   operator: Segment;
-  measureSpan: Span;
-  value: number;
-  unit: string;
-};
+} & (
+  | { measureSpan: Span; value: number; unit: string }
+  | { measureSpan: null; value: null; unit: null }
+);
 
 export type MaterialSegmentSyntax = {
   measure: ExplicitIngredientMeasure | null;
@@ -420,7 +420,7 @@ export type MaterialSegmentSyntax = {
   materialOperator: boolean;
   continuation: boolean;
   withheldScope?: Span;
-  pendingIncrement?: ExplicitPendingIncrement;
+  pendingIncrement?: PendingIncrementCue;
 };
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal.
@@ -430,7 +430,7 @@ export function splitFoodSurface(
   text: string, governedUnits: readonly GovernedUnitAlias[] = [],
   protectedTerms: readonly string[] = [],
   material?: MaterialSegmentSyntax[],
-  capturePendingIncrements = false,
+  pendingIncrementMode?: { readonly allowUnquantified: boolean },
 ): Segment[] {
   // A comma before a recognized material attribute belongs to the prior food.
   // Restrict the grammar to qualifiers understood by this LCL; new unknown
@@ -772,9 +772,9 @@ export function splitFoodSurface(
       };
     }
     const withheldScope = overBudgetParts.has(part) ? undefined : withheldBlocks.get(stopIndex);
-    let pendingIncrement: ExplicitPendingIncrement | undefined;
+    let pendingIncrement: PendingIncrementCue | undefined;
     const incrementToken = op?.groups?.increment;
-    if (capturePendingIncrements && !withheldScope && !found && !negation && op &&
+    if (pendingIncrementMode && !withheldScope && !found && !negation && op &&
         // The broad Unicode scanner can recognize case-folding lookalikes;
         // this profile promises the literal Portuguese operator only.
         incrementToken && /^[\x00-\x7f]+$/u.test(incrementToken) &&
@@ -797,6 +797,43 @@ export function splitFoodSurface(
             operator: { start: op.index, end: operatorEnd, text: op[0] },
             measureSpan: { start: suffix.start, end: suffix.end },
             value: amount.value, unit: amount.unit,
+          };
+        } else if (pendingIncrementMode?.allowUnquantified &&
+            /^[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(suffix.text)) {
+          // In this diagnostic dialect the isolated indefinite quantifier
+          // establishes the operator, never a value, unit, target, or owner.
+          pendingIncrement = {
+            operator: { start: op.index, end: operatorEnd, text: op[0] },
+            measureSpan: null, value: null, unit: null,
+          };
+        }
+      }
+    }
+    if (pendingIncrementMode?.allowUnquantified && !pendingIncrement &&
+        continuation && !withheldScope && !found && !negation && !blockHasNegation &&
+        /^[ \t]+e[ \t]+$/iu.test(gap) && deContinuationAfter(stopIndex) === null) {
+      // Only refine an existing coordinated residual. Neither a soft
+      // separator nor the nominal prefix establishes an owner or measure.
+      const more = operators.filter(m => m.groups?.increment && /^[Mm][Aa][Ii][Ss]$/u.test(m[0]));
+      const cue = more.length === 1 ? more[0] : undefined;
+      if (cue && !groupingDepthDelta[cue.index]) {
+        const end = cue.index + cue[0].length;
+        const prefix = text.slice(part.start, cue.index);
+        const connector = operators.length === 2 &&
+          /^[Cc][Oo][Mm]$/u.test(operators[0][0]) &&
+          operators[0].index + operators[0][0].length < cue.index &&
+          /^[ \t]+$/u.test(text.slice(operators[0].index + operators[0][0].length, cue.index));
+        const independentPrefix = !prefix && operators.length === 1;
+        const localPrefix = connector && !/[()[\]{}"'“”]/u.test(prefix) &&
+          !/(?<![\p{L}\p{M}\p{N}])(?:ou|sem)(?![\p{L}\p{M}\p{N}])/iu.test(prefix);
+        const suffix = text.slice(end, part.end);
+        const terminalPeriod = suffix.endsWith(".") && block?.end === part.end;
+        const quantifier = terminalPeriod ? suffix.slice(0, -1) : suffix;
+        if ((independentPrefix || localPrefix) &&
+            /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(quantifier)) {
+          pendingIncrement = {
+            operator: { start: cue.index, end, text: cue[0] },
+            measureSpan: null, value: null, unit: null,
           };
         }
       }

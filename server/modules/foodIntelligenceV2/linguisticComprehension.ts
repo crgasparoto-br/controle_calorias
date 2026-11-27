@@ -7,7 +7,7 @@ import { z } from "zod";
 import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_INPUT_TYPES, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
 import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, ExplicitPendingIncrement, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
+import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, PendingIncrementCue, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
 import { parseFoodMaterialObservationBatch, parseFoodObservation, type FoodMaterialObservation, type FoodObservation } from "./schemas";
 import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
@@ -237,7 +237,8 @@ type AffectedMaterial = Pick<FoodObservation, "observationId" | "surfaceSpan">;
 type MaterialProjection = {
   facts: Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>;
   withheld: Map<number, AffectedMaterial>;
-  pendingIncrements?: Map<string, ExplicitPendingIncrement>;
+  pendingIncrements?: Map<string, PendingIncrementCue>;
+  pendingIncrementMode?: { readonly allowUnquantified: boolean };
 };
 
 function buildObservation(
@@ -598,7 +599,7 @@ export async function comprehendFoodLanguage(
     entry.kind === "protected_token" && applicable(entry, request.ownerUserId, now),
   ).map(entry => entry.normalizedTerm);
   const syntax: MaterialSegmentSyntax[] | undefined = material ? [] : undefined;
-  const parsedParts = splitFoodSurface(request.rawText, units, protectedTerms, syntax, material?.pendingIncrements !== undefined);
+  const parsedParts = splitFoodSurface(request.rawText, units, protectedTerms, syntax, material?.pendingIncrementMode);
   if (parsedParts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   const results: FoodObservation[] = [];
   for (let i = 0; i < parsedParts.length; i++) {
@@ -731,7 +732,9 @@ type MaterialLanguageResult =
 export type FoodMaterialLanguageResult = MaterialLanguageResult & { diagnosticProfile?: never };
 
 const pendingIncrementProfile = "r3-pending-increment-v1" as const;
-type PendingIncrementDiagnostic = { diagnosticProfile: typeof pendingIncrementProfile } & (
+const unquantifiedIncrementProfile = "r3-pending-increment-v2" as const;
+type IncrementProfile = typeof pendingIncrementProfile | typeof unquantifiedIncrementProfile;
+type PendingIncrementDiagnostic<P extends IncrementProfile> = { diagnosticProfile: P } & (
   Exclude<MaterialLanguageResult, { reason: "unproven-material" }> |
   { ok: false; reason: "unproven-material";
     affected: (AffectedMaterial & { pendingObservation?: FoodMaterialObservation })[];
@@ -751,11 +754,26 @@ export async function comprehendFoodMaterialLanguage(
  */
 export async function diagnoseFoodMaterialPendingIncrements(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
-): Promise<PendingIncrementDiagnostic> {
+): Promise<PendingIncrementDiagnostic<typeof pendingIncrementProfile>> {
+  return diagnosePendingIncrements(request, lexicon, pendingIncrementProfile);
+}
+
+/** Test-only successor; never changes the ordinary material result or v1. */
+export async function diagnoseFoodMaterialUnquantifiedIncrements(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore,
+): Promise<PendingIncrementDiagnostic<typeof unquantifiedIncrementProfile>> {
+  return diagnosePendingIncrements(request, lexicon, unquantifiedIncrementProfile);
+}
+
+async function diagnosePendingIncrements<P extends IncrementProfile>(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore, diagnosticProfile: P,
+): Promise<PendingIncrementDiagnostic<P>> {
   const pending = new Map<string, FoodMaterialObservation>();
-  const result = await collectFoodMaterialLanguage(request, lexicon, pending);
-  if (!("affected" in result)) return { ...result, diagnosticProfile: pendingIncrementProfile };
-  return { ...result, diagnosticProfile: pendingIncrementProfile,
+  const result = await collectFoodMaterialLanguage(request, lexicon, pending, {
+    allowUnquantified: diagnosticProfile === unquantifiedIncrementProfile,
+  });
+  if (!("affected" in result)) return { ...result, diagnosticProfile };
+  return { ...result, diagnosticProfile,
     affected: result.affected.map(row => {
       const pendingObservation = pending.get(row.observationId);
       return pendingObservation ? { ...row, pendingObservation } : row;
@@ -766,6 +784,7 @@ export async function diagnoseFoodMaterialPendingIncrements(
 async function collectFoodMaterialLanguage(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
   pending?: Map<string, FoodMaterialObservation>,
+  pendingIncrementMode?: { readonly allowUnquantified: boolean },
 ): Promise<FoodMaterialLanguageResult> {
   const [textModality, transcriptModality] = FOOD_INPUT_TYPES;
   const modality = request.modality;
@@ -774,7 +793,8 @@ async function collectFoodMaterialLanguage(
     return { ok: false, reason: "unsupported-input" };
   }
   const material: MaterialProjection = {
-    facts: new Map(), withheld: new Map(), pendingIncrements: pending ? new Map() : undefined,
+    facts: new Map(), withheld: new Map(),
+    pendingIncrements: pending ? new Map() : undefined, pendingIncrementMode,
   };
   const base = await comprehendFoodLanguage({
     ...request, shouldInterpretResidual: undefined, interpreterVersion: undefined,
@@ -804,14 +824,15 @@ async function collectFoodMaterialLanguage(
           evidence: [{
             ...evidence, evidenceId: operatorEvidenceId, field: "material.increment", value: increment.operator.text,
             unit: null, anchor: anchor(request.sourceRef, { start: increment.operator.start, end: increment.operator.end }),
-          }, {
+          }, ...(increment.measureSpan ? [{
             ...evidence, evidenceId: amountId, field: "material.amount", value: increment.value, unit: increment.unit,
             anchor: anchor(request.sourceRef, increment.measureSpan),
-          }],
+          }] : [])],
           materialClaims: [{
             kind: "increment", claimId, operatorEvidenceId, ingredient: null, target: null,
             binding: { status: "unresolved", reason: "owner_unknown", candidateObservationIds: [] },
-            unresolvedAmount: { value: increment.value, unit: increment.unit, evidenceId: amountId },
+            unresolvedAmount: increment.measureSpan
+              ? { value: increment.value, unit: increment.unit, evidenceId: amountId } : null,
           }],
         });
       }

@@ -830,3 +830,31 @@ V2 nem substitui revisão independente**.
   Um teste diagnóstico verde não certifica a conservação semântica produtiva;
   manter `adjust-ADR-contract-before-D1-semantic-cutover` e exigir auditoria
   independente no novo HEAD antes de Ready, merge ou fechamento da #1341.
+
+## Diagnóstico versionado de incremento com quantidade indefinida
+
+`r3-pending-increment-v2` e o verificador de teste `r3-material-proof-v2`
+permitem conferir evidência do operador de um incremento cujo valor não foi
+escrito. Não substituem os perfis v1, o comparador amplo, a observação pública
+ou a projeção produtiva. O filho tipado fica exclusivamente no item
+`affected`, aponta para o operador na fonte UTF-16 e contém
+`unresolvedAmount: null`, sem quantidade, alvo, identidade ou unidade
+inventados. Nenhuma cláusula fica apta a resolver ou gravar por isso.
+
+O recorte cobre o quantificador literal indefinido `um pouco` depois
+de `mais`: uma cláusula inteira ou um residual já retido por coordenação
+`e`. No caso coordenado, uma medida anterior com prova permanece independente;
+o gabarito precisa cobrir cada cauda dessa cláusula, com ocorrências e âncoras
+distintas. Vírgula isolada, alternativa `ou`, retomada por `de`, negação,
+termo protegido ou alvo não provado não servem de autorização. O recorte não
+prova uma segunda medida dentro do próprio residual retido, como leite
+quantificado antes do incremento. Um escopo afetado sem filho tipado é falta
+de evidência no verificador, não confirmação da pendência.
+
+O perfil é conferido nos manifestos/recibos e na saída antes de ler o
+gabarito. Use `prepareUnquantifiedMaterialProofInputs`,
+`preflightUnquantifiedMaterialProofReference` e
+`compareSealedUnquantifiedMaterialProof` somente com o mesmo perfil. Os
+controles existentes são fixtures conhecidas, não amostra reservada nem
+prova de generalização. Não altera o estado do F34, a ativação V2 ou qualquer
+porta de persistência.

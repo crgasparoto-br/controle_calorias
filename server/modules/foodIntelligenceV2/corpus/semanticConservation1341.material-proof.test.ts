@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { FOOD_CONTRACT_LIMITS } from "../contracts";
-import { diagnoseFoodMaterialPendingIncrements, type GovernedLexiconEntry } from "../linguisticComprehension";
+import { diagnoseFoodMaterialPendingIncrements, diagnoseFoodMaterialUnquantifiedIncrements, type GovernedLexiconEntry } from "../linguisticComprehension";
 import { parseFoodMaterialObservationBatch, type FoodMaterialObservation } from "../schemas";
-import { compareSealedMaterialProof, prepareMaterialProofInputs } from "./semanticConservation1341.material-proof.test.support";
+import { compareSealedMaterialProof, compareSealedUnquantifiedMaterialProof, prepareMaterialProofInputs, prepareUnquantifiedMaterialProofInputs } from "./semanticConservation1341.material-proof.test.support";
 
 const ref = {
   studyId: "b".repeat(32), parserSha: "c".repeat(40), comparatorSha: "d".repeat(40),
@@ -73,7 +73,7 @@ function seal(entries: Input[], outputRows: unknown[], labels: unknown[] = entri
   const labelBytes = json({ nonce: "1".repeat(64), rows: labels });
   const manifest = json({ profile, schemaVersion: 1, ...ref, lexiconSha256: digest(lexiconSnapshot),
     inputsSha256: digest(inputs), labelsSha256: digest(labelBytes), caseCount: entries.length, ...manifestChange });
-  const receipt = json({ profile, schemaVersion: 1, studyId: ref.studyId, runId, parserSha: ref.parserSha,
+  const receipt = json({ profile: manifestChange.profile ?? profile, schemaVersion: 1, studyId: ref.studyId, runId, parserSha: ref.parserSha,
     manifestSha256: digest(manifest), outputsSha256: digest(outputs) });
   return { manifest, inputs, outputs, receipt, lexiconSnapshot, adrSha256: ref.adrSha256, lockfileSha256: ref.lockfileSha256,
     pinnedManifestSha256: digest(manifest), pinnedReceiptSha256: digest(receipt),
@@ -641,4 +641,100 @@ describe("sealed material proof, only public synthetic controls", () => {
     expect(() => compareSealedMaterialProof(packet)).toThrow("occurrence-budget");
     expect(packet.readLabels).not.toHaveBeenCalled();
   });
+});
+
+
+describe("sealed v2 evidence for an indefinite increment", () => {
+  const version = { profile: "r3-material-proof-v2" };
+  const entries = [input(1), input(2, publicText, "audio_transcript")];
+  const labels = entries.map(({ id, text }) => ({ id, facts: [
+    ...authoredFacts(text),
+    { kind: "pending-increment", scope: at(text, "mais um pouco"),
+      operator: at(text, "mais", at(text, "mais um pouco").start),
+      amount: null },
+  ] }));
+  async function run() {
+    const plan = prepareUnquantifiedMaterialProofInputs(seal(entries, [], labels, version));
+    return Promise.all(plan.inputs.map(async ({ id, ...req }) => ({ id,
+      result: await diagnoseFoodMaterialUnquantifiedIncrements({
+        ...req, lexiconRevision: plan.lexiconRevision, locale: "pt-BR", ownerUserId: null,
+        now: new Date("2026-11-25T00:00:00Z"),
+      }, { load: async () => snapshot }) })));
+  }
+
+  it("scores the operator, null measure and explicit sibling evidence independently", async () => {
+    const out = await run();
+    const packet = seal(entries, out, labels, version);
+    expect(compareSealedUnquantifiedMaterialProof(packet)).toMatchObject({
+      profile: "r3-material-proof-v2",
+      totals: { verified: 6, abstained: 4, missing: 0, mismatch: 0, duplicate: 0, extra: 0 },
+    });
+    expect(packet.readLabels).toHaveBeenCalledTimes(1);
+    const wrongComparator = seal(entries, out, labels, version);
+    expect(() => compareSealedMaterialProof(wrongComparator)).toThrow("manifest-shape");
+    expect(wrongComparator.readLabels).not.toHaveBeenCalled();
+  });
+
+  it("rejects cross-profile results before reading labels", async () => {
+    const stale = seal(entries, await Promise.all(entries.map(async row => ({
+      id: row.id, result: await capture(row),
+    }))), labels, version);
+    expect(() => compareSealedUnquantifiedMaterialProof(stale)).toThrow("outputs-shape");
+    expect(stale.readLabels).not.toHaveBeenCalled();
+  });
+
+  it("does not confuse a plain affected range with a proved indefinite increment", async () => {
+    const out = await run();
+    for (const row of out) {
+      if (row.result.ok || row.result.reason !== "unproven-material") throw new Error("expected affected");
+      const indefinite = row.result.affected.find(x => x.pendingObservation?.materialClaims.some(c =>
+        c.kind === "increment" && c.unresolvedAmount === null));
+      if (!indefinite) throw new Error("expected indefinite child");
+      delete indefinite.pendingObservation;
+    }
+    expect(compareSealedUnquantifiedMaterialProof(seal(entries, out, labels, version)).totals)
+      .toEqual({ verified: 6, abstained: 2, missing: 2, mismatch: 0, duplicate: 0, extra: 0 });
+  });
+});
+
+it("scores a proved measured prefix and each coordinated indefinite suffix at its own span", async () => {
+  const text = "Café com 1 colher de chá de açúcar e leite com mais um pouco e mais um pouco.";
+  const entry = input(1, text);
+  const first = at(text, "mais");
+  const second = at(text, "mais", first.end);
+  const labelRows = [{ id: entry.id, facts: [
+    { kind: "ingredient-measured", scope: at(text, "Café com 1 colher de chá de açúcar"),
+      owner: { name: at(text, "Café"), nameHint: "cafe", whole: { status: "absent" } },
+      ingredient: at(text, "açúcar"), amount: { value: 1, unit: "colher de chá", measure: at(text, "1 colher de chá") } },
+    { kind: "pending-increment", scope: at(text, "leite com mais um pouco"), operator: first, amount: null },
+    { kind: "pending-increment", scope: at(text, "mais um pouco.", second.start), operator: second, amount: null },
+  ] }];
+  const result = await diagnoseFoodMaterialUnquantifiedIncrements({
+    rawText: text, modality: entry.modality, sourceRef: "c1b:" + entry.id,
+    lexiconRevision: ref.lexiconRevision, ownerUserId: null, locale: "pt-BR",
+    now: new Date("2026-11-25T00:00:00Z"),
+  }, { load: async () => [] });
+  const packet = seal([entry], [{ id: entry.id, result }], labelRows, { profile: "r3-material-proof-v2" }, []);
+  expect(compareSealedUnquantifiedMaterialProof(packet).totals)
+    .toEqual({ verified: 1, abstained: 2, missing: 0, mismatch: 0, duplicate: 0, extra: 0 });
+
+  const sealLabels = (facts: unknown[]) => seal([entry], [{ id: entry.id, result }],
+    [{ id: entry.id, facts }], { profile: "r3-material-proof-v2" }, []);
+  expect(() => compareSealedUnquantifiedMaterialProof(sealLabels(labelRows[0].facts.slice(0, 2))))
+    .toThrow("label-ingredient-clause");
+  const counterfeitUnit = structuredClone(labelRows[0].facts);
+  const [measure] = counterfeitUnit;
+  if (!measure.amount) throw new Error("expected measure");
+  measure.amount.unit = "colher de sopa";
+  expect(() => compareSealedUnquantifiedMaterialProof(sealLabels(counterfeitUnit)))
+    .toThrow("label-exact-amount");
+
+  if (result.ok || result.reason !== "unproven-material") throw new Error("expected pending output");
+  const borrowed = structuredClone(result);
+  const [firstChild, secondChild] = borrowed.affected;
+  firstChild.pendingObservation = secondChild.pendingObservation;
+  const falseOrigin = seal([entry], [{ id: entry.id, result: borrowed }], labelRows,
+    { profile: "r3-material-proof-v2" }, []);
+  expect(() => compareSealedUnquantifiedMaterialProof(falseOrigin)).toThrow(/^c1b-r3-material-proof:/u);
+  expect(falseOrigin.readLabels).not.toHaveBeenCalled();
 });
