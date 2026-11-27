@@ -850,7 +850,12 @@ termo protegido ou alvo não provado não servem de autorização. Uma alternati
 ou negação no mesmo bloco impede a prova, mesmo antes de uma divisão por `e`.
 Pontuação dentro de fala citada ou grupo delimitado não restabelece a
 autoridade do bloco. Um bloco separado depois do fechamento ainda pode
-trazer evidência.
+trazer evidência. O operador e a coordenação não podem pertencer a uma
+expressão que o léxico protege, inclusive quando ficam em sua primeira ou
+última palavra. A prova valida o snapshot léxico fixado tanto no gabarito
+quanto no resultado antes de ler os rótulos. Um papel de identidade exato
+ou em conflito, ou uma proteção relevante que dependa de relógio não fixado,
+não admite a reivindicação neste perfil. Entradas inativas não bloqueiam.
 O produtor e o verificador inspecionam esse contexto diretamente no original;
 concordar sobre os offsets locais não substitui a prova do escopo. O recorte
 não prova uma segunda medida dentro do próprio residual retido, como leite

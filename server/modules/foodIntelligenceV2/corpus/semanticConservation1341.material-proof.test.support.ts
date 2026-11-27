@@ -197,7 +197,7 @@ function absentQuantity(q: FoodMaterialObservation["quantityHints"]) {
   return q.value === null && q.unit === null && noPackage(q);
 }
 function validated(input: Input, revision: string, result: z.infer<typeof resultSchema>,
-  version: Profile) {
+  version: Profile, lexicon?: LexicalGroups) {
   if (result.diagnosticProfile !== (version === successor ? "r3-pending-increment-v2" : "r3-pending-increment-v1")) fail("outputs-shape");
   if (!("observations" in result)) return fail("producer-technical-" + result.reason);
   const affected = "affected" in result ? result.affected : [];
@@ -250,7 +250,7 @@ function validated(input: Input, revision: string, result: z.infer<typeof result
       if (claim?.kind === "increment" && !claim.unresolvedAmount) {
         const e = child.evidence[0];
         const operator = e.anchor.span;
-        if (!operator || !indefiniteScope(input, scope, operator) ||
+        if (!operator || !lexicon || !indefiniteScope(input, scope, operator, lexicon) ||
             !proof(input, e, "material.increment", operator, literal(input, operator))) fail("pending-authority");
       }
     }
@@ -399,12 +399,41 @@ function hardTail(input: Input, pos: number) {
 }
 // Review the original context as a whole, independent of the parser's
 // segmented parts. Do not treat punctuation inside a quote as a reset.
-function independentIndefiniteContext(input: Input, scope: Span) {
+function independentIndefiniteContext(input: Input, scope: Span, operator: Span, lexicon: LexicalGroups) {
   const before = input.text.slice(0, scope.start);
   const start = Math.max(before.lastIndexOf(";"), before.lastIndexOf("\n")) + 1;
   const local = input.text.slice(start, scope.end) + hardTail(input, scope.end);
-  const materialWords: readonly string[] = local.toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
-  if (materialWords.includes("ou") || materialWords.includes("sem")) return false;
+  const rawWords = [...local.matchAll(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu)];
+  const words = rawWords.map(word => spelling(word[0]));
+  if (words.some(word => word === "ou" || word === "sem" || word === "nao" || word === "nem" || word === "nunca")) return false;
+  // Resolve no meaning from active names. Any matching non-unit identity role
+  // is enough to invalidate this witness, including competing or time-scoped
+  // roles: the proof packet has no trusted lexical clock.
+  const rawScope = literal(input, scope);
+  for (const roleKey of new Set([spelling(rawScope), spelling(rawScope.replace(/\.$/u, ""))])) {
+    if ((lexicon.get(roleKey) ?? []).some(role => !unitKind(role))) return false;
+  }
+  // Independently locate the operator token and query slices of the original
+  // words against the pinned protected-name index. A soft split must not
+  // erase a governed phrase overlapping the cue.
+  const at = rawWords.findIndex(token => start + token.index === operator.start);
+  if (at < 0) return false;
+  const coordination = rawWords.findIndex(token => /^[Ee]$/u.test(token[0]) &&
+    start + token.index + 1 < scope.start &&
+    /^[ \t]+$/u.test(input.text.slice(start + token.index + 1, scope.start)));
+  const relevant = (coordination < 0 ? [at] : [at, coordination]);
+  for (const [key, group] of lexicon) {
+    if (!group.some(role => role.kind === "protected_token")) continue;
+    const term = key.match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu) ?? [];
+    if (!term.length || term.length > words.length) continue;
+    for (const pivot of relevant) {
+      for (let offset = 0; offset < term.length; offset++) {
+        const from = pivot - offset;
+        if (term[offset] === words[pivot] && from >= 0 && from + term.length <= words.length &&
+            term.every((word, index) => word === words[from + index])) return false;
+      }
+    }
+  }
   const envelopeMarks = (source: string) => [...source].filter((mark, i, chars) => {
     if (!/["'“”‘’«»()[\]{}]/u.test(mark)) return false;
     if (!/['’]/u.test(mark)) return true;
@@ -425,8 +454,9 @@ function independentIndefiniteContext(input: Input, scope: Span) {
   return unclosed.length === 0;
 }
 
-function indefiniteScope(input: Input, scope: Span, operator: Span) {
-  if (!independentIndefiniteContext(input, scope) || !inside(scope, operator) || !/^[Mm][Aa][Ii][Ss]$/u.test(literal(input, operator)) ||
+function indefiniteScope(input: Input, scope: Span, operator: Span, lexicon: LexicalGroups) {
+  if (!inside(scope, operator) || !/^[Mm][Aa][Ii][Ss]$/u.test(literal(input, operator)) ||
+      !independentIndefiniteContext(input, scope, operator, lexicon) ||
       /^[ \t\r]*\n[ \t\r\n]*de(?=[ \t;\r\n]|$)/iu.test(input.text.slice(scope.end))) return false;
   const ending = input.text.slice(operator.end, scope.end);
   if (wholeHardScope(input, scope) && operator.start === scope.start) {
@@ -444,7 +474,7 @@ function indefiniteScope(input: Input, scope: Span, operator: Span) {
       !rest.trim() && /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]\.$/u.test(ending)) &&
     (!rest.trim() || /^[ \t]+[Ee][ \t]+\S/u.test(rest));
 }
-function witnessedMeasuredPrefix(input: Input, scope: Span, facts: Fact[], version: Profile) {
+function witnessedMeasuredPrefix(input: Input, scope: Span, facts: Fact[], version: Profile, lexicon: LexicalGroups) {
   if (wholeHardScope(input, scope)) return true;
   if (version !== successor || /[;\r\n]/u.test(literal(input, scope))) return false;
   const before = input.text.slice(0, scope.start);
@@ -457,7 +487,7 @@ function witnessedMeasuredPrefix(input: Input, scope: Span, facts: Fact[], versi
   for (const f of tail) {
     if (f.kind !== "pending-increment" || f.amount !== null ||
         !conjunction.test(input.text.slice(end, f.scope.start)) ||
-        !indefiniteScope(input, f.scope, f.operator)) return false;
+        !indefiniteScope(input, f.scope, f.operator, lexicon)) return false;
     end = f.scope.end;
   }
   return !hardTail(input, end).trim();
@@ -509,13 +539,13 @@ function reference(input: Input, facts: Fact[], lexicon: LexicalGroups, version:
     // This positive arm is deliberately narrower than the parser. Both
     // literal connectors and the whole original clause must be proved;
     // label ordering alone could launder a negation or a neighboring item.
-    if (f.kind === "ingredient-measured" && (!witnessedMeasuredPrefix(input, f.scope, facts, version) ||
+    if (f.kind === "ingredient-measured" && (!witnessedMeasuredPrefix(input, f.scope, facts, version, lexicon) ||
         !/^[ \t]+com[ \t]+$/iu.test(input.text.slice(f.owner.name.end, f.amount.measure.start)) ||
         !/^[ \t]+de[ \t]+$/iu.test(input.text.slice(f.amount.measure.end, f.ingredient.start)) ||
         f.ingredient.end !== f.scope.end)) fail("label-ingredient-clause");
     if (f.kind === "pending-increment" && f.amount === null) {
       if (version !== successor) fail("labels-shape");
-      if (!indefiniteScope(input, f.scope, f.operator)) fail("label-operator");
+      if (!indefiniteScope(input, f.scope, f.operator, lexicon)) fail("label-operator");
     } else if ((f.kind === "ingredient-measured" || f.kind === "pending-increment") &&
         !exactWrittenAmount(input, f.amount!) &&
         !(version === successor && f.kind === "ingredient-measured" && exactQualifiedSpoon(input, f.amount))) {
@@ -719,8 +749,10 @@ function compareSealedMaterialProofFor(config: SealedMaterialProof, version: Pro
       receipt.parserSha !== manifest.parserSha || receipt.manifestSha256 !== config.pinnedManifestSha256) fail("receipt-identity");
   pin(config.outputs, receipt.outputsSha256, "outputs");
   const outputs = index(decode(config.outputs, outputsSchema, "outputs"), "outputs", inputs);
-  const capture = new Map([...inputs].map(([k, row]) => [k, validated(row, manifest.lexiconRevision, outputs.get(k)!.result, version)]));
-  const lexicon = lexicalRolesFor(config.lexiconSnapshot);
+  const captureLexicon = version === successor ? lexicalRolesFor(config.lexiconSnapshot) : undefined;
+  const capture = new Map([...inputs].map(([k, row]) => [k,
+    validated(row, manifest.lexiconRevision, outputs.get(k)!.result, version, captureLexicon)]));
+  const lexicon = captureLexicon ?? lexicalRolesFor(config.lexiconSnapshot);
   const labels = labelsFor(manifest, inputs, lexicon, config.readLabels());
   const totals = counts();
   const strata: Record<string, Counts> = {};

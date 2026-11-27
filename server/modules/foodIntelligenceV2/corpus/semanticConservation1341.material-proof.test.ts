@@ -741,11 +741,11 @@ it("scores a proved measured prefix and each coordinated indefinite suffix at it
 
 describe("indefinite evidence cannot borrow authority from quoted or alternative context", () => {
   const version = { profile: "r3-material-proof-v2" };
-  const producer = (entry: Input) => diagnoseFoodMaterialUnquantifiedIncrements({
+  const producer = (entry: Input, lexicalEntries: GovernedLexiconEntry[] = []) => diagnoseFoodMaterialUnquantifiedIncrements({
     rawText: entry.text, modality: entry.modality, sourceRef: "c1b:" + entry.id,
     lexiconRevision: ref.lexiconRevision, ownerUserId: null, locale: "pt-BR",
     now: new Date("2026-11-25T00:00:00Z"),
-  }, { load: async () => [] });
+  }, { load: async () => lexicalEntries });
   const gold = (entry: Input) => [{ id: entry.id, facts: [{
     kind: "pending-increment", scope: at(entry.text, "mais um pouco"),
     operator: at(entry.text, "mais"), amount: null,
@@ -754,6 +754,7 @@ describe("indefinite evidence cannot borrow authority from quoted or alternative
   it.each([
     ["Café ou chá e mais um pouco", "Café e  chá e mais um pouco"],
     ["Café sem chá e mais um pouco", "Café com chá e mais um pouco"],
+    ["Não acrescente café e mais um pouco", "Xxx acrescente café e mais um pouco"],
     ["“café; mais um pouco; chá”", " café; mais um pouco; chá "],
     ["«café e mais um pouco; chá»", " café e mais um pouco; chá "],
   ])("refuses both a mislabeled scope and a forged child: %s", async (text, neutral) => {
@@ -782,6 +783,54 @@ describe("indefinite evidence cannot borrow authority from quoted or alternative
     const forged = seal([entry], [{ id: entry.id, result }], gold(entry), version, []);
     expect(() => compareSealedUnquantifiedMaterialProof(forged)).toThrow("pending-authority");
     expect(forged.readLabels).not.toHaveBeenCalled();
+  });
+
+  const protectedRole = (term: string, extra: Partial<GovernedLexiconEntry> = {}) =>
+    lex(term, 25, { kind: "protected_token", targetType: "none", targetRef: null, ...extra });
+  it.each([
+    ["exact protection", "mais um pouco", "mais um pouco", [protectedRole("mais um pouco")]],
+    ["protected edge", "Café e leite com mais um pouco", "leite com mais um pouco", [protectedRole("mais um pouco")]],
+    ["protected interior", "Café e leite com mais um pouco", "leite com mais um pouco", [protectedRole("com mais um pouco")]],
+    ["protected coordination", "Café e leite com mais um pouco", "leite com mais um pouco", [protectedRole("café e leite")]],
+    ["active alias", "mais um pouco", "mais um pouco", [lex("mais um pouco", 20)]],
+    ["competing aliases", "mais um pouco", "mais um pouco", [lex("mais um pouco", 20), lex("mais um pouco", 21)]],
+  ] as const)("uses the pinned S2 context independently at admission and capture: %s",
+    async (_name, text, fragment, rows) => {
+      const entry = input(1, text);
+      const claimed = [{ id: entry.id, facts: [{
+        kind: "pending-increment", scope: at(text, fragment), operator: at(text, "mais"), amount: null,
+      }] }];
+      const activeRows = [...rows];
+      const actual = await producer(entry, activeRows);
+      const actualChildren = "affected" in actual ? actual.affected.filter(row => row.pendingObservation) : [];
+      expect(actualChildren).toHaveLength(0);
+      const packet = seal([entry], [{ id: entry.id, result: actual }], claimed, version, activeRows);
+      expect(() => preflightUnquantifiedMaterialProofReference({ ...packet, labels: packet.readLabels() }))
+        .toThrow("label-operator");
+      const forged = seal([entry], [{ id: entry.id, result: await producer(entry) }], claimed, version, activeRows);
+      expect(() => compareSealedUnquantifiedMaterialProof(forged)).toThrow("pending-authority");
+      expect(forged.readLabels).not.toHaveBeenCalled();
+    });
+
+  it("distinguishes inactive protection from an unpinned time-dependent role", async () => {
+    const entry = input(1, "mais um pouco");
+    for (const inactive of [
+      protectedRole(entry.text, { current: false }),
+      protectedRole(entry.text, { status: "revoked" }),
+      protectedRole(entry.text, { locale: "en-US" }),
+    ]) {
+      const capture = await producer(entry, [inactive]);
+      const packet = seal([entry], [{ id: entry.id, result: capture }], gold(entry), version, [inactive]);
+      expect(compareSealedUnquantifiedMaterialProof(packet).totals).toMatchObject({ abstained: 1, missing: 0 });
+    }
+    const future = protectedRole(entry.text, { validFrom: new Date("2026-12-01T00:00:00Z") });
+    const candidate = seal([entry], [{ id: entry.id, result: await producer(entry, [future]) }],
+      gold(entry), version, [future]);
+    expect(() => preflightUnquantifiedMaterialProofReference({ ...candidate, labels: candidate.readLabels() }))
+      .toThrow("label-operator");
+    candidate.readLabels.mockClear();
+    expect(() => compareSealedUnquantifiedMaterialProof(candidate)).toThrow("pending-authority");
+    expect(candidate.readLabels).not.toHaveBeenCalled();
   });
 
   it("keeps an independently delimited fact after completed speech and an alternative", async () => {

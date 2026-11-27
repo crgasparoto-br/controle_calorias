@@ -372,7 +372,7 @@ export function trimSpan(text: string, start: number, end: number): Segment | nu
  * The returned offsets always refer to the original, untouched segment.
  */
 function protectedConjunctions(
-  segment: Segment, protectedTerms: readonly string[], connector = "e",
+  segment: Segment, protectedTerms: readonly string[], connector = "e", includePhraseEdges = false,
 ): Set<number> {
   const tokenPattern = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu;
   const words = [...segment.text.matchAll(tokenPattern)].map(match => ({
@@ -381,10 +381,11 @@ function protectedConjunctions(
   const protectedOffsets = new Set<number>();
   for (const term of protectedTerms) {
     const phrase = [...term.matchAll(tokenPattern)].map(match => foldFoodSurface(match[0]));
-    if (phrase.length < 3 || !phrase.includes(connector) || phrase.length > words.length) continue;
+    if (phrase.length < (includePhraseEdges ? 1 : 3) || !phrase.includes(connector) || phrase.length > words.length) continue;
     for (let start = 0; start <= words.length - phrase.length; start++) {
       if (!phrase.every((word, offset) => words[start + offset].folded === word)) continue;
-      for (let offset = 1; offset < phrase.length - 1; offset++) {
+      const edge = includePhraseEdges ? 0 : 1;
+      for (let offset = edge; offset < phrase.length - edge; offset++) {
         if (phrase[offset] === connector) protectedOffsets.add(words[start + offset].start);
       }
     }
@@ -690,9 +691,15 @@ export function splitFoodSurface(
     }
     for (const open of opens) enclosedRanges.push({ start: open.index, end: text.length });
   }
-  const blocksIndefinite = (scope: Segment | null) =>
-    scope === null || enclosedRanges.some(r => r.start < scope.end && r.end > scope.start) ||
-    /(?<![\p{L}\p{M}\p{N}])(?:ou|sem)(?![\p{L}\p{M}\p{N}])/iu.test(scope.text);
+  const indefiniteBlockedBlocks = new Set<number>();
+  if (pendingIncrementMode?.allowUnquantified) {
+    for (const [i, scope] of hardBlocks.entries()) {
+      if (!scope || enclosedRanges.some(r => r.start < scope.end && r.end > scope.start) ||
+          /(?<![\p{L}\p{M}\p{N}])(?:ou|sem|n[aã]o|nem|nunca)(?![\p{L}\p{M}\p{N}])/iu.test(scope.text)) {
+        indefiniteBlockedBlocks.add(i);
+      }
+    }
+  }
   const parts: Segment[] = [];
   // A label is not a catch-all for whatever follows a measured ingredient.
   // Accept only words joined by ordinary spacing or intra-word punctuation.
@@ -706,13 +713,16 @@ export function splitFoodSurface(
   const hasNegationOperator = (scope: Segment | null) =>
     scope !== null && operatorsIn(scope).some(match => negationOperator.test(match[0]));
   let blockHasNegation = hasNegationOperator(block);
-  let indefiniteBlocked = pendingIncrementMode?.allowUnquantified && blocksIndefinite(block);
+  const protectedDiagnosticOffsets = (scope: Segment | null) => pendingIncrementMode?.allowUnquantified && scope && protectedTerms.length
+    ? { increment: protectedConjunctions(scope, protectedTerms, "mais", true),
+        coordination: protectedConjunctions(scope, protectedTerms, "e", true) } : null;
+  let indefiniteProtected = protectedDiagnosticOffsets(block);
   for (const part of joined) {
     while (part.start > (hardStops[stopIndex] ?? text.length)) {
       const start = hardStops[stopIndex++] + 1;
       block = trimSpan(text, start, hardStops[stopIndex] ?? text.length);
       blockHasNegation = hasNegationOperator(block);
-      indefiniteBlocked = pendingIncrementMode?.allowUnquantified && blocksIndefinite(block);
+      indefiniteProtected = protectedDiagnosticOffsets(block);
     }
     const operators = operatorsIn(part);
     const previous = parts.at(-1);
@@ -822,7 +832,8 @@ export function splitFoodSurface(
             measureSpan: { start: suffix.start, end: suffix.end },
             value: amount.value, unit: amount.unit,
           };
-        } else if (pendingIncrementMode?.allowUnquantified && !indefiniteBlocked &&
+        } else if (pendingIncrementMode?.allowUnquantified && !indefiniteBlockedBlocks.has(stopIndex) &&
+            !indefiniteProtected?.increment.has(op.index - (block?.start ?? 0)) &&
             /^[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u.test(suffix.text)) {
           // In this diagnostic dialect the isolated indefinite quantifier
           // establishes the operator, never a value, unit, target, or owner.
@@ -833,14 +844,18 @@ export function splitFoodSurface(
         }
       }
     }
-    if (pendingIncrementMode?.allowUnquantified && !indefiniteBlocked && !pendingIncrement &&
+    if (pendingIncrementMode?.allowUnquantified && !indefiniteBlockedBlocks.has(stopIndex) && !pendingIncrement &&
         continuation && !withheldScope && !found && !negation && !blockHasNegation &&
         /^[ \t]+e[ \t]+$/iu.test(gap) && deContinuationAfter(stopIndex) === null) {
       // Only refine an existing coordinated residual. Neither a soft
       // separator nor the nominal prefix establishes an owner or measure.
       const more = operators.filter(m => m.groups?.increment && /^[Mm][Aa][Ii][Ss]$/u.test(m[0]));
       const cue = more.length === 1 ? more[0] : undefined;
-      if (cue && !groupingDepthDelta[cue.index]) {
+      const eIndex = previous ? previous.end + gap.search(/[^ \t]/u) : -1;
+      const contextualProtection = indefiniteProtected && block && cue &&
+        (indefiniteProtected.increment.has(cue.index - block.start) ||
+         indefiniteProtected.coordination.has(eIndex - block.start));
+      if (cue && !groupingDepthDelta[cue.index] && !contextualProtection) {
         const end = cue.index + cue[0].length;
         const prefix = text.slice(part.start, cue.index);
         const connector = operators.length === 2 &&
