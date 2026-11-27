@@ -880,9 +880,12 @@ essa prova. Ele nunca confere identidade, porção, vínculo nutricional ou regi
 Um decodificador estrutural não prova generalização ou autorização de consumo.
 O recorte inicial é uma continuação coordenada que o contrato pendente já
 tipa. Para a prova literal usa medida métrica decimal (`ml`, `g`, `kg`) e,
-quando escrito, um único núcleo nominal introduzido por `de`. Associações
-duvidosas ou com conflito léxico não recebem prova; a abstenção não conta
-como cobertura da família.
+quando escrito, um único núcleo nominal introduzido por `de` e confirmado
+pelo inventário positivo inicial do R4 (`açai`, `açaí`, `cacau`, `café`, `caju`,
+`jaca`, `leite`). O inventário só confirma o papel da palavra escrita,
+não a identidade do alimento. Um termo fora dele, duvidoso ou em conflito
+não recebe prova: as duas pendências são preservadas, sem reclassificar o
+trecho como “sem nome”. A abstenção não conta como cobertura da família.
 
 - Controle nomeado: açúcar medido em item independente; `100 ml de leite` no
   trecho retido antes de dois “mais um pouco”. O primeiro pendente tem a medida

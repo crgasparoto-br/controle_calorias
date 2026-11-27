@@ -144,9 +144,7 @@ export function readQuantity(
     const nameStart = source.length - name.length;
     if (name && nameStart >= consumed && source.endsWith(name)) {
       sourceSpans.name = { start: sourceStart + nameStart, end: sourceStart + source.length };
-      if (sourceSpans.checkWrittenNominal && writtenNominalWord.test(name) &&
-          !nonNominalWord.test(foldFoodSurface(name)) && !materialQualifier.test(name) &&
-          parseNumber(name) === null && recognizedUnit(name) === null) {
+      if (sourceSpans.checkWrittenNominal && isWrittenClarificationNominal(name)) {
         sourceSpans.writtenNominalProven = true;
       }
     }
@@ -422,7 +420,16 @@ const simpleName = new RegExp("^" + nominalWordPattern + "$", "u");
 const literalMore = /^[Mm][Aa][Ii][Ss]$/u;
 const littleAmount = /^[ \t]+[Uu][Mm][ \t]+[Pp][Oo][Uu][Cc][Oo]$/u;
 const nonNominalWord = /^(?:o|a|os|as|e|ou|nem|com|sem|mais|por|para|mas|que|se|zero|nada|nao|nenhum[ao]?|qualquer|pouco|de|da|do|das|dos|uns|umas|mil|milhao|milhoes)$/u;
-const writtenNominalWord = /^[\p{L}][\p{L}\p{M}]*$/u;
+// Initial R4 lexical-role inventory, not a catalog, alias map or identity
+// lookup. Being alphabetic (or absent from a denylist) is not proof. Only
+// these explicit pt-BR spellings are supported; all other tokens abstain.
+const clarificationNominalForms: ReadonlySet<string> = new Set([
+  "açai", "açaí", "cacau", "café", "caju", "jaca", "leite",
+]);
+
+function isWrittenClarificationNominal(literal: string): boolean {
+  return clarificationNominalForms.has(literal.normalize("NFC").toLocaleLowerCase("pt-BR"));
+}
 // Units here describe a literal shape, never food knowledge or a conversion.
 export const WRITTEN_MEASURE_UNITS = ["ml", "g", "kg"] as const;
 const metricDecimal = new RegExp("^([0-9]+(?:[,.][0-9]+)?)[ \t]+(" +

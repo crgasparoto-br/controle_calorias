@@ -34,6 +34,7 @@ describe("slots locais de esclarecimento sem autoridade material", () => {
     ["15,5 g de jaca", "15,5 g", 15.5, "g", "jaca"],
     ["0015,50 g de jaca", "0015,50 g", 15.5, "g", "jaca"],
     ["0,25 KG de açai", "0,25 KG", 0.25, "kg", "açai"],
+    ["14 ml de caju", "14 ml", 14, "ml", "caju"],
     ["14 ml", "14 ml", 14, "ml", null],
   ] as const)("pina o numeral e unidade da superfície de %s, sem conversão",
     async (prefix, literal, value, unit, nominal) => {
@@ -117,6 +118,34 @@ describe("R4 recusa evidência usada como autoridade", () => {
       change(clone);
       expect(parseFoodMaterialClarificationObservationBatch([clone]).ok).toBe(false);
     }
+  });
+
+  it.each(["cada", "isso", "dele", "também", "talvez", "depois", "beber", "framboesa",
+    "CÁJU", "inventadomo"])("não confunde uma palavra escrita com prova de papel nominal: %s", async token => {
+    const [reference] = await pending(writtenTurn("100 ml de caju"));
+    const proof = reference.clarificationEvidence;
+    if (!proof?.writtenNominal?.anchor.span) throw new Error("expected positive witness");
+    const rows = await pending(writtenTurn("100 ml de " + token));
+    expect(rows).toHaveLength(2);
+    expect(rows.every(row => row.clarificationEvidence === null)).toBe(true);
+    expect(parseFoodMaterialClarificationObservationBatch(rows).ok).toBe(true);
+
+    const [first, second] = rows;
+    const start = proof.writtenNominal.anchor.span.start;
+    const fabricated = {
+      ...first,
+      clarificationEvidence: {
+        ...proof,
+        operatorEvidenceId: first.evidence[0].evidenceId,
+        writtenNominal: { literal: token, anchor: { ...proof.writtenNominal.anchor,
+          span: { start, end: start + token.length },
+        } },
+      },
+    };
+    expect(parseFoodMaterialClarificationObservationBatch([fabricated, second]).ok).toBe(false);
+    expect(parseFoodMaterialClarificationObservationBatch([
+      { ...fabricated, clarificationEvidence: { ...fabricated.clarificationEvidence, writtenNominal: null } }, second,
+    ]).ok).toBe(false);
   });
 
   it("a segunda observação não reutiliza as âncoras da primeira", async () => {
