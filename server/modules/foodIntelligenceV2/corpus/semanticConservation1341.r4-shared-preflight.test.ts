@@ -76,6 +76,8 @@ const scenarios = (["text", "audio_transcript"] as const).flatMap(modality => [
   { modality, role: "unproven", name: "leite", clock: "2026-11-27T23:59:59.999Z" },
   { modality, role: "proven", name: "leite", clock: to },
   { modality, role: "absent", name: "", clock: from },
+  { modality, role: "absent", name: "", clock: from, unitOverlap: true, blocked: true },
+  { modality, role: "absent", name: "", clock: to, unitOverlap: true },
   { modality, role: "unproven", name: "framboesa", clock: to },
   { modality, role: "proven", name: "caju", clock: "2026-11-27T00:00:00.999Z", protect: true },
   { modality, role: "proven", name: "caju", clock: "2026-11-27T00:00:02.000Z", protect: true },
@@ -107,8 +109,10 @@ it.each(scenarios)("scores $modality: $name as $role at $clock", async scenario 
   }] }] };
   const labels = bytes(label);
   const input = { id, text, modality, split: "calibration", semanticGroup: "4".repeat(32) };
-  const entries = "protect" in scenario ? [collision, protectedIngredient] : [collision];
-  const inputs = bytes([input]), lexiconSnapshot = bytes(entries), profile = "r4-clarification-public-proof-v1";
+  const entries = "protect" in scenario ? [collision, protectedIngredient] : "unitOverlap" in scenario
+    ? [{ ...collision, term: "ml", normalizedTerm: "ml", targetRef: "ml" }] : [collision];
+  const blocked = role === "unproven" || "blocked" in scenario;
+  const inputs = bytes([input]), profile = "r4-clarification-public-proof-v1";
 
   const result = await diagnoseFoodMaterialClarificationEvidence({
     rawText: text, modality: input.modality, sourceRef: "c1b:" + id,
@@ -116,7 +120,8 @@ it.each(scenarios)("scores $modality: $name as $role at $clock", async scenario 
   }, { load: async ({ now }) => { expect(now.toISOString()).toBe(lexicalAtUtc); return entries; } });
   if (result.ok || result.reason !== "unproven-material") throw new Error("expected drafted pending capture");
   const readLabels = vi.fn((read: Buffer) => read);
-  function evaluate(candidate: unknown, read = labels, pinned = labels) {
+  function evaluate(candidate: unknown, read = labels, pinned = labels, snapshot: unknown = entries) {
+    const lexiconSnapshot = bytes(snapshot);
     const manifest = bytes({ profile, schemaVersion: 1, studyId, parserSha, comparatorSha, lexicalAtUtc,
       adrSha256, lockfileSha256, lexiconRevision, lexiconSha256: digest(lexiconSnapshot),
       inputsSha256: digest(inputs), labelsSha256: digest(pinned), caseCount: 1 });
@@ -131,10 +136,25 @@ it.each(scenarios)("scores $modality: $name as $role at $clock", async scenario 
   const good = evaluate(result);
   expect(good.material).toEqual({ verified: 1, abstained: 2, missing: 0, mismatch: 0, duplicate: 0, extra: 0 });
   expect(good.clarification).toMatchObject({
-    measureRetained: role === "unproven" ? 0 : 1, measureMissing: 0, measureMismatch: 0,
-    namedProven: Number(role === "proven"), nameAbsent: Number(role === "absent"),
-    unprovenAbstention: Number(role === "unproven"), unexpected: 0,
+    measureRetained: blocked ? 0 : 1, measureMissing: 0, measureMismatch: 0,
+    namedProven: Number(role === "proven"), nameAbsent: Number(role === "absent" && !blocked),
+    unprovenAbstention: Number(blocked), unexpected: 0,
   });
+  if (name === "caju" && role === "proven") {
+    const overlapping = { ...collision, term: "caju", normalizedTerm: "caju" };
+    // The recognized active entry blocks the earlier proof. Malformed snapshots
+    // must also fail before labels, not silently filter away the collision.
+    readLabels.mockClear();
+    expect(() => evaluate(result, labels, labels, [overlapping])).toThrow("clarification-lexical-witness");
+    for (const malformed of [
+      { kind: "unit_tem" }, { targetType: "food_varant" }, { scope: "globl" },
+      { status: "verifed" }, { validFrom: to, validTo: from },
+      { validFrom: from, validTo: from },
+    ]) {
+      expect(() => evaluate(result, labels, labels, [{ ...overlapping, ...malformed }])).toThrow("lexicon-shape");
+    }
+    expect(readLabels).not.toHaveBeenCalled();
+  }
   if (name === "leite" && role === "unproven") {
     const earlier = await diagnoseFoodMaterialClarificationEvidence({
       rawText: text, modality, sourceRef: "c1b:" + id, lexiconRevision, ownerUserId: null,
@@ -163,7 +183,7 @@ it.each(scenarios)("scores $modality: $name as $role at $clock", async scenario 
     const duplicate = bytes(invalid);
     expect(() => evaluate(result, duplicate, duplicate)).toThrow("label-clarification-scope");
   }
-  if (role !== "unproven") {
+  if (!blocked) {
     const erased = structuredClone(result);
     erased.affected[0].pendingObservation!.clarificationEvidence = null;
     expect(evaluate(erased)).toMatchObject({ material: { abstained: 2, missing: 0 }, clarification: { measureMissing: 1 } });

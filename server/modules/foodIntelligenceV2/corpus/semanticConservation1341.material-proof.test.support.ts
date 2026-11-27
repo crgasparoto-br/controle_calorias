@@ -838,8 +838,13 @@ function compareSealedMaterialProofFor(config: SealedMaterialProof, version: Pro
 // R3 has no trusted lexical clock. R4 projects the active global rows for its
 // independently pinned instant, without widening the inherited R3 contract.
 const timedLexicalRow = lexicalRow.extend({
+  kind: z.enum(["slang", "abbreviation", "regionalism", "typo", "alias_surface", "portion_term", "unit_term", "protected_token"]),
+  targetType: z.enum(["canonical_term", "food_variant", "none"]),
+  scope: z.enum(["global", "user"]),
+  status: z.enum(["verified", "provisional", "pending_review", "rejected", "revoked", "active"]),
   validFrom: lexicalUtc.nullable(), validTo: lexicalUtc.nullable(),
-});
+}).refine(row => row.validFrom === null || row.validTo === null ||
+  Date.parse(row.validFrom) < Date.parse(row.validTo));
 function publicLexicon(snapshot: Uint8Array, lexicalAtUtc: string) {
   const at = new Date(lexicalAtUtc);
   const date = (bound: string | null) => bound === null ? null : new Date(bound);
@@ -1001,12 +1006,14 @@ export function comparePublicClarificationProof(
         fail("label-clarification-measure");
       }
       const witness = publicWrittenWitness(input, want.scope, increment.operator, lexicon);
-      const expectedRole = witness === null ? "unproven" : witness.writtenNominal === null ? "absent" : "proven";
+      // Absence describes the literal slot. Even an absent slot can
+      // be ineligible for written proof when a governed unit collides.
+      const expectedRole = mid === null ? "absent" : witness === null ? "unproven" : "proven";
       if (want.nominal.status !== expectedRole ||
           (witness?.writtenNominal && !same(mid, witness.writtenNominal))) fail("label-clarification-lexical-role");
       const row = affected.get(scopeKey);
       const got = row?.clarificationEvidence;
-      if (want.nominal.status === "unproven") {
+      if (witness === null) {
         if (row && got === null) clarification.unprovenAbstention++;
         else clarification.unexpected++;
         continue;
