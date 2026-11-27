@@ -9,6 +9,7 @@ import {
   FOOD_CONTEXT_STATUSES,
   FOOD_CONTRACT_LIMITS,
   FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION,
+  FOOD_MATERIAL_CLARIFICATION_OBSERVATION_SCHEMA_VERSION,
   FOOD_OBSERVATION_SCHEMA_VERSION,
   FOOD_OPERATION_ENVELOPE_SCHEMA_VERSION,
   FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
@@ -25,7 +26,10 @@ import {
   positiveInt,
 } from "./schemaShared";
 import { foodObservationSchema, type FoodObservation } from "./observationSchemas";
-import { foodMaterialObservationBatchSchema, type FoodMaterialObservation } from "./materialObservationSchemas";
+import {
+  foodMaterialObservationBatchSchema, foodMaterialClarificationObservationBatchSchema,
+  type FoodMaterialObservation, type FoodMaterialClarificationObservation,
+} from "./materialObservationSchemas";
 import { foodResolutionDecisionSchema, type FoodResolutionDecision } from "./decisionSchemas";
 
 export const foodMealOperationSchema = z.strictObject({
@@ -157,10 +161,22 @@ export function parseFoodObservation(
 export function parseFoodMaterialObservationBatch(
   input: unknown
 ): FoodContractParseResult<FoodMaterialObservation[]> {
+  return parseMaterialBatch(input, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION, foodMaterialObservationBatchSchema);
+}
+
+/** Revisão material 4 opt-in, sem conversão de fragmentos ou de revisões anteriores. */
+export function parseFoodMaterialClarificationObservationBatch(
+  input: unknown
+): FoodContractParseResult<FoodMaterialClarificationObservation[]> {
+  return parseMaterialBatch(input, FOOD_MATERIAL_CLARIFICATION_OBSERVATION_SCHEMA_VERSION,
+    foodMaterialClarificationObservationBatchSchema);
+}
+
+function parseMaterialBatch<T>(input: unknown, revision: number, schema: z.ZodType<T[]>): FoodContractParseResult<T[]> {
   if (Array.isArray(input) && input.length <= FOOD_CONTRACT_LIMITS.observations) {
     const incompatible = input.findIndex(row => {
       const version = readSchemaVersion(row);
-      return version !== null && version !== FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION;
+      return version !== null && version !== revision;
     });
     if (incompatible >= 0) {
       return {
@@ -169,12 +185,12 @@ export function parseFoodMaterialObservationBatch(
         issues: [{
           path: incompatible + ".schemaVersion",
           code: "unsupported_schema_version",
-          message: "Lote de vínculos materiais exige observações da mesma revisão 3.",
+          message: `Lote de vínculos materiais exige observações da mesma revisão ${revision}.`,
         }],
       };
     }
   }
-  const parsed = foodMaterialObservationBatchSchema.safeParse(input);
+  const parsed = schema.safeParse(input);
   return parsed.success
     ? { ok: true, value: parsed.data }
     : { ok: false, code: "invalid-contract", issues: toIssues(parsed.error) };
@@ -210,4 +226,4 @@ export type { FoodAnchor, FoodEvidence, FoodQualifier } from "./schemaShared";
 export * from "./observationSchemas";
 export * from "./decisionSchemas";
 
-export type { FoodMaterialObservation } from "./materialObservationSchemas";
+export type { FoodMaterialObservation, FoodMaterialClarificationObservation, FoodClarificationEvidence } from "./materialObservationSchemas";

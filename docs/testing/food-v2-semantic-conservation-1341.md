@@ -869,3 +869,41 @@ gabarito. Use `prepareUnquantifiedMaterialProofInputs`,
 controles existentes são fixtures conhecidas, não amostra reservada nem
 prova de generalização. Não altera o estado do F34, a ativação V2 ou qualquer
 porta de persistência.
+
+## Evidência de esclarecimento na revisão opt-in R4
+
+`diagnoseFoodMaterialClarificationEvidence` e
+`parseFoodMaterialClarificationObservationBatch` exercitam a decisão de
+27/11/2026 na ADR. A revisão 4 mantém o mesmo formato de observação e acrescenta
+um papel lexical interno. O novo campo fica nulo nas observações que não carregam
+essa prova. Ele nunca confere identidade, porção, vínculo nutricional ou registro.
+Um decodificador estrutural não prova generalização ou autorização de consumo.
+O recorte inicial é uma continuação coordenada que o contrato pendente já
+tipa. Para a prova literal usa medida métrica decimal (`ml`, `g`, `kg`) e,
+quando escrito, um único núcleo nominal introduzido por `de` e confirmado
+pelo inventário positivo inicial do R4 (`açai`, `açaí`, `cacau`, `café`, `caju`,
+`jaca`, `leite`). O inventário só confirma o papel da palavra escrita,
+não a identidade do alimento. Um termo fora dele, duvidoso ou em conflito
+não recebe prova: as duas pendências são preservadas, sem reclassificar o
+trecho como “sem nome”. A abstenção não conta como cobertura da família.
+
+- Controle nomeado: açúcar medido em item independente; `100 ml de leite` no
+  trecho retido antes de dois “mais um pouco”. O primeiro pendente tem a medida
+  literal e o nome escrito, associados somente ao próprio operador; os dois
+  incrementos têm âncoras distintas e continuam sem alvo e sem medida.
+- Controle sem nome: `100 ml com mais um pouco e mais um pouco` preserva o volume
+  como escrito e não atribui o volume a um alimento vizinho. Decimal e origem
+  Unicode são avaliados em texto e transcrição sintética.
+- Refutações: nome, medida, unidade, operador e fonte trocados, escopo negado,
+  alternativa, aspas e fragmentos fora da observação; rejeitar a promoção para
+  `quantityHints`, `unresolvedAmount` ou leitura R2/R3. O resolvedor vigente
+  deve recusar a revisão nova antes de ler conhecimento ou preparar dado pendente.
+- As observações independentes preservam seus fatos. Não mudar o resultado
+  padrão, os dois perfis diagnósticos anteriores, nem o verificador selado R3.
+  A rotina ou teste não cria lote elegível, efeito de gravação ou migração.
+
+Este recorte não abre a reserva, não congela o P0, não encerra F34, #1341 ou
+#1297 e não autoriza a integração dos entrypoints de #1308. Os testes
+`linguisticClarificationEvidence.test.ts` e
+`corpus/semanticConservation1341.clarification-evidence.test.ts` são fixtures
+autoriais públicas do repositório, sem provedor de IA, base ou dados reais.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   FOOD_CONTRACT_LIMITS,
+  FOOD_MATERIAL_CLARIFICATION_OBSERVATION_SCHEMA_VERSION,
   FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION,
   isGovernedEvidenceField,
 } from "./contracts";
@@ -9,10 +10,13 @@ import {
   validateFoodObservationFields,
 } from "./observationSchemas";
 import {
+  foodAnchorSchema,
   foodEvidenceSchemaForFields,
   nonEmptyText,
   opaqueId,
 } from "./schemaShared";
+import { hasWrittenClarificationContext, readWrittenClarificationPrefix, WRITTEN_MEASURE_UNITS } from "./linguisticSurface";
+import type { Segment } from "./linguisticSurface";
 
 // Schema-owned wire discriminants. Decoding/validation and cross-reference
 // checks use the same declared values, without a vocabulary of food names.
@@ -132,16 +136,17 @@ const materialObservationSchema = z
   .superRefine(validateFoodObservationFields);
 
 export type FoodMaterialObservation = z.infer<typeof materialObservationSchema>;
+type MaterialFields = Omit<FoodMaterialObservation, "schemaVersion">;
 type MaterialClaim = z.infer<typeof materialClaimSchema>;
 type MaterialEvidence = z.infer<typeof materialEvidenceSchema>;
 type LocatedClaim = {
   claim: MaterialClaim;
-  observation: FoodMaterialObservation;
+  observation: MaterialFields;
   path: (string | number)[];
 };
 
 function localAnchor(
-  observation: FoodMaterialObservation,
+  observation: MaterialFields,
   evidence: MaterialEvidence
 ) {
   const surface = observation.surfaceSpan;
@@ -229,15 +234,15 @@ function unionSpans(spans: Span[]): Span[] {
 }
 
 function validateMaterialBatch(
-  observations: FoodMaterialObservation[],
+  observations: MaterialFields[],
   ctx: z.RefinementCtx
 ) {
   const addIssue = (path: (string | number)[], message: string) =>
     ctx.addIssue({ code: "custom", path, message });
-  const byId = new Map<string, FoodMaterialObservation>();
+  const byId = new Map<string, MaterialFields>();
   const sources = new Map<string, string>();
   const byClaim = new Map<string, LocatedClaim>();
-  const usedEvidence = new Map<FoodMaterialObservation, Set<string>>();
+  const usedEvidence = new Map<MaterialFields, Set<string>>();
   const occurrences = new Set<string>();
   const wholeQuantityOccurrences = new Map<string, WholeQuantityOccurrence[]>();
   const measuredOccurrences = new Map<string, QuantityOccurrence[]>();
@@ -592,3 +597,97 @@ export const foodMaterialObservationBatchSchema = z
   .array(materialObservationSchema)
   .max(FOOD_CONTRACT_LIMITS.observations)
   .superRefine(validateMaterialBatch);
+
+
+const writtenLiteralShape = {
+  literal: z.string().min(1).max(FOOD_CONTRACT_LIMITS.shortText),
+  anchor: foodAnchorSchema,
+};
+const clarificationEvidenceSchema = z.strictObject({
+  operatorEvidenceId: opaqueId(),
+  measure: z.strictObject({
+    ...writtenLiteralShape,
+    value: z.number().finite().positive(),
+    unit: z.enum(WRITTEN_MEASURE_UNITS),
+  }),
+  writtenNominal: z.strictObject(writtenLiteralShape).nullable(),
+});
+export type FoodClarificationEvidence = z.infer<typeof clarificationEvidenceSchema>;
+
+const materialClarificationObservationSchema = z
+  .strictObject({
+    ...materialObservationSchema.shape,
+    schemaVersion: z.literal(FOOD_MATERIAL_CLARIFICATION_OBSERVATION_SCHEMA_VERSION),
+    clarificationEvidence: clarificationEvidenceSchema.nullable(),
+  })
+  .superRefine(validateFoodObservationFields);
+export type FoodMaterialClarificationObservation = z.infer<typeof materialClarificationObservationSchema>;
+
+function sameWrittenSlot(
+  sourceRef: string, projected: Segment,
+  written: Pick<FoodClarificationEvidence["measure"], "anchor" | "literal">
+) {
+  const { anchor, literal } = written;
+  return anchor.sourceRef === sourceRef && anchor.region === null &&
+    anchor.span?.start === projected.start && anchor.span.end === projected.end &&
+    literal === projected.text;
+}
+
+function isOnlyPendingIncrement(row: FoodMaterialClarificationObservation, evidenceId: string) {
+  const [claim] = row.materialClaims;
+  const [operator] = row.evidence;
+  return row.normalizedInput === null && row.unresolvedReason === "unknown_surface" &&
+    row.alternatives.length === 0 && row.normalizationPath.length === 0 &&
+    Object.values(row.quantityHints).every(value => value === null) &&
+    Object.values(row.identityHints).every(value => value === null || Array.isArray(value) && value.length === 0) &&
+    row.materialClaims.length === 1 && claim?.kind === "increment" &&
+    claim.binding.status === "unresolved" && claim.binding.reason === "owner_unknown" &&
+    claim.binding.candidateObservationIds.length === 0 &&
+    claim.unresolvedAmount === null && claim.ingredient === null && claim.target === null &&
+    claim.operatorEvidenceId === evidenceId &&
+    row.evidence.length === 1 && operator?.evidenceId === evidenceId &&
+    !operator.verified && operator.sourceId === null;
+}
+
+function hasMatchingClarificationSource(
+  row: FoodMaterialClarificationObservation, clarification: FoodClarificationEvidence
+) {
+  const { rawInput, surfaceSpan: { sourceRef, span } } = row;
+  const operator = localAnchor(row, row.evidence[0]);
+  if (!span || !operator || rawInput === null || !hasWrittenClarificationContext(rawInput, span)) return false;
+  const written = readWrittenClarificationPrefix({
+    ...span, text: rawInput.slice(span.start, span.end),
+  }, operator);
+  if (!written || written.measure.value !== clarification.measure.value ||
+      written.measure.unit !== clarification.measure.unit ||
+      !sameWrittenSlot(sourceRef, written.measure, clarification.measure)) return false;
+  if (written.writtenNominal === null) return clarification.writtenNominal === null;
+  return clarification.writtenNominal !== null &&
+    sameWrittenSlot(sourceRef, written.writtenNominal, clarification.writtenNominal);
+}
+
+function validateClarificationBatch(
+  observations: FoodMaterialClarificationObservation[], ctx: z.RefinementCtx
+) {
+  validateMaterialBatch(observations, ctx);
+  observations.forEach((row, index) => {
+    const clarification = row.clarificationEvidence;
+    if (clarification === null) return;
+    const { span, sourceRef } = row.surfaceSpan;
+    const overlaps = observations.some(other => {
+      const anchor = other.surfaceSpan;
+      return other !== row && anchor.sourceRef === sourceRef && span !== null && anchor.span !== null &&
+        anchor.span.start < span.end && span.start < anchor.span.end;
+    });
+    if (overlaps || !isOnlyPendingIncrement(row, clarification.operatorEvidenceId) ||
+        !hasMatchingClarificationSource(row, clarification)) {
+      ctx.addIssue({ code: "custom", path: [index, "clarificationEvidence"],
+        message: "Medida de esclarecimento exige uma única pendência local, sem atribuição material." });
+    }
+  });
+}
+
+export const foodMaterialClarificationObservationBatchSchema = z
+  .array(materialClarificationObservationSchema)
+  .max(FOOD_CONTRACT_LIMITS.observations)
+  .superRefine(validateClarificationBatch);

@@ -4,12 +4,15 @@
  * Fonte: ADR Food Intelligence Resolver V2 §4.1–4.2 e §7.1.1.
  */
 import { z } from "zod";
-import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_INPUT_TYPES, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
+import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS, FOOD_INPUT_TYPES, FOOD_MATERIAL_CLARIFICATION_OBSERVATION_SCHEMA_VERSION, FOOD_MATERIAL_OBSERVATION_SCHEMA_VERSION } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
 import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, PendingIncrementCue, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
+import type { ExplicitIngredientMeasure, ExplicitIngredientNegation, PendingIncrementCue, PendingIncrementMode, FoodQuantitySourceSpans, GovernedUnitAlias, MaterialSegmentSyntax, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
-import { parseFoodMaterialObservationBatch, parseFoodObservation, type FoodMaterialObservation, type FoodObservation } from "./schemas";
+import {
+  parseFoodMaterialClarificationObservationBatch, parseFoodMaterialObservationBatch, parseFoodObservation,
+  type FoodClarificationEvidence, type FoodMaterialClarificationObservation, type FoodMaterialObservation, type FoodObservation,
+} from "./schemas";
 import { isLinguisticLexiconEntryValidAt } from "./linguisticLexiconValidity";
 
 export type LinguisticModality = "text" | "audio_transcript" | "image";
@@ -238,8 +241,28 @@ type MaterialProjection = {
   facts: Map<string, ExplicitIngredientMeasure | ExplicitIngredientNegation | null>;
   withheld: Map<number, AffectedMaterial>;
   pendingIncrements?: Map<string, PendingIncrementCue>;
-  pendingIncrementMode?: { readonly allowUnquantified: boolean };
+  pendingIncrementMode?: PendingIncrementMode;
 };
+
+function stagePendingIncrement(
+  cue: PendingIncrementCue, entries: readonly GovernedLexiconEntry[],
+  request: LinguisticRequest, now: Date, units: readonly GovernedUnitAlias[],
+): PendingIncrementCue {
+  const written = cue.writtenPrefix;
+  if (!written) return cue;
+  const slots = [written.measure.unit, cue.operator.text,
+    request.rawText.slice(written.measure.start, cue.operator.start).trim()];
+  if (written.writtenNominal) slots.push(written.writtenNominal.text);
+  const conflicts = slots.some(slot => {
+    const lexical = selectLexicon(entries, slot, request.ownerUserId, now);
+    return lexical.competing.length > 0 || lexical.selected?.requiresClarification === true ||
+      units.some(unit => unit.term === foldFoodSurface(slot));
+  });
+  if (!conflicts) return cue;
+  // A lexical contradiction is not evidence that the nominal was absent.
+  const { writtenPrefix: _withheld, ...pending } = cue;
+  return pending;
+}
 
 function buildObservation(
   request: LinguisticRequest, segment: Segment, index: number, governedUnits: readonly GovernedUnitAlias[] = [],
@@ -590,7 +613,12 @@ export async function comprehendFoodLanguage(
     item.unresolvedReason = "unknown_surface";
     return [validate(item)];
   }
-  const entries = await lexicon.load({ locale: DEFAULT_FOOD_LOCALE, ownerUserId: request.ownerUserId, revision: request.lexiconRevision, now });
+  const entries = await lexicon.load({
+    locale: DEFAULT_FOOD_LOCALE, ownerUserId: request.ownerUserId, revision: request.lexiconRevision,
+    // The opt-in diagnostic uses one pinned clock for loading and arbitration,
+    // without allowing a callback to mutate its local Date through the argument.
+    now: material?.pendingIncrementMode?.retainWrittenMeasure ? new Date(now.getTime()) : now,
+  });
   if (entries.length > 5000) throw new Error("linguistic-lexicon-limit");
   const units = governedUnitAliases(entries, request.ownerUserId, now);
   // A-026: an ungoverned splitter must not preempt the protected S2 snapshot.
@@ -670,7 +698,8 @@ export async function comprehendFoodLanguage(
         material.facts.set(observation.observationId, null);
         if (segmentSyntax.pendingIncrement && !exactChoice.selected && exactChoice.competing.length === 0 &&
             span?.start === part.start && span.end === part.end) {
-          material.pendingIncrements?.set(observation.observationId, segmentSyntax.pendingIncrement);
+          material.pendingIncrements?.set(observation.observationId,
+            stagePendingIncrement(segmentSyntax.pendingIncrement, entries, request, now, units));
         }
       }
     }
@@ -765,6 +794,47 @@ export async function diagnoseFoodMaterialUnquantifiedIncrements(
   return diagnosePendingIncrements(request, lexicon, unquantifiedIncrementProfile);
 }
 
+export type FoodMaterialClarificationLanguageResult =
+  | { ok: true; observations: FoodMaterialClarificationObservation[] }
+  | { ok: false; reason: "unsupported-input" | "invalid-material-observations" }
+  | { ok: false; reason: "unproven-material";
+      affected: (AffectedMaterial & { pendingObservation?: FoodMaterialClarificationObservation })[];
+      observations: FoodMaterialClarificationObservation[] };
+
+/** Explicit R4 diagnostic: reuses the existing splitter and pending projection.
+ * No provider, operation, persistence, or legacy consumer accepts these rows. */
+export async function diagnoseFoodMaterialClarificationEvidence(
+  request: LinguisticRequest, lexicon: LinguisticLexiconStore,
+): Promise<FoodMaterialClarificationLanguageResult> {
+  if (!(request.now instanceof Date) || !Number.isFinite(request.now.getTime())) {
+    return { ok: false, reason: "unsupported-input" };
+  }
+  const snapshot = { ...request, now: new Date(request.now.getTime()) };
+  const pending = new Map<string, FoodMaterialObservation>();
+  const written = new Map<string, FoodClarificationEvidence>();
+  const result = await collectFoodMaterialLanguage(snapshot, lexicon, pending, {
+    allowUnquantified: true, retainWrittenMeasure: true,
+  }, written);
+  if (!("observations" in result)) return result;
+  const revision4 = (row: FoodMaterialObservation): FoodMaterialClarificationObservation => ({
+    ...row, schemaVersion: FOOD_MATERIAL_CLARIFICATION_OBSERVATION_SCHEMA_VERSION,
+    clarificationEvidence: written.get(row.observationId) ?? null,
+  });
+  const checked = parseFoodMaterialClarificationObservationBatch(
+    [...result.observations, ...pending.values()].map(revision4),
+  );
+  if (!checked.ok) return { ok: false, reason: "invalid-material-observations" };
+  const observations = checked.value.slice(0, result.observations.length);
+  if (result.ok) return { ok: true, observations };
+  const checkedPending = new Map(checked.value.slice(result.observations.length).map(row => [row.observationId, row]));
+  return { ok: false, reason: "unproven-material", observations,
+    affected: result.affected.map(row => {
+      const pendingObservation = checkedPending.get(row.observationId);
+      return pendingObservation ? { ...row, pendingObservation } : row;
+    }),
+  };
+}
+
 async function diagnosePendingIncrements<P extends IncrementProfile>(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore, diagnosticProfile: P,
 ): Promise<PendingIncrementDiagnostic<P>> {
@@ -784,7 +854,8 @@ async function diagnosePendingIncrements<P extends IncrementProfile>(
 async function collectFoodMaterialLanguage(
   request: LinguisticRequest, lexicon: LinguisticLexiconStore,
   pending?: Map<string, FoodMaterialObservation>,
-  pendingIncrementMode?: { readonly allowUnquantified: boolean },
+  pendingIncrementMode?: PendingIncrementMode,
+  written?: Map<string, FoodClarificationEvidence>,
 ): Promise<FoodMaterialLanguageResult> {
   const [textModality, transcriptModality] = FOOD_INPUT_TYPES;
   const modality = request.modality;
@@ -813,6 +884,17 @@ async function collectFoodMaterialLanguage(
         const claimId = observationId + ":material";
         const operatorEvidenceId = claimId + ":operator";
         const amountId = claimId + ":amount";
+        if (written && increment.writtenPrefix) {
+          const { measure, writtenNominal } = increment.writtenPrefix;
+          const writtenSlot = ({ start, end, text }: Segment) => ({
+            literal: text, anchor: anchor(request.sourceRef, { start, end }),
+          });
+          written.set(observationId, {
+            operatorEvidenceId,
+            measure: { ...writtenSlot(measure), value: measure.value, unit: measure.unit },
+            writtenNominal: writtenNominal === null ? null : writtenSlot(writtenNominal),
+          });
+        }
         const evidence = {
           origin: modality === transcriptModality ? "transcription" as const : "text" as const,
           confidence: request.transcriptionConfidence ?? null, verified: false, sourceId: null,
