@@ -115,6 +115,29 @@ describe.runIf(Boolean(databaseUrl))("TiDB descartável: revogação explícita,
   });
   afterAll(async () => { await pool.end(); });
 
+  const sharedFixtureDb = () => db as unknown as Awaited<ReturnType<typeof getDb>>;
+
+  async function onFreshDatabaseSession<T>(run: () => Promise<T>) {
+    const cold = createPool({ uri: databaseUrl!, connectionLimit: 1, timezone: "Z" });
+    try {
+      const [[session]] = await cold.query<RowDataPacket[]>("SELECT CONNECTION_ID() AS id");
+      const id = String(session.id);
+      expect(id).toMatch(/^[1-9][0-9]*$/);
+      vi.mocked(getDb).mockResolvedValue(drizzle(cold) as unknown as Awaited<ReturnType<typeof getDb>>);
+      const result = await run();
+      const [[end]] = await cold.query<RowDataPacket[]>("SELECT CONNECTION_ID() AS id");
+      expect(String(end.id)).toBe(id);
+      return { id, result };
+    } finally {
+      vi.mocked(getDb).mockResolvedValue(sharedFixtureDb());
+      await cold.end();
+    }
+  }
+
+  const observeAlias = (normalizedName: string, userId: number) => createFoodV2KnowledgeRepository().readLocal({
+    normalizedName, userId, policyVersion: "fixture:policy", resolverVersion: "fixture:resolver",
+  });
+
   type Problem = "legacy" | "wrong_owner" | "wrong_variant" | "wrong_alias" | "expired" | "inherited";
   async function seed(label: string, problem?: Problem) {
     const name = `revocation fixture ${label}`;
@@ -161,17 +184,18 @@ describe.runIf(Boolean(databaseUrl))("TiDB descartável: revogação explícita,
     const revoke = (holder = owner, lockConfirmationAuthority = issuer, txDb: Dependencies["db"] = db) =>
       createPersonalAliasRevocation({ db: txDb, authenticateHolder: async () => holder, lockConfirmationAuthority });
     const readProof = async () => (await db.select().from(foodEvidence).where(eq(foodEvidence.id, proof.insertId)))[0];
-    const observe = (userId: number) => createFoodV2KnowledgeRepository().readLocal({
-      normalizedName: normalizedAlias, userId, policyVersion: "fixture:policy", resolverVersion: "fixture:resolver",
-    });
+    const observe = (userId: number) => observeAlias(normalizedAlias, userId);
     return { input, normalizedAlias, revoke, readAlias, readProof, observe, issuer, foodId };
   }
 
-  it("revoga uma vez, perde elegibilidade B2 após reinício e preserva evidência/refeição", async () => {
+  it("isola o alias em novas conexões TiDB, revoga uma vez e preserva evidência/refeição", async () => {
+    // The approved fixture is a database row, not acquisition through a product API.
+    const baseline = await onFreshDatabaseSession(() => observeAlias("alias fixture lifecycle", owner));
+    expect(baseline.result.kind).toBe("miss");
     const f = await seed("lifecycle");
-    const latestRead = await f.observe(owner);
-    expect(latestRead).toMatchObject({ kind: "match", matchingEvidence: "personal_alias", variantId: f.input.variantId });
-    expect((await f.observe(other)).kind).toBe("miss");
+    const live = await onFreshDatabaseSession(async () => ({ owner: await f.observe(owner), other: await f.observe(other) }));
+    expect(live.result.owner).toMatchObject({ kind: "match", matchingEvidence: "personal_alias", variantId: f.input.variantId });
+    expect(live.result.other.kind).toBe("miss");
     const meal = await insert("INSERT INTO meals (userId, mealLabel) VALUES (?, 'Fixture histórica')", [owner]);
     const snapshot = JSON.stringify({ foodId: f.foodId, calories: 33, source: "synthetic_history" });
     const item = await insert(`INSERT INTO mealItems
@@ -182,21 +206,46 @@ describe.runIf(Boolean(databaseUrl))("TiDB descartável: revogação explícita,
       policyVersion: "fixture:policy", resolverVersion: "fixture:resolver" };
     const first = buildFoodObservationFixture({ identityHints: { foodName: f.normalizedAlias },
       quantityHints: { value: 100, unit: "g" }, evidence: [] });
-    const originally = await resolveFoodObservation(first, resolverContext, createFoodV2KnowledgeRepository());
+    const { id: originalSession, result: originally } = await onFreshDatabaseSession(() =>
+      resolveFoodObservation(first, resolverContext, createFoodV2KnowledgeRepository()));
     expect(originally.nextAction).toBe("propose");
     const frozenSnapshot = JSON.stringify(originally);
+    const explicitText = `65 g de ${f.normalizedAlias}`;
+    const explicit = buildFoodObservationFixture({ observationId: "obs-fresh-explicit", rawInput: explicitText,
+      normalizedInput: explicitText, identityHints: { foodName: f.normalizedAlias },
+      surfaceSpan: { span: { start: 0, end: explicitText.length } },
+      quantityHints: { value: 65, unit: "g", servingText: null }, evidence: [] });
+    const current = await onFreshDatabaseSession(async () => {
+      const sameInputContext = { ...resolverContext, previousDecision: JSON.parse(frozenSnapshot) };
+      return {
+        newObservation: await resolveFoodObservation(explicit, sameInputContext, createFoodV2KnowledgeRepository()),
+        conflictingRevision: await resolveFoodObservation({ ...explicit, observationId: first.observationId },
+          sameInputContext, createFoodV2KnowledgeRepository()),
+      };
+    });
+    expect(current.result.newObservation.quantity).toMatchObject({ value: 65, unit: "g", grams: 65 });
+    expect(current.result.newObservation.nutrition.consumed?.calories).toBe(65);
+    expect(current.result.newObservation.evidence).toContainEqual(expect.objectContaining({
+      field: "quantity.value", origin: "text", value: 65, unit: "g",
+    }));
+    expect(current.result.conflictingRevision.nextAction).toBe("clarify");
+    expect(current.result.conflictingRevision.unresolvedFields).toContain("quantity");
+    expect(current.result.conflictingRevision.nutrition.consumed).toBeNull();
     const result = await f.revoke()(f.input);
     expect(result).toMatchObject({ kind: "revoked" });
     expect(await f.readAlias()).toMatchObject({ status: "revoked", currentSlot: null });
     expect(await f.revoke()(f.input)).toEqual(result); // fresh service object, exact durable request
     expect(await f.revoke(other)(f.input)).toEqual(denied);
     expect(await f.revoke()({ ...f.input, requestKey: "different_request_key" })).toEqual(denied);
-    expect((await f.observe(owner)).kind).toBe("miss");
-    expect((await f.observe(other)).kind).toBe("miss");
+    const retired = await onFreshDatabaseSession(async () => ({ owner: await f.observe(owner), other: await f.observe(other) }));
+    expect(retired.result.owner.kind).toBe("miss");
+    expect(retired.result.other.kind).toBe("miss");
     const reply = buildFoodObservationFixture({ identityHints: { foodName: null },
       quantityHints: { value: null, unit: null, servingText: null }, evidence: [] });
-    const after = await resolveFoodObservation(reply, { ...resolverContext, previousDecision: JSON.parse(frozenSnapshot) },
-      createFoodV2KnowledgeRepository());
+    const { id: afterSession, result: after } = await onFreshDatabaseSession(() =>
+      resolveFoodObservation(reply, { ...resolverContext, previousDecision: JSON.parse(frozenSnapshot) },
+        createFoodV2KnowledgeRepository()));
+    expect(new Set([baseline.id, live.id, originalSession, current.id, retired.id, afterSession]).size).toBe(6);
     expect(after.nextAction).not.toBe("propose");
     expect(after.nutrition.consumed).toBeNull();
     expect(await f.readProof()).toEqual(proof);
